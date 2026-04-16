@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
 
 use deno_core::error::AnyError;
@@ -7,12 +7,10 @@ use deno_core::op2;
 use deno_core::OpDecl;
 use tokio::sync::oneshot;
 
-use std::sync::atomic::AtomicU32;
-
 /// Global counter for cancel IDs.
 static NEXT_CANCEL_ID: AtomicU32 = AtomicU32::new(1);
 
-/// Map of cancel ID → oneshot sender. When the sender is dropped or sent to,
+/// Map of cancel ID → oneshot sender. When the sender is dropped,
 /// the corresponding `op_fetch` future is cancelled.
 static PENDING_FETCHES: Mutex<Option<HashMap<u32, oneshot::Sender<()>>>> = Mutex::new(None);
 
@@ -674,6 +672,28 @@ mod tests {
             "expected AbortError, got: {}",
             msg
         );
+    }
+
+    // --- Successful fetch with signal that never fires (map cleanup) ---
+
+    #[tokio::test]
+    async fn test_fetch_with_signal_completes_normally() {
+        let (base_url, _handle) = start_test_server(simple_app()).await;
+        let mut rt = create_runtime();
+
+        let result = run_async(
+            &mut rt,
+            &format!(
+                r#"
+                const ac = new AbortController();
+                const resp = await fetch('{}/hello', {{ signal: ac.signal }});
+                return await resp.text();
+            "#,
+                base_url
+            ),
+        )
+        .await;
+        assert_eq!(result.as_str().unwrap(), "Hello, World!");
     }
 
     // --- op_decls ---

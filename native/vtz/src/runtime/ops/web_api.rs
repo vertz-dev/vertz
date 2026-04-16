@@ -586,25 +586,20 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
       options.body = await req.text();
     }
 
-    // Set up abort handling — cancel the Rust op when the signal fires
+    // Set up abort handling — cancel the Rust op when the signal fires.
+    // The early-abort check (signal.aborted at the top) handles pre-aborted signals
+    // before we reach here, so we only need the event listener for future aborts.
     let cancelId;
-    let abortReject;
     let abortPromise;
     if (signal) {
       cancelId = Deno.core.ops.op_fetch_next_cancel_id();
       options._cancelId = cancelId;
 
       abortPromise = new Promise((_, reject) => {
-        abortReject = reject;
-        if (signal.aborted) {
+        signal.addEventListener('abort', () => {
           Deno.core.ops.op_fetch_cancel(cancelId);
           reject(signal.reason || new DOMException_('The operation was aborted.', 'AbortError'));
-        } else {
-          signal.addEventListener('abort', () => {
-            Deno.core.ops.op_fetch_cancel(cancelId);
-            reject(signal.reason || new DOMException_('The operation was aborted.', 'AbortError'));
-          }, { once: true });
-        }
+        }, { once: true });
       });
     }
 
