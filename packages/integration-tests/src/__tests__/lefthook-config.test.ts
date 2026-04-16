@@ -5,35 +5,40 @@ import YAML from 'yaml';
 
 describe('lefthook configuration', () => {
   const loadConfig = () => {
-    const monorepoRoot = path.resolve(process.cwd(), '../..');
+    const monorepoRoot = path.resolve(import.meta.dir, '../../../..');
     const lefthookPath = path.join(monorepoRoot, 'lefthook.yml');
     const content = fs.readFileSync(lefthookPath, 'utf-8');
     return YAML.parse(content);
   };
 
-  it('should have pre-push hook with quality-gates command', () => {
+  it('should have pre-push hook with build-typecheck and test commands', () => {
     const config = loadConfig();
 
     expect(config).toHaveProperty('pre-push');
     expect(config['pre-push']).toHaveProperty('commands');
-    expect(config['pre-push'].commands).toHaveProperty('quality-gates');
-    expect(config['pre-push'].commands['quality-gates']).toHaveProperty('run');
+    expect(config['pre-push'].commands).toHaveProperty('build-typecheck');
+    expect(config['pre-push'].commands['build-typecheck']).toHaveProperty('run');
+    expect(config['pre-push'].commands).toHaveProperty('test');
+    expect(config['pre-push'].commands['test']).toHaveProperty('run');
   });
 
-  it('should run turborepo for typecheck and test, with lint as separate command', () => {
+  it('should use vtz ci for typecheck and test, with lint as separate command', () => {
     const config = loadConfig();
-    const run = config['pre-push'].commands['quality-gates'].run;
+    const buildTypecheck = config['pre-push'].commands['build-typecheck'].run;
+    const test = config['pre-push'].commands['test'].run;
 
-    // Must use turborepo (not dagger, not bare bun run)
-    expect(run).toContain('turbo');
-    expect(run).toContain('typecheck');
-    expect(run).toContain('test');
+    // Must use vtz ci (not turbo, not dagger)
+    expect(buildTypecheck).toContain('vtz ci build-typecheck');
+    expect(test).toContain('vtz ci test');
 
-    // Lint runs as a separate lefthook command (not inside turbo)
+    // Lint runs as a separate lefthook command
     expect(config['pre-push'].commands).toHaveProperty('lint');
 
-    // Should NOT reference dagger (migrated away)
-    expect(run).not.toContain('dagger');
+    // Should NOT reference dagger or turbo (migrated away)
+    expect(buildTypecheck).not.toContain('dagger');
+    expect(buildTypecheck).not.toContain('turbo');
+    expect(test).not.toContain('dagger');
+    expect(test).not.toContain('turbo');
   });
 
   it('should not require LEFTHOOK=0 environment variable', () => {
