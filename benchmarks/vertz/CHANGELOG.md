@@ -1,5 +1,14 @@
 # @vertz-benchmarks/vertz-app
 
+## 0.0.64
+
+### Patch Changes
+
+- Updated dependencies [[`cc998eb`](https://github.com/vertz-dev/vertz/commit/cc998eb9a37a25335764b1250418c0727f49778a)]:
+  - @vertz/ui-server@0.2.66
+  - @vertz/theme-shadcn@0.2.66
+  - @vertz/ui@0.2.66
+
 ## 0.0.63
 
 ### Patch Changes

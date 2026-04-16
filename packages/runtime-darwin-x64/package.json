@@ -1,6 +1,6 @@
 {
   "name": "@vertz/runtime-darwin-x64",
-  "version": "0.2.65",
+  "version": "0.2.66",
   "private": true,
   "description": "Vertz runtime binary for macOS x64",
   "repository": {

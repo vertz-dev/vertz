@@ -1,6 +1,6 @@
 {
   "name": "@vertz/native-compiler",
-  "version": "0.2.65",
+  "version": "0.2.66",
   "exports": {
     "./vertz-compiler.darwin-arm64.node": "./vertz-compiler.darwin-arm64.node",
     "./vertz-compiler.darwin-x64.node": "./vertz-compiler.darwin-x64.node",
@@ -20,10 +20,10 @@
     "test:parity": "ls vertz-compiler.*.node 1>/dev/null 2>&1 && bun test __tests__/parity/ || echo 'Skipping parity tests'"
   },
   "optionalDependencies": {
-    "@vertz/native-compiler-darwin-arm64": "0.2.65",
-    "@vertz/native-compiler-darwin-x64": "0.2.65",
-    "@vertz/native-compiler-linux-x64": "0.2.65",
-    "@vertz/native-compiler-linux-arm64": "0.2.65"
+    "@vertz/native-compiler-darwin-arm64": "0.2.66",
+    "@vertz/native-compiler-darwin-x64": "0.2.66",
+    "@vertz/native-compiler-linux-x64": "0.2.66",
+    "@vertz/native-compiler-linux-arm64": "0.2.66"
   },
   "devDependencies": {
     "@vertz/test": "workspace:*"

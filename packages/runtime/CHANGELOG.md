@@ -1,5 +1,43 @@
 # @vertz/runtime
 
+## 0.2.66
+
+### Patch Changes
+
+- [#2721](https://github.com/vertz-dev/vertz/pull/2721) [`3b610d5`](https://github.com/vertz-dev/vertz/commit/3b610d5496cb5cccfc29fbe406c770b4a5e2ca73) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): drain child stdout/stderr concurrently in ci scheduler to avoid pipe-buffer deadlock
+
+  `vtz ci test` reported packages as `FAILED (exit -1) timeout after 120000ms` even when the underlying test run completed in seconds. Root cause: `execute_command` in the ci scheduler read the child process's piped stdout/stderr only _after_ `child.wait()` returned. Once either pipe filled (~16KB on macOS, ~64KB on Linux), the child blocked on its next `write()`, waiting for the parent to drain — which never happened until after `wait()`. Any real test suite emitting more than a few KB of output hit this.
+
+  Fixed by draining stdout and stderr concurrently with the wait via `tokio::join!`, including inside the timeout-wrapped branch. Two regression tests generate 512KB of output on stdout and stderr respectively; both complete in ms now.
+
+- [#2679](https://github.com/vertz-dev/vertz/pull/2679) [`cd47db1`](https://github.com/vertz-dev/vertz/commit/cd47db1dac1536f670e9fbee963b2bd1a151ff12) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `codegen` subcommand to the vtz CLI, fixing `vtz run codegen` and `vtz dev` codegen step that broke when `@vertz/runtime` bin entry shadowed `@vertz/cli`
+
+- [#2711](https://github.com/vertz-dev/vertz/pull/2711) [`72b6198`](https://github.com/vertz-dev/vertz/commit/72b61989af091dfb56613d28e26fa288c9e07432) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix `vi.mock()` and `spyOn()` on ESM module exports by adding a spy_exports compiler transform that converts `export` declarations to mutable `let` bindings with setter registration, mock proxy generation for CJS/opaque modules, and `mocked_bare_specifiers` to prevent synthetic module intercepts from bypassing `vi.mock()`
+
+- [#2689](https://github.com/vertz-dev/vertz/pull/2689) [`48c651a`](https://github.com/vertz-dev/vertz/commit/48c651a70a0cccc5f96ad06eba22dfcd5f57a399) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix `node:util.types.isTypedArray` to use `Object.prototype.toString` tag-set check instead of `instanceof`, preventing false negatives when TypedArrays cross V8 snapshot boundaries (e.g., PGlite NODEFS)
+
+- [#2683](https://github.com/vertz-dev/vertz/pull/2683) [`52aeed4`](https://github.com/vertz-dev/vertz/commit/52aeed4bbe556159865e4b2e256abad0f8476e0a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): resolve JWKS-based JWT verification returning null in full chain
+
+  Two bugs prevented the full JWT chain (generate → sign → JWKS → verify) from working:
+
+  1. V8 snapshot cross-realm: after snapshot restore, `ArrayBuffer.isView()` in the crypto bootstrap IIFE failed for TypedArrays created in ES modules (different realm constructors). Replaced with duck-type property checks.
+
+  2. HTTP serve URL hostname: `Bun.serve()` hardcoded the bind address (e.g. `0.0.0.0`) in `req.url`, causing JWT issuer mismatch. Now prefers the `Host` header.
+
+- [#2677](https://github.com/vertz-dev/vertz/pull/2677) [`9423bc8`](https://github.com/vertz-dev/vertz/commit/9423bc82802195602c96b66a72fb884f5dae3903) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): register preload script mocks in module loader
+
+  Preload scripts that called `mock.module()` / `vi.mock()` had their mocks silently ignored because the Rust module loader only checked mocks extracted at compile time from the test file. The runtime now bridges preload mocks to the module loader's registry after each preload evaluates.
+
+- [#2710](https://github.com/vertz-dev/vertz/pull/2710) [`cc998eb`](https://github.com/vertz-dev/vertz/commit/cc998eb9a37a25335764b1250418c0727f49778a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix production build pipeline: publish native compiler via platform packages, remove bin link shadowing, align esbuild versions, and hard-fail when native compiler is unavailable
+
+- [#2693](https://github.com/vertz-dev/vertz/pull/2693) [`3695b13`](https://github.com/vertz-dev/vertz/commit/3695b135ea7003c0186efc8720dbc7f7bda17bc3) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(compiler): shorthand method definitions no longer trigger false import injection
+
+  `contains_standalone_call()` now detects shorthand method definitions like `{ batch(items) { } }` by matching the closing `)` and checking for a following `{`. Previously, these were incorrectly treated as standalone function calls, causing spurious `import { batch } from '@vertz/ui'` injections.
+
+- [#2676](https://github.com/vertz-dev/vertz/pull/2676) [`5b84bc4`](https://github.com/vertz-dev/vertz/commit/5b84bc48d523eb7f02c6fe3999df1308099a80ca) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): floor float delay before BigInt conversion in setTimeout/setInterval
+
+  `BigInt()` throws `RangeError` on floating-point numbers. Timer delays like `1.5` or `Math.random() * 10` now work correctly by flooring the value before conversion.
+
 ## 0.2.65
 
 ### Patch Changes

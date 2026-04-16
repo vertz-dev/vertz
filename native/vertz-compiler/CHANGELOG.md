@@ -1,5 +1,11 @@
 # @vertz/native-compiler
 
+## 0.2.66
+
+### Patch Changes
+
+- [#2685](https://github.com/vertz-dev/vertz/pull/2685) [`4cc0aa9`](https://github.com/vertz-dev/vertz/commit/4cc0aa9d170f8fa8ae4f463fb8cff3eefcf1ee6c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix false-positive `batch` import injection when `async batch()` appears as an object method definition
+
 ## 0.1.1
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "vertz",
-  "version": "0.2.65",
+  "version": "0.2.66",
   "description": "Full-stack TypeScript framework — database ORM, API server, compiled UI, and custom runtime. One schema drives every layer.",
   "keywords": [
     "ai",
