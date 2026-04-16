@@ -59,6 +59,7 @@
   "scripts": {
     "build": "vtzx vertz-build",
     "test": "vtz test --timeout 60000 src/",
+    "test:integration": "bun test 'src/__tests__/node-handler.local.ts' 'src/bun-plugin/__tests__/image-processor.local.ts'",
     "test:e2e": "vtzx playwright test",
     "typecheck": "tsgo --noEmit"
   },
