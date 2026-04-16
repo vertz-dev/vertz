@@ -224,7 +224,8 @@ fn strip_comments(code: &str) -> String {
 /// Check if `name(` appears as a standalone call (not a method call like `obj.name(`).
 ///
 /// Returns true only when the character before `name(` is NOT an identifier character
-/// or a `.`, preventing false positives like `db.batch(` from matching `batch(`.
+/// or a `.`, and when it is not preceded by a method-definition keyword like `async`,
+/// `get`, `set`, or `static`.
 fn contains_standalone_call(code: &str, name: &str) -> bool {
     let pattern = format!("{name}(");
     let mut search_from = 0;
@@ -240,8 +241,48 @@ fn contains_standalone_call(code: &str, name: &str) -> bool {
             search_from = abs_pos + pattern.len();
             continue;
         }
+        // Check if this is a method definition preceded by a keyword like
+        // `async batch(`, `get batch(`, `set batch(`, `static batch(`.
+        if is_method_definition_context(code, abs_pos) {
+            search_from = abs_pos + pattern.len();
+            continue;
+        }
         return true;
     }
+    false
+}
+
+/// Check if the token before position `name_pos` is a method-definition keyword.
+///
+/// Matches patterns like `async name(`, `get name(`, `set name(`, `static name(`,
+/// and `* name(` (generator methods). The keyword itself must be at a word boundary
+/// to avoid false matches like `myasync name(`.
+fn is_method_definition_context(code: &str, name_pos: usize) -> bool {
+    let before = code[..name_pos].trim_end();
+    if before.is_empty() {
+        return false;
+    }
+
+    // Generator method: `* name(`
+    if before.ends_with('*') {
+        return true;
+    }
+
+    for keyword in &["async", "get", "set", "static"] {
+        if before.ends_with(keyword) {
+            let kw_start = before.len() - keyword.len();
+            // Keyword at start of string — definitely a word boundary
+            if kw_start == 0 {
+                return true;
+            }
+            let before_kw = before.as_bytes()[kw_start - 1];
+            // The keyword itself must be preceded by a non-identifier char
+            if !before_kw.is_ascii_alphanumeric() && before_kw != b'_' && before_kw != b'$' {
+                return true;
+            }
+        }
+    }
+
     false
 }
 
@@ -730,5 +771,65 @@ mod tests {
             "db.batch(x); other.batch(y);",
             "batch"
         ));
+    }
+
+    // ── Method definition false-positive prevention ───────────────
+
+    #[test]
+    fn does_not_inject_batch_for_async_method_definition() {
+        // async batch(statements) { ... } is a method definition, not a standalone call
+        let code = "const mock = { async batch(statements) { return []; } };";
+        let result = inject(code);
+        assert!(
+            !result.contains("import { batch }"),
+            "should not inject batch for async method definition: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn standalone_call_preceded_by_async_keyword_is_rejected() {
+        assert!(!contains_standalone_call(
+            "async batch(statements) {",
+            "batch"
+        ));
+    }
+
+    #[test]
+    fn standalone_batch_call_still_detected_alongside_async_method() {
+        // An async method definition AND a real standalone call in the same code
+        let code = "const mock = { async batch(stmts) { } };\nbatch(() => { });";
+        let result = inject(code);
+        assert!(
+            result.contains("import { batch } from '@vertz/ui';"),
+            "should still inject batch for standalone call: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn get_method_definition_is_rejected() {
+        assert!(!contains_standalone_call("get signal() {", "signal"));
+    }
+
+    #[test]
+    fn set_method_definition_is_rejected() {
+        assert!(!contains_standalone_call("set signal(value) {", "signal"));
+    }
+
+    #[test]
+    fn static_method_definition_is_rejected() {
+        assert!(!contains_standalone_call("static batch(items) {", "batch"));
+    }
+
+    #[test]
+    fn generator_method_definition_is_rejected() {
+        assert!(!contains_standalone_call("* batch(items) {", "batch"));
+    }
+
+    #[test]
+    fn longer_identifier_ending_in_keyword_does_not_false_exclude() {
+        // `myasync` ends with `async` but is not the keyword — batch is still standalone
+        assert!(contains_standalone_call("myasync batch()", "batch"));
     }
 }
