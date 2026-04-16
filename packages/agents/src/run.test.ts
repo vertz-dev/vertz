@@ -762,6 +762,85 @@ describe('run()', () => {
       });
     });
 
+    describe('Given a 3-level chain (A → B → C)', () => {
+      it('Then identity propagates through each level', async () => {
+        let grandchildUserId: string | null | undefined;
+        let grandchildTenantId: string | null | undefined;
+
+        const grandchild = agent('grandchild', {
+          state: s.object({}),
+          initialState: {},
+          tools: {},
+          model: { provider: 'cloudflare', model: 'test' },
+          onStart(ctx) {
+            grandchildUserId = ctx.userId;
+            grandchildTenantId = ctx.tenantId;
+          },
+        });
+
+        const invokeGrandchild = tool({
+          description: 'Invoke grandchild',
+          input: s.object({}),
+          output: s.object({ ok: s.boolean() }),
+          async handler(_input, ctx) {
+            await ctx.agents.invoke(grandchild, { message: 'deep' });
+            return { ok: true };
+          },
+        });
+
+        const child = agent('middle', {
+          state: s.object({}),
+          initialState: {},
+          tools: { invokeGrandchild },
+          model: { provider: 'cloudflare', model: 'test' },
+        });
+
+        const invokeChild = tool({
+          description: 'Invoke middle',
+          input: s.object({}),
+          output: s.object({ ok: s.boolean() }),
+          async handler(_input, ctx) {
+            await ctx.agents.invoke(child, { message: 'middle' });
+            return { ok: true };
+          },
+        });
+
+        const parent = agent('root', {
+          state: s.object({}),
+          initialState: {},
+          tools: { invokeChild },
+          model: { provider: 'cloudflare', model: 'test' },
+        });
+
+        const llm: LLMAdapter = {
+          async chat(messages) {
+            const systemMsg = messages.find((m) => m.role === 'system')?.content ?? '';
+            if (systemMsg.includes('grandchild')) return { text: 'c done', toolCalls: [] };
+            const userMsg = messages.find((m) => m.role === 'user')?.content ?? '';
+            const hasToolResults = messages.some((m) => m.role === 'tool');
+            if (hasToolResults) return { text: 'done', toolCalls: [] };
+            if (systemMsg.includes('middle')) {
+              return { text: '', toolCalls: [{ name: 'invokeGrandchild', arguments: {} }] };
+            }
+            if (userMsg.includes('run')) {
+              return { text: '', toolCalls: [{ name: 'invokeChild', arguments: {} }] };
+            }
+            return { text: 'done', toolCalls: [] };
+          },
+        };
+
+        await run(parent, {
+          message: 'run',
+          llm,
+          userId: 'user-deep',
+          tenantId: 'tenant-deep',
+        });
+
+        expect(grandchildUserId).toBe('user-deep');
+        expect(grandchildTenantId).toBe('tenant-deep');
+      });
+    });
+
     describe('Given a parent run with no identity', () => {
       it('Then the child also has null userId and tenantId (no fabrication)', async () => {
         let childUserId: string | null | undefined;
