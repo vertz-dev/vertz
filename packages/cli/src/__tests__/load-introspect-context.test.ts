@@ -1,12 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, vi, mock, spyOn } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi, mock } from '@vertz/test';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // ---------------------------------------------------------------------------
 // Mock external dependencies before importing the module under test.
-//
-// NOTE: We do NOT vi.mock('jiti') because Bun test runs all files in one
-// process and vi.mock() is global — it would break every other test file
-// that uses jiti (loader, load-db-context).
-// Instead, we spy on the exported _importConfig helper.
 // ---------------------------------------------------------------------------
 
 const mockQueryFn = mock();
@@ -21,33 +19,35 @@ vi.mock('postgres', () => ({
 }));
 
 // Now import the module under test
-import * as loadDbContextModule from '../commands/load-db-context';
-
-const { loadIntrospectContext } = loadDbContextModule;
+import { loadIntrospectContext } from '../commands/load-db-context';
 
 // ---------------------------------------------------------------------------
-// Tests
+// Tests — use real temp files instead of spying on _importConfig
+// (vtz runtime's ESM modules have read-only exports, so spyOn doesn't work)
 // ---------------------------------------------------------------------------
 
 describe('loadIntrospectContext', () => {
-  let importConfigSpy: ReturnType<typeof vi.spyOn>;
+  const originalCwd = process.cwd;
+  let tempDir: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
-    importConfigSpy = spyOn(loadDbContextModule, '_importConfig').mockResolvedValue({
-      db: {
-        dialect: 'postgres',
-        url: 'postgres://localhost:5432/testdb',
-        schema: './src/schema.ts',
-      },
-    });
+    tempDir = join(
+      tmpdir(),
+      `vertz-test-introspect-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    await mkdir(tempDir, { recursive: true });
+    process.cwd = () => tempDir;
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    process.cwd = originalCwd;
     vi.restoreAllMocks();
+    await rm(tempDir, { recursive: true, force: true });
   });
 
   it('uses overrides directly when both url and dialect provided', async () => {
+    // No config file needed — zero-config mode
     const ctx = await loadIntrospectContext({
       url: 'postgres://localhost:5432/test',
       dialect: 'postgres',
@@ -57,20 +57,20 @@ describe('loadIntrospectContext', () => {
     expect(ctx.dialect).toBeDefined();
     expect(typeof ctx.queryFn).toBe('function');
     expect(typeof ctx.close).toBe('function');
-    // Should NOT load config when both overrides provided
-    expect(importConfigSpy).not.toHaveBeenCalled();
 
     await ctx.close();
   });
 
   it('uses dialect override from config when only dialect is provided', async () => {
-    importConfigSpy.mockResolvedValue({
-      db: {
-        dialect: 'sqlite',
-        url: 'postgres://localhost:5432/testdb',
-        schema: './src/schema.ts',
-      },
-    });
+    await writeFile(
+      join(tempDir, 'vertz.config.ts'),
+      `export default {};
+export const db = {
+  dialect: 'sqlite',
+  url: 'postgres://localhost:5432/testdb',
+  schema: './src/schema.ts',
+};`,
+    );
 
     // Override dialect to postgres (connection goes through mocked postgres driver)
     const ctx = await loadIntrospectContext({ dialect: 'postgres' });
@@ -80,39 +80,53 @@ describe('loadIntrospectContext', () => {
   });
 
   it('loads config when no overrides provided', async () => {
+    await writeFile(
+      join(tempDir, 'vertz.config.ts'),
+      `export default {};
+export const db = {
+  dialect: 'postgres',
+  url: 'postgres://localhost:5432/testdb',
+  schema: './src/schema.ts',
+};`,
+    );
+
     const ctx = await loadIntrospectContext();
 
     expect(ctx.dialectName).toBe('postgres');
-    expect(importConfigSpy).toHaveBeenCalled();
     expect(typeof ctx.queryFn).toBe('function');
 
     await ctx.close();
   });
 
   it('uses dialect from config when only url is overridden', async () => {
+    await writeFile(
+      join(tempDir, 'vertz.config.ts'),
+      `export default {};
+export const db = {
+  dialect: 'postgres',
+  url: 'postgres://localhost:5432/testdb',
+  schema: './src/schema.ts',
+};`,
+    );
+
     const ctx = await loadIntrospectContext({ url: 'postgres://custom:5432/db' });
 
     expect(ctx.dialectName).toBe('postgres');
-    expect(importConfigSpy).toHaveBeenCalled();
 
     await ctx.close();
   });
 
   it('throws when config file not found and no overrides', async () => {
-    // Simulate config import failure + file not found
-    importConfigSpy.mockRejectedValue(new Error('Module not found'));
-    // Also need to mock fs.access to throw (file not found)
-    spyOn(await import('node:fs/promises'), 'access').mockRejectedValue(
-      Object.assign(new Error('ENOENT'), { code: 'ENOENT' }),
-    );
-
+    // No config file created — should throw
     await expect(loadIntrospectContext()).rejects.toThrow('Could not find vertz.config.ts');
   });
 
   it('throws when config has no dialect', async () => {
-    importConfigSpy.mockResolvedValue({
-      db: { schema: './src/schema.ts' },
-    });
+    await writeFile(
+      join(tempDir, 'vertz.config.ts'),
+      `export default {};
+export const db = { schema: './src/schema.ts' };`,
+    );
 
     await expect(loadIntrospectContext()).rejects.toThrow('No `dialect` found');
   });
