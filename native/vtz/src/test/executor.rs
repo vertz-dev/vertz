@@ -232,11 +232,43 @@ fn execute_test_file_inner(
         .build()?;
 
     // 4. Load preload scripts as ES modules (supports import statements)
-    for preload_path in &options.preload {
-        let specifier = ModuleSpecifier::from_file_path(preload_path).map_err(|_| {
-            deno_core::anyhow::anyhow!("Invalid preload path: {}", preload_path.display())
-        })?;
-        tokio_rt.block_on(async { runtime.load_side_module(&specifier).await })?;
+    //    After each preload, register any mocks it declared via mock.module() / vi.mock()
+    //    in the Rust module loader so transitive imports are intercepted. (#2667)
+    {
+        let mut known_mock_keys: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+
+        for preload_path in &options.preload {
+            let specifier = ModuleSpecifier::from_file_path(preload_path).map_err(|_| {
+                deno_core::anyhow::anyhow!("Invalid preload path: {}", preload_path.display())
+            })?;
+            tokio_rt.block_on(async { runtime.load_side_module(&specifier).await })?;
+
+            // Bridge preload mocks to the Rust-side registry.
+            // Preload mocks populate globalThis.__vertz_mocked_modules at runtime,
+            // but the module loader only checks its mocked_paths HashMap.
+            let current_keys = runtime.execute_script(
+                "[vertz:preload-mock-keys]",
+                "Object.keys(globalThis.__vertz_mocked_modules || {})",
+            )?;
+
+            if let serde_json::Value::Array(arr) = current_keys {
+                let new_specifiers: std::collections::HashSet<String> = arr
+                    .into_iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .filter(|k| !known_mock_keys.contains(k))
+                    .collect();
+
+                if !new_specifiers.is_empty() {
+                    for s in &new_specifiers {
+                        known_mock_keys.insert(s.clone());
+                    }
+                    runtime
+                        .loader()
+                        .register_mocked_specifiers(&new_specifiers, preload_path);
+                }
+            }
+        }
     }
 
     // 5. Pre-compile test file for mock extraction (transitive mocking support)
@@ -765,6 +797,59 @@ mod tests {
             err.contains("Cannot read module") || err.contains("nonexistent-setup.ts"),
             "Expected error about missing preload file, got: {err}"
         );
+    }
+
+    #[test]
+    fn test_preload_mock_module_registers_in_loader() {
+        // Preload scripts that call vi.mock() / mock.module() should register
+        // mocked specifiers in the Rust module loader so that transitive imports
+        // from test files are intercepted. (#2667)
+        let tmp = tempfile::tempdir().unwrap();
+        let base = tmp.path();
+
+        // Create a real module that the preload will mock
+        let helper = base.join("helper.ts");
+        fs::write(&helper, "export const value = 'real';").unwrap();
+
+        // Create a preload script that mocks the helper module
+        let preload = write_test_file(
+            base,
+            "preload-mock.ts",
+            r#"
+            vi.mock('./helper', () => ({ value: 'mocked-by-preload' }));
+            "#,
+        );
+
+        // Test file imports the helper — should get the mock, not the real module
+        let test_file = write_test_file(
+            base,
+            "consumer.test.ts",
+            r#"
+            import { value } from './helper';
+
+            describe('preload mock', () => {
+                it('receives mocked value from preload', () => {
+                    expect(value).toBe('mocked-by-preload');
+                });
+            });
+            "#,
+        );
+
+        let result = execute_test_file_with_options(
+            &test_file,
+            &ExecuteOptions {
+                preload: vec![preload],
+                ..Default::default()
+            },
+        );
+
+        assert!(
+            result.file_error.is_none(),
+            "File error: {:?}",
+            result.file_error
+        );
+        assert_eq!(result.passed(), 1, "Expected mock value from preload");
+        assert_eq!(result.failed(), 0);
     }
 
     #[test]
