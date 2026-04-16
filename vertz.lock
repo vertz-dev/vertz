@@ -1,4 +1,4 @@
-# vertz.lock v1 (custom format) — DO NOT EDIT
+# vertz.lock v2 (custom format) — DO NOT EDIT
 # Run "vertz install" to regenerate
 
 @alloc/quick-lru@^5.2.0:
@@ -1150,6 +1150,15 @@
   resolved "https://registry.npmjs.org/@electric-sql/pglite/-/pglite-0.3.16.tgz"
   integrity "sha512-mZkZfOd9OqTMHsK+1cje8OSzfAQcpD7JmILXTl5ahdempjUDdmg4euf1biDex5/LfQIDJ3gvCu6qDgdnDxfJmA=="
 
+@esbuild/darwin-arm64@0.25.12:
+  version "0.25.12"
+  resolved "https://registry.npmjs.org/@esbuild/darwin-arm64/-/darwin-arm64-0.25.12.tgz"
+  integrity "sha512-N3zl+lxHCifgIlcMUP5016ESkeQjLj/959RxxNYIthIg+CQHInujFuXeWbWMgnTo4cp5XVHqFPmpyu9J65C1Yg=="
+  os:
+    "darwin"
+  cpu:
+    "arm64"
+
 @esbuild/darwin-arm64@0.27.3:
   version "0.27.3"
   resolved "https://registry.npmjs.org/@esbuild/darwin-arm64/-/darwin-arm64-0.27.3.tgz"
@@ -1213,10 +1222,24 @@
   resolved "https://registry.npmjs.org/@img/colour/-/colour-1.1.0.tgz"
   integrity "sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ=="
 
+@img/sharp-darwin-arm64@0.34.5:
+  version "0.34.5"
+  resolved "https://registry.npmjs.org/@img/sharp-darwin-arm64/-/sharp-darwin-arm64-0.34.5.tgz"
+  integrity "sha512-imtQ3WMJXbMY4fxb/Ndp6HBTNVtWCUI0WdobyheGf5+ad6xX8VIDO8u2xE4qc/fr08CKG/7dDseFtn6M6g/r3w=="
+  optionalDependencies:
+    "@img/sharp-libvips-darwin-arm64" "1.2.4"
+
 @img/sharp-darwin-arm64@^0.34.5:
   version "0.34.5"
   resolved "https://registry.npmjs.org/@img/sharp-darwin-arm64/-/sharp-darwin-arm64-0.34.5.tgz"
   integrity "sha512-imtQ3WMJXbMY4fxb/Ndp6HBTNVtWCUI0WdobyheGf5+ad6xX8VIDO8u2xE4qc/fr08CKG/7dDseFtn6M6g/r3w=="
+  optionalDependencies:
+    "@img/sharp-libvips-darwin-arm64" "1.2.4"
+
+@img/sharp-libvips-darwin-arm64@1.2.4:
+  version "1.2.4"
+  resolved "https://registry.npmjs.org/@img/sharp-libvips-darwin-arm64/-/sharp-libvips-darwin-arm64-1.2.4.tgz"
+  integrity "sha512-zqjjo7RatFfFoP0MkQ51jfuFZBnVE2pRiaydKJ1G/rHZvnsrHAOcQALIi9sA5co5xenQdTugCvtb1cuf78Vf4g=="
 
 @img/sharp-libvips-darwin-arm64@^1.2.4:
   version "1.2.4"
@@ -1386,6 +1409,15 @@
   version "16.2.3"
   resolved "https://registry.npmjs.org/@next/env/-/env-16.2.3.tgz"
   integrity "sha512-ZWXyj4uNu4GCWQw9cjRxWlbD+33mcDszIo9iQxFnBX3Wmgq9ulaSJcl6VhuWx5pCWqqD+9W6Wfz7N0lM5lYPMA=="
+
+@next/swc-darwin-arm64@16.2.3:
+  version "16.2.3"
+  resolved "https://registry.npmjs.org/@next/swc-darwin-arm64/-/swc-darwin-arm64-16.2.3.tgz"
+  integrity "sha512-u37KDKTKQ+OQLvY+z7SNXixwo4Q2/IAJFDzU1fYe66IbCE51aDSAzkNDkWmLN0yjTUh4BKBd+hb69jYn6qqqSg=="
+  os:
+    "darwin"
+  cpu:
+    "arm64"
 
 @noble/hashes@^2.0.1:
   version "2.0.1"
@@ -1739,6 +1771,20 @@
   resolved "https://registry.npmjs.org/@opentelemetry/semantic-conventions/-/semantic-conventions-1.40.0.tgz"
   integrity "sha512-cifvXDhcqMwwTlTK04GBNeIe7yyo28Mfby85QXFe1Yk8nmi36Ab/5UQwptOx84SsoGNRg+EVSjwzfSZMy6pmlw=="
 
+@oxfmt/binding-darwin-arm64@0.42.0:
+  version "0.42.0"
+  resolved "https://registry.npmjs.org/@oxfmt/binding-darwin-arm64/-/binding-darwin-arm64-0.42.0.tgz"
+  integrity "sha512-ulpSEYMKg61C5bRMZinFHrKJYRoKGVbvMEXA5zM1puX3O9T6Q4XXDbft20yrDijpYWeuG59z3Nabt+npeTsM1A=="
+  os:
+    "darwin"
+  cpu:
+    "arm64"
+
+@oxlint/binding-darwin-arm64@1.59.0:
+  version "1.59.0"
+  resolved "https://registry.npmjs.org/@oxlint/binding-darwin-arm64/-/binding-darwin-arm64-1.59.0.tgz"
+  integrity "sha512-DXyFPf5ZKldMLloRHx/B9fsxsiTQomaw7cmEW3YIJko2HgCh+GUhp9gGYwHrqlLJPsEe3dYj9JebjX92D3j3AA=="
+
 @oxlint/binding-darwin-arm64@^1.58.0:
   version "1.59.0"
   resolved "https://registry.npmjs.org/@oxlint/binding-darwin-arm64/-/binding-darwin-arm64-1.59.0.tgz"
@@ -1848,10 +1894,32 @@
   resolved "https://registry.npmjs.org/@protobufjs/utf8/-/utf8-1.1.0.tgz"
   integrity "sha512-Vvn3zZrhQZkkBE8LSuW3em98c0FwgO4nxzv6OdSxPKJIEKY2bGbHn+mhGIPerzI4twdxaP8/0+06HBpwf345Lw=="
 
+@resvg/resvg-js-darwin-arm64@2.6.2:
+  version "2.6.2"
+  resolved "https://registry.npmjs.org/@resvg/resvg-js-darwin-arm64/-/resvg-js-darwin-arm64-2.6.2.tgz"
+  integrity "sha512-nmok2LnAd6nLUKI16aEB9ydMC6Lidiiq2m1nEBDR1LaaP7FGs4AJ90qDraxX+CWlVuRlvNjyYJTNv8qFjtL9+A=="
+  os:
+    "darwin"
+  cpu:
+    "arm64"
+
 @resvg/resvg-js@^2.6.2:
   version "2.6.2"
   resolved "https://registry.npmjs.org/@resvg/resvg-js/-/resvg-js-2.6.2.tgz"
   integrity "sha512-xBaJish5OeGmniDj9cW5PRa/PtmuVU3ziqrbr5xJj901ZDN4TosrVaNZpEiLZAxdfnhAe7uQ7QFWfjPe9d9K2Q=="
+  optionalDependencies:
+    "@resvg/resvg-js-android-arm-eabi" "2.6.2"
+    "@resvg/resvg-js-android-arm64" "2.6.2"
+    "@resvg/resvg-js-darwin-arm64" "2.6.2"
+    "@resvg/resvg-js-darwin-x64" "2.6.2"
+    "@resvg/resvg-js-linux-arm-gnueabihf" "2.6.2"
+    "@resvg/resvg-js-linux-arm64-gnu" "2.6.2"
+    "@resvg/resvg-js-linux-arm64-musl" "2.6.2"
+    "@resvg/resvg-js-linux-x64-gnu" "2.6.2"
+    "@resvg/resvg-js-linux-x64-musl" "2.6.2"
+    "@resvg/resvg-js-win32-arm64-msvc" "2.6.2"
+    "@resvg/resvg-js-win32-ia32-msvc" "2.6.2"
+    "@resvg/resvg-js-win32-x64-msvc" "2.6.2"
 
 @resvg/resvg-wasm@2.4.0:
   version "2.4.0"
@@ -2529,6 +2597,15 @@
     "path-browserify" "^1.0.1"
     "tinyglobby" "^0.2.14"
 
+@turbo/darwin-arm64@2.9.6:
+  version "2.9.6"
+  resolved "https://registry.npmjs.org/@turbo/darwin-arm64/-/darwin-arm64-2.9.6.tgz"
+  integrity "sha512-aalBeSl4agT/QtYGDyf/XLajedWzUC9Vg/pm/YO6QQ93vkQ91Vz5uK1ta5RbVRDozQSz4njxUNqRNmOXDzW+qw=="
+  os:
+    "darwin"
+  cpu:
+    "arm64"
+
 @types/babel__core@^7.20.5:
   version "7.20.5"
   resolved "https://registry.npmjs.org/@types/babel__core/-/babel__core-7.20.5.tgz"
@@ -2729,10 +2806,27 @@
   dependencies:
     "@types/node" "*"
 
+@typescript/native-preview-darwin-arm64@7.0.0-dev.20260411.1:
+  version "7.0.0-dev.20260411.1"
+  resolved "https://registry.npmjs.org/@typescript/native-preview-darwin-arm64/-/native-preview-darwin-arm64-7.0.0-dev.20260411.1.tgz"
+  integrity "sha512-qdSDz0o4l4cEZhAn92ayzf7cKiMLrzSp9Xdk5mfaXpiahvxT39fNj5jiwDnRO+kHkHMMIYYL1nQbslSadargyg=="
+  os:
+    "darwin"
+  cpu:
+    "arm64"
+
 @typescript/native-preview@^7.0.0-dev.20260409.1:
   version "7.0.0-dev.20260411.1"
   resolved "https://registry.npmjs.org/@typescript/native-preview/-/native-preview-7.0.0-dev.20260411.1.tgz"
   integrity "sha512-cBk+dPa5x5r9wnh5lz3zSnj7YJM1s/tSCf5owex+OkjJLji3iJu7J9kTH1SvvxA5kmkY76qFYw3vFN9h8W3gBA=="
+  optionalDependencies:
+    "@typescript/native-preview-darwin-arm64" "7.0.0-dev.20260411.1"
+    "@typescript/native-preview-darwin-x64" "7.0.0-dev.20260411.1"
+    "@typescript/native-preview-linux-arm" "7.0.0-dev.20260411.1"
+    "@typescript/native-preview-linux-arm64" "7.0.0-dev.20260411.1"
+    "@typescript/native-preview-linux-x64" "7.0.0-dev.20260411.1"
+    "@typescript/native-preview-win32-arm64" "7.0.0-dev.20260411.1"
+    "@typescript/native-preview-win32-x64" "7.0.0-dev.20260411.1"
   bin:
     "tsgo" "bin/tsgo.js"
 
@@ -2764,7 +2858,7 @@
     "satori" "0.16.0"
 
 @vertz-benchmarks/vertz-app@link:benchmarks/vertz:
-  version "0.0.58"
+  version "0.0.63"
   resolved "link:benchmarks/vertz"
   integrity ""
 
@@ -2779,12 +2873,12 @@
   integrity ""
 
 @vertz-examples/task-manager@link:examples/task-manager:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:examples/task-manager"
   integrity ""
 
 @vertz/agents@link:packages/agents:
-  version "0.2.44"
+  version "0.2.45"
   resolved "link:packages/agents"
   integrity ""
 
@@ -2799,27 +2893,27 @@
   integrity ""
 
 @vertz/cli-runtime@link:packages/cli-runtime:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/cli-runtime"
   integrity ""
 
 @vertz/cli@link:packages/cli:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/cli"
   integrity ""
 
 @vertz/cloudflare@link:packages/cloudflare:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/cloudflare"
   integrity ""
 
 @vertz/codegen@link:packages/codegen:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/codegen"
   integrity ""
 
 @vertz/compiler@link:packages/compiler:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/compiler"
   integrity ""
 
@@ -2829,22 +2923,22 @@
   integrity ""
 
 @vertz/core@link:packages/core:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/core"
   integrity ""
 
 @vertz/create-vertz-app@link:packages/create-vertz-app:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/create-vertz-app"
   integrity ""
 
 @vertz/db@link:packages/db:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/db"
   integrity ""
 
 @vertz/desktop@link:packages/desktop:
-  version "0.2.59"
+  version "0.2.65"
   resolved "link:packages/desktop"
   integrity ""
 
@@ -2854,22 +2948,22 @@
   integrity ""
 
 @vertz/docs@link:packages/docs:
-  version "0.1.2"
+  version "0.1.3"
   resolved "link:packages/docs"
   integrity ""
 
 @vertz/errors@link:packages/errors:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/errors"
   integrity ""
 
 @vertz/fetch@link:packages/fetch:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/fetch"
   integrity ""
 
 @vertz/icons@link:packages/icons:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/icons"
   integrity ""
 
@@ -2903,13 +2997,33 @@
   resolved "link:packages/mint-docs"
   integrity ""
 
+@vertz/native-compiler-darwin-arm64@link:packages/native-compiler-darwin-arm64:
+  version "0.2.65"
+  resolved "link:packages/native-compiler-darwin-arm64"
+  integrity ""
+
+@vertz/native-compiler-darwin-x64@link:packages/native-compiler-darwin-x64:
+  version "0.2.65"
+  resolved "link:packages/native-compiler-darwin-x64"
+  integrity ""
+
+@vertz/native-compiler-linux-arm64@link:packages/native-compiler-linux-arm64:
+  version "0.2.65"
+  resolved "link:packages/native-compiler-linux-arm64"
+  integrity ""
+
+@vertz/native-compiler-linux-x64@link:packages/native-compiler-linux-x64:
+  version "0.2.65"
+  resolved "link:packages/native-compiler-linux-x64"
+  integrity ""
+
 @vertz/native-compiler@link:native/vertz-compiler:
-  version "0.1.1"
+  version "0.2.65"
   resolved "link:native/vertz-compiler"
   integrity ""
 
 @vertz/og@link:packages/og:
-  version "0.1.1"
+  version "0.1.2"
   resolved "link:packages/og"
   integrity ""
 
@@ -2919,37 +3033,37 @@
   integrity ""
 
 @vertz/runtime-darwin-arm64@link:packages/runtime-darwin-arm64:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/runtime-darwin-arm64"
   integrity ""
 
 @vertz/runtime-darwin-x64@link:packages/runtime-darwin-x64:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/runtime-darwin-x64"
   integrity ""
 
 @vertz/runtime-linux-arm64@link:packages/runtime-linux-arm64:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/runtime-linux-arm64"
   integrity ""
 
 @vertz/runtime-linux-x64@link:packages/runtime-linux-x64:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/runtime-linux-x64"
   integrity ""
 
 @vertz/runtime@link:packages/runtime:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/runtime"
   integrity ""
 
 @vertz/schema@link:packages/schema:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/schema"
   integrity ""
 
 @vertz/server@link:packages/server:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/server"
   integrity ""
 
@@ -2959,27 +3073,27 @@
   integrity ""
 
 @vertz/sqlite@link:packages/sqlite:
-  version "0.2.58"
+  version "0.2.59"
   resolved "link:packages/sqlite"
   integrity ""
 
 @vertz/test@link:packages/test:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/test"
   integrity ""
 
 @vertz/testing@link:packages/testing:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/testing"
   integrity ""
 
 @vertz/theme-shadcn@link:packages/theme-shadcn:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/theme-shadcn"
   integrity ""
 
 @vertz/tui@link:packages/tui:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/tui"
   integrity ""
 
@@ -2989,22 +3103,22 @@
   integrity ""
 
 @vertz/ui-canvas@link:packages/ui-canvas:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/ui-canvas"
   integrity ""
 
 @vertz/ui-primitives@link:packages/ui-primitives:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/ui-primitives"
   integrity ""
 
 @vertz/ui-server@link:packages/ui-server:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/ui-server"
   integrity ""
 
 @vertz/ui@link:packages/ui:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/ui"
   integrity ""
 
@@ -3533,7 +3647,7 @@ cookie@^1.0.2:
   integrity "sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ=="
 
 create-vertz@link:packages/create-vertz:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/create-vertz"
   integrity ""
 
@@ -3866,6 +3980,33 @@ esbuild@^0.27.3:
   version "0.25.12"
   resolved "https://registry.npmjs.org/esbuild/-/esbuild-0.25.12.tgz"
   integrity "sha512-bbPBYYrtZbkt6Os6FiTLCTFxvq4tt3JKall1vRwshA3fdVztsLAatFaZobhkBC8/BrPetoa0oksYoKXoG4ryJg=="
+  optionalDependencies:
+    "@esbuild/aix-ppc64" "0.25.12"
+    "@esbuild/android-arm" "0.25.12"
+    "@esbuild/android-arm64" "0.25.12"
+    "@esbuild/android-x64" "0.25.12"
+    "@esbuild/darwin-arm64" "0.25.12"
+    "@esbuild/darwin-x64" "0.25.12"
+    "@esbuild/freebsd-arm64" "0.25.12"
+    "@esbuild/freebsd-x64" "0.25.12"
+    "@esbuild/linux-arm" "0.25.12"
+    "@esbuild/linux-arm64" "0.25.12"
+    "@esbuild/linux-ia32" "0.25.12"
+    "@esbuild/linux-loong64" "0.25.12"
+    "@esbuild/linux-mips64el" "0.25.12"
+    "@esbuild/linux-ppc64" "0.25.12"
+    "@esbuild/linux-riscv64" "0.25.12"
+    "@esbuild/linux-s390x" "0.25.12"
+    "@esbuild/linux-x64" "0.25.12"
+    "@esbuild/netbsd-arm64" "0.25.12"
+    "@esbuild/netbsd-x64" "0.25.12"
+    "@esbuild/openbsd-arm64" "0.25.12"
+    "@esbuild/openbsd-x64" "0.25.12"
+    "@esbuild/openharmony-arm64" "0.25.12"
+    "@esbuild/sunos-x64" "0.25.12"
+    "@esbuild/win32-arm64" "0.25.12"
+    "@esbuild/win32-ia32" "0.25.12"
+    "@esbuild/win32-x64" "0.25.12"
   bin:
     "esbuild" "bin/esbuild"
 
@@ -4165,6 +4306,11 @@ fs-extra@^8.1.0:
     "universalify" "^0.1.0"
 
 fsevents@~2.3.2:
+  version "2.3.3"
+  resolved "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz"
+  integrity "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw=="
+
+fsevents@~2.3.3:
   version "2.3.3"
   resolved "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz"
   integrity "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw=="
@@ -4646,10 +4792,30 @@ landing@link:sites/landing-backup-2026-02-24:
   resolved "link:sites/landing-backup-2026-02-24"
   integrity ""
 
+lefthook-darwin-arm64@2.1.5:
+  version "2.1.5"
+  resolved "https://registry.npmjs.org/lefthook-darwin-arm64/-/lefthook-darwin-arm64-2.1.5.tgz"
+  integrity "sha512-VITTaw8PxxyE26gkZ8UcwIa5ZrWnKNRGLeeSrqri40cQdXvLTEoMq2tjjw7eiL9UcB0waRReDdzydevy9GOPUQ=="
+  os:
+    "darwin"
+  cpu:
+    "arm64"
+
 lefthook@^2.1.1:
   version "2.1.5"
   resolved "https://registry.npmjs.org/lefthook/-/lefthook-2.1.5.tgz"
   integrity "sha512-yB9IFWurFllusbPZqvG0EavTmpNXPya2MuO7Li7YT78xAj3uCQ3AgmW9TVUbTTsSMhsegbiAMRpwfEk2TP1P0A=="
+  optionalDependencies:
+    "lefthook-darwin-arm64" "2.1.5"
+    "lefthook-darwin-x64" "2.1.5"
+    "lefthook-freebsd-arm64" "2.1.5"
+    "lefthook-freebsd-x64" "2.1.5"
+    "lefthook-linux-arm64" "2.1.5"
+    "lefthook-linux-x64" "2.1.5"
+    "lefthook-openbsd-arm64" "2.1.5"
+    "lefthook-openbsd-x64" "2.1.5"
+    "lefthook-windows-arm64" "2.1.5"
+    "lefthook-windows-x64" "2.1.5"
   bin:
     "lefthook" "bin/index.js"
 
@@ -5322,6 +5488,16 @@ next@^16.1.6:
     "caniuse-lite" "^1.0.30001579"
     "postcss" "8.4.31"
     "styled-jsx" "5.1.6"
+  optionalDependencies:
+    "@next/swc-darwin-arm64" "16.2.3"
+    "@next/swc-darwin-x64" "16.2.3"
+    "@next/swc-linux-arm64-gnu" "16.2.3"
+    "@next/swc-linux-arm64-musl" "16.2.3"
+    "@next/swc-linux-x64-gnu" "16.2.3"
+    "@next/swc-linux-x64-musl" "16.2.3"
+    "@next/swc-win32-arm64-msvc" "16.2.3"
+    "@next/swc-win32-x64-msvc" "16.2.3"
+    "sharp" "^0.34.5"
   bin:
     "next" "dist/bin/next"
 
@@ -5388,6 +5564,26 @@ oxfmt@^0.42.0:
   integrity "sha512-QhejGErLSMReNuZ6vxgFHDyGoPbjTRNi6uGHjy0cvIjOQFqD6xmr/T+3L41ixR3NIgzcNiJ6ylQKpvShTgDfqg=="
   dependencies:
     "tinypool" "2.1.0"
+  optionalDependencies:
+    "@oxfmt/binding-android-arm-eabi" "0.42.0"
+    "@oxfmt/binding-android-arm64" "0.42.0"
+    "@oxfmt/binding-darwin-arm64" "0.42.0"
+    "@oxfmt/binding-darwin-x64" "0.42.0"
+    "@oxfmt/binding-freebsd-x64" "0.42.0"
+    "@oxfmt/binding-linux-arm-gnueabihf" "0.42.0"
+    "@oxfmt/binding-linux-arm-musleabihf" "0.42.0"
+    "@oxfmt/binding-linux-arm64-gnu" "0.42.0"
+    "@oxfmt/binding-linux-arm64-musl" "0.42.0"
+    "@oxfmt/binding-linux-ppc64-gnu" "0.42.0"
+    "@oxfmt/binding-linux-riscv64-gnu" "0.42.0"
+    "@oxfmt/binding-linux-riscv64-musl" "0.42.0"
+    "@oxfmt/binding-linux-s390x-gnu" "0.42.0"
+    "@oxfmt/binding-linux-x64-gnu" "0.42.0"
+    "@oxfmt/binding-linux-x64-musl" "0.42.0"
+    "@oxfmt/binding-openharmony-arm64" "0.42.0"
+    "@oxfmt/binding-win32-arm64-msvc" "0.42.0"
+    "@oxfmt/binding-win32-ia32-msvc" "0.42.0"
+    "@oxfmt/binding-win32-x64-msvc" "0.42.0"
   bin:
     "oxfmt" "bin/oxfmt"
 
@@ -5395,6 +5591,26 @@ oxlint@^1.57.0:
   version "1.59.0"
   resolved "https://registry.npmjs.org/oxlint/-/oxlint-1.59.0.tgz"
   integrity "sha512-0xBLeGGjP4vD9pygRo8iuOkOzEU1MqOnfiOl7KYezL/QvWL8NUg6n03zXc7ZVqltiOpUxBk2zgHI3PnRIEdAvw=="
+  optionalDependencies:
+    "@oxlint/binding-android-arm-eabi" "1.59.0"
+    "@oxlint/binding-android-arm64" "1.59.0"
+    "@oxlint/binding-darwin-arm64" "1.59.0"
+    "@oxlint/binding-darwin-x64" "1.59.0"
+    "@oxlint/binding-freebsd-x64" "1.59.0"
+    "@oxlint/binding-linux-arm-gnueabihf" "1.59.0"
+    "@oxlint/binding-linux-arm-musleabihf" "1.59.0"
+    "@oxlint/binding-linux-arm64-gnu" "1.59.0"
+    "@oxlint/binding-linux-arm64-musl" "1.59.0"
+    "@oxlint/binding-linux-ppc64-gnu" "1.59.0"
+    "@oxlint/binding-linux-riscv64-gnu" "1.59.0"
+    "@oxlint/binding-linux-riscv64-musl" "1.59.0"
+    "@oxlint/binding-linux-s390x-gnu" "1.59.0"
+    "@oxlint/binding-linux-x64-gnu" "1.59.0"
+    "@oxlint/binding-linux-x64-musl" "1.59.0"
+    "@oxlint/binding-openharmony-arm64" "1.59.0"
+    "@oxlint/binding-win32-arm64-msvc" "1.59.0"
+    "@oxlint/binding-win32-ia32-msvc" "1.59.0"
+    "@oxlint/binding-win32-x64-msvc" "1.59.0"
   bin:
     "oxlint" "bin/oxlint"
 
@@ -6060,6 +6276,31 @@ sharp@^0.34.5:
     "@img/colour" "^1.0.0"
     "detect-libc" "^2.1.2"
     "semver" "^7.7.3"
+  optionalDependencies:
+    "@img/sharp-darwin-arm64" "0.34.5"
+    "@img/sharp-darwin-x64" "0.34.5"
+    "@img/sharp-libvips-darwin-arm64" "1.2.4"
+    "@img/sharp-libvips-darwin-x64" "1.2.4"
+    "@img/sharp-libvips-linux-arm" "1.2.4"
+    "@img/sharp-libvips-linux-arm64" "1.2.4"
+    "@img/sharp-libvips-linux-ppc64" "1.2.4"
+    "@img/sharp-libvips-linux-riscv64" "1.2.4"
+    "@img/sharp-libvips-linux-s390x" "1.2.4"
+    "@img/sharp-libvips-linux-x64" "1.2.4"
+    "@img/sharp-libvips-linuxmusl-arm64" "1.2.4"
+    "@img/sharp-libvips-linuxmusl-x64" "1.2.4"
+    "@img/sharp-linux-arm" "0.34.5"
+    "@img/sharp-linux-arm64" "0.34.5"
+    "@img/sharp-linux-ppc64" "0.34.5"
+    "@img/sharp-linux-riscv64" "0.34.5"
+    "@img/sharp-linux-s390x" "0.34.5"
+    "@img/sharp-linux-x64" "0.34.5"
+    "@img/sharp-linuxmusl-arm64" "0.34.5"
+    "@img/sharp-linuxmusl-x64" "0.34.5"
+    "@img/sharp-wasm32" "0.34.5"
+    "@img/sharp-win32-arm64" "0.34.5"
+    "@img/sharp-win32-ia32" "0.34.5"
+    "@img/sharp-win32-x64" "0.34.5"
 
 shebang-command@^2.0.0:
   version "2.0.0"
@@ -6478,6 +6719,13 @@ turbo@^2.8.11:
   version "2.9.6"
   resolved "https://registry.npmjs.org/turbo/-/turbo-2.9.6.tgz"
   integrity "sha512-+v2QJey7ZUeUiuigkU+uFfklvNUyPI2VO2vBpMYJA+a1hKFLFiKtUYlRHdb3P9CrAvMzi0upbjI4WT+zKtqkBg=="
+  optionalDependencies:
+    "@turbo/darwin-64" "2.9.6"
+    "@turbo/darwin-arm64" "2.9.6"
+    "@turbo/linux-64" "2.9.6"
+    "@turbo/linux-arm64" "2.9.6"
+    "@turbo/windows-64" "2.9.6"
+    "@turbo/windows-arm64" "2.9.6"
   bin:
     "turbo" "bin/turbo"
 
@@ -6627,7 +6875,7 @@ uuid@^13.0.0:
     "uuid" "dist-node/bin/uuid"
 
 vertz@link:packages/vertz:
-  version "0.2.60"
+  version "0.2.65"
   resolved "link:packages/vertz"
   integrity ""
 
@@ -6702,6 +6950,8 @@ vite@^6.0.0 || ^7.0.0 || ^8.0.0:
     "postcss" "^8.5.6"
     "rollup" "^4.43.0"
     "tinyglobby" "^0.2.15"
+  optionalDependencies:
+    "fsevents" "~2.3.3"
   bin:
     "vite" "bin/vite.js"
 
@@ -6717,6 +6967,8 @@ vite@^7.3.1:
     "postcss" "^8.5.6"
     "rollup" "^4.43.0"
     "tinyglobby" "^0.2.15"
+  optionalDependencies:
+    "fsevents" "~2.3.3"
   bin:
     "vite" "bin/vite.js"
 
@@ -6815,6 +7067,8 @@ wrangler@4:
     "path-to-regexp" "6.3.0"
     "unenv" "2.0.0-rc.24"
     "workerd" "1.20260409.1"
+  optionalDependencies:
+    "fsevents" "~2.3.2"
   bin:
     "wrangler" "bin/wrangler.js"
     "wrangler2" "bin/wrangler.js"
@@ -6832,6 +7086,8 @@ wrangler@4.81.1:
     "path-to-regexp" "6.3.0"
     "unenv" "2.0.0-rc.24"
     "workerd" "1.20260409.1"
+  optionalDependencies:
+    "fsevents" "~2.3.2"
   bin:
     "wrangler" "bin/wrangler.js"
     "wrangler2" "bin/wrangler.js"
