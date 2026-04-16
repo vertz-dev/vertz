@@ -6,7 +6,7 @@ Declarative AI agent framework for Vertz — define agents, tools, and workflows
 
 - **Declarative agents** — Define agents with typed state, tools, and output schemas using `agent()`
 - **ReAct loop** — Built-in Reason-Act-Observe cycle with stuck detection and token budgets
-- **Typed tools** — Input/output schemas validated at runtime, with optional human approval gates
+- **Typed tools** — Input/output schemas validated at runtime
 - **Workflow orchestration** — Multi-step workflows with typed step outputs and approval gates
 - **Session persistence** — Resume conversations with pluggable storage (memory, SQLite, D1)
 - **Agent-to-agent communication** — Tools can invoke other agents for hierarchical flows
@@ -68,7 +68,6 @@ const searchTool = tool({
 - **`description`** — Shown to the LLM to decide when to use the tool
 - **`input` / `output`** — `@vertz/schema` schemas for validation
 - **`handler`** — Receives validated input and a `ToolContext` with agent metadata
-- **`approval`** — Optional human approval gate before execution
 - **`parallel`** — Allow concurrent execution with other tools
 
 ## Defining Agents

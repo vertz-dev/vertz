@@ -35,6 +35,30 @@ tool({
   },
 });
 
+// Tool-level `approval` is not a valid config field (removed — use workflow step approval instead)
+tool({
+  description: 'test',
+  input: s.object({}),
+  output: s.object({}),
+  handler() {
+    return {};
+  },
+  // @ts-expect-error — `approval` is not a valid tool config field
+  approval: { required: true, message: 'Approve?' },
+});
+
+// Tool-level `execution` is not a valid config field (removed — all tools run on the server)
+tool({
+  description: 'test',
+  input: s.object({}),
+  output: s.object({}),
+  handler() {
+    return {};
+  },
+  // @ts-expect-error — `execution` is not a valid tool config field
+  execution: 'client',
+});
+
 // ---------------------------------------------------------------------------
 // Agent type safety
 // ---------------------------------------------------------------------------

@@ -474,7 +474,7 @@ async function executeToolCall(
         toolCallId: callId,
         toolName: toolCall.name,
         content: JSON.stringify({
-          error: `Tool "${toolCall.name}" is a client-side tool and cannot be executed on the server.`,
+          error: `Tool "${toolCall.name}" has no handler. Provide a handler on the tool definition or inject one via the \`tools\` ToolProvider option on run()/runWorkflow().`,
         }),
       },
       success: false,

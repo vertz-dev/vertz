@@ -6,7 +6,7 @@ import { deepFreeze } from './utils';
  * Define a tool that an agent can use.
  *
  * Tools are typed units of capability: each has a description, input/output schemas,
- * and a handler. All tools in v1 execute on the server.
+ * and a handler. All tools execute on the server.
  */
 export function tool<TInput, TOutput>(
   config: ToolConfig<TInput, TOutput>,
@@ -14,8 +14,6 @@ export function tool<TInput, TOutput>(
   if (!config.description || config.description.trim() === '') {
     throw new Error('tool() description must be a non-empty string.');
   }
-
-  const execution = config.execution ?? 'server';
 
   // Handler-less tools are valid declarations — handlers are injected at runtime
   // via ToolProvider when calling run() or runWorkflow().
@@ -26,8 +24,6 @@ export function tool<TInput, TOutput>(
     input: config.input as SchemaAny,
     output: config.output as SchemaAny,
     handler: config.handler,
-    approval: config.approval,
-    execution,
     parallel: config.parallel,
   };
 

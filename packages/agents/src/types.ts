@@ -21,16 +21,6 @@ export type InferAgentOutput<T extends AgentDefinition<any, any, any>> =
 // Tool types
 // ---------------------------------------------------------------------------
 
-/** Configuration for a tool that requires human approval before execution. */
-export interface ToolApprovalConfig<TInput> {
-  readonly required: true;
-  readonly message: string | ((input: TInput) => string);
-  readonly timeout?: string;
-}
-
-/** Where the tool executes. */
-export type ToolExecution = 'server' | 'client';
-
 /** Configuration passed to the `tool()` factory. */
 export interface ToolConfig<
   TInput,
@@ -42,8 +32,6 @@ export interface ToolConfig<
   readonly input: TInputSchema;
   readonly output: TOutputSchema;
   readonly handler?: (input: TInput, ctx: ToolContext) => TOutput | Promise<TOutput>;
-  readonly approval?: ToolApprovalConfig<TInput>;
-  readonly execution?: ToolExecution;
   /** When true, this tool can execute concurrently with other parallel tools. Default: false. */
   readonly parallel?: boolean;
 }
@@ -102,8 +90,6 @@ export interface ToolDefinition<TInput = unknown, TOutput = unknown> {
   readonly input: SchemaAny;
   readonly output: SchemaAny;
   readonly handler?: (input: TInput, ctx: ToolContext) => TOutput | Promise<TOutput>;
-  readonly approval?: ToolApprovalConfig<TInput>;
-  readonly execution: ToolExecution;
   /** When true, this tool can execute concurrently with other parallel tools. */
   readonly parallel?: boolean;
 }

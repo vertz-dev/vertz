@@ -20,7 +20,6 @@ function makeTool(name: string, handler: (input: unknown) => unknown): ToolDefin
     input: s.object({}),
     output: s.unknown(),
     handler: handler as ToolDefinition['handler'],
-    execution: 'server',
   };
 }
 
@@ -184,7 +183,6 @@ describe('reactLoop()', () => {
           input: s.object({}),
           output: s.object({ count: s.number() }),
           handler: async () => ({ count: 'not-a-number' }),
-          execution: 'server',
         };
 
         const llm = mockLLM([
@@ -282,7 +280,6 @@ describe('reactLoop()', () => {
           handler(input: { name: string }) {
             return { greeting: `Hi ${input.name}` };
           },
-          execution: 'server',
         };
 
         const llm = mockLLM([
@@ -1219,7 +1216,6 @@ describe('reactLoop()', () => {
           input: s.object({}),
           output: s.object({}),
           parallel: true,
-          execution: 'server',
           async handler() {
             currentRunning++;
             maxRunning = Math.max(maxRunning, currentRunning);
@@ -1278,7 +1274,6 @@ function makeParallelTool(name: string, handler: (input: unknown) => unknown): T
     input: s.object({}),
     output: s.unknown(),
     handler: handler as ToolDefinition['handler'],
-    execution: 'server',
     parallel: true,
   };
 }
