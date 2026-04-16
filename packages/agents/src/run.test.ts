@@ -640,6 +640,261 @@ describe('run()', () => {
         expect(invokeResult!.response).toBe('I am agent B');
       });
     });
+
+    describe('Given a parent run with userId and tenantId', () => {
+      it('Then the child inherits both by default', async () => {
+        let childUserId: string | null | undefined;
+        let childTenantId: string | null | undefined;
+
+        const childAgent = agent('child', {
+          state: s.object({}),
+          initialState: {},
+          tools: {},
+          model: { provider: 'cloudflare', model: 'test' },
+          onStart(ctx) {
+            childUserId = ctx.userId;
+            childTenantId = ctx.tenantId;
+          },
+        });
+
+        const invokeChild = tool({
+          description: 'Invoke child',
+          input: s.object({}),
+          output: s.object({ ok: s.boolean() }),
+          async handler(_input, ctx) {
+            await ctx.agents.invoke(childAgent, { message: 'go' });
+            return { ok: true };
+          },
+        });
+
+        const parentAgent = agent('parent', {
+          state: s.object({}),
+          initialState: {},
+          tools: { invokeChild },
+          model: { provider: 'cloudflare', model: 'test' },
+        });
+
+        let callCount = 0;
+        const llm: LLMAdapter = {
+          async chat(messages) {
+            callCount++;
+            const systemMsg = messages.find((m) => m.role === 'system')?.content ?? '';
+            if (systemMsg.includes('child')) {
+              return { text: 'child done', toolCalls: [] };
+            }
+            if (callCount === 1) {
+              return { text: '', toolCalls: [{ name: 'invokeChild', arguments: {} }] };
+            }
+            return { text: 'parent done', toolCalls: [] };
+          },
+        };
+
+        await run(parentAgent, {
+          message: 'run',
+          llm,
+          userId: 'user-123',
+          tenantId: 'tenant-A',
+        });
+
+        expect(childUserId).toBe('user-123');
+        expect(childTenantId).toBe('tenant-A');
+      });
+
+      it('Then an explicit `as` override replaces the inherited identity', async () => {
+        let childUserId: string | null | undefined;
+        let childTenantId: string | null | undefined;
+
+        const childAgent = agent('child-override', {
+          state: s.object({}),
+          initialState: {},
+          tools: {},
+          model: { provider: 'cloudflare', model: 'test' },
+          onStart(ctx) {
+            childUserId = ctx.userId;
+            childTenantId = ctx.tenantId;
+          },
+        });
+
+        const invokeChild = tool({
+          description: 'Invoke child with override',
+          input: s.object({}),
+          output: s.object({ ok: s.boolean() }),
+          async handler(_input, ctx) {
+            await ctx.agents.invoke(childAgent, {
+              message: 'go',
+              as: { userId: null, tenantId: 'tenant-B' },
+            });
+            return { ok: true };
+          },
+        });
+
+        const parentAgent = agent('parent-override', {
+          state: s.object({}),
+          initialState: {},
+          tools: { invokeChild },
+          model: { provider: 'cloudflare', model: 'test' },
+        });
+
+        let callCount = 0;
+        const llm: LLMAdapter = {
+          async chat(messages) {
+            callCount++;
+            const systemMsg = messages.find((m) => m.role === 'system')?.content ?? '';
+            if (systemMsg.includes('child-override')) {
+              return { text: 'child done', toolCalls: [] };
+            }
+            if (callCount === 1) {
+              return { text: '', toolCalls: [{ name: 'invokeChild', arguments: {} }] };
+            }
+            return { text: 'parent done', toolCalls: [] };
+          },
+        };
+
+        await run(parentAgent, {
+          message: 'run',
+          llm,
+          userId: 'user-123',
+          tenantId: 'tenant-A',
+        });
+
+        expect(childUserId).toBeNull();
+        expect(childTenantId).toBe('tenant-B');
+      });
+    });
+
+    describe('Given a 3-level chain (A → B → C)', () => {
+      it('Then identity propagates through each level', async () => {
+        let grandchildUserId: string | null | undefined;
+        let grandchildTenantId: string | null | undefined;
+
+        const grandchild = agent('grandchild', {
+          state: s.object({}),
+          initialState: {},
+          tools: {},
+          model: { provider: 'cloudflare', model: 'test' },
+          onStart(ctx) {
+            grandchildUserId = ctx.userId;
+            grandchildTenantId = ctx.tenantId;
+          },
+        });
+
+        const invokeGrandchild = tool({
+          description: 'Invoke grandchild',
+          input: s.object({}),
+          output: s.object({ ok: s.boolean() }),
+          async handler(_input, ctx) {
+            await ctx.agents.invoke(grandchild, { message: 'deep' });
+            return { ok: true };
+          },
+        });
+
+        const child = agent('middle', {
+          state: s.object({}),
+          initialState: {},
+          tools: { invokeGrandchild },
+          model: { provider: 'cloudflare', model: 'test' },
+        });
+
+        const invokeChild = tool({
+          description: 'Invoke middle',
+          input: s.object({}),
+          output: s.object({ ok: s.boolean() }),
+          async handler(_input, ctx) {
+            await ctx.agents.invoke(child, { message: 'middle' });
+            return { ok: true };
+          },
+        });
+
+        const parent = agent('root', {
+          state: s.object({}),
+          initialState: {},
+          tools: { invokeChild },
+          model: { provider: 'cloudflare', model: 'test' },
+        });
+
+        const llm: LLMAdapter = {
+          async chat(messages) {
+            const systemMsg = messages.find((m) => m.role === 'system')?.content ?? '';
+            if (systemMsg.includes('grandchild')) return { text: 'c done', toolCalls: [] };
+            const userMsg = messages.find((m) => m.role === 'user')?.content ?? '';
+            const hasToolResults = messages.some((m) => m.role === 'tool');
+            if (hasToolResults) return { text: 'done', toolCalls: [] };
+            if (systemMsg.includes('middle')) {
+              return { text: '', toolCalls: [{ name: 'invokeGrandchild', arguments: {} }] };
+            }
+            if (userMsg.includes('run')) {
+              return { text: '', toolCalls: [{ name: 'invokeChild', arguments: {} }] };
+            }
+            return { text: 'done', toolCalls: [] };
+          },
+        };
+
+        await run(parent, {
+          message: 'run',
+          llm,
+          userId: 'user-deep',
+          tenantId: 'tenant-deep',
+        });
+
+        expect(grandchildUserId).toBe('user-deep');
+        expect(grandchildTenantId).toBe('tenant-deep');
+      });
+    });
+
+    describe('Given a parent run with no identity', () => {
+      it('Then the child also has null userId and tenantId (no fabrication)', async () => {
+        let childUserId: string | null | undefined;
+        let childTenantId: string | null | undefined;
+
+        const childAgent = agent('child-null', {
+          state: s.object({}),
+          initialState: {},
+          tools: {},
+          model: { provider: 'cloudflare', model: 'test' },
+          onStart(ctx) {
+            childUserId = ctx.userId;
+            childTenantId = ctx.tenantId;
+          },
+        });
+
+        const invokeChild = tool({
+          description: 'Invoke child',
+          input: s.object({}),
+          output: s.object({ ok: s.boolean() }),
+          async handler(_input, ctx) {
+            await ctx.agents.invoke(childAgent, { message: 'go' });
+            return { ok: true };
+          },
+        });
+
+        const parentAgent = agent('parent-null', {
+          state: s.object({}),
+          initialState: {},
+          tools: { invokeChild },
+          model: { provider: 'cloudflare', model: 'test' },
+        });
+
+        let callCount = 0;
+        const llm: LLMAdapter = {
+          async chat(messages) {
+            callCount++;
+            const systemMsg = messages.find((m) => m.role === 'system')?.content ?? '';
+            if (systemMsg.includes('child-null')) {
+              return { text: 'child done', toolCalls: [] };
+            }
+            if (callCount === 1) {
+              return { text: '', toolCalls: [{ name: 'invokeChild', arguments: {} }] };
+            }
+            return { text: 'parent done', toolCalls: [] };
+          },
+        };
+
+        await run(parentAgent, { message: 'run', llm });
+
+        expect(childUserId).toBeNull();
+        expect(childTenantId).toBeNull();
+      });
+    });
   });
 
   describe('Given a ToolProvider with handler implementations', () => {

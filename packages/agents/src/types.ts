@@ -48,10 +48,33 @@ export interface ToolConfig<
   readonly parallel?: boolean;
 }
 
+/**
+ * Identity override for a sub-agent run.
+ *
+ * Each field is independently optional: if omitted, the corresponding field is
+ * inherited from the caller. If present (including with value `null`), the
+ * provided value replaces the inherited one.
+ */
+export interface InvokeIdentity {
+  readonly userId?: string | null;
+  readonly tenantId?: string | null;
+}
+
 /** Options for invoking another agent. */
 export interface InvokeOptions {
   readonly message: string;
   readonly instanceId?: string;
+  /**
+   * Override the identity of the sub-run. When omitted, the sub-agent inherits
+   * the caller's `userId` and `tenantId`. Provide `as` to replace either field
+   * (use `null` to drop the identity entirely).
+   *
+   * Note on trust model: tool handlers are server code authored by the agent
+   * owner and treated as trusted. A handler that passes `as: { userId: 'x' }`
+   * is impersonating identity `x` by design — use `as` only when intentionally
+   * scoping a sub-agent to a different (typically lower-privilege) identity.
+   */
+  readonly as?: InvokeIdentity;
 }
 
 /** Agent invocation capability on tool context. */
