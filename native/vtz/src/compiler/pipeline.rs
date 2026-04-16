@@ -700,6 +700,34 @@ fn strip_leftover_typescript(code: &str) -> String {
     let mut nesting_stack: Vec<char> = Vec::new();
 
     while i < len {
+        // Skip single-line comments (`// ...`) so quotes inside them don't
+        // trigger string scanning mode.  E.g. `// Import each module's factory`
+        // contains a `'` that would otherwise open an unterminated string.
+        if chars[i] == '/' && i + 1 < len && chars[i + 1] == '/' {
+            while i < len && chars[i] != '\n' {
+                result.push(chars[i]);
+                i += 1;
+            }
+            continue;
+        }
+        // Skip block comments (`/* ... */`) for the same reason.
+        if chars[i] == '/' && i + 1 < len && chars[i + 1] == '*' {
+            result.push(chars[i]);
+            result.push(chars[i + 1]);
+            i += 2;
+            while i < len {
+                if chars[i] == '*' && i + 1 < len && chars[i + 1] == '/' {
+                    result.push(chars[i]);
+                    result.push(chars[i + 1]);
+                    i += 2;
+                    break;
+                }
+                result.push(chars[i]);
+                i += 1;
+            }
+            continue;
+        }
+
         // Skip string literals so unbalanced braces/parens inside them don't affect depth.
         if chars[i] == '\'' || chars[i] == '"' || chars[i] == '`' {
             let quote = chars[i];
@@ -2524,6 +2552,43 @@ export function App() {
         );
     }
 
+    #[test]
+    fn test_strip_leftover_skips_comments_with_quotes() {
+        // A single quote inside a JS comment (like `module's`) must NOT trigger
+        // the string scanner in Phase 2.  If it does, the scanner enters string
+        // mode, consumes characters across lines until it finds a matching quote
+        // (possibly inside a template literal), and corrupts nesting state —
+        // causing later string-literal content to be modified.
+        let code = r#"export function emitClientFile(moduleNames) {
+  const lines = ['// Auto-generated', ''];
+
+  // Import each module's factory
+  for (const name of moduleNames) {
+    const pascalName = capitalize(name);
+    lines.push(`import { create${pascalName}Module } from './modules/${name}';`);
+  }
+
+  lines.push('');
+  lines.push('export function createClient(client: HttpClient) {');
+  lines.push('  return {');
+
+  lines.push('  };');
+  lines.push('}');
+  lines.push('');
+
+  return lines.join('\n');
+}"#;
+
+        let result = strip_leftover_typescript(code);
+
+        // The `: HttpClient` is INSIDE a string literal — must be preserved.
+        assert!(
+            result.contains("client: HttpClient"),
+            "String literal content `: HttpClient` was incorrectly stripped. Got:\n{}",
+            result
+        );
+    }
+
     // ── CompilationPipeline methods ─────────────────────────────────
 
     #[test]
@@ -2917,5 +2982,72 @@ export function App() {
         let pipeline = create_pipeline(tmp.path());
         let result = pipeline.compile_for_browser(&src_dir.join("app.ts"));
         assert!(result.code.contains("compiled by vertz-native"));
+    }
+
+    /// Regression test for #2668: the full pipeline (AST strip + strip_leftover_typescript)
+    /// must not modify string literal content in large files.
+    #[test]
+    fn test_full_pipeline_preserves_string_literal_type_annotations() {
+        // Use the actual spike.ts content from the compiler package
+        let spike_ts =
+            include_str!("../../../../packages/compiler/src/__tests__/codegen-poc/spike.ts");
+
+        // Run the AST stripper (same as vertz_compiler_core::compile does)
+        let compile_result = vertz_compiler_core::compile(
+            spike_ts,
+            vertz_compiler_core::CompileOptions {
+                filename: Some("spike.ts".to_string()),
+                target: Some("server".to_string()),
+                fast_refresh: Some(false),
+                skip_css_transform: Some(true),
+                ..Default::default()
+            },
+        );
+
+        // Run strip_leftover_typescript on the AST-stripped output
+        let result = strip_leftover_typescript(&compile_result.code);
+
+        // First, check what the AST stripper produced (before strip_leftover_typescript)
+        // This helps us understand what strip_leftover_typescript receives
+        let ast_output_has_it = compile_result
+            .code
+            .contains("'export function createClient(client: HttpClient) {'");
+        if !ast_output_has_it {
+            panic!(
+                "BUG IS IN AST STRIPPER: The AST stripper itself corrupted the string literal.\n\
+                 Lines containing 'createClient' in AST output:\n{}",
+                compile_result
+                    .code
+                    .lines()
+                    .filter(|l| l.contains("createClient"))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+        }
+
+        // The string literal 'export function createClient(client: HttpClient) {'
+        // must NOT have `: HttpClient` stripped from it.
+        assert!(
+            result.contains("'export function createClient(client: HttpClient) {'"),
+            "BUG IS IN strip_leftover_typescript: The `: HttpClient` inside the string was \
+             incorrectly stripped. AST output was correct but strip_leftover_typescript corrupted it.\n\
+             Lines containing 'createClient' after strip_leftover_typescript:\n{}",
+            result.lines()
+                .filter(|l| l.contains("createClient"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+    }
+
+    #[test]
+    fn test_strip_leftover_skips_block_comments_with_quotes() {
+        // Block comments can also contain quotes that confuse the scanner.
+        let code = "function test() { /* it's a comment */ const s = 'hello: World'; return s; }";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            result.contains("'hello: World'"),
+            "String after block comment with quote must be preserved. Got: {}",
+            result
+        );
     }
 }

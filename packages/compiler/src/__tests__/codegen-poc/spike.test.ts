@@ -830,11 +830,8 @@ describe('Unknown 3: File Generation', () => {
           }
           return msg;
         });
-        const detail = messages.join('\n');
-        expect(errors.length).toBe(0);
-        throw new Error(`tsc errors:\n${detail}`);
+        throw new Error(`Expected 0 tsc errors but got ${errors.length}:\n${messages.join('\n')}`);
       }
-      expect(errors.length).toBe(0);
     });
   });
 });
