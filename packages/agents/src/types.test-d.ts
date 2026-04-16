@@ -360,3 +360,35 @@ void checkInvoke;
 // InvokeOptions requires message
 const _invokeOpts: InvokeOptions = { message: 'test' };
 void _invokeOpts;
+
+// InvokeOptions accepts `as` identity override
+const _invokeWithAs: InvokeOptions = {
+  message: 'test',
+  as: { userId: 'u', tenantId: 't' },
+};
+void _invokeWithAs;
+
+// `as` fields are nullable (explicit drop of identity)
+const _invokeWithNullAs: InvokeOptions = {
+  message: 'test',
+  as: { userId: null, tenantId: null },
+};
+void _invokeWithNullAs;
+
+// `as` fields are independently optional
+const _invokeWithPartialAs: InvokeOptions = {
+  message: 'test',
+  as: { userId: 'u' },
+};
+void _invokeWithPartialAs;
+
+// @ts-expect-error — userId must be string | null, not number
+const _badAsType: InvokeOptions = { message: 'test', as: { userId: 42 } };
+void _badAsType;
+
+// Top-level run() accepts userId and tenantId on stateless calls
+run(testAgent, { message: 'hi', llm: testLlm, userId: 'u1', tenantId: 't1' });
+run(testAgent, { message: 'hi', llm: testLlm, userId: null, tenantId: null });
+
+// @ts-expect-error — userId must be string | null, not number
+run(testAgent, { message: 'hi', llm: testLlm, userId: 42 });

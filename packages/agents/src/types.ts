@@ -48,10 +48,22 @@ export interface ToolConfig<
   readonly parallel?: boolean;
 }
 
+/** Identity override when invoking a sub-agent. */
+export interface InvokeIdentity {
+  readonly userId?: string | null;
+  readonly tenantId?: string | null;
+}
+
 /** Options for invoking another agent. */
 export interface InvokeOptions {
   readonly message: string;
   readonly instanceId?: string;
+  /**
+   * Override the identity of the sub-run. When omitted, the sub-agent inherits
+   * the caller's `userId` and `tenantId`. Provide `as` to explicitly override
+   * either field (set to `null` to drop the identity entirely).
+   */
+  readonly as?: InvokeIdentity;
 }
 
 /** Agent invocation capability on tool context. */

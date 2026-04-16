@@ -29,6 +29,17 @@ interface RunOptionsBase {
    * extra provider entries are ignored.
    */
   readonly tools?: ToolProvider;
+  /**
+   * Identity of the caller. Propagates to `ctx.userId` inside the agent and to
+   * any sub-agents invoked via `ctx.agents.invoke()`. Also used for session
+   * ownership checks when a store is provided.
+   */
+  readonly userId?: string | null;
+  /**
+   * Tenant of the caller. Propagates to `ctx.tenantId` and is used for session
+   * scoping when a store is provided.
+   */
+  readonly tenantId?: string | null;
 }
 
 /** Stateless mode — no persistence. Same as current behavior. */
@@ -43,10 +54,6 @@ export interface RunOptionsWithStore extends RunOptionsBase {
   readonly sessionId?: string;
   /** Cap per session (default: 200). */
   readonly maxStoredMessages?: number;
-  /** User ID for session ownership. */
-  readonly userId?: string | null;
-  /** Tenant ID for session scoping. */
-  readonly tenantId?: string | null;
 }
 
 export type RunOptions = RunOptionsStateless | RunOptionsWithStore;
@@ -137,8 +144,8 @@ export async function run(
 ): Promise<StatelessLoopResult | SessionLoopResult> {
   const { message, llm, instanceId } = options;
   const agentId = instanceId ?? crypto.randomUUID();
-  const userId = hasStore(options) ? (options.userId ?? null) : null;
-  const tenantId = hasStore(options) ? (options.tenantId ?? null) : null;
+  const userId = options.userId ?? null;
+  const tenantId = options.tenantId ?? null;
 
   // --- Session handling (load or create) ---
   let sessionId: string | undefined;
@@ -213,18 +220,31 @@ export async function run(
     options.tools,
   );
 
-  // Build agent invoker for ctx.agents.invoke()
+  // Build agent invoker for ctx.agents.invoke().
+  // Sub-agents inherit the parent's identity by default; an explicit `as`
+  // override can substitute either field (set to `null` to drop identity).
   const agents = {
     async invoke(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- agent definitions have varying types
       targetAgent: AgentDefinition<any, any, any>,
-      invokeOpts: { message: string; instanceId?: string },
+      invokeOpts: {
+        message: string;
+        instanceId?: string;
+        as?: { userId?: string | null; tenantId?: string | null };
+      },
     ) {
+      const childUserId =
+        invokeOpts.as && 'userId' in invokeOpts.as ? (invokeOpts.as.userId ?? null) : userId;
+      const childTenantId =
+        invokeOpts.as && 'tenantId' in invokeOpts.as ? (invokeOpts.as.tenantId ?? null) : tenantId;
+
       const invokeResult = await run(targetAgent, {
         message: invokeOpts.message,
         llm,
         instanceId: invokeOpts.instanceId,
         tools: options.tools, // inherit tool provider for sub-agents
+        userId: childUserId,
+        tenantId: childTenantId,
       });
       return { response: invokeResult.response };
     },
