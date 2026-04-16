@@ -37,6 +37,8 @@ describe('lefthook configuration', () => {
     // Should NOT reference dagger or turbo (migrated away)
     expect(buildTypecheck).not.toContain('dagger');
     expect(buildTypecheck).not.toContain('turbo');
+    expect(test).not.toContain('dagger');
+    expect(test).not.toContain('turbo');
   });
 
   it('should not require LEFTHOOK=0 environment variable', () => {
