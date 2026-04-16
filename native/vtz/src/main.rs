@@ -286,6 +286,22 @@ async fn run_codegen_if_available(root_dir: &std::path::Path) {
     }
 }
 
+/// Resolve the `@vertz/cli/dist/vertz.js` entry point from node_modules.
+/// Returns `Some(path)` if found, `None` otherwise.
+fn resolve_vertz_cli_js(root_dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    let candidate = root_dir
+        .join("node_modules")
+        .join("@vertz")
+        .join("cli")
+        .join("dist")
+        .join("vertz.js");
+    if candidate.exists() {
+        Some(candidate)
+    } else {
+        None
+    }
+}
+
 async fn async_main(cli: Cli) {
     match cli.command {
         Command::Create(args) => {
@@ -1622,6 +1638,48 @@ async fn async_main(cli: Cli) {
             // that keep the tokio runtime alive indefinitely.
             std::process::exit(0);
         }
+        Command::Codegen(args) => {
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            let cli_js = match resolve_vertz_cli_js(&root_dir) {
+                Some(path) => path,
+                None => {
+                    eprintln!("error: @vertz/cli is not installed. Run `vtz install` first.");
+                    std::process::exit(1);
+                }
+            };
+
+            // Build node arguments: node <cli_js> codegen [--dry-run] [--output <dir>]
+            let mut node_args = vec![cli_js.to_string_lossy().to_string(), "codegen".to_string()];
+            if args.dry_run {
+                node_args.push("--dry-run".to_string());
+            }
+            if let Some(ref output) = args.output {
+                node_args.push("--output".to_string());
+                node_args.push(output.clone());
+            }
+
+            let status = tokio::process::Command::new("node")
+                .args(&node_args)
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::inherit())
+                .stdin(std::process::Stdio::inherit())
+                .current_dir(&root_dir)
+                .spawn()
+                .unwrap_or_else(|e| {
+                    eprintln!("error: failed to run node: {e}");
+                    std::process::exit(1);
+                })
+                .wait()
+                .await
+                .unwrap_or_else(|e| {
+                    eprintln!("error: node process failed: {e}");
+                    std::process::exit(1);
+                });
+
+            std::process::exit(status.code().unwrap_or(1));
+        }
     }
 }
 
@@ -1646,5 +1704,48 @@ mod tests {
         .unwrap();
         // Has package.json but no "codegen" script → should return immediately
         run_codegen_if_available(tmp.path()).await;
+    }
+
+    #[test]
+    fn cli_parses_codegen_subcommand() {
+        let cli = Cli::parse_from(["vtz", "codegen"]);
+        assert!(matches!(cli.command, Command::Codegen(_)));
+    }
+
+    #[test]
+    fn cli_parses_codegen_dry_run() {
+        let cli = Cli::parse_from(["vtz", "codegen", "--dry-run"]);
+        if let Command::Codegen(args) = cli.command {
+            assert!(args.dry_run);
+            assert!(args.output.is_none());
+        } else {
+            panic!("expected Codegen command");
+        }
+    }
+
+    #[test]
+    fn cli_parses_codegen_output() {
+        let cli = Cli::parse_from(["vtz", "codegen", "--output", "./custom"]);
+        if let Command::Codegen(args) = cli.command {
+            assert!(!args.dry_run);
+            assert_eq!(args.output.as_deref(), Some("./custom"));
+        } else {
+            panic!("expected Codegen command");
+        }
+    }
+
+    #[test]
+    fn resolve_vertz_cli_js_returns_none_when_missing() {
+        let tmp = tempfile::tempdir().unwrap();
+        assert!(resolve_vertz_cli_js(tmp.path()).is_none());
+    }
+
+    #[test]
+    fn resolve_vertz_cli_js_finds_package() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cli_dir = tmp.path().join("node_modules/@vertz/cli/dist");
+        std::fs::create_dir_all(&cli_dir).unwrap();
+        std::fs::write(cli_dir.join("vertz.js"), "// stub").unwrap();
+        assert!(resolve_vertz_cli_js(tmp.path()).is_some());
     }
 }
