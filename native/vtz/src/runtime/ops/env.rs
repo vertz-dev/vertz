@@ -50,6 +50,7 @@ pub fn op_chdir(#[string] dir: String) -> Result<(), deno_core::error::AnyError>
 #[serde]
 pub fn op_fs_constants() -> HashMap<&'static str, i32> {
     let mut m = HashMap::new();
+    // Open flags
     m.insert("O_RDONLY", libc::O_RDONLY);
     m.insert("O_WRONLY", libc::O_WRONLY);
     m.insert("O_RDWR", libc::O_RDWR);
@@ -60,6 +61,35 @@ pub fn op_fs_constants() -> HashMap<&'static str, i32> {
     m.insert("O_APPEND", libc::O_APPEND);
     m.insert("O_SYNC", libc::O_SYNC);
     m.insert("O_NOFOLLOW", libc::O_NOFOLLOW);
+    m.insert("O_DIRECTORY", libc::O_DIRECTORY);
+    m.insert("O_DSYNC", libc::O_DSYNC);
+    m.insert("O_NONBLOCK", libc::O_NONBLOCK);
+    // Access flags
+    m.insert("F_OK", libc::F_OK);
+    m.insert("R_OK", libc::R_OK);
+    m.insert("W_OK", libc::W_OK);
+    m.insert("X_OK", libc::X_OK);
+    // Stat mode constants
+    m.insert("S_IFMT", libc::S_IFMT as i32);
+    m.insert("S_IFREG", libc::S_IFREG as i32);
+    m.insert("S_IFDIR", libc::S_IFDIR as i32);
+    m.insert("S_IFCHR", libc::S_IFCHR as i32);
+    m.insert("S_IFBLK", libc::S_IFBLK as i32);
+    m.insert("S_IFIFO", libc::S_IFIFO as i32);
+    m.insert("S_IFLNK", libc::S_IFLNK as i32);
+    m.insert("S_IFSOCK", libc::S_IFSOCK as i32);
+    m.insert("S_IRWXU", libc::S_IRWXU as i32);
+    m.insert("S_IRUSR", libc::S_IRUSR as i32);
+    m.insert("S_IWUSR", libc::S_IWUSR as i32);
+    m.insert("S_IXUSR", libc::S_IXUSR as i32);
+    m.insert("S_IRWXG", libc::S_IRWXG as i32);
+    m.insert("S_IRGRP", libc::S_IRGRP as i32);
+    m.insert("S_IWGRP", libc::S_IWGRP as i32);
+    m.insert("S_IXGRP", libc::S_IXGRP as i32);
+    m.insert("S_IRWXO", libc::S_IRWXO as i32);
+    m.insert("S_IROTH", libc::S_IROTH as i32);
+    m.insert("S_IWOTH", libc::S_IWOTH as i32);
+    m.insert("S_IXOTH", libc::S_IXOTH as i32);
     m
 }
 
@@ -581,5 +611,41 @@ mod tests {
             .execute_script("<test>", "typeof process.binding('buffer')")
             .unwrap();
         assert_eq!(result, serde_json::json!("object"));
+    }
+
+    #[test]
+    fn test_process_binding_constants_has_stat_mode_constants() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const c = process.binding('constants');
+                const fs = c.fs || c;
+                ({
+                    hasIfmt: typeof fs.S_IFMT === 'number',
+                    hasIfreg: typeof fs.S_IFREG === 'number',
+                    hasIfdir: typeof fs.S_IFDIR === 'number',
+                    hasIflnk: typeof fs.S_IFLNK === 'number',
+                })
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result["hasIfmt"], serde_json::json!(true));
+        assert_eq!(result["hasIfreg"], serde_json::json!(true));
+        assert_eq!(result["hasIfdir"], serde_json::json!(true));
+        assert_eq!(result["hasIflnk"], serde_json::json!(true));
+    }
+
+    #[test]
+    fn test_process_binding_caches_results() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                "process.binding('constants') === process.binding('constants')",
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!(true));
     }
 }
