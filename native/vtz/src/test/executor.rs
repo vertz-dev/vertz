@@ -293,13 +293,14 @@ fn execute_test_file_inner(
             if let Some(ref preamble) = output.mock_preamble {
                 runtime.execute_script_void("[vertz:mock-preamble]", preamble)?;
             }
+        }
 
-            // Collect mock export names from factory return values.
-            // This is needed for proxy generation when the original module has no
-            // ESM exports (e.g., CJS modules like esbuild).
-            let export_names_result = runtime.execute_script(
-                "[vertz:mock-export-names]",
-                r#"(function() {
+        // Collect mock export names from ALL mocked modules (both preload and test file).
+        // This runs unconditionally because preload scripts may have registered mocks
+        // even when the test file itself has no vi.mock() calls. (#2667)
+        let export_names_result = runtime.execute_script(
+            "[vertz:mock-export-names]",
+            r#"(function() {
                     var result = {};
                     var mocks = globalThis.__vertz_mocked_modules || {};
                     for (var spec in mocks) {
@@ -309,20 +310,19 @@ fn execute_test_file_inner(
                     }
                     return result;
                 })()"#,
-            )?;
+        )?;
 
-            if let serde_json::Value::Object(map) = export_names_result {
-                for (specifier, keys) in map {
-                    if let serde_json::Value::Array(arr) = keys {
-                        let names: Vec<String> = arr
-                            .into_iter()
-                            .filter_map(|v| v.as_str().map(String::from))
-                            .collect();
-                        if !names.is_empty() {
-                            runtime
-                                .loader()
-                                .register_mock_export_names(&specifier, names);
-                        }
+        if let serde_json::Value::Object(map) = export_names_result {
+            for (specifier, keys) in map {
+                if let serde_json::Value::Array(arr) = keys {
+                    let names: Vec<String> = arr
+                        .into_iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect();
+                    if !names.is_empty() {
+                        runtime
+                            .loader()
+                            .register_mock_export_names(&specifier, names);
                     }
                 }
             }
@@ -1000,6 +1000,61 @@ mod tests {
             result.file_error
         );
         assert_eq!(result.passed(), 2, "Both preload mocks should be effective");
+        assert_eq!(result.failed(), 0);
+    }
+
+    #[test]
+    fn test_preload_mock_nonexistent_package() {
+        // Mocking a package that doesn't exist on disk (e.g., @vertz/ui-auth
+        // which is a circular dep not installed). The preload registers the mock
+        // and the test file should be able to import it via bare mock proxy. (#2667)
+        let tmp = tempfile::tempdir().unwrap();
+        let base = tmp.path();
+
+        // NO @fake/pkg directory anywhere — it doesn't exist on disk
+
+        // Preload mocks the nonexistent package
+        let preload = write_test_file(
+            base,
+            "preload-phantom.ts",
+            r#"
+            vi.mock('@fake/pkg', () => ({ Widget: () => 'mocked-widget' }));
+            "#,
+        );
+
+        // Test file imports from the nonexistent package — should get mock
+        let test_file = write_test_file(
+            base,
+            "phantom.test.ts",
+            r#"
+            import { Widget } from '@fake/pkg';
+
+            describe('nonexistent package mock', () => {
+                it('receives mocked export from preload', () => {
+                    expect(Widget()).toBe('mocked-widget');
+                });
+            });
+            "#,
+        );
+
+        let result = execute_test_file_with_options(
+            &test_file,
+            &ExecuteOptions {
+                preload: vec![preload],
+                ..Default::default()
+            },
+        );
+
+        assert!(
+            result.file_error.is_none(),
+            "File error: {:?}",
+            result.file_error
+        );
+        assert_eq!(
+            result.passed(),
+            1,
+            "Mock of nonexistent package should work"
+        );
         assert_eq!(result.failed(), 0);
     }
 

@@ -751,6 +751,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let source = r#"/* @jsxRuntime classic */
 /* @jsx h */
@@ -783,6 +784,7 @@ export function Card({ title }) {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let source = r#"/* @jsxRuntime classic */
 /* @jsx h */
@@ -809,6 +811,7 @@ export function Minimal({ title }) {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile(
             "export default function App() { return <div>Hello</div>; }",
@@ -830,6 +833,7 @@ export function Minimal({ title }) {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let source = r#"/* @jsx h */
 import { h } from './h';
@@ -861,6 +865,7 @@ export function Card({ title }: Props) {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let source = r#"// @jsx h
 import { h } from './h';
@@ -882,6 +887,7 @@ export function X() { return <div />; }
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let source = r#"/** @jsx h */
 import { h } from './h';
@@ -903,6 +909,7 @@ export function X() { return <div />; }
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let source = r#"/*
  * @jsxRuntime classic

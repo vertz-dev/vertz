@@ -543,8 +543,14 @@ impl VertzModuleLoader {
                 let trimmed = entry.trim_start_matches("./");
                 // Strip dist/ prefix to get source-relative path
                 if let Some(source_rel) = trimmed.strip_prefix("dist/") {
+                    // Try direct mapping: dist/X → X (handles dist/src/X → src/X)
                     let source_candidate = pkg_dir.join(source_rel);
                     if let Ok(resolved) = self.resolve_with_extensions(&source_candidate) {
+                        return Ok(resolved);
+                    }
+                    // Try src/ prefix: dist/X → src/X (handles dist/auth/public.js → src/auth/public.ts)
+                    let src_candidate = pkg_dir.join("src").join(source_rel);
+                    if let Ok(resolved) = self.resolve_with_extensions(&src_candidate) {
                         return Ok(resolved);
                     }
                 }
@@ -3928,7 +3934,19 @@ impl ModuleLoader for VertzModuleLoader {
             }
         }
 
-        let resolved_path = self.resolve_specifier(specifier, &referrer_path)?;
+        let resolved_path = match self.resolve_specifier(specifier, &referrer_path) {
+            Ok(path) => path,
+            Err(e) => {
+                // If resolution fails but the specifier is mocked (e.g., module doesn't
+                // physically exist — only the mock factory), return a mock URL using the
+                // bare specifier. This supports mocking packages that aren't installed.
+                if is_mocked {
+                    let mock_url = format!("{}bare:{}", VERTZ_MOCK_PREFIX, specifier);
+                    return Ok(ModuleSpecifier::parse(&mock_url)?);
+                }
+                return Err(e);
+            }
+        };
 
         // Canonicalize to ensure same physical file = same module URL.
         // This prevents instanceof failures across ES module boundaries when the
@@ -3975,6 +3993,24 @@ impl ModuleLoader for VertzModuleLoader {
 
             // Handle mocked modules (transitive mocking)
             if let Some(original_path) = specifier.as_str().strip_prefix(VERTZ_MOCK_PREFIX) {
+                // Bare specifier mock: module doesn't physically exist, only the mock
+                // factory was registered (e.g., mocking a package that isn't installed).
+                if let Some(bare_specifier) = original_path.strip_prefix("bare:") {
+                    let export_names = self
+                        .mock_export_names
+                        .borrow()
+                        .get(bare_specifier)
+                        .cloned()
+                        .unwrap_or_default();
+                    let proxy = generate_mock_proxy_module(bare_specifier, &export_names);
+                    return Ok(ModuleSource::new(
+                        ModuleType::JavaScript,
+                        ModuleSourceCode::String(proxy.into()),
+                        &specifier,
+                        None,
+                    ));
+                }
+
                 let path = PathBuf::from(original_path);
                 let mock_specifier = self
                     .mocked_paths
@@ -5172,6 +5208,57 @@ export function Hello() {
             result
         );
         assert_eq!(result.unwrap().to_file_path().unwrap(), canon(&src_entry));
+    }
+
+    #[test]
+    fn test_symlinked_workspace_subpath_resolves_to_source() {
+        // Given a workspace package symlinked in node_modules with subpath exports
+        // pointing to dist/ (e.g., "./auth": "./dist/auth/public.js")
+        // When the dist/ directory doesn't exist but src/auth/public.ts does
+        // Then the resolver should fall back to src/ and resolve correctly (#2667)
+        let tmp = create_temp_dir();
+
+        // Create the real package (e.g., packages/ui)
+        let real_pkg_dir = tmp.path().join("packages").join("ui");
+        let src_dir = real_pkg_dir.join("src").join("auth");
+        std::fs::create_dir_all(&src_dir).unwrap();
+
+        let src_file = src_dir.join("public.ts");
+        std::fs::write(&src_file, "export const AuthProvider = {};").unwrap();
+
+        std::fs::write(
+            real_pkg_dir.join("package.json"),
+            r#"{ "name": "@scope/ui", "exports": { "./auth": { "import": "./dist/auth/public.js" } } }"#,
+        )
+        .unwrap();
+
+        // No dist/ directory — package not built
+
+        // Create a symlink in node_modules (workspace package)
+        let nm_scope = tmp.path().join("node_modules").join("@scope");
+        std::fs::create_dir_all(&nm_scope).unwrap();
+        let nm_pkg = nm_scope.join("ui");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&real_pkg_dir, &nm_pkg).unwrap();
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_dir(&real_pkg_dir, &nm_pkg).unwrap();
+
+        // Create a consumer package (e.g., packages/ui-server)
+        let consumer_dir = tmp.path().join("packages").join("ui-server").join("src");
+        std::fs::create_dir_all(&consumer_dir).unwrap();
+        let test_file = consumer_dir.join("app.test.ts");
+        std::fs::write(&test_file, "import '@scope/ui/auth';").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let referrer = ModuleSpecifier::from_file_path(&test_file).unwrap();
+        let result = loader.resolve("@scope/ui/auth", referrer.as_str(), ResolutionKind::Import);
+
+        assert!(
+            result.is_ok(),
+            "Symlinked workspace subpath should resolve to source when dist/ missing: {:?}",
+            result
+        );
+        assert_eq!(result.unwrap().to_file_path().unwrap(), canon(&src_file));
     }
 
     // ---------------------------------------------------------------
