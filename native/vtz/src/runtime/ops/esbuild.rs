@@ -1,6 +1,7 @@
 use deno_core::op2;
 use deno_core::OpDecl;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -163,9 +164,196 @@ pub fn op_esbuild_transform_sync(
     esbuild_transform(&options)
 }
 
+// ---------------------------------------------------------------------------
+// esbuild.build() — shell out to the esbuild CLI
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EsbuildBuildOptions {
+    pub entry_points: Vec<String>,
+    #[serde(default)]
+    pub bundle: bool,
+    pub format: Option<String>,
+    pub outdir: Option<String>,
+    #[serde(default)]
+    pub splitting: bool,
+    pub target: Option<String>,
+    pub platform: Option<String>,
+    pub external: Option<Vec<String>>,
+    pub banner: Option<HashMap<String, String>>,
+    pub sourcemap: Option<serde_json::Value>,
+    #[serde(default)]
+    pub metafile: bool,
+    pub main_fields: Option<Vec<String>>,
+    pub abs_working_dir: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct EsbuildBuildResult {
+    pub errors: Vec<String>,
+    pub warnings: Vec<String>,
+    pub metafile: Option<serde_json::Value>,
+}
+
+/// Core build logic — testable without the op2 macro.
+pub(crate) fn esbuild_build(
+    options: &EsbuildBuildOptions,
+) -> Result<EsbuildBuildResult, deno_core::error::AnyError> {
+    let esbuild = resolve_esbuild_binary()?;
+    let mut args = Vec::new();
+
+    // Entry points as positional args
+    for entry in &options.entry_points {
+        validate_option("entryPoints", entry)?;
+        args.push(entry.clone());
+    }
+
+    if options.bundle {
+        args.push("--bundle".to_string());
+    }
+
+    if let Some(ref format) = options.format {
+        validate_option("format", format)?;
+        args.push(format!("--format={format}"));
+    }
+
+    if let Some(ref outdir) = options.outdir {
+        validate_option("outdir", outdir)?;
+        args.push(format!("--outdir={outdir}"));
+    }
+
+    if options.splitting {
+        args.push("--splitting".to_string());
+    }
+
+    if let Some(ref target) = options.target {
+        validate_option("target", target)?;
+        args.push(format!("--target={target}"));
+    }
+
+    if let Some(ref platform) = options.platform {
+        validate_option("platform", platform)?;
+        args.push(format!("--platform={platform}"));
+    }
+
+    if let Some(ref externals) = options.external {
+        for ext in externals {
+            validate_option("external", ext)?;
+            args.push(format!("--external:{ext}"));
+        }
+    }
+
+    if let Some(ref banner) = options.banner {
+        for (ext_type, value) in banner {
+            validate_option("banner-type", ext_type)?;
+            validate_option("banner-value", value)?;
+            args.push(format!("--banner:{ext_type}={value}"));
+        }
+    }
+
+    // sourcemap: true | "inline" | "external" | "linked" | "both"
+    if let Some(ref sm) = options.sourcemap {
+        match sm {
+            serde_json::Value::Bool(true) => args.push("--sourcemap=linked".to_string()),
+            serde_json::Value::String(s) => {
+                validate_option("sourcemap", s)?;
+                args.push(format!("--sourcemap={s}"));
+            }
+            _ => {} // false or null — no flag
+        }
+    }
+
+    if let Some(ref main_fields) = options.main_fields {
+        let joined = main_fields.join(",");
+        validate_option("mainFields", &joined)?;
+        args.push(format!("--main-fields={joined}"));
+    }
+
+    // Metafile: write to a unique temp file, read back after build.
+    // Use an atomic counter + PID to guarantee uniqueness across concurrent calls.
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let metafile_path = if options.metafile {
+        let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path =
+            std::env::temp_dir().join(format!("vtz-esbuild-meta-{}-{n}.json", std::process::id()));
+        args.push(format!("--metafile={}", path.display()));
+        Some(path)
+    } else {
+        None
+    };
+
+    // Determine working directory
+    let working_dir = options
+        .abs_working_dir
+        .as_ref()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+
+    let output = Command::new(&esbuild)
+        .args(&args)
+        .current_dir(&working_dir)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .map_err(|e| {
+            deno_core::anyhow::anyhow!(
+                "Failed to execute esbuild at '{}': {}",
+                esbuild.display(),
+                e
+            )
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // Clean up temp metafile on failure
+        if let Some(ref path) = metafile_path {
+            let _ = std::fs::remove_file(path);
+        }
+        return Err(deno_core::anyhow::anyhow!(
+            "esbuild build failed: {}",
+            stderr.trim()
+        ));
+    }
+
+    // Read metafile if requested
+    let metafile = if let Some(ref path) = metafile_path {
+        let content = std::fs::read_to_string(path).map_err(|e| {
+            deno_core::anyhow::anyhow!(
+                "Failed to read esbuild metafile at '{}': {}",
+                path.display(),
+                e
+            )
+        })?;
+        let _ = std::fs::remove_file(path);
+        let parsed: serde_json::Value = serde_json::from_str(&content)
+            .map_err(|e| deno_core::anyhow::anyhow!("Failed to parse esbuild metafile: {}", e))?;
+        Some(parsed)
+    } else {
+        None
+    };
+
+    Ok(EsbuildBuildResult {
+        errors: Vec::new(),
+        warnings: Vec::new(),
+        metafile,
+    })
+}
+
+/// Build/bundle using the esbuild CLI.
+///
+/// Spawns esbuild with CLI flags derived from the JS API options.
+#[op2]
+#[serde]
+pub fn op_esbuild_build_sync(
+    #[serde] options: EsbuildBuildOptions,
+) -> Result<EsbuildBuildResult, deno_core::error::AnyError> {
+    esbuild_build(&options)
+}
+
 /// Get the op declarations for esbuild ops.
 pub fn op_decls() -> Vec<OpDecl> {
-    vec![op_esbuild_transform_sync()]
+    vec![op_esbuild_transform_sync(), op_esbuild_build_sync()]
 }
 
 #[cfg(test)]
@@ -257,6 +445,132 @@ mod tests {
         assert!(
             err.contains("esbuild transform failed"),
             "Error should indicate transform failure: got '{err}'"
+        );
+    }
+
+    #[test]
+    fn test_esbuild_build_basic_bundle() {
+        if !has_esbuild() {
+            eprintln!("Skipping: esbuild not found");
+            return;
+        }
+
+        // Create a temp directory with a simple TS file
+        let tmp = std::env::temp_dir().join("vtz-esbuild-build-test");
+        let src_dir = tmp.join("src");
+        let _ = std::fs::create_dir_all(&src_dir);
+        std::fs::write(
+            src_dir.join("entry.ts"),
+            "export const hello: string = 'world';",
+        )
+        .unwrap();
+
+        let result = esbuild_build(&EsbuildBuildOptions {
+            entry_points: vec!["src/entry.ts".to_string()],
+            bundle: true,
+            format: Some("esm".to_string()),
+            outdir: Some("out".to_string()),
+            splitting: false,
+            target: Some("esnext".to_string()),
+            platform: Some("neutral".to_string()),
+            external: None,
+            banner: None,
+            sourcemap: None,
+            metafile: true,
+            main_fields: None,
+            abs_working_dir: Some(tmp.to_string_lossy().to_string()),
+        });
+
+        // Clean up
+        let _ = std::fs::remove_dir_all(&tmp);
+
+        let result = result.unwrap();
+        assert!(result.errors.is_empty(), "Should have no errors");
+        assert!(
+            result.metafile.is_some(),
+            "Should return metafile when requested"
+        );
+        let metafile = result.metafile.unwrap();
+        assert!(
+            metafile.get("outputs").is_some(),
+            "Metafile should have outputs: got {metafile}"
+        );
+    }
+
+    #[test]
+    fn test_esbuild_build_with_external() {
+        if !has_esbuild() {
+            eprintln!("Skipping: esbuild not found");
+            return;
+        }
+
+        let tmp = std::env::temp_dir().join("vtz-esbuild-build-ext-test");
+        let src_dir = tmp.join("src");
+        let _ = std::fs::create_dir_all(&src_dir);
+        std::fs::write(
+            src_dir.join("entry.ts"),
+            "import lodash from 'lodash';\nexport const x = lodash;",
+        )
+        .unwrap();
+
+        let result = esbuild_build(&EsbuildBuildOptions {
+            entry_points: vec!["src/entry.ts".to_string()],
+            bundle: true,
+            format: Some("esm".to_string()),
+            outdir: Some("out".to_string()),
+            splitting: false,
+            target: Some("esnext".to_string()),
+            platform: Some("neutral".to_string()),
+            external: Some(vec!["lodash".to_string()]),
+            banner: None,
+            sourcemap: None,
+            metafile: false,
+            main_fields: None,
+            abs_working_dir: Some(tmp.to_string_lossy().to_string()),
+        });
+
+        // Verify output contains external import
+        let out_file = tmp.join("out/entry.js");
+        let content = std::fs::read_to_string(&out_file).unwrap_or_default();
+
+        // Clean up
+        let _ = std::fs::remove_dir_all(&tmp);
+
+        result.unwrap();
+        assert!(
+            content.contains("lodash"),
+            "External import should be preserved: got '{content}'"
+        );
+    }
+
+    #[test]
+    fn test_esbuild_build_invalid_entry_fails() {
+        if !has_esbuild() {
+            eprintln!("Skipping: esbuild not found");
+            return;
+        }
+
+        let result = esbuild_build(&EsbuildBuildOptions {
+            entry_points: vec!["nonexistent-file.ts".to_string()],
+            bundle: true,
+            format: Some("esm".to_string()),
+            outdir: Some("/tmp/vtz-esbuild-fail-test".to_string()),
+            splitting: false,
+            target: None,
+            platform: None,
+            external: None,
+            banner: None,
+            sourcemap: None,
+            metafile: false,
+            main_fields: None,
+            abs_working_dir: None,
+        });
+
+        assert!(result.is_err(), "Should fail on nonexistent entry point");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("esbuild build failed"),
+            "Error should indicate build failure: got '{err}'"
         );
     }
 

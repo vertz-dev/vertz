@@ -3614,7 +3614,28 @@ export function transform(source, options = {}) {
 }
 
 export async function build(options = {}) {
-  throw new Error('esbuild.build() is not yet supported in the vtz runtime. Use the native compiler or esbuild CLI directly.');
+  const result = Deno.core.ops.op_esbuild_build_sync({
+    entryPoints: options.entryPoints || [],
+    bundle: !!options.bundle,
+    format: options.format || undefined,
+    outdir: options.outdir || undefined,
+    splitting: !!options.splitting,
+    target: options.target || undefined,
+    platform: options.platform || undefined,
+    external: options.external || undefined,
+    banner: options.banner || undefined,
+    sourcemap: options.sourcemap ?? undefined,
+    metafile: !!options.metafile,
+    mainFields: options.mainFields || undefined,
+    absWorkingDir: options.absWorkingDir || undefined,
+  });
+  return {
+    errors: result.errors || [],
+    warnings: result.warnings || [],
+    metafile: result.metafile || undefined,
+    outputFiles: [],
+    mangleCache: undefined,
+  };
 }
 
 export function initialize() { return Promise.resolve(); }
