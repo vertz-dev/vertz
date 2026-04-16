@@ -6,7 +6,7 @@
  * for dialogs opened via `dialogs.open()`.
  */
 
-import type { ChildValue } from '@vertz/ui';
+import type { ChildValue, DialogHandle } from '@vertz/ui';
 import { DialogHandleContext, DialogIdContext, useContext } from '@vertz/ui';
 import type { JSX } from '@vertz/ui/jsx-runtime';
 import { cn } from '../composed/cn';
@@ -27,15 +27,15 @@ interface SlotProps {
 // ---------------------------------------------------------------------------
 
 function useDialogId(): string {
-  const id = useContext(DialogIdContext);
+  const id = useContext(DialogIdContext) as string | undefined;
   if (!id) {
     throw new Error('Dialog sub-component must be used inside a dialog opened via DialogStack');
   }
   return id;
 }
 
-function useDialogHandle() {
-  const handle = useContext(DialogHandleContext);
+function useDialogHandle(): DialogHandle<unknown> {
+  const handle = useContext(DialogHandleContext) as DialogHandle<unknown> | undefined;
   if (!handle) {
     throw new Error('Dialog sub-component must be used inside a dialog opened via DialogStack');
   }
