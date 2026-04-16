@@ -3390,12 +3390,24 @@ function inherits(ctor, superCtor) {
   Object.setPrototypeOf(ctor, superCtor);
 }
 
+// Use Object.prototype.toString for isTypedArray to survive V8 snapshot boundaries (#2682).
+// Note: this is spoofable via Symbol.toStringTag, but that is acceptable for this shim —
+// it is not a security boundary. A V8-native op (v8::Value::is_typed_array) would be
+// needed for spoofing resistance.
+const _toString = Object.prototype.toString;
+const TYPED_ARRAY_TAGS = new Set([
+  '[object Int8Array]', '[object Uint8Array]', '[object Uint8ClampedArray]',
+  '[object Int16Array]', '[object Uint16Array]',
+  '[object Int32Array]', '[object Uint32Array]',
+  '[object BigInt64Array]', '[object BigUint64Array]',
+  '[object Float32Array]', '[object Float64Array]',
+]);
 const _types = {
   isDate: (v) => v instanceof Date,
   isRegExp: (v) => v instanceof RegExp,
   isPromise: (v) => v instanceof Promise,
   isArrayBuffer: (v) => v instanceof ArrayBuffer,
-  isTypedArray: (v) => ArrayBuffer.isView(v) && !(v instanceof DataView),
+  isTypedArray: (v) => v != null && typeof v === 'object' && TYPED_ARRAY_TAGS.has(_toString.call(v)),
   isUint8Array: (v) => v instanceof Uint8Array,
   isSet: (v) => v instanceof Set,
   isMap: (v) => v instanceof Map,
