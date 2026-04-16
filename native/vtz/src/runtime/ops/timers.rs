@@ -425,6 +425,34 @@ mod tests {
         assert_eq!(output.stdout, vec!["negative ok"]);
     }
 
+    /// setInterval(fn, Infinity) must not spin the CPU. After the fix,
+    /// sleepCancellable returns immediately for non-finite delays, so the
+    /// interval fires rapidly. Clearing it must stop the loop and free the
+    /// event loop.
+    #[tokio::test]
+    async fn test_set_interval_infinity_delay() {
+        let mut rt = create_capturing_runtime();
+        rt.execute_script_void(
+            "<test>",
+            r#"
+            let count = 0;
+            const id = setInterval(() => {
+                count++;
+                console.log('tick ' + count);
+                if (count >= 3) clearInterval(id);
+            }, Infinity);
+        "#,
+        )
+        .unwrap();
+
+        let result =
+            tokio::time::timeout(std::time::Duration::from_secs(2), rt.run_event_loop()).await;
+
+        assert!(result.is_ok(), "Event loop hung on Infinity interval");
+        let output = rt.captured_output();
+        assert_eq!(output.stdout, vec!["tick 1", "tick 2", "tick 3"]);
+    }
+
     /// Self-rescheduling setTimeout chain (like RelativeTime component) must
     /// clean up properly when clearTimeout cancels the pending timer.
     #[tokio::test]
