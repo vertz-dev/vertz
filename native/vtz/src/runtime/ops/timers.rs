@@ -34,13 +34,13 @@ pub const TIMERS_BOOTSTRAP_JS: &str = r#"
     let remaining = Math.max(0, delay);
     if (remaining <= CANCEL_CHECK_MS) {
       // Short delay — sleep in one go (common fast path)
-      await Deno.core.ops.op_timer_sleep(BigInt(remaining));
+      await Deno.core.ops.op_timer_sleep(BigInt(Math.floor(remaining)));
       return;
     }
     // Long delay — chunk into CANCEL_CHECK_MS slices, bail on cancellation
     while (remaining > 0 && !state.cancelled) {
       const chunk = Math.min(remaining, CANCEL_CHECK_MS);
-      await Deno.core.ops.op_timer_sleep(BigInt(chunk));
+      await Deno.core.ops.op_timer_sleep(BigInt(Math.floor(chunk)));
       remaining -= chunk;
     }
   }
@@ -288,6 +288,78 @@ mod tests {
             "Event loop took {}ms — cancelled interval kept it alive",
             elapsed.as_millis()
         );
+    }
+
+    /// setTimeout with a floating-point delay must not crash.
+    /// BigInt(1.5) throws a RangeError; the runtime must floor the value.
+    #[tokio::test]
+    async fn test_set_timeout_float_delay() {
+        let mut rt = create_capturing_runtime();
+        rt.execute_script_void(
+            "<test>",
+            r#"
+            setTimeout(() => console.log('float ok'), 1.5);
+        "#,
+        )
+        .unwrap();
+        rt.run_event_loop().await.unwrap();
+        let output = rt.captured_output();
+        assert_eq!(output.stdout, vec!["float ok"]);
+    }
+
+    /// setTimeout with Math.random() * N (produces floats) must work.
+    #[tokio::test]
+    async fn test_set_timeout_random_float_delay() {
+        let mut rt = create_capturing_runtime();
+        rt.execute_script_void(
+            "<test>",
+            r#"
+            setTimeout(() => console.log('random ok'), Math.random() * 10);
+        "#,
+        )
+        .unwrap();
+        rt.run_event_loop().await.unwrap();
+        let output = rt.captured_output();
+        assert_eq!(output.stdout, vec!["random ok"]);
+    }
+
+    /// setInterval with a floating-point delay must work (exercises same
+    /// sleepCancellable path as setTimeout).
+    #[tokio::test]
+    async fn test_set_interval_float_delay() {
+        let mut rt = create_capturing_runtime();
+        rt.execute_script_void(
+            "<test>",
+            r#"
+            let count = 0;
+            const id = setInterval(() => {
+                count++;
+                console.log('tick ' + count);
+                if (count >= 2) clearInterval(id);
+            }, 1.7);
+        "#,
+        )
+        .unwrap();
+        rt.run_event_loop().await.unwrap();
+        let output = rt.captured_output();
+        assert_eq!(output.stdout, vec!["tick 1", "tick 2"]);
+    }
+
+    /// Float delay > CANCEL_CHECK_MS (100ms) exercises the chunked loop path
+    /// where `BigInt(Math.floor(chunk))` is called.
+    #[tokio::test]
+    async fn test_set_timeout_float_delay_chunked_path() {
+        let mut rt = create_capturing_runtime();
+        rt.execute_script_void(
+            "<test>",
+            r#"
+            setTimeout(() => console.log('chunked float ok'), 150.7);
+        "#,
+        )
+        .unwrap();
+        rt.run_event_loop().await.unwrap();
+        let output = rt.captured_output();
+        assert_eq!(output.stdout, vec!["chunked float ok"]);
     }
 
     /// Self-rescheduling setTimeout chain (like RelativeTime component) must
