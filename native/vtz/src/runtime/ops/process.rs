@@ -137,8 +137,18 @@ pub fn op_process_spawn(
     })?;
 
     let pid = child.id();
-    known_pids().lock().unwrap().insert(pid);
-    spawned_children().lock().unwrap().insert(pid, child);
+    // Mutex poisoning can only happen if a thread panicked while holding the
+    // lock. All lock holders run trivial insert/remove operations with no
+    // user code, so poisoning is not expected. Propagate as an op error
+    // rather than panicking the runtime.
+    known_pids()
+        .lock()
+        .map_err(|e| deno_core::error::type_error(format!("Internal lock error: {e}")))?
+        .insert(pid);
+    spawned_children()
+        .lock()
+        .map_err(|e| deno_core::error::type_error(format!("Internal lock error: {e}")))?
+        .insert(pid, child);
 
     Ok(serde_json::json!({ "pid": pid }))
 }
@@ -156,7 +166,9 @@ pub async fn op_process_wait(
     let result = tokio::task::spawn_blocking(move || {
         // Take the child out of the map so we can wait without holding the lock.
         let mut child = {
-            let mut children = spawned_children().lock().unwrap();
+            let mut children = spawned_children()
+                .lock()
+                .map_err(|e| deno_core::error::type_error(format!("Internal lock error: {e}")))?;
             children.remove(&pid).ok_or_else(|| {
                 deno_core::error::type_error(format!("No child process with pid {pid}"))
             })?
@@ -167,7 +179,10 @@ pub async fn op_process_wait(
         })?;
 
         // Remove from known PIDs after process has exited.
-        known_pids().lock().unwrap().remove(&pid);
+        known_pids()
+            .lock()
+            .map_err(|e| deno_core::error::type_error(format!("Internal lock error: {e}")))?
+            .remove(&pid);
 
         let code = status.code().unwrap_or(-1);
 
@@ -196,8 +211,15 @@ pub fn op_process_kill(
     // Verify the process is one we spawned (security: don't allow killing arbitrary PIDs).
     // Uses `known_pids` instead of `spawned_children` to avoid contention with
     // `op_process_wait` which may have removed the handle while waiting.
+    //
+    // Note on PID recycling: Between a child exiting and `op_process_wait`
+    // cleaning up `known_pids`, the OS could theoretically recycle the PID.
+    // The JS shim guards against this by checking `exited` before calling kill,
+    // and the race window (child exit → wait() return) is effectively zero.
     {
-        let pids = known_pids().lock().unwrap();
+        let pids = known_pids()
+            .lock()
+            .map_err(|e| deno_core::error::type_error(format!("Internal lock error: {e}")))?;
         if !pids.contains(&pid) {
             return Err(deno_core::error::type_error(format!(
                 "No child process with pid {pid}"
@@ -228,7 +250,9 @@ pub fn op_process_kill(
     #[cfg(not(unix))]
     {
         // On non-Unix, try using the Child handle if still available.
-        let mut children = spawned_children().lock().unwrap();
+        let mut children = spawned_children()
+            .lock()
+            .map_err(|e| deno_core::error::type_error(format!("Internal lock error: {e}")))?;
         if let Some(child) = children.get_mut(&pid) {
             child.kill().map_err(|e| {
                 deno_core::error::type_error(format!("Failed to kill process {pid}: {e}"))
@@ -525,5 +549,59 @@ mod tests {
             .execute_script("<test>", "globalThis.__test_was_killed")
             .unwrap();
         assert_eq!(result, true);
+    }
+
+    #[tokio::test]
+    async fn test_op_process_wait_double_wait_errors() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        rt.execute_script_void(
+            "<test>",
+            r#"
+            (async () => {
+                const { pid } = Deno.core.ops.op_process_spawn(
+                    "true", [], null, null, "ignore"
+                );
+                // First wait should succeed
+                await Deno.core.ops.op_process_wait(pid);
+                // Second wait should fail — child handle was already consumed
+                try {
+                    await Deno.core.ops.op_process_wait(pid);
+                    globalThis.__test_double_wait = "no_error";
+                } catch (e) {
+                    globalThis.__test_double_wait = "error";
+                }
+            })();
+            "#,
+        )
+        .unwrap();
+        rt.run_event_loop().await.unwrap();
+        let result = rt
+            .execute_script("<test>", "globalThis.__test_double_wait")
+            .unwrap();
+        assert_eq!(result, "error");
+    }
+
+    #[tokio::test]
+    async fn test_op_process_spawn_with_env() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        rt.execute_script_void(
+            "<test>",
+            r#"
+            (async () => {
+                const { pid } = Deno.core.ops.op_process_spawn(
+                    "/usr/bin/env", [], null, { "MY_TEST_VAR": "hello_spawn" }, "pipe"
+                );
+                const result = await Deno.core.ops.op_process_wait(pid);
+                globalThis.__test_env_code = result.code;
+            })();
+            "#,
+        )
+        .unwrap();
+        rt.run_event_loop().await.unwrap();
+        let result = rt
+            .execute_script("<test>", "globalThis.__test_env_code")
+            .unwrap();
+        // env with custom var should exit 0
+        assert_eq!(result, 0);
     }
 }
