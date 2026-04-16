@@ -197,21 +197,11 @@ pub fn transform_mock_hoisting(
         });
     }
 
-    // ── Step 6: Warn for unused mocks ────────────────────────────────────
-    for mock_call in &mock_calls {
-        if !imported_specifiers.contains(&mock_call.specifier) {
-            let (line, col) =
-                crate::utils::offset_to_line_column(source, mock_call.stmt_start as usize);
-            diagnostics.push(Diagnostic {
-                message: format!(
-                    "vi.mock('{}') has no matching import in this file — the mock will have no effect.",
-                    mock_call.specifier
-                ),
-                line: Some(line),
-                column: Some(col),
-            });
-        }
-    }
+    // ── Step 6: (removed) ─────────────────────────────────────────────────
+    // Previously warned when vi.mock() had no matching import, but transitive
+    // mocking is a valid and common pattern — the mock intercepts imports from
+    // other modules via the module loader, not from this file directly.
+    // The diagnostic "will have no effect" was misleading.
 
     // ── Step 7: Check for nested vi.mock() calls ─────────────────────────
     let top_level_spans: HashSet<u32> = mock_calls.iter().map(|m| m.stmt_start).collect();
@@ -232,10 +222,12 @@ pub fn transform_mock_hoisting(
     // Hoisted calls — stored on globalThis so they survive script→module boundary.
     // After each hoisted IIFE, destructure with `var` so the names are available
     // to mock factories that run later in the preamble (`var` has no TDZ).
+    // Strip TypeScript from factory source — the preamble is evaluated as a V8
+    // script (plain JavaScript), so type annotations would cause SyntaxError.
     for (i, hoisted) in hoisted_calls.iter().enumerate() {
+        let factory = crate::typescript_strip::strip_ts_from_expression(&hoisted.factory_source);
         prepend_block.push_str(&format!(
-            "globalThis.__vertz_hoisted_{i} = ({})();\n",
-            hoisted.factory_source
+            "globalThis.__vertz_hoisted_{i} = ({factory})();\n",
         ));
         // Make destructured names available in the preamble scope
         if let Some(ref lhs) = hoisted.lhs_source {
@@ -248,9 +240,11 @@ pub fn transform_mock_hoisting(
 
     // Auto-hoisted variables — declared before mock factories so factories can reference them.
     // Stored on globalThis to survive script→module boundary, then aliased with `var`.
+    // Strip TypeScript from init source — same reason as factory source above.
     for (seq, &idx) in auto_hoist_indices.iter().enumerate() {
         let var = &top_level_vars[idx];
         let init = replace_import_actual_in_string(&var.init_source);
+        let init = crate::typescript_strip::strip_ts_from_expression(&init);
         prepend_block.push_str(&format!("globalThis.__vertz_mock_var_{seq} = {init};\n",));
         prepend_block.push_str(&format!(
             "var {} = globalThis.__vertz_mock_var_{seq};\n",
@@ -259,11 +253,13 @@ pub fn transform_mock_hoisting(
     }
 
     // Mock factory IIFEs
+    // Strip TypeScript from factory source — same reason as hoisted calls above.
     for (i, mock_call) in mock_calls.iter().enumerate() {
         // Only generate for the winning mock (last one for each specifier)
         if specifier_to_index.get(&mock_call.specifier) == Some(&i) {
             // Replace vi.importActual(...) with import(...) inside factory source
             let factory = replace_import_actual_in_string(&mock_call.factory_source);
+            let factory = crate::typescript_strip::strip_ts_from_expression(&factory);
             prepend_block.push_str(&format!("globalThis.__vertz_mock_{i} = ({factory})();\n",));
         }
     }
@@ -479,9 +475,9 @@ fn apply_hoisted_transforms(ms: &mut MagicString, hoisted_calls: &[HoistedCallIn
     prepend_block.push_str("if (!globalThis.__vertz_mock_preamble_executed) {\n");
     prepend_block.push_str("globalThis.__vertz_mock_preamble_executed = true;\n");
     for (i, hoisted) in hoisted_calls.iter().enumerate() {
+        let factory = crate::typescript_strip::strip_ts_from_expression(&hoisted.factory_source);
         prepend_block.push_str(&format!(
-            "globalThis.__vertz_hoisted_{i} = ({})();\n",
-            hoisted.factory_source
+            "globalThis.__vertz_hoisted_{i} = ({factory})();\n",
         ));
     }
     prepend_block.push_str("}\n");
@@ -1088,14 +1084,19 @@ const x = 1;
     }
 
     #[test]
-    fn diagnostic_for_unused_mock() {
+    fn no_diagnostic_for_mock_without_import() {
+        // Transitive mocking is valid — vi.mock() without a matching import
+        // intercepts imports from other modules via the module loader.
         let source = r#"vi.mock('./nonexistent', () => ({}));
 "#;
         let (_, result) = parse_and_transform(source);
-        assert!(result
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("has no matching import")));
+        assert!(
+            !result
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("has no matching import")),
+            "Should not warn about missing import (transitive mocking is valid)"
+        );
     }
 
     #[test]
@@ -1492,6 +1493,101 @@ const mockFn = mock();
             output
         );
         assert!(!output.contains("const mockFn"));
+    }
+
+    // ── TypeScript stripping in preamble ─────────────────────────────────
+
+    #[test]
+    fn preamble_strips_typescript_from_factory() {
+        let source = r#"vi.mock('@vertz/db', () => ({
+  push: (...args: unknown[]) => pushMock(...args),
+}));
+"#;
+        let (output, result) = parse_and_transform(source);
+        let preamble = result.mock_preamble.unwrap();
+        assert!(
+            !preamble.contains(": unknown[]"),
+            "Preamble should not contain TypeScript type annotations, got: {}",
+            preamble
+        );
+        assert!(
+            preamble.contains("(...args) => pushMock(...args)"),
+            "Preamble should preserve function logic without types, got: {}",
+            preamble
+        );
+        // The compiled output should also be type-free
+        assert!(
+            !output.contains(": unknown[]"),
+            "Compiled output should not contain TypeScript type annotations, got: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn preamble_strips_typescript_from_hoisted_factory() {
+        let source = r#"import { add } from './math';
+const { mockFn } = vi.hoisted(() => ({ mockFn: vi.fn() as MockFunction }));
+vi.mock('./math', () => ({ add: mockFn }));
+"#;
+        let (_, result) = parse_and_transform(source);
+        let preamble = result.mock_preamble.unwrap();
+        assert!(
+            !preamble.contains("as MockFunction"),
+            "Preamble should strip 'as' cast from hoisted factory, got: {}",
+            preamble
+        );
+    }
+
+    #[test]
+    fn preamble_strips_typescript_from_auto_hoisted_init() {
+        let source = r#"import { handler } from './server';
+const mockHandler = mock() as MockFunction;
+vi.mock('./server', () => ({ handler: mockHandler }));
+"#;
+        let (_, result) = parse_and_transform(source);
+        let preamble = result.mock_preamble.unwrap();
+        assert!(
+            !preamble.contains("as MockFunction"),
+            "Preamble should strip 'as' cast from auto-hoisted init, got: {}",
+            preamble
+        );
+    }
+
+    // ── vi.mock without matching import (transitive mocking) ────────────
+
+    #[test]
+    fn no_diagnostic_for_mock_without_matching_import() {
+        let source = r#"vi.mock('@vertz/db', () => ({ push: mock() }));
+"#;
+        let (_, result) = parse_and_transform(source);
+        assert!(
+            !result
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("has no matching import")),
+            "vi.mock without matching import should not produce a diagnostic (transitive mocking is valid), got: {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn mock_without_import_still_generates_preamble() {
+        let source = r#"vi.mock('@vertz/db', () => ({ push: mock() }));
+"#;
+        let (output, result) = parse_and_transform(source);
+        assert!(
+            result.mock_preamble.is_some(),
+            "Mock preamble should be generated even without matching import"
+        );
+        assert!(
+            result.mocked_specifiers.contains("@vertz/db"),
+            "Mocked specifier should be collected"
+        );
+        assert!(
+            output.contains("globalThis.__vertz_mocked_modules['@vertz/db']"),
+            "Registration should be present in output, got: {}",
+            output
+        );
     }
 
     #[test]

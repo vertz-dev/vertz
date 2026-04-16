@@ -39,8 +39,7 @@ impl FrameworkPlugin for VertzPlugin {
         let mut diagnostics = Vec::new();
         if let Some(ref diags) = compile_result.diagnostics {
             for d in diags {
-                let is_warning =
-                    d.message.starts_with("[css-") || d.message.contains("has no matching import");
+                let is_warning = d.message.starts_with("[css-");
                 diagnostics.push(CompileDiagnostic {
                     message: d.message.clone(),
                     line: d.line,
