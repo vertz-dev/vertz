@@ -90,9 +90,31 @@ if (typeof globalThis.HTMLElement === 'undefined') {
   }
 
   // --- Public API: describe ---
-  function describe(name, fn) { addSuite(name, fn, {}); }
-  describe.skip = function(name, fn) { addSuite(name, fn, { skip: true }); };
-  describe.only = function(name, fn) { addSuite(name, fn, { only: true }); };
+  // Supports both describe(name, fn) and describe(name, options, fn) overloads
+  function describe(name, optionsOrFn, maybeFn) {
+    if (typeof optionsOrFn === 'function') {
+      addSuite(name, optionsOrFn, {});
+    } else {
+      const opts = optionsOrFn || {};
+      addSuite(name, maybeFn, { timeout: opts.timeout });
+    }
+  }
+  describe.skip = function(name, optionsOrFn, maybeFn) {
+    if (typeof optionsOrFn === 'function') {
+      addSuite(name, optionsOrFn, { skip: true });
+    } else {
+      const opts = optionsOrFn || {};
+      addSuite(name, maybeFn, { skip: true, timeout: opts.timeout });
+    }
+  };
+  describe.only = function(name, optionsOrFn, maybeFn) {
+    if (typeof optionsOrFn === 'function') {
+      addSuite(name, optionsOrFn, { only: true });
+    } else {
+      const opts = optionsOrFn || {};
+      addSuite(name, maybeFn, { only: true, timeout: opts.timeout });
+    }
+  };
 
   // --- Public API: it / test ---
   // Supports both it(name, fn) and it(name, options, fn) overloads
@@ -465,6 +487,8 @@ if (typeof globalThis.HTMLElement === 'undefined') {
     matchers.toContain = (item) => {
       const has = typeof actual === 'string'
         ? actual.includes(item)
+        : actual instanceof Set
+        ? actual.has(item)
         : Array.isArray(actual) && actual.includes(item);
       assert(has, () =>
         `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to contain ${formatValue(item)}`
@@ -1831,6 +1855,45 @@ mod tests {
         assert_eq!(arr[1]["status"], "pass");
         assert_eq!(arr[2]["name"], "trims");
         assert_eq!(arr[2]["status"], "skip");
+    }
+
+    #[test]
+    fn test_to_contain_with_set() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('toContain with Set', () => {
+                it('checks Set membership', () => {
+                    const s = new Set(['a', 'b', 'c']);
+                    expect(s).toContain('a');
+                    expect(s).toContain('c');
+                });
+                it('fails for missing value', () => {
+                    let caught = false;
+                    try {
+                        expect(new Set(['a'])).toContain('z');
+                    } catch (e) {
+                        caught = true;
+                    }
+                    expect(caught).toBe(true);
+                });
+                it('works with .not', () => {
+                    expect(new Set(['a', 'b'])).not.toContain('z');
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 3);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "toContain Set test {} failed: {:?}",
+                i, item["error"]
+            );
+        }
     }
 
     #[test]

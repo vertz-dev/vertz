@@ -1294,3 +1294,36 @@ fn e2e_spy_on_dynamic_import() {
     );
     assert_eq!(result.total_passed, 2);
 }
+
+#[test]
+fn e2e_describe_three_arg_overload() {
+    let tmp = tempfile::tempdir().unwrap();
+    setup_project(tmp.path());
+
+    write_file(
+        tmp.path(),
+        "src/__tests__/describe-options.test.ts",
+        r#"
+        describe('outer', { timeout: 10000 }, () => {
+            it('runs inside describe with options', () => {
+                expect(1 + 1).toBe(2);
+            });
+        });
+
+        describe('two-arg still works', () => {
+            it('basic test', () => {
+                expect(true).toBe(true);
+            });
+        });
+        "#,
+    );
+
+    let (result, output) = run_tests(make_config(tmp.path()));
+
+    assert!(
+        result.success(),
+        "describe(name, options, fn) overload should work: output={output}, results={:?}",
+        result.results
+    );
+    assert_eq!(result.total_passed, 2);
+}
