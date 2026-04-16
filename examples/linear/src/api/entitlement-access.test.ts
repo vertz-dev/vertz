@@ -217,7 +217,7 @@ describe('Entitlement-based access control', () => {
         const res = await req(app, 'POST', '/api/projects', {
           userId: 'user-member',
           tenantId: 'ws-1',
-          body: { name: 'New Project', key: 'NP', workspaceId: 'ws-1' },
+          body: { name: 'New Project', key: 'NP' },
         });
         expect(res.status).toBe(201);
         const body = (await res.json()) as { name?: string };
@@ -270,7 +270,7 @@ describe('Entitlement-based access control', () => {
         const res = await req(app, 'POST', '/api/projects', {
           userId: 'user-owner',
           tenantId: 'ws-1',
-          body: { name: 'Owner Project', key: 'OP', workspaceId: 'ws-1' },
+          body: { name: 'Owner Project', key: 'OP' },
         });
         expect(res.status).toBe(201);
       });
@@ -330,7 +330,7 @@ describe('Entitlement-based access control', () => {
         const res = await req(app, 'POST', '/api/projects', {
           userId: 'user-member',
           tenantId: 'ws-1',
-          body: { name: 'Unauthorized', key: 'UA', workspaceId: 'ws-1' },
+          body: { name: 'Unauthorized', key: 'UA' },
         });
         expect(res.status).toBe(403);
       });
