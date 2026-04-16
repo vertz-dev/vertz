@@ -232,11 +232,43 @@ fn execute_test_file_inner(
         .build()?;
 
     // 4. Load preload scripts as ES modules (supports import statements)
-    for preload_path in &options.preload {
-        let specifier = ModuleSpecifier::from_file_path(preload_path).map_err(|_| {
-            deno_core::anyhow::anyhow!("Invalid preload path: {}", preload_path.display())
-        })?;
-        tokio_rt.block_on(async { runtime.load_side_module(&specifier).await })?;
+    //    After each preload, register any mocks it declared via mock.module() / vi.mock()
+    //    in the Rust module loader so transitive imports are intercepted. (#2667)
+    {
+        let mut known_mock_keys: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+
+        for preload_path in &options.preload {
+            let specifier = ModuleSpecifier::from_file_path(preload_path).map_err(|_| {
+                deno_core::anyhow::anyhow!("Invalid preload path: {}", preload_path.display())
+            })?;
+            tokio_rt.block_on(async { runtime.load_side_module(&specifier).await })?;
+
+            // Bridge preload mocks to the Rust-side registry.
+            // Preload mocks populate globalThis.__vertz_mocked_modules at runtime,
+            // but the module loader only checks its mocked_paths HashMap.
+            let current_keys = runtime.execute_script(
+                "[vertz:preload-mock-keys]",
+                "Object.keys(globalThis.__vertz_mocked_modules || {})",
+            )?;
+
+            if let serde_json::Value::Array(arr) = current_keys {
+                let new_specifiers: std::collections::HashSet<String> = arr
+                    .into_iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .filter(|k| !known_mock_keys.contains(k))
+                    .collect();
+
+                if !new_specifiers.is_empty() {
+                    for s in &new_specifiers {
+                        known_mock_keys.insert(s.clone());
+                    }
+                    runtime
+                        .loader()
+                        .register_mocked_specifiers(&new_specifiers, preload_path);
+                }
+            }
+        }
     }
 
     // 5. Pre-compile test file for mock extraction (transitive mocking support)
@@ -765,6 +797,177 @@ mod tests {
             err.contains("Cannot read module") || err.contains("nonexistent-setup.ts"),
             "Expected error about missing preload file, got: {err}"
         );
+    }
+
+    #[test]
+    fn test_preload_mock_module_registers_in_loader() {
+        // Preload scripts that call vi.mock() / mock.module() should register
+        // mocked specifiers in the Rust module loader so that transitive imports
+        // from test files are intercepted. (#2667)
+        let tmp = tempfile::tempdir().unwrap();
+        let base = tmp.path();
+
+        // Create a real module that the preload will mock
+        let helper = base.join("helper.ts");
+        fs::write(&helper, "export const value = 'real';").unwrap();
+
+        // Create a preload script that mocks the helper module
+        let preload = write_test_file(
+            base,
+            "preload-mock.ts",
+            r#"
+            vi.mock('./helper', () => ({ value: 'mocked-by-preload' }));
+            "#,
+        );
+
+        // Test file imports the helper — should get the mock, not the real module
+        let test_file = write_test_file(
+            base,
+            "consumer.test.ts",
+            r#"
+            import { value } from './helper';
+
+            describe('preload mock', () => {
+                it('receives mocked value from preload', () => {
+                    expect(value).toBe('mocked-by-preload');
+                });
+            });
+            "#,
+        );
+
+        let result = execute_test_file_with_options(
+            &test_file,
+            &ExecuteOptions {
+                preload: vec![preload],
+                ..Default::default()
+            },
+        );
+
+        assert!(
+            result.file_error.is_none(),
+            "File error: {:?}",
+            result.file_error
+        );
+        assert_eq!(result.passed(), 1, "Expected mock value from preload");
+        assert_eq!(result.failed(), 0);
+    }
+
+    #[test]
+    fn test_preload_mock_conditional() {
+        // Conditional mocks in preloads (the real-world pattern from #2667):
+        // `if (!available) { vi.mock('spec', factory) }`
+        // The bridge queries runtime state after evaluation, so conditional mocks work.
+        let tmp = tempfile::tempdir().unwrap();
+        let base = tmp.path();
+
+        let helper = base.join("helper.ts");
+        fs::write(&helper, "export const value = 'real';").unwrap();
+
+        // Preload mocks conditionally — the condition is true, so the mock fires
+        let preload = write_test_file(
+            base,
+            "preload-conditional.ts",
+            r#"
+            const shouldMock = true;
+            if (shouldMock) {
+                vi.mock('./helper', () => ({ value: 'conditional-mock' }));
+            }
+            "#,
+        );
+
+        let test_file = write_test_file(
+            base,
+            "cond.test.ts",
+            r#"
+            import { value } from './helper';
+
+            describe('conditional preload mock', () => {
+                it('receives conditionally mocked value', () => {
+                    expect(value).toBe('conditional-mock');
+                });
+            });
+            "#,
+        );
+
+        let result = execute_test_file_with_options(
+            &test_file,
+            &ExecuteOptions {
+                preload: vec![preload],
+                ..Default::default()
+            },
+        );
+
+        assert!(
+            result.file_error.is_none(),
+            "File error: {:?}",
+            result.file_error
+        );
+        assert_eq!(result.passed(), 1, "Conditional mock should be effective");
+        assert_eq!(result.failed(), 0);
+    }
+
+    #[test]
+    fn test_preload_mock_multiple_preloads() {
+        // Two preload scripts each mocking different modules.
+        // The diff-based known_mock_keys approach correctly attributes
+        // each mock to its originating preload for resolution.
+        let tmp = tempfile::tempdir().unwrap();
+        let base = tmp.path();
+
+        let mod_a = base.join("mod-a.ts");
+        fs::write(&mod_a, "export const a = 'real-a';").unwrap();
+        let mod_b = base.join("mod-b.ts");
+        fs::write(&mod_b, "export const b = 'real-b';").unwrap();
+
+        let preload_a = write_test_file(
+            base,
+            "preload-a.ts",
+            r#"
+            vi.mock('./mod-a', () => ({ a: 'mocked-a' }));
+            "#,
+        );
+
+        let preload_b = write_test_file(
+            base,
+            "preload-b.ts",
+            r#"
+            vi.mock('./mod-b', () => ({ b: 'mocked-b' }));
+            "#,
+        );
+
+        let test_file = write_test_file(
+            base,
+            "multi.test.ts",
+            r#"
+            import { a } from './mod-a';
+            import { b } from './mod-b';
+
+            describe('multiple preload mocks', () => {
+                it('receives mock from first preload', () => {
+                    expect(a).toBe('mocked-a');
+                });
+                it('receives mock from second preload', () => {
+                    expect(b).toBe('mocked-b');
+                });
+            });
+            "#,
+        );
+
+        let result = execute_test_file_with_options(
+            &test_file,
+            &ExecuteOptions {
+                preload: vec![preload_a, preload_b],
+                ..Default::default()
+            },
+        );
+
+        assert!(
+            result.file_error.is_none(),
+            "File error: {:?}",
+            result.file_error
+        );
+        assert_eq!(result.passed(), 2, "Both preload mocks should be effective");
+        assert_eq!(result.failed(), 0);
     }
 
     #[test]
