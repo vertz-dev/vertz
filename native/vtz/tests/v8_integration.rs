@@ -1542,3 +1542,120 @@ async fn test_import_meta_dirname_and_filename() {
         output.stdout
     );
 }
+
+// --- Bug #2682: node:util.types.isTypedArray must survive V8 snapshot boundaries ---
+// These tests verify correctness of the toString-based tag check. The actual snapshot
+// boundary bug requires cross-realm TypedArrays (e.g., PGlite NODEFS), which cannot
+// be reproduced in a simple unit test without snapshot restore infrastructure.
+
+#[tokio::test]
+async fn test_node_util_types_is_typed_array_positive() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier =
+        deno_core::ModuleSpecifier::parse("file:///virtual/util-types-typed-array.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import { types } from 'node:util';
+
+        // All TypedArray subtypes must return true
+        console.log("Int8Array: " + types.isTypedArray(new Int8Array(1)));
+        console.log("Uint8Array: " + types.isTypedArray(new Uint8Array(1)));
+        console.log("Uint8ClampedArray: " + types.isTypedArray(new Uint8ClampedArray(1)));
+        console.log("Int16Array: " + types.isTypedArray(new Int16Array(1)));
+        console.log("Uint16Array: " + types.isTypedArray(new Uint16Array(1)));
+        console.log("Int32Array: " + types.isTypedArray(new Int32Array(1)));
+        console.log("Uint32Array: " + types.isTypedArray(new Uint32Array(1)));
+        console.log("BigInt64Array: " + types.isTypedArray(new BigInt64Array(1)));
+        console.log("BigUint64Array: " + types.isTypedArray(new BigUint64Array(1)));
+        console.log("Float32Array: " + types.isTypedArray(new Float32Array(1)));
+        console.log("Float64Array: " + types.isTypedArray(new Float64Array(1)));
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    let typed_arrays = [
+        "Int8Array",
+        "Uint8Array",
+        "Uint8ClampedArray",
+        "Int16Array",
+        "Uint16Array",
+        "Int32Array",
+        "Uint32Array",
+        "BigInt64Array",
+        "BigUint64Array",
+        "Float32Array",
+        "Float64Array",
+    ];
+    for (i, name) in typed_arrays.iter().enumerate() {
+        assert_eq!(
+            output.stdout[i],
+            format!("{}: true", name),
+            "isTypedArray should return true for {}. Got: {:?}",
+            name,
+            output.stdout
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_node_util_types_is_typed_array_negative() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier =
+        deno_core::ModuleSpecifier::parse("file:///virtual/util-types-typed-array-neg.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import { types } from 'node:util';
+
+        // These must all return false
+        console.log("DataView: " + types.isTypedArray(new DataView(new ArrayBuffer(1))));
+        console.log("ArrayBuffer: " + types.isTypedArray(new ArrayBuffer(1)));
+        console.log("plain-object: " + types.isTypedArray({ length: 1, byteLength: 1 }));
+        console.log("null: " + types.isTypedArray(null));
+        console.log("undefined: " + types.isTypedArray(undefined));
+        console.log("number: " + types.isTypedArray(42));
+        console.log("string: " + types.isTypedArray("hello"));
+        console.log("array: " + types.isTypedArray([1, 2, 3]));
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    let negatives = [
+        "DataView",
+        "ArrayBuffer",
+        "plain-object",
+        "null",
+        "undefined",
+        "number",
+        "string",
+        "array",
+    ];
+    for (i, name) in negatives.iter().enumerate() {
+        assert_eq!(
+            output.stdout[i],
+            format!("{}: false", name),
+            "isTypedArray should return false for {}. Got: {:?}",
+            name,
+            output.stdout
+        );
+    }
+}
