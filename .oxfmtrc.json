@@ -6,5 +6,12 @@
   "semi": true,
   "singleQuote": true,
   "trailingComma": "all",
-  "ignorePatterns": ["**/.vertz/**", "**/CHANGELOG.md", "**/.tmp-*/**", "**/cli/my-app/**"]
+  "ignorePatterns": [
+    "**/.vertz/**",
+    "**/CHANGELOG.md",
+    "**/.tmp-*/**",
+    "**/cli/my-app/**",
+    "**/coverage/**",
+    "**/dist/**"
+  ]
 }
