@@ -70,10 +70,28 @@ impl TestRunResult {
     }
 }
 
+/// Set `NODE_ENV=test` when unset so libraries that gate on it (e.g. @vertz/server's
+/// production-mode checks) behave correctly under `vtz test`. Matches bun/vitest's
+/// default. Returns the value that was applied, or `None` if NODE_ENV was already set.
+fn ensure_node_env_default() -> Option<&'static str> {
+    match std::env::var("NODE_ENV") {
+        Ok(ref existing) if !existing.is_empty() => None,
+        _ => {
+            std::env::set_var("NODE_ENV", "test");
+            Some("test")
+        }
+    }
+}
+
 /// Run the test suite: discover → execute (parallel) → report.
 ///
 /// Returns a `TestRunResult` with the aggregated results and formatted output.
 pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
+    // Match bun/vitest behavior: default NODE_ENV to "test" when unset so library
+    // code that distinguishes production from test (e.g. @vertz/server auth) takes
+    // the test branch.
+    ensure_node_env_default();
+
     // 1. Discover test files
     let files = discover_test_files(
         &config.root_dir,
@@ -411,6 +429,56 @@ mod tests {
     use super::*;
     use std::fs;
     use std::path::Path;
+
+    // Serialize all NODE_ENV-sensitive tests — std::env is process-global.
+    static NODE_ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn with_node_env<T>(initial: Option<&str>, body: impl FnOnce() -> T) -> T {
+        let _lock = NODE_ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let prior = std::env::var("NODE_ENV").ok();
+        match initial {
+            Some(v) => std::env::set_var("NODE_ENV", v),
+            None => std::env::remove_var("NODE_ENV"),
+        }
+        let out = body();
+        match prior {
+            Some(v) => std::env::set_var("NODE_ENV", v),
+            None => std::env::remove_var("NODE_ENV"),
+        }
+        out
+    }
+
+    #[test]
+    fn ensure_node_env_default_sets_test_when_unset() {
+        with_node_env(None, || {
+            let applied = ensure_node_env_default();
+            assert_eq!(applied, Some("test"));
+            assert_eq!(std::env::var("NODE_ENV").as_deref(), Ok("test"));
+        });
+    }
+
+    #[test]
+    fn ensure_node_env_default_sets_test_when_empty() {
+        with_node_env(Some(""), || {
+            let applied = ensure_node_env_default();
+            assert_eq!(applied, Some("test"));
+            assert_eq!(std::env::var("NODE_ENV").as_deref(), Ok("test"));
+        });
+    }
+
+    #[test]
+    fn ensure_node_env_default_preserves_existing_value() {
+        with_node_env(Some("production"), || {
+            let applied = ensure_node_env_default();
+            assert!(applied.is_none());
+            assert_eq!(std::env::var("NODE_ENV").as_deref(), Ok("production"));
+        });
+        with_node_env(Some("development"), || {
+            let applied = ensure_node_env_default();
+            assert!(applied.is_none());
+            assert_eq!(std::env::var("NODE_ENV").as_deref(), Ok("development"));
+        });
+    }
 
     fn create_test_project(dir: &Path) {
         fs::create_dir_all(dir.join("src")).unwrap();
