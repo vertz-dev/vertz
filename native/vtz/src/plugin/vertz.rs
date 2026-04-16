@@ -3,6 +3,123 @@ use crate::plugin::{
     PluginMcpTool,
 };
 
+/// Detect a classic JSX factory pragma (`@jsx <name>`) in leading comments.
+///
+/// Returns `Some(factory_name)` if found (e.g., `Some("h")`), `None` otherwise.
+/// Only scans comment lines at the top of the file before any code.
+fn detect_classic_jsx_pragma(source: &str) -> Option<String> {
+    // Quick check: bail early if no @jsx anywhere
+    if !source.contains("@jsx ") {
+        return None;
+    }
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        // Only look at comment lines (block or line comments)
+        if !trimmed.starts_with("/*") && !trimmed.starts_with("*") && !trimmed.starts_with("//") {
+            // Hit a non-comment line — stop scanning
+            break;
+        }
+        // Look for @jsx <factory>, but skip @jsxRuntime (different pragma)
+        if let Some(pos) = trimmed.find("@jsx ") {
+            let after_at_jsx = &trimmed[pos + 5..];
+            // Skip if this is @jsxRuntime (not @jsx <factory>)
+            if after_at_jsx.starts_with("Runtime") || after_at_jsx.starts_with("runtime") {
+                continue;
+            }
+            // Extract the identifier
+            let factory: String = after_at_jsx
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '.' || *c == '_' || *c == '$')
+                .collect();
+            if !factory.is_empty() {
+                return Some(factory);
+            }
+        }
+    }
+
+    None
+}
+
+/// Compile a file with classic JSX runtime using oxc_transformer.
+///
+/// Used when a `@jsx` pragma is detected — skips all Vertz-specific transforms
+/// (signals, reactivity, mount frames) and compiles JSX with the specified factory.
+fn compile_classic_jsx(source: &str, ctx: &CompileContext, pragma: &str) -> CompileOutput {
+    use oxc_allocator::Allocator;
+    use oxc_codegen::Codegen;
+    use oxc_parser::Parser;
+    use oxc_semantic::SemanticBuilder;
+    use oxc_span::SourceType;
+    use oxc_transformer::{JsxOptions, JsxRuntime, TransformOptions, Transformer};
+
+    let allocator = Allocator::default();
+    let source_type = SourceType::from_path(ctx.file_path).unwrap_or_default();
+
+    let parser_ret = Parser::new(&allocator, source, source_type).parse();
+
+    let mut diagnostics = Vec::new();
+    for error in &parser_ret.errors {
+        diagnostics.push(CompileDiagnostic {
+            message: error.to_string(),
+            line: None,
+            column: None,
+            is_warning: false,
+        });
+    }
+
+    if parser_ret.panicked {
+        return CompileOutput {
+            code: source.to_string(),
+            css: None,
+            source_map: None,
+            diagnostics,
+            mocked_specifiers: std::collections::HashSet::new(),
+            mock_preamble: None,
+        };
+    }
+
+    let mut program = parser_ret.program;
+
+    let semantic_ret = SemanticBuilder::new().build(&program);
+    let scoping = semantic_ret.semantic.into_scoping();
+
+    let transform_options = TransformOptions {
+        jsx: JsxOptions {
+            runtime: JsxRuntime::Classic,
+            pragma: Some(pragma.to_string()),
+            ..JsxOptions::default()
+        },
+        ..TransformOptions::default()
+    };
+
+    let transformer = Transformer::new(&allocator, ctx.file_path, &transform_options);
+    let transform_ret = transformer.build_with_scoping(scoping, &mut program);
+
+    for error in &transform_ret.errors {
+        diagnostics.push(CompileDiagnostic {
+            message: error.to_string(),
+            line: None,
+            column: None,
+            is_warning: true,
+        });
+    }
+
+    let codegen_ret = Codegen::new().build(&program);
+
+    CompileOutput {
+        code: codegen_ret.code,
+        css: None,
+        source_map: codegen_ret.map.map(|sm| sm.to_json_string()),
+        diagnostics,
+        mocked_specifiers: std::collections::HashSet::new(),
+        mock_preamble: None,
+    }
+}
+
 /// Fast Refresh runtime JS (embedded at compile time).
 const FAST_REFRESH_RUNTIME_JS: &str = include_str!("../assets/fast-refresh-runtime.js");
 
@@ -21,6 +138,11 @@ impl FrameworkPlugin for VertzPlugin {
     }
 
     fn compile(&self, source: &str, ctx: &CompileContext) -> CompileOutput {
+        // Check for classic JSX pragma — skip Vertz transforms entirely
+        if let Some(pragma) = detect_classic_jsx_pragma(source) {
+            return compile_classic_jsx(source, ctx, &pragma);
+        }
+
         let filename = ctx.file_path.to_string_lossy().to_string();
         let is_test = crate::test::is_test_file(ctx.file_path);
 
@@ -557,6 +679,118 @@ mod tests {
         assert!(
             output.code.contains("__$fr"),
             "Fast Refresh preamble should be injected in non-test files: {}",
+            output.code
+        );
+    }
+
+    // ── Classic JSX pragma detection ─────────────────────────────
+
+    #[test]
+    fn classic_jsx_pragma_uses_custom_factory() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/template.tsx"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "dom",
+        };
+        let source = r#"/* @jsxRuntime classic */
+/* @jsx h */
+import { h } from './h';
+
+export function Card({ title }) {
+    return <div>{title}</div>;
+}
+"#;
+        let output = plugin.compile(source, &ctx);
+        // Should call h() instead of Vertz DOM helpers
+        assert!(
+            output.code.contains("h("),
+            "Expected h() factory call, got: {}",
+            output.code
+        );
+        // Should NOT contain Vertz internals imports
+        assert!(
+            !output.code.contains("@vertz/ui/internals"),
+            "Should not inject Vertz internals for classic JSX: {}",
+            output.code
+        );
+    }
+
+    #[test]
+    fn classic_jsx_pragma_preserves_import() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/template.tsx"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "dom",
+        };
+        let source = r#"/* @jsxRuntime classic */
+/* @jsx h */
+import { h } from '../h';
+
+export function Minimal({ title }) {
+    return <div style={{ fontSize: '72px' }}>{title}</div>;
+}
+"#;
+        let output = plugin.compile(source, &ctx);
+        // The h import should be preserved
+        assert!(
+            output.code.contains("from \"../h\"") || output.code.contains("from '../h'"),
+            "Should preserve h import, got: {}",
+            output.code
+        );
+    }
+
+    #[test]
+    fn no_pragma_still_uses_vertz_transforms() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/App.tsx"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "dom",
+        };
+        let output = plugin.compile(
+            "export default function App() { return <div>Hello</div>; }",
+            &ctx,
+        );
+        // Without pragma, Vertz transforms should be applied
+        assert!(
+            !output.code.contains("React.createElement"),
+            "Without pragma, should not use React.createElement: {}",
+            output.code
+        );
+    }
+
+    #[test]
+    fn classic_jsx_pragma_strips_typescript() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/template.tsx"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "dom",
+        };
+        let source = r#"/* @jsx h */
+import { h } from './h';
+interface Props { title: string; }
+export function Card({ title }: Props) {
+    return <div>{title}</div>;
+}
+"#;
+        let output = plugin.compile(source, &ctx);
+        // TypeScript should be stripped
+        assert!(
+            !output.code.contains("interface Props"),
+            "TypeScript should be stripped: {}",
+            output.code
+        );
+        // Should use h() factory
+        assert!(
+            output.code.contains("h("),
+            "Should use h() factory: {}",
             output.code
         );
     }
