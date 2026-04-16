@@ -88,7 +88,7 @@ Before pushing ANY code:
 
 ### Rust (native/)
 - `cargo test --all` — tests pass
-- `cargo clippy --all-targets --release -- -D warnings` — no warnings
+- `cargo clippy --all-targets -- -D warnings` — no warnings
 - `cargo fmt --all -- --check` — formatting clean
 - Never push code that fails clippy
 
