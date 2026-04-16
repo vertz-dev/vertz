@@ -66,6 +66,44 @@ for pkg_json in packages/runtime-*/package.json; do
   fi
 done
 
+# --- Phase 1.5: Publish native compiler binary packages (packages/native-compiler-*) ---
+echo ""
+echo "=== Publishing native compiler binary packages ==="
+
+for pkg_json in packages/native-compiler-*/package.json; do
+  [ -f "$pkg_json" ] || continue
+
+  dir=$(dirname "$pkg_json")
+  name=$(jq -r '.name' "$pkg_json")
+  version=$(jq -r '.version' "$pkg_json")
+  private=$(jq -r '.private // false' "$pkg_json")
+
+  if [ "$private" = "true" ]; then
+    # Check that a .node binary exists
+    if ! ls "$dir"/vertz-compiler.*.node 1>/dev/null 2>&1; then
+      echo "Skipping $name (no binary)"
+      continue
+    fi
+
+    # Temporarily remove private flag for publishing
+    jq 'del(.private)' "$pkg_json" > "$pkg_json.tmp" && mv "$pkg_json.tmp" "$pkg_json"
+    MODIFIED_PKGS+=("$pkg_json")
+  fi
+
+  if is_published "$name" "$version"; then
+    echo "Skipping $name@$version (already published)"
+    continue
+  fi
+
+  echo "Publishing $name@$version..."
+  if (cd "$dir" && npm publish --access public --provenance); then
+    echo "Published $name@$version"
+  else
+    echo "Failed to publish $name@$version"
+    FAILED+=("$name@$version")
+  fi
+done
+
 # --- Phase 2: Publish selector package (packages/runtime) ---
 echo ""
 echo "=== Publishing runtime selector package ==="
@@ -82,6 +120,25 @@ else
   else
     echo "Failed to publish $name@$version"
     FAILED+=("$name@$version")
+  fi
+fi
+
+# --- Phase 2.5: Publish native compiler selector package ---
+echo ""
+echo "=== Publishing native compiler selector package ==="
+
+compiler_name=$(jq -r '.name' native/vertz-compiler/package.json)
+compiler_version=$(jq -r '.version' native/vertz-compiler/package.json)
+
+if is_published "$compiler_name" "$compiler_version"; then
+  echo "Skipping $compiler_name@$compiler_version (already published)"
+else
+  echo "Publishing $compiler_name@$compiler_version..."
+  if (cd native/vertz-compiler && npm publish --access public --provenance); then
+    echo "Published $compiler_name@$compiler_version"
+  else
+    echo "Failed to publish $compiler_name@$compiler_version"
+    FAILED+=("$compiler_name@$compiler_version")
   fi
 fi
 

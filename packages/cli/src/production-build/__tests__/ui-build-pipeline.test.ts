@@ -38,9 +38,12 @@ const mockGenerateAotBuildManifest = mock(() => ({
 
 const mockExtractFontMetrics = mock(async () => ({}));
 
+const mockLoadNativeCompiler = mock(() => ({ compile: mock(() => ({ code: '' })) }));
+
 vi.mock('@vertz/ui-server', () => ({
   generateAotBuildManifest: (...args: unknown[]) => mockGenerateAotBuildManifest(...args),
   extractFontMetrics: (...args: unknown[]) => mockExtractFontMetrics(...args),
+  loadNativeCompiler: (...args: unknown[]) => mockLoadNativeCompiler(...args),
 }));
 
 const mockDiscoverRoutes = mock(async () => [] as string[]);

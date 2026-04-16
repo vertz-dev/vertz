@@ -44,7 +44,7 @@
     "@vertz/tui": "workspace:^",
     "@vertz/ui-server": "workspace:^",
     "commander": "^14.0.0",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.27.3",
     "jiti": "^2.4.2"
   },
   "devDependencies": {

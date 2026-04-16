@@ -67,18 +67,22 @@ jobs:
           - target: aarch64-apple-darwin
             os: macos-14
             pkg: runtime-darwin-arm64
+            compiler_pkg: native-compiler-darwin-arm64
             expected_arch: arm64
           - target: x86_64-apple-darwin
             os: macos-14
             pkg: runtime-darwin-x64
+            compiler_pkg: native-compiler-darwin-x64
             expected_arch: x86_64
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-24.04
             pkg: runtime-linux-x64
+            compiler_pkg: native-compiler-linux-x64
             expected_arch: x86_64
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-24.04-arm
             pkg: runtime-linux-arm64
+            compiler_pkg: native-compiler-linux-arm64
             expected_arch: aarch64
 
     runs-on: ${{ matrix.os }}
@@ -137,6 +141,36 @@ jobs:
         with:
           name: ${{ matrix.pkg }}
           path: packages/${{ matrix.pkg }}/vtz
+          retention-days: 1
+
+      - name: Build native compiler
+        working-directory: native
+        run: cargo build --release --target ${{ matrix.target }} -p vertz-compiler
+
+      - name: Copy compiler binary to platform package
+        run: |
+          COMPILER_PKG="${{ matrix.compiler_pkg }}"
+          PLATFORM_SUFFIX="${COMPILER_PKG#native-compiler-}"
+          if [[ "${{ matrix.target }}" == *apple* ]]; then
+            cp native/target/${{ matrix.target }}/release/libvertz_compiler.dylib \
+              "packages/${{ matrix.compiler_pkg }}/vertz-compiler.${PLATFORM_SUFFIX}.node"
+          else
+            cp native/target/${{ matrix.target }}/release/libvertz_compiler.so \
+              "packages/${{ matrix.compiler_pkg }}/vertz-compiler.${PLATFORM_SUFFIX}.node"
+          fi
+
+      - name: Ad-hoc code sign compiler binary (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          COMPILER_PKG="${{ matrix.compiler_pkg }}"
+          PLATFORM_SUFFIX="${COMPILER_PKG#native-compiler-}"
+          codesign -s - "packages/${{ matrix.compiler_pkg }}/vertz-compiler.${PLATFORM_SUFFIX}.node"
+
+      - name: Upload compiler artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.compiler_pkg }}
+          path: packages/${{ matrix.compiler_pkg }}/vertz-compiler.*.node
           retention-days: 1
 
   # ---------------------------------------------------------------------------
@@ -224,6 +258,34 @@ jobs:
             fi
           done
 
+      - name: Download native-compiler-darwin-arm64
+        uses: actions/download-artifact@v4
+        with:
+          name: native-compiler-darwin-arm64
+          path: packages/native-compiler-darwin-arm64/
+        continue-on-error: true
+
+      - name: Download native-compiler-darwin-x64
+        uses: actions/download-artifact@v4
+        with:
+          name: native-compiler-darwin-x64
+          path: packages/native-compiler-darwin-x64/
+        continue-on-error: true
+
+      - name: Download native-compiler-linux-x64
+        uses: actions/download-artifact@v4
+        with:
+          name: native-compiler-linux-x64
+          path: packages/native-compiler-linux-x64/
+        continue-on-error: true
+
+      - name: Download native-compiler-linux-arm64
+        uses: actions/download-artifact@v4
+        with:
+          name: native-compiler-linux-arm64
+          path: packages/native-compiler-linux-arm64/
+        continue-on-error: true
+
       - name: Download runtime from latest release (when not built from source)
         if: ${{ !contains(needs.build-binaries.result, 'success') }}
         env:
@@ -253,20 +315,37 @@ jobs:
         working-directory: packages/runtime
         run: vtzx bun build index.ts --outdir . --target node
 
+      - name: Prepare compiler binary for library builds
+        id: compiler
+        run: |
+          # Use the linux-x64 compiler artifact for library builds on the release runner
+          if [ -f packages/native-compiler-linux-x64/vertz-compiler.linux-x64.node ]; then
+            cp packages/native-compiler-linux-x64/vertz-compiler.linux-x64.node \
+              native/vertz-compiler/vertz-compiler.linux-x64.node
+            echo "Native compiler binary ready (from artifact)"
+            echo "needs_build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "No compiler artifact — will build from source"
+            echo "needs_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install Rust (for native compiler)
+        if: steps.compiler.outputs.needs_build == 'true'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Cargo dependencies
+        if: steps.compiler.outputs.needs_build == 'true'
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: native
           key: compiler-only
 
-      - name: Build native compiler for library builds
+      - name: Build native compiler for library builds (fallback)
+        if: steps.compiler.outputs.needs_build == 'true'
         run: |
           cargo build --release --manifest-path native/Cargo.toml -p vertz-compiler
           cp native/target/release/libvertz_compiler.so native/vertz-compiler/vertz-compiler.linux-x64.node
-          echo "Native compiler binary ready: $(ls -la native/vertz-compiler/vertz-compiler.linux-x64.node)"
+          echo "Native compiler binary ready (built from source)"
 
       - name: Build @vertz/build
         run: |

@@ -7,7 +7,6 @@
     "url": "https://github.com/vertz-dev/vertz"
   },
   "bin": {
-    "vertz": "./cli.sh",
     "vtz": "./cli.sh",
     "vtzx": "./cli-exec.sh"
   },
