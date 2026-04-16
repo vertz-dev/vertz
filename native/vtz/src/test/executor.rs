@@ -1059,6 +1059,57 @@ mod tests {
     }
 
     #[test]
+    fn test_preload_mock_nonexistent_subpath_package() {
+        // Mocking a subpath specifier that doesn't exist on disk
+        // (e.g., @fake/pkg/auth). The bare mock URL should use the full
+        // specifier including the subpath for lookup. (#2667)
+        let tmp = tempfile::tempdir().unwrap();
+        let base = tmp.path();
+
+        let preload = write_test_file(
+            base,
+            "preload-subpath.ts",
+            r#"
+            vi.mock('@fake/pkg/auth', () => ({ Guard: () => 'guarded' }));
+            "#,
+        );
+
+        let test_file = write_test_file(
+            base,
+            "subpath.test.ts",
+            r#"
+            import { Guard } from '@fake/pkg/auth';
+
+            describe('nonexistent subpath mock', () => {
+                it('receives mocked subpath export', () => {
+                    expect(Guard()).toBe('guarded');
+                });
+            });
+            "#,
+        );
+
+        let result = execute_test_file_with_options(
+            &test_file,
+            &ExecuteOptions {
+                preload: vec![preload],
+                ..Default::default()
+            },
+        );
+
+        assert!(
+            result.file_error.is_none(),
+            "File error: {:?}",
+            result.file_error
+        );
+        assert_eq!(
+            result.passed(),
+            1,
+            "Mock of nonexistent subpath package should work"
+        );
+        assert_eq!(result.failed(), 0);
+    }
+
+    #[test]
     fn test_root_dir_affects_bun_cache_resolution() {
         // The module loader's Bun cache fallback starts from `self.root_dir`.
         // When root_dir is the workspace root (not the test file's parent),
