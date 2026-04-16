@@ -1,5 +1,21 @@
 # @vertz/cli
 
+## 0.2.66
+
+### Patch Changes
+
+- [#2710](https://github.com/vertz-dev/vertz/pull/2710) [`cc998eb`](https://github.com/vertz-dev/vertz/commit/cc998eb9a37a25335764b1250418c0727f49778a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix production build pipeline: publish native compiler via platform packages, remove bin link shadowing, align esbuild versions, and hard-fail when native compiler is unavailable
+
+- Updated dependencies [[`cc998eb`](https://github.com/vertz-dev/vertz/commit/cc998eb9a37a25335764b1250418c0727f49778a)]:
+  - @vertz/ui-server@0.2.66
+  - @vertz/codegen@0.2.66
+  - @vertz/compiler@0.2.66
+  - @vertz/create-vertz-app@0.2.66
+  - @vertz/db@0.2.66
+  - @vertz/errors@0.2.66
+  - @vertz/tui@0.2.66
+  - @vertz/docs@0.1.3
+
 ## 0.2.65
 
 ### Patch Changes

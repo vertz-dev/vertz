@@ -1,6 +1,6 @@
 {
   "name": "@vertz/fetch",
-  "version": "0.2.65",
+  "version": "0.2.66",
   "description": "Type-safe HTTP client for Vertz",
   "license": "MIT",
   "repository": {
