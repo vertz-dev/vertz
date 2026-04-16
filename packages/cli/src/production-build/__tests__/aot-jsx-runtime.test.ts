@@ -112,7 +112,7 @@ describe('AOT bundle JSX runtime (#1935)', () => {
   function bundle(barrelPath: string, outDir: string, define?: Record<string, string>): string {
     const scriptPath = join(tmpDir, 'build.cjs');
     writeFileSync(scriptPath, buildScript(barrelPath, outDir, define));
-    execSync(`node ${scriptPath}`, {
+    execSync(`node "${scriptPath}"`, {
       env: { ...process.env, NODE_PATH: NODE_MODULES },
       encoding: 'utf-8',
     });
