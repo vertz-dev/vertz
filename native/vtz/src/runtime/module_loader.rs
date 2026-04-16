@@ -3619,6 +3619,7 @@ export async function build(options = {}) {
     bundle: !!options.bundle,
     format: options.format || undefined,
     outdir: options.outdir || undefined,
+    outfile: options.outfile || undefined,
     splitting: !!options.splitting,
     target: options.target || undefined,
     platform: options.platform || undefined,
@@ -3626,8 +3627,12 @@ export async function build(options = {}) {
     banner: options.banner || undefined,
     sourcemap: options.sourcemap ?? undefined,
     metafile: !!options.metafile,
+    minify: !!options.minify,
+    define: options.define || undefined,
+    logLevel: options.logLevel || undefined,
     mainFields: options.mainFields || undefined,
     absWorkingDir: options.absWorkingDir || undefined,
+    hasPlugins: !!(options.plugins && options.plugins.length),
   });
   return {
     errors: result.errors || [],

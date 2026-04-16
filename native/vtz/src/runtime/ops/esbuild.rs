@@ -176,6 +176,7 @@ pub struct EsbuildBuildOptions {
     pub bundle: bool,
     pub format: Option<String>,
     pub outdir: Option<String>,
+    pub outfile: Option<String>,
     #[serde(default)]
     pub splitting: bool,
     pub target: Option<String>,
@@ -185,8 +186,14 @@ pub struct EsbuildBuildOptions {
     pub sourcemap: Option<serde_json::Value>,
     #[serde(default)]
     pub metafile: bool,
+    #[serde(default)]
+    pub minify: bool,
+    pub define: Option<HashMap<String, String>>,
+    pub log_level: Option<String>,
     pub main_fields: Option<Vec<String>>,
     pub abs_working_dir: Option<String>,
+    #[serde(default)]
+    pub has_plugins: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -200,6 +207,20 @@ pub struct EsbuildBuildResult {
 pub(crate) fn esbuild_build(
     options: &EsbuildBuildOptions,
 ) -> Result<EsbuildBuildResult, deno_core::error::AnyError> {
+    if options.entry_points.is_empty() {
+        return Err(deno_core::anyhow::anyhow!(
+            "esbuild.build() requires at least one entry point"
+        ));
+    }
+
+    if options.has_plugins {
+        return Err(deno_core::anyhow::anyhow!(
+            "esbuild.build() plugins are not supported in the vtz runtime. \
+             Plugins require the esbuild JS API service, which is not available. \
+             Remove plugins or run under Node/Bun."
+        ));
+    }
+
     let esbuild = resolve_esbuild_binary()?;
     let mut args = Vec::new();
 
@@ -221,6 +242,11 @@ pub(crate) fn esbuild_build(
     if let Some(ref outdir) = options.outdir {
         validate_option("outdir", outdir)?;
         args.push(format!("--outdir={outdir}"));
+    }
+
+    if let Some(ref outfile) = options.outfile {
+        validate_option("outfile", outfile)?;
+        args.push(format!("--outfile={outfile}"));
     }
 
     if options.splitting {
@@ -262,6 +288,23 @@ pub(crate) fn esbuild_build(
             }
             _ => {} // false or null — no flag
         }
+    }
+
+    if options.minify {
+        args.push("--minify".to_string());
+    }
+
+    if let Some(ref defines) = options.define {
+        for (key, value) in defines {
+            validate_option("define-key", key)?;
+            validate_option("define-value", value)?;
+            args.push(format!("--define:{key}={value}"));
+        }
+    }
+
+    if let Some(ref log_level) = options.log_level {
+        validate_option("logLevel", log_level)?;
+        args.push(format!("--log-level={log_level}"));
     }
 
     if let Some(ref main_fields) = options.main_fields {
@@ -316,16 +359,17 @@ pub(crate) fn esbuild_build(
         ));
     }
 
-    // Read metafile if requested
+    // Read metafile if requested — always clean up the temp file
     let metafile = if let Some(ref path) = metafile_path {
-        let content = std::fs::read_to_string(path).map_err(|e| {
+        let content = std::fs::read_to_string(path);
+        let _ = std::fs::remove_file(path); // Clean up before checking result
+        let content = content.map_err(|e| {
             deno_core::anyhow::anyhow!(
                 "Failed to read esbuild metafile at '{}': {}",
                 path.display(),
                 e
             )
         })?;
-        let _ = std::fs::remove_file(path);
         let parsed: serde_json::Value = serde_json::from_str(&content)
             .map_err(|e| deno_core::anyhow::anyhow!("Failed to parse esbuild metafile: {}", e))?;
         Some(parsed)
@@ -470,6 +514,7 @@ mod tests {
             bundle: true,
             format: Some("esm".to_string()),
             outdir: Some("out".to_string()),
+            outfile: None,
             splitting: false,
             target: Some("esnext".to_string()),
             platform: Some("neutral".to_string()),
@@ -477,8 +522,12 @@ mod tests {
             banner: None,
             sourcemap: None,
             metafile: true,
+            minify: false,
+            define: None,
+            log_level: None,
             main_fields: None,
             abs_working_dir: Some(tmp.to_string_lossy().to_string()),
+            has_plugins: false,
         });
 
         // Clean up
@@ -518,6 +567,7 @@ mod tests {
             bundle: true,
             format: Some("esm".to_string()),
             outdir: Some("out".to_string()),
+            outfile: None,
             splitting: false,
             target: Some("esnext".to_string()),
             platform: Some("neutral".to_string()),
@@ -525,8 +575,12 @@ mod tests {
             banner: None,
             sourcemap: None,
             metafile: false,
+            minify: false,
+            define: None,
+            log_level: None,
             main_fields: None,
             abs_working_dir: Some(tmp.to_string_lossy().to_string()),
+            has_plugins: false,
         });
 
         // Verify output contains external import
@@ -555,6 +609,7 @@ mod tests {
             bundle: true,
             format: Some("esm".to_string()),
             outdir: Some("/tmp/vtz-esbuild-fail-test".to_string()),
+            outfile: None,
             splitting: false,
             target: None,
             platform: None,
@@ -562,8 +617,12 @@ mod tests {
             banner: None,
             sourcemap: None,
             metafile: false,
+            minify: false,
+            define: None,
+            log_level: None,
             main_fields: None,
             abs_working_dir: None,
+            has_plugins: false,
         });
 
         assert!(result.is_err(), "Should fail on nonexistent entry point");
@@ -571,6 +630,68 @@ mod tests {
         assert!(
             err.contains("esbuild build failed"),
             "Error should indicate build failure: got '{err}'"
+        );
+    }
+
+    #[test]
+    fn test_esbuild_build_empty_entry_points_fails() {
+        let result = esbuild_build(&EsbuildBuildOptions {
+            entry_points: vec![],
+            bundle: false,
+            format: None,
+            outdir: None,
+            outfile: None,
+            splitting: false,
+            target: None,
+            platform: None,
+            external: None,
+            banner: None,
+            sourcemap: None,
+            metafile: false,
+            minify: false,
+            define: None,
+            log_level: None,
+            main_fields: None,
+            abs_working_dir: None,
+            has_plugins: false,
+        });
+
+        assert!(result.is_err(), "Should fail with empty entry points");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("at least one entry point"),
+            "Error should mention entry points: got '{err}'"
+        );
+    }
+
+    #[test]
+    fn test_esbuild_build_plugins_rejected() {
+        let result = esbuild_build(&EsbuildBuildOptions {
+            entry_points: vec!["entry.ts".to_string()],
+            bundle: false,
+            format: None,
+            outdir: None,
+            outfile: None,
+            splitting: false,
+            target: None,
+            platform: None,
+            external: None,
+            banner: None,
+            sourcemap: None,
+            metafile: false,
+            minify: false,
+            define: None,
+            log_level: None,
+            main_fields: None,
+            abs_working_dir: None,
+            has_plugins: true,
+        });
+
+        assert!(result.is_err(), "Should fail when plugins are present");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("plugins are not supported"),
+            "Error should mention plugins: got '{err}'"
         );
     }
 
