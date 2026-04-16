@@ -1,5 +1,11 @@
 # @vertz/runtime
 
+## 0.2.65
+
+### Patch Changes
+
+- [#2674](https://github.com/vertz-dev/vertz/pull/2674) [`156a3d0`](https://github.com/vertz-dev/vertz/commit/156a3d03610e3c8459187bd9fda7216079ae22d5) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `process.arch` to the vtz runtime bootstrap, fixing sharp and other native modules that construct platform-arch strings from `process.platform` and `process.arch`.
+
 ## 0.2.64
 
 ### Patch Changes
