@@ -1,14 +1,42 @@
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Mutex;
+
 use deno_core::error::AnyError;
 use deno_core::op2;
 use deno_core::OpDecl;
+use tokio::sync::oneshot;
+
+/// Global counter for cancel IDs.
+static NEXT_CANCEL_ID: AtomicU32 = AtomicU32::new(1);
+
+/// Map of cancel ID → oneshot sender. When the sender is dropped,
+/// the corresponding `op_fetch` future is cancelled.
+static PENDING_FETCHES: Mutex<Option<HashMap<u32, oneshot::Sender<()>>>> = Mutex::new(None);
+
+fn pending_fetches_insert(id: u32, tx: oneshot::Sender<()>) {
+    let mut map = PENDING_FETCHES.lock().unwrap();
+    map.get_or_insert_with(HashMap::new).insert(id, tx);
+}
+
+fn pending_fetches_remove(id: u32) -> Option<oneshot::Sender<()>> {
+    let mut map = PENDING_FETCHES.lock().unwrap();
+    map.as_mut().and_then(|m| m.remove(&id))
+}
 
 /// Perform an HTTP fetch request and return the response as a JSON object.
+/// If `_cancelId` is present in options, the request can be cancelled via `op_fetch_cancel`.
 #[op2(async)]
 #[serde]
 pub async fn op_fetch(
     #[string] url: String,
     #[serde] options: serde_json::Value,
 ) -> Result<serde_json::Value, AnyError> {
+    let cancel_id = options
+        .get("_cancelId")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as u32);
+
     let client = reqwest::Client::new();
 
     let method_str = options
@@ -40,45 +68,80 @@ pub async fn op_fetch(
         }
     }
 
-    let response = request
-        .send()
-        .await
-        .map_err(|e| deno_core::anyhow::anyhow!("Fetch failed: {}", e))?;
+    let do_fetch = async {
+        let response = request
+            .send()
+            .await
+            .map_err(|e| deno_core::anyhow::anyhow!("Fetch failed: {}", e))?;
 
-    let status = response.status().as_u16();
-    let status_text = response
-        .status()
-        .canonical_reason()
-        .unwrap_or("")
-        .to_string();
+        let status = response.status().as_u16();
+        let status_text = response
+            .status()
+            .canonical_reason()
+            .unwrap_or("")
+            .to_string();
 
-    let headers: serde_json::Map<String, serde_json::Value> = response
-        .headers()
-        .iter()
-        .map(|(k, v)| {
-            (
-                k.as_str().to_string(),
-                serde_json::Value::String(v.to_str().unwrap_or("").to_string()),
-            )
-        })
-        .collect();
+        let headers: serde_json::Map<String, serde_json::Value> = response
+            .headers()
+            .iter()
+            .map(|(k, v)| {
+                (
+                    k.as_str().to_string(),
+                    serde_json::Value::String(v.to_str().unwrap_or("").to_string()),
+                )
+            })
+            .collect();
 
-    let body = response
-        .text()
-        .await
-        .map_err(|e| deno_core::anyhow::anyhow!("Failed to read response body: {}", e))?;
+        let body = response
+            .text()
+            .await
+            .map_err(|e| deno_core::anyhow::anyhow!("Failed to read response body: {}", e))?;
 
-    Ok(serde_json::json!({
-        "status": status,
-        "statusText": status_text,
-        "headers": headers,
-        "body": body,
-    }))
+        Ok(serde_json::json!({
+            "status": status,
+            "statusText": status_text,
+            "headers": headers,
+            "body": body,
+        }))
+    };
+
+    if let Some(id) = cancel_id {
+        let (tx, rx) = oneshot::channel::<()>();
+        pending_fetches_insert(id, tx);
+
+        tokio::select! {
+            result = do_fetch => {
+                pending_fetches_remove(id);
+                result
+            }
+            _ = rx => {
+                Err(deno_core::anyhow::anyhow!("Fetch aborted"))
+            }
+        }
+    } else {
+        do_fetch.await
+    }
+}
+
+/// Cancel a pending fetch by its cancel ID.
+#[op2(fast)]
+pub fn op_fetch_cancel(cancel_id: u32) {
+    // Removing the sender from the map drops it, which causes the
+    // oneshot receiver to resolve with an error — triggering the
+    // `tokio::select!` cancel branch in `op_fetch`.
+    pending_fetches_remove(cancel_id);
+}
+
+/// Allocate a unique cancel ID for a fetch request.
+#[op2(fast)]
+#[smi]
+pub fn op_fetch_next_cancel_id() -> u32 {
+    NEXT_CANCEL_ID.fetch_add(1, Ordering::Relaxed)
 }
 
 /// Get the op declarations for fetch ops.
 pub fn op_decls() -> Vec<OpDecl> {
-    vec![op_fetch()]
+    vec![op_fetch(), op_fetch_cancel(), op_fetch_next_cancel_id()]
 }
 
 /// JavaScript bootstrap code for the fetch API.
@@ -523,12 +586,122 @@ mod tests {
         assert_eq!(result, serde_json::json!("correct-error"));
     }
 
+    // --- AbortSignal.timeout() cancellation ---
+
+    #[tokio::test]
+    async fn test_fetch_abort_signal_timeout_rejects_and_settles() {
+        let app = Router::new().route(
+            "/slow",
+            get(|| async {
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                "done"
+            }),
+        );
+        let (base_url, _handle) = start_test_server(app).await;
+        let mut rt = create_runtime();
+
+        // The whole operation (JS fetch + event loop) must settle within 5s.
+        // Without the fix, op_fetch keeps the event loop alive forever.
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            run_async(
+                &mut rt,
+                &format!(
+                    r#"
+                try {{
+                    await fetch('{}/slow', {{ signal: AbortSignal.timeout(100) }});
+                    return 'no-throw';
+                }} catch (e) {{
+                    return e.name + ': ' + e.message;
+                }}
+            "#,
+                    base_url
+                ),
+            ),
+        )
+        .await
+        .expect("event loop should settle after abort, not hang");
+
+        let msg = result.as_str().unwrap();
+        assert!(
+            msg.contains("TimeoutError"),
+            "expected TimeoutError, got: {}",
+            msg
+        );
+    }
+
+    // --- AbortController.abort() cancellation ---
+
+    #[tokio::test]
+    async fn test_fetch_abort_controller_rejects_and_settles() {
+        let app = Router::new().route(
+            "/slow",
+            get(|| async {
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                "done"
+            }),
+        );
+        let (base_url, _handle) = start_test_server(app).await;
+        let mut rt = create_runtime();
+
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            run_async(
+                &mut rt,
+                &format!(
+                    r#"
+                const ac = new AbortController();
+                setTimeout(() => ac.abort(), 100);
+                try {{
+                    await fetch('{}/slow', {{ signal: ac.signal }});
+                    return 'no-throw';
+                }} catch (e) {{
+                    return e.name + ': ' + e.message;
+                }}
+            "#,
+                    base_url
+                ),
+            ),
+        )
+        .await
+        .expect("event loop should settle after abort, not hang");
+
+        let msg = result.as_str().unwrap();
+        assert!(
+            msg.contains("AbortError"),
+            "expected AbortError, got: {}",
+            msg
+        );
+    }
+
+    // --- Successful fetch with signal that never fires (map cleanup) ---
+
+    #[tokio::test]
+    async fn test_fetch_with_signal_completes_normally() {
+        let (base_url, _handle) = start_test_server(simple_app()).await;
+        let mut rt = create_runtime();
+
+        let result = run_async(
+            &mut rt,
+            &format!(
+                r#"
+                const ac = new AbortController();
+                const resp = await fetch('{}/hello', {{ signal: ac.signal }});
+                return await resp.text();
+            "#,
+                base_url
+            ),
+        )
+        .await;
+        assert_eq!(result.as_str().unwrap(), "Hello, World!");
+    }
+
     // --- op_decls ---
 
     #[test]
-    fn test_op_decls_returns_fetch_op() {
+    fn test_op_decls_returns_fetch_ops() {
         let decls = op_decls();
-        assert_eq!(decls.len(), 1);
+        assert_eq!(decls.len(), 3);
     }
 
     // --- FETCH_BOOTSTRAP_JS ---
