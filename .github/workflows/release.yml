@@ -159,6 +159,17 @@ jobs:
               "packages/${{ matrix.compiler_pkg }}/vertz-compiler.${PLATFORM_SUFFIX}.node"
           fi
 
+      - name: Verify compiler binary exists
+        run: |
+          COMPILER_PKG="${{ matrix.compiler_pkg }}"
+          PLATFORM_SUFFIX="${COMPILER_PKG#native-compiler-}"
+          FILE="packages/${{ matrix.compiler_pkg }}/vertz-compiler.${PLATFORM_SUFFIX}.node"
+          if [ ! -f "$FILE" ]; then
+            echo "::error::Compiler binary not found: $FILE"
+            exit 1
+          fi
+          echo "Compiler binary: $(ls -la "$FILE")"
+
       - name: Ad-hoc code sign compiler binary (macOS)
         if: runner.os == 'macOS'
         run: |

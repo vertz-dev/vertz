@@ -152,13 +152,13 @@ for pkg_json in packages/*/package.json; do
   version=$(jq -r '.version' "$pkg_json")
   private=$(jq -r '.private // false' "$pkg_json")
 
-  # Skip private, runtime (already published above), and runtime-* packages
+  # Skip private, runtime (already published above), runtime-*, and native-compiler-* packages
   if [ "$private" = "true" ]; then
     continue
   fi
 
   base=$(basename "$dir")
-  if [[ "$base" == runtime || "$base" == runtime-* ]]; then
+  if [[ "$base" == runtime || "$base" == runtime-* || "$base" == native-compiler-* ]]; then
     continue
   fi
 

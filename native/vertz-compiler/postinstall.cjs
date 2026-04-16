@@ -12,7 +12,7 @@ try {
   const pkgDir = path.dirname(require.resolve(`${pkgName}/package.json`));
   const src = path.join(pkgDir, binaryName);
   const dest = path.join(__dirname, binaryName);
-  if (fs.existsSync(src) && !fs.existsSync(dest)) {
+  if (fs.existsSync(src)) {
     fs.copyFileSync(src, dest);
   }
 } catch {

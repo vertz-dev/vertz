@@ -161,6 +161,18 @@ describe('buildUI', () => {
     Bun.build = originalBunBuild;
   });
 
+  it('should return failure when native compiler is unavailable', async () => {
+    mockLoadNativeCompiler.mockImplementation(() => {
+      throw new Error('Binary not found');
+    });
+
+    const result = await buildUI(config);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Native compiler not available');
+    expect(result.durationMs).toBe(0);
+  });
+
   it('should produce correct output structure', async () => {
     const result = await buildUI(config);
 
