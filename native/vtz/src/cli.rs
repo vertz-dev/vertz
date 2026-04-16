@@ -451,7 +451,7 @@ pub struct CodegenArgs {
     pub dry_run: bool,
 
     /// Output directory for generated files
-    #[arg(long, short = 'o')]
+    #[arg(long)]
     pub output: Option<String>,
 }
 
