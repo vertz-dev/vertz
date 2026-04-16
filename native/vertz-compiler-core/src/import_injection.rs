@@ -221,23 +221,32 @@ fn strip_comments(code: &str) -> String {
     result
 }
 
-/// Check if `name(` appears as a standalone call (not a method call like `obj.name(`).
+/// Check if `name(` appears as a standalone call (not a method call like `obj.name(`
+/// or a shorthand method definition like `{ name(params) { } }`).
 ///
 /// Returns true only when the character before `name(` is NOT an identifier character
 /// or a `.`, and when it is not preceded by a method-definition keyword like `async`,
 /// `get`, `set`, or `static`.
 fn contains_standalone_call(code: &str, name: &str) -> bool {
     let pattern = format!("{name}(");
+    let bytes = code.as_bytes();
     let mut search_from = 0;
     while let Some(pos) = code[search_from..].find(&pattern) {
         let abs_pos = search_from + pos;
-        if abs_pos == 0 {
-            return true;
+        if abs_pos > 0 {
+            let prev = bytes[abs_pos - 1];
+            // If the preceding character is an identifier char or `.`, this is a
+            // method call or part of a larger identifier — not a standalone call.
+            if prev.is_ascii_alphanumeric() || prev == b'_' || prev == b'$' || prev == b'.' {
+                search_from = abs_pos + pattern.len();
+                continue;
+            }
         }
-        let prev = code.as_bytes()[abs_pos - 1];
-        // If the preceding character is an identifier char or `.`, this is a
-        // method call or part of a larger identifier — not a standalone call.
-        if prev.is_ascii_alphanumeric() || prev == b'_' || prev == b'$' || prev == b'.' {
+
+        // Check for shorthand method definition: name(params) { body }
+        // Find the matching ')' after the '(' and check if '{' follows.
+        let open_paren = abs_pos + name.len();
+        if is_shorthand_method(bytes, open_paren) {
             search_from = abs_pos + pattern.len();
             continue;
         }
@@ -250,6 +259,31 @@ fn contains_standalone_call(code: &str, name: &str) -> bool {
         return true;
     }
     false
+}
+
+/// Determine if `(` at `open_paren_pos` starts a shorthand method parameter list.
+///
+/// Finds the matching `)` (tracking paren depth) and returns `true` if the next
+/// non-whitespace character is `{`, indicating a method body — not a function call.
+fn is_shorthand_method(bytes: &[u8], open_paren_pos: usize) -> bool {
+    let mut depth: u32 = 1;
+    let mut i = open_paren_pos + 1;
+    while i < bytes.len() && depth > 0 {
+        match bytes[i] {
+            b'(' => depth += 1,
+            b')' => depth -= 1,
+            _ => {}
+        }
+        i += 1;
+    }
+    if depth != 0 {
+        return false;
+    }
+    // Skip whitespace after the closing ')'
+    while i < bytes.len() && matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
+        i += 1;
+    }
+    i < bytes.len() && bytes[i] == b'{'
 }
 
 /// Check if the token before position `name_pos` is a method-definition keyword.
@@ -872,5 +906,82 @@ mod tests {
         assert!(contains_standalone_call("await batch()", "batch"));
         assert!(contains_standalone_call("yield batch()", "batch"));
         assert!(contains_standalone_call("void batch()", "batch"));
+    }
+
+    // ── Shorthand method definitions (no keyword prefix) ─────────
+
+    #[test]
+    fn shorthand_method_in_object_literal_is_not_standalone() {
+        assert!(!contains_standalone_call(
+            "const obj = { batch(items) { return []; } };",
+            "batch"
+        ));
+    }
+
+    #[test]
+    fn shorthand_method_does_not_trigger_import_injection() {
+        let code = "const obj = { batch(items) { return []; } };";
+        let result = inject(code);
+        assert!(
+            !result.contains("import { batch }"),
+            "shorthand method should not trigger import: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn standalone_call_with_arrow_still_detected() {
+        assert!(contains_standalone_call("batch(() => { });", "batch"));
+    }
+
+    #[test]
+    fn standalone_call_with_arrow_triggers_import() {
+        let code = "batch(() => { a.set(1); b.set(2); });";
+        let result = inject(code);
+        assert!(result.contains("import { batch } from '@vertz/ui';"));
+    }
+
+    #[test]
+    fn shorthand_method_after_comma_is_not_standalone() {
+        assert!(!contains_standalone_call(
+            "const obj = { foo: 1, batch(items) { return []; } };",
+            "batch"
+        ));
+    }
+
+    #[test]
+    fn shorthand_method_on_new_line_is_not_standalone() {
+        assert!(!contains_standalone_call(
+            "const obj = {\n  batch(items) {\n    return [];\n  }\n};",
+            "batch"
+        ));
+    }
+
+    #[test]
+    fn async_shorthand_method_is_not_standalone() {
+        assert!(!contains_standalone_call(
+            "const obj = { async batch(items) { return []; } };",
+            "batch"
+        ));
+    }
+
+    #[test]
+    fn generator_shorthand_method_is_not_standalone() {
+        assert!(!contains_standalone_call(
+            "const obj = { *batch() { yield 1; } };",
+            "batch"
+        ));
+    }
+
+    #[test]
+    fn getter_setter_methods_are_not_standalone() {
+        assert!(!contains_standalone_call(
+            "const obj = { get signal() { return 0; } };",
+            "signal"
+        ));
+        assert!(!contains_standalone_call(
+            "const obj = { set signal(v) { } };",
+            "signal"
+        ));
     }
 }
