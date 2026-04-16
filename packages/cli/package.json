@@ -30,6 +30,7 @@
   "scripts": {
     "build": "vtzx vertz-build && chmod +x dist/vertz.js",
     "test": "vtz test",
+    "test:integration": "bun test 'src/commands/__tests__/docs.local.ts' 'src/commands/__tests__/start.local.ts'",
     "test:watch": "vtz test --watch",
     "typecheck": "tsgo --noEmit -p tsconfig.typecheck.json"
   },

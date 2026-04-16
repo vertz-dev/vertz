@@ -8,7 +8,14 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test-d.ts", "**/*.test.tsx"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.test-d.ts",
+    "**/*.test.tsx",
+    "**/*.local.ts"
+  ],
   "extends": "../../tsconfig.json",
   "include": ["src"]
 }
