@@ -586,16 +586,22 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
       options.body = await req.text();
     }
 
-    // Set up abort handling
+    // Set up abort handling — cancel the Rust op when the signal fires
+    let cancelId;
     let abortReject;
     let abortPromise;
     if (signal) {
+      cancelId = Deno.core.ops.op_fetch_next_cancel_id();
+      options._cancelId = cancelId;
+
       abortPromise = new Promise((_, reject) => {
         abortReject = reject;
         if (signal.aborted) {
+          Deno.core.ops.op_fetch_cancel(cancelId);
           reject(signal.reason || new DOMException_('The operation was aborted.', 'AbortError'));
         } else {
           signal.addEventListener('abort', () => {
+            Deno.core.ops.op_fetch_cancel(cancelId);
             reject(signal.reason || new DOMException_('The operation was aborted.', 'AbortError'));
           }, { once: true });
         }
