@@ -1,6 +1,13 @@
 {
   "name": "@vertz/native-compiler",
   "version": "0.2.66",
+  "description": "Native Rust compiler for Vertz (signal transforms, JSX, CSS)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vertz-dev/vertz.git",
+    "directory": "native/vertz-compiler"
+  },
   "exports": {
     "./vertz-compiler.darwin-arm64.node": "./vertz-compiler.darwin-arm64.node",
     "./vertz-compiler.darwin-x64.node": "./vertz-compiler.darwin-x64.node",
