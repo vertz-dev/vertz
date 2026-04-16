@@ -132,8 +132,18 @@ pub const STREAMS_BOOTSTRAP_JS: &str = r#"
     }
 
     async _cancel(reason) {
+      if (this.#closed) return;
       if (this.#cancelFn) await this.#cancelFn(reason);
       this.#closed = true;
+      for (const { resolve } of this.#pullResolvers) {
+        resolve(null);
+      }
+      this.#pullResolvers = [];
+    }
+
+    async cancel(reason) {
+      if (this._locked) throw new TypeError('Cannot cancel a locked ReadableStream');
+      await this._cancel(reason);
     }
 
     getReader() {
@@ -588,6 +598,93 @@ mod tests {
         )
         .await;
         assert_eq!(result, serde_json::json!([1, 2, 3]));
+    }
+
+    #[tokio::test]
+    async fn test_readable_stream_cancel() {
+        let mut rt = create_runtime();
+        let result = run_async(
+            &mut rt,
+            r#"
+            let cancelledReason = null;
+            const stream = new ReadableStream({
+                start(controller) {
+                    controller.enqueue('a');
+                },
+                cancel(reason) {
+                    cancelledReason = reason;
+                },
+            });
+            await stream.cancel('done');
+            return cancelledReason;
+        "#,
+        )
+        .await;
+        assert_eq!(result, serde_json::json!("done"));
+    }
+
+    #[tokio::test]
+    async fn test_readable_stream_cancel_without_callback() {
+        let mut rt = create_runtime();
+        let result = run_async(
+            &mut rt,
+            r#"
+            const stream = new ReadableStream({
+                start(controller) {
+                    controller.enqueue('a');
+                    controller.close();
+                },
+            });
+            await stream.cancel();
+            return 'ok';
+        "#,
+        )
+        .await;
+        assert_eq!(result, serde_json::json!("ok"));
+    }
+
+    #[tokio::test]
+    async fn test_readable_stream_cancel_drains_pending_pulls() {
+        let mut rt = create_runtime();
+        let result = run_async(
+            &mut rt,
+            r#"
+            const stream = new ReadableStream({
+                pull() {
+                    // never enqueues — reader.read() will park
+                },
+            });
+            const reader = stream.getReader();
+            const readPromise = reader.read();
+            await reader.cancel('abort');
+            const result = await readPromise;
+            return result.done;
+        "#,
+        )
+        .await;
+        assert_eq!(result, serde_json::json!(true));
+    }
+
+    #[tokio::test]
+    async fn test_readable_stream_cancel_on_locked_throws() {
+        let mut rt = create_runtime();
+        let result = run_async(
+            &mut rt,
+            r#"
+            const stream = new ReadableStream({
+                start(c) { c.close(); },
+            });
+            stream.getReader(); // lock it
+            try {
+                await stream.cancel();
+                return 'no error';
+            } catch (e) {
+                return e instanceof TypeError ? 'TypeError' : 'other';
+            }
+        "#,
+        )
+        .await;
+        assert_eq!(result, serde_json::json!("TypeError"));
     }
 
     #[tokio::test]
