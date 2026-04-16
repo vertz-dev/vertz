@@ -90,9 +90,31 @@ if (typeof globalThis.HTMLElement === 'undefined') {
   }
 
   // --- Public API: describe ---
-  function describe(name, fn) { addSuite(name, fn, {}); }
-  describe.skip = function(name, fn) { addSuite(name, fn, { skip: true }); };
-  describe.only = function(name, fn) { addSuite(name, fn, { only: true }); };
+  // Supports both describe(name, fn) and describe(name, options, fn) overloads
+  function describe(name, optionsOrFn, maybeFn) {
+    if (typeof optionsOrFn === 'function') {
+      addSuite(name, optionsOrFn, {});
+    } else {
+      const opts = optionsOrFn || {};
+      addSuite(name, maybeFn, { timeout: opts.timeout });
+    }
+  }
+  describe.skip = function(name, optionsOrFn, maybeFn) {
+    if (typeof optionsOrFn === 'function') {
+      addSuite(name, optionsOrFn, { skip: true });
+    } else {
+      const opts = optionsOrFn || {};
+      addSuite(name, maybeFn, { skip: true, timeout: opts.timeout });
+    }
+  };
+  describe.only = function(name, optionsOrFn, maybeFn) {
+    if (typeof optionsOrFn === 'function') {
+      addSuite(name, optionsOrFn, { only: true });
+    } else {
+      const opts = optionsOrFn || {};
+      addSuite(name, maybeFn, { only: true, timeout: opts.timeout });
+    }
+  };
 
   // --- Public API: it / test ---
   // Supports both it(name, fn) and it(name, options, fn) overloads
@@ -3641,5 +3663,69 @@ mod tests {
                 i, item["name"], item["error"]
             );
         }
+    }
+
+    #[test]
+    fn test_describe_three_arg_overload() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('suite with options', { timeout: 5000 }, () => {
+                it('runs inside 3-arg describe', () => {
+                    expect(1 + 1).toBe(2);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["status"], "pass");
+        assert_eq!(arr[0]["name"], "runs inside 3-arg describe");
+        assert_eq!(arr[0]["path"], "suite with options");
+    }
+
+    #[test]
+    fn test_describe_skip_three_arg_overload() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe.skip('skipped with options', { timeout: 5000 }, () => {
+                it('should not run', () => { throw new Error('should not run'); });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["status"], "skip");
+    }
+
+    #[test]
+    fn test_describe_only_three_arg_overload() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe.only('focused with options', { timeout: 5000 }, () => {
+                it('runs in focused describe', () => {
+                    expect(true).toBeTruthy();
+                });
+            });
+            describe('other suite', () => {
+                it('should be skipped by .only', () => {
+                    throw new Error('should not run');
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0]["status"], "pass");
+        assert_eq!(arr[0]["name"], "runs in focused describe");
+        assert_eq!(arr[1]["status"], "skip");
     }
 }
