@@ -25,7 +25,7 @@
     },
     "benchmarks/vertz": {
       "name": "@vertz-benchmarks/vertz-app",
-      "version": "0.0.58",
+      "version": "0.0.63",
       "dependencies": {
         "@vertz/theme-shadcn": "workspace:*",
         "@vertz/ui": "workspace:*",
@@ -114,7 +114,7 @@
     },
     "examples/task-manager": {
       "name": "@vertz-examples/task-manager",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "@vertz/errors": "workspace:*",
         "@vertz/fetch": "workspace:*",
@@ -138,14 +138,20 @@
     },
     "native/vertz-compiler": {
       "name": "@vertz/native-compiler",
-      "version": "0.1.1",
+      "version": "0.2.65",
       "devDependencies": {
         "@vertz/test": "workspace:*",
+      },
+      "optionalDependencies": {
+        "@vertz/native-compiler-darwin-arm64": "0.2.65",
+        "@vertz/native-compiler-darwin-x64": "0.2.65",
+        "@vertz/native-compiler-linux-arm64": "0.2.65",
+        "@vertz/native-compiler-linux-x64": "0.2.65",
       },
     },
     "packages/agents": {
       "name": "@vertz/agents",
-      "version": "0.2.44",
+      "version": "0.2.45",
       "dependencies": {
         "@vertz/errors": "workspace:^",
         "@vertz/schema": "workspace:^",
@@ -194,7 +200,7 @@
     },
     "packages/cli": {
       "name": "@vertz/cli",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "bin": {
         "vertz": "./dist/vertz.js",
       },
@@ -209,7 +215,7 @@
         "@vertz/tui": "workspace:^",
         "@vertz/ui-server": "workspace:^",
         "commander": "^14.0.0",
-        "esbuild": "^0.25.0",
+        "esbuild": "^0.27.3",
         "jiti": "^2.4.2",
       },
       "devDependencies": {
@@ -227,7 +233,7 @@
     },
     "packages/cli-runtime": {
       "name": "@vertz/cli-runtime",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "@vertz/fetch": "workspace:^",
       },
@@ -240,7 +246,7 @@
     },
     "packages/cloudflare": {
       "name": "@vertz/cloudflare",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "@vertz/core": "workspace:^",
       },
@@ -259,7 +265,7 @@
     },
     "packages/codegen": {
       "name": "@vertz/codegen",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "@vertz/compiler": "workspace:^",
       },
@@ -273,7 +279,7 @@
     },
     "packages/compiler": {
       "name": "@vertz/compiler",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "ts-morph": "^27.0.2",
       },
@@ -304,7 +310,7 @@
     },
     "packages/core": {
       "name": "@vertz/core",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "@vertz/schema": "workspace:^",
       },
@@ -318,7 +324,7 @@
     },
     "packages/create-vertz": {
       "name": "create-vertz",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "bin": {
         "create-vertz": "./bin/create-vertz.ts",
       },
@@ -328,7 +334,7 @@
     },
     "packages/create-vertz-app": {
       "name": "@vertz/create-vertz-app",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "bin": {
         "create-vertz-app": "./bin/create-vertz-app.ts",
       },
@@ -343,7 +349,7 @@
     },
     "packages/db": {
       "name": "@vertz/db",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "@paralleldrive/cuid2": "^3.3.0",
         "@vertz/errors": "workspace:^",
@@ -375,7 +381,7 @@
     },
     "packages/desktop": {
       "name": "@vertz/desktop",
-      "version": "0.2.59",
+      "version": "0.2.65",
       "dependencies": {
         "@vertz/errors": "workspace:*",
       },
@@ -389,7 +395,7 @@
     },
     "packages/docs": {
       "name": "@vertz/docs",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "dependencies": {
         "@mdx-js/mdx": "^3.0.0",
         "@shikijs/rehype": "^4.0.2",
@@ -416,7 +422,7 @@
     },
     "packages/errors": {
       "name": "@vertz/errors",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "devDependencies": {
         "@types/node": "^25.3.1",
         "@vertz/build": "workspace:^",
@@ -427,7 +433,7 @@
     },
     "packages/fetch": {
       "name": "@vertz/fetch",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "@vertz/errors": "workspace:^",
       },
@@ -440,7 +446,7 @@
     },
     "packages/icons": {
       "name": "@vertz/icons",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "devDependencies": {
         "@happy-dom/global-registrator": "^20.7.0",
         "@vertz/build": "workspace:^",
@@ -521,9 +527,25 @@
       "name": "@vertz/mint-docs",
       "version": "0.2.1",
     },
+    "packages/native-compiler-darwin-arm64": {
+      "name": "@vertz/native-compiler-darwin-arm64",
+      "version": "0.2.65",
+    },
+    "packages/native-compiler-darwin-x64": {
+      "name": "@vertz/native-compiler-darwin-x64",
+      "version": "0.2.65",
+    },
+    "packages/native-compiler-linux-arm64": {
+      "name": "@vertz/native-compiler-linux-arm64",
+      "version": "0.2.65",
+    },
+    "packages/native-compiler-linux-x64": {
+      "name": "@vertz/native-compiler-linux-x64",
+      "version": "0.2.65",
+    },
     "packages/og": {
       "name": "@vertz/og",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "dependencies": {
         "@resvg/resvg-js": "^2.6.2",
         "satori": "^0.25.0",
@@ -562,9 +584,8 @@
     },
     "packages/runtime": {
       "name": "@vertz/runtime",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "bin": {
-        "vertz": "./cli.sh",
         "vtz": "./cli.sh",
         "vtzx": "./cli-exec.sh",
       },
@@ -573,31 +594,31 @@
         "@vertz/test": "workspace:*",
       },
       "optionalDependencies": {
-        "@vertz/runtime-darwin-arm64": "0.2.60",
-        "@vertz/runtime-darwin-x64": "0.2.60",
-        "@vertz/runtime-linux-arm64": "0.2.60",
-        "@vertz/runtime-linux-x64": "0.2.60",
+        "@vertz/runtime-darwin-arm64": "0.2.65",
+        "@vertz/runtime-darwin-x64": "0.2.65",
+        "@vertz/runtime-linux-arm64": "0.2.65",
+        "@vertz/runtime-linux-x64": "0.2.65",
       },
     },
     "packages/runtime-darwin-arm64": {
       "name": "@vertz/runtime-darwin-arm64",
-      "version": "0.2.60",
+      "version": "0.2.65",
     },
     "packages/runtime-darwin-x64": {
       "name": "@vertz/runtime-darwin-x64",
-      "version": "0.2.60",
+      "version": "0.2.65",
     },
     "packages/runtime-linux-arm64": {
       "name": "@vertz/runtime-linux-arm64",
-      "version": "0.2.60",
+      "version": "0.2.65",
     },
     "packages/runtime-linux-x64": {
       "name": "@vertz/runtime-linux-x64",
-      "version": "0.2.60",
+      "version": "0.2.65",
     },
     "packages/schema": {
       "name": "@vertz/schema",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "@vertz/errors": "workspace:^",
       },
@@ -611,7 +632,7 @@
     },
     "packages/server": {
       "name": "@vertz/server",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "@vertz/core": "workspace:^",
         "@vertz/db": "workspace:^",
@@ -639,7 +660,7 @@
     },
     "packages/sqlite": {
       "name": "@vertz/sqlite",
-      "version": "0.2.58",
+      "version": "0.2.59",
       "devDependencies": {
         "@types/node": "^25.3.1",
         "@vertz/build": "workspace:^",
@@ -648,7 +669,7 @@
     },
     "packages/test": {
       "name": "@vertz/test",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "devDependencies": {
         "@types/node": "^25.3.1",
         "bun-types": "^1.3.10",
@@ -657,7 +678,7 @@
     },
     "packages/testing": {
       "name": "@vertz/testing",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "@vertz/core": "workspace:^",
         "@vertz/db": "workspace:^",
@@ -674,7 +695,7 @@
     },
     "packages/theme-shadcn": {
       "name": "@vertz/theme-shadcn",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "@vertz/ui": "workspace:^",
         "@vertz/ui-primitives": "workspace:^",
@@ -690,7 +711,7 @@
     },
     "packages/tui": {
       "name": "@vertz/tui",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "@vertz/ui": "workspace:^",
       },
@@ -703,7 +724,7 @@
     },
     "packages/ui": {
       "name": "@vertz/ui",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "@vertz/fetch": "workspace:^",
       },
@@ -734,7 +755,7 @@
     },
     "packages/ui-canvas": {
       "name": "@vertz/ui-canvas",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "pixi.js": "^8.0.0",
       },
@@ -752,7 +773,7 @@
     },
     "packages/ui-primitives": {
       "name": "@vertz/ui-primitives",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "@floating-ui/dom": "^1.7.5",
         "@vertz/ui": "workspace:^",
@@ -769,7 +790,7 @@
     },
     "packages/ui-server": {
       "name": "@vertz/ui-server",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "@ampproject/remapping": "^2.3.0",
         "@capsizecss/unpack": "^4.0.0",
@@ -791,6 +812,9 @@
         "happy-dom": "^20.8.3",
         "typescript": "^5.7.0",
       },
+      "optionalDependencies": {
+        "@vertz/native-compiler": "workspace:^",
+      },
     },
     "packages/ui-server/e2e/fixture": {
       "name": "hmr-e2e-fixture",
@@ -803,7 +827,7 @@
     },
     "packages/vertz": {
       "name": "vertz",
-      "version": "0.2.60",
+      "version": "0.2.65",
       "dependencies": {
         "@vertz/cli": "workspace:^",
         "@vertz/cloudflare": "workspace:^",
@@ -1799,6 +1823,14 @@
     "@vertz/mint-docs": ["@vertz/mint-docs@workspace:packages/mint-docs"],
 
     "@vertz/native-compiler": ["@vertz/native-compiler@workspace:native/vertz-compiler"],
+
+    "@vertz/native-compiler-darwin-arm64": ["@vertz/native-compiler-darwin-arm64@workspace:packages/native-compiler-darwin-arm64"],
+
+    "@vertz/native-compiler-darwin-x64": ["@vertz/native-compiler-darwin-x64@workspace:packages/native-compiler-darwin-x64"],
+
+    "@vertz/native-compiler-linux-arm64": ["@vertz/native-compiler-linux-arm64@workspace:packages/native-compiler-linux-arm64"],
+
+    "@vertz/native-compiler-linux-x64": ["@vertz/native-compiler-linux-x64@workspace:packages/native-compiler-linux-x64"],
 
     "@vertz/og": ["@vertz/og@workspace:packages/og"],
 
@@ -2976,8 +3008,6 @@
 
     "@vertz/cli/bun-types": ["bun-types@1.3.12", "", { "dependencies": { "@types/node": "*" } }, "sha512-HqOLj5PoFajAQciOMRiIZGNoKxDJSr6qigAttOX40vJuSp6DN/CxWp9s3C1Xwm4oH7ybueITwiaOcWXoYVoRkA=="],
 
-    "@vertz/cli/esbuild": ["esbuild@0.25.12", "", { "optionalDependencies": { "@esbuild/aix-ppc64": "0.25.12", "@esbuild/android-arm": "0.25.12", "@esbuild/android-arm64": "0.25.12", "@esbuild/android-x64": "0.25.12", "@esbuild/darwin-arm64": "0.25.12", "@esbuild/darwin-x64": "0.25.12", "@esbuild/freebsd-arm64": "0.25.12", "@esbuild/freebsd-x64": "0.25.12", "@esbuild/linux-arm": "0.25.12", "@esbuild/linux-arm64": "0.25.12", "@esbuild/linux-ia32": "0.25.12", "@esbuild/linux-loong64": "0.25.12", "@esbuild/linux-mips64el": "0.25.12", "@esbuild/linux-ppc64": "0.25.12", "@esbuild/linux-riscv64": "0.25.12", "@esbuild/linux-s390x": "0.25.12", "@esbuild/linux-x64": "0.25.12", "@esbuild/netbsd-arm64": "0.25.12", "@esbuild/netbsd-x64": "0.25.12", "@esbuild/openbsd-arm64": "0.25.12", "@esbuild/openbsd-x64": "0.25.12", "@esbuild/openharmony-arm64": "0.25.12", "@esbuild/sunos-x64": "0.25.12", "@esbuild/win32-arm64": "0.25.12", "@esbuild/win32-ia32": "0.25.12", "@esbuild/win32-x64": "0.25.12" }, "bin": { "esbuild": "bin/esbuild" } }, "sha512-bbPBYYrtZbkt6Os6FiTLCTFxvq4tt3JKall1vRwshA3fdVztsLAatFaZobhkBC8/BrPetoa0oksYoKXoG4ryJg=="],
-
     "@vertz/codegen/bun-types": ["bun-types@1.3.12", "", { "dependencies": { "@types/node": "*" } }, "sha512-HqOLj5PoFajAQciOMRiIZGNoKxDJSr6qigAttOX40vJuSp6DN/CxWp9s3C1Xwm4oH7ybueITwiaOcWXoYVoRkA=="],
 
     "@vertz/component-docs/wrangler": ["wrangler@4.81.0", "", { "dependencies": { "@cloudflare/kv-asset-handler": "0.4.2", "@cloudflare/unenv-preset": "2.16.0", "blake3-wasm": "2.1.5", "esbuild": "0.27.3", "miniflare": "4.20260405.0", "path-to-regexp": "6.3.0", "unenv": "2.0.0-rc.24", "workerd": "1.20260405.1" }, "optionalDependencies": { "fsevents": "~2.3.2" }, "peerDependencies": { "@cloudflare/workers-types": "^4.20260405.1" }, "optionalPeers": ["@cloudflare/workers-types"], "bin": { "wrangler": "bin/wrangler.js", "wrangler2": "bin/wrangler.js" } }, "sha512-9fLPDuDcb8Nu6iXrl5E3HGYt3TVhQr/UvqtTvWr9Nl1X7PlQrmWMwQCfSioqN8VHYyQCyESV5jQsoKg8Sx+sEA=="],
@@ -3085,58 +3115,6 @@
     "@vertz-examples/task-manager/wrangler/miniflare": ["miniflare@4.20260310.0", "", { "dependencies": { "@cspotcode/source-map-support": "0.8.1", "sharp": "^0.34.5", "undici": "7.18.2", "workerd": "1.20260310.1", "ws": "8.18.0", "youch": "4.1.0-beta.10" }, "bin": { "miniflare": "bootstrap.js" } }, "sha512-uC5vNPenFpDSj5aUU3wGSABG6UUqMr+Xs1m4AkCrTHo37F4Z6xcQw5BXqViTfPDVT/zcYH1UgTVoXhr1l6ZMXw=="],
 
     "@vertz-examples/task-manager/wrangler/workerd": ["workerd@1.20260310.1", "", { "optionalDependencies": { "@cloudflare/workerd-darwin-64": "1.20260310.1", "@cloudflare/workerd-darwin-arm64": "1.20260310.1", "@cloudflare/workerd-linux-64": "1.20260310.1", "@cloudflare/workerd-linux-arm64": "1.20260310.1", "@cloudflare/workerd-windows-64": "1.20260310.1" }, "bin": { "workerd": "bin/workerd" } }, "sha512-yawXhypXXHtArikJj15HOMknNGikpBbSg2ZDe6lddUbqZnJXuCVSkgc/0ArUeVMG1jbbGvpst+REFtKwILvRTQ=="],
-
-    "@vertz/cli/esbuild/@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.25.12", "", { "os": "aix", "cpu": "ppc64" }, "sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA=="],
-
-    "@vertz/cli/esbuild/@esbuild/android-arm": ["@esbuild/android-arm@0.25.12", "", { "os": "android", "cpu": "arm" }, "sha512-VJ+sKvNA/GE7Ccacc9Cha7bpS8nyzVv0jdVgwNDaR4gDMC/2TTRc33Ip8qrNYUcpkOHUT5OZ0bUcNNVZQ9RLlg=="],
-
-    "@vertz/cli/esbuild/@esbuild/android-arm64": ["@esbuild/android-arm64@0.25.12", "", { "os": "android", "cpu": "arm64" }, "sha512-6AAmLG7zwD1Z159jCKPvAxZd4y/VTO0VkprYy+3N2FtJ8+BQWFXU+OxARIwA46c5tdD9SsKGZ/1ocqBS/gAKHg=="],
-
-    "@vertz/cli/esbuild/@esbuild/android-x64": ["@esbuild/android-x64@0.25.12", "", { "os": "android", "cpu": "x64" }, "sha512-5jbb+2hhDHx5phYR2By8GTWEzn6I9UqR11Kwf22iKbNpYrsmRB18aX/9ivc5cabcUiAT/wM+YIZ6SG9QO6a8kg=="],
-
-    "@vertz/cli/esbuild/@esbuild/darwin-arm64": ["@esbuild/darwin-arm64@0.25.12", "", { "os": "darwin", "cpu": "arm64" }, "sha512-N3zl+lxHCifgIlcMUP5016ESkeQjLj/959RxxNYIthIg+CQHInujFuXeWbWMgnTo4cp5XVHqFPmpyu9J65C1Yg=="],
-
-    "@vertz/cli/esbuild/@esbuild/darwin-x64": ["@esbuild/darwin-x64@0.25.12", "", { "os": "darwin", "cpu": "x64" }, "sha512-HQ9ka4Kx21qHXwtlTUVbKJOAnmG1ipXhdWTmNXiPzPfWKpXqASVcWdnf2bnL73wgjNrFXAa3yYvBSd9pzfEIpA=="],
-
-    "@vertz/cli/esbuild/@esbuild/freebsd-arm64": ["@esbuild/freebsd-arm64@0.25.12", "", { "os": "freebsd", "cpu": "arm64" }, "sha512-gA0Bx759+7Jve03K1S0vkOu5Lg/85dou3EseOGUes8flVOGxbhDDh/iZaoek11Y8mtyKPGF3vP8XhnkDEAmzeg=="],
-
-    "@vertz/cli/esbuild/@esbuild/freebsd-x64": ["@esbuild/freebsd-x64@0.25.12", "", { "os": "freebsd", "cpu": "x64" }, "sha512-TGbO26Yw2xsHzxtbVFGEXBFH0FRAP7gtcPE7P5yP7wGy7cXK2oO7RyOhL5NLiqTlBh47XhmIUXuGciXEqYFfBQ=="],
-
-    "@vertz/cli/esbuild/@esbuild/linux-arm": ["@esbuild/linux-arm@0.25.12", "", { "os": "linux", "cpu": "arm" }, "sha512-lPDGyC1JPDou8kGcywY0YILzWlhhnRjdof3UlcoqYmS9El818LLfJJc3PXXgZHrHCAKs/Z2SeZtDJr5MrkxtOw=="],
-
-    "@vertz/cli/esbuild/@esbuild/linux-arm64": ["@esbuild/linux-arm64@0.25.12", "", { "os": "linux", "cpu": "arm64" }, "sha512-8bwX7a8FghIgrupcxb4aUmYDLp8pX06rGh5HqDT7bB+8Rdells6mHvrFHHW2JAOPZUbnjUpKTLg6ECyzvas2AQ=="],
-
-    "@vertz/cli/esbuild/@esbuild/linux-ia32": ["@esbuild/linux-ia32@0.25.12", "", { "os": "linux", "cpu": "ia32" }, "sha512-0y9KrdVnbMM2/vG8KfU0byhUN+EFCny9+8g202gYqSSVMonbsCfLjUO+rCci7pM0WBEtz+oK/PIwHkzxkyharA=="],
-
-    "@vertz/cli/esbuild/@esbuild/linux-loong64": ["@esbuild/linux-loong64@0.25.12", "", { "os": "linux", "cpu": "none" }, "sha512-h///Lr5a9rib/v1GGqXVGzjL4TMvVTv+s1DPoxQdz7l/AYv6LDSxdIwzxkrPW438oUXiDtwM10o9PmwS/6Z0Ng=="],
-
-    "@vertz/cli/esbuild/@esbuild/linux-mips64el": ["@esbuild/linux-mips64el@0.25.12", "", { "os": "linux", "cpu": "none" }, "sha512-iyRrM1Pzy9GFMDLsXn1iHUm18nhKnNMWscjmp4+hpafcZjrr2WbT//d20xaGljXDBYHqRcl8HnxbX6uaA/eGVw=="],
-
-    "@vertz/cli/esbuild/@esbuild/linux-ppc64": ["@esbuild/linux-ppc64@0.25.12", "", { "os": "linux", "cpu": "ppc64" }, "sha512-9meM/lRXxMi5PSUqEXRCtVjEZBGwB7P/D4yT8UG/mwIdze2aV4Vo6U5gD3+RsoHXKkHCfSxZKzmDssVlRj1QQA=="],
-
-    "@vertz/cli/esbuild/@esbuild/linux-riscv64": ["@esbuild/linux-riscv64@0.25.12", "", { "os": "linux", "cpu": "none" }, "sha512-Zr7KR4hgKUpWAwb1f3o5ygT04MzqVrGEGXGLnj15YQDJErYu/BGg+wmFlIDOdJp0PmB0lLvxFIOXZgFRrdjR0w=="],
-
-    "@vertz/cli/esbuild/@esbuild/linux-s390x": ["@esbuild/linux-s390x@0.25.12", "", { "os": "linux", "cpu": "s390x" }, "sha512-MsKncOcgTNvdtiISc/jZs/Zf8d0cl/t3gYWX8J9ubBnVOwlk65UIEEvgBORTiljloIWnBzLs4qhzPkJcitIzIg=="],
-
-    "@vertz/cli/esbuild/@esbuild/linux-x64": ["@esbuild/linux-x64@0.25.12", "", { "os": "linux", "cpu": "x64" }, "sha512-uqZMTLr/zR/ed4jIGnwSLkaHmPjOjJvnm6TVVitAa08SLS9Z0VM8wIRx7gWbJB5/J54YuIMInDquWyYvQLZkgw=="],
-
-    "@vertz/cli/esbuild/@esbuild/netbsd-arm64": ["@esbuild/netbsd-arm64@0.25.12", "", { "os": "none", "cpu": "arm64" }, "sha512-xXwcTq4GhRM7J9A8Gv5boanHhRa/Q9KLVmcyXHCTaM4wKfIpWkdXiMog/KsnxzJ0A1+nD+zoecuzqPmCRyBGjg=="],
-
-    "@vertz/cli/esbuild/@esbuild/netbsd-x64": ["@esbuild/netbsd-x64@0.25.12", "", { "os": "none", "cpu": "x64" }, "sha512-Ld5pTlzPy3YwGec4OuHh1aCVCRvOXdH8DgRjfDy/oumVovmuSzWfnSJg+VtakB9Cm0gxNO9BzWkj6mtO1FMXkQ=="],
-
-    "@vertz/cli/esbuild/@esbuild/openbsd-arm64": ["@esbuild/openbsd-arm64@0.25.12", "", { "os": "openbsd", "cpu": "arm64" }, "sha512-fF96T6KsBo/pkQI950FARU9apGNTSlZGsv1jZBAlcLL1MLjLNIWPBkj5NlSz8aAzYKg+eNqknrUJ24QBybeR5A=="],
-
-    "@vertz/cli/esbuild/@esbuild/openbsd-x64": ["@esbuild/openbsd-x64@0.25.12", "", { "os": "openbsd", "cpu": "x64" }, "sha512-MZyXUkZHjQxUvzK7rN8DJ3SRmrVrke8ZyRusHlP+kuwqTcfWLyqMOE3sScPPyeIXN/mDJIfGXvcMqCgYKekoQw=="],
-
-    "@vertz/cli/esbuild/@esbuild/openharmony-arm64": ["@esbuild/openharmony-arm64@0.25.12", "", { "os": "none", "cpu": "arm64" }, "sha512-rm0YWsqUSRrjncSXGA7Zv78Nbnw4XL6/dzr20cyrQf7ZmRcsovpcRBdhD43Nuk3y7XIoW2OxMVvwuRvk9XdASg=="],
-
-    "@vertz/cli/esbuild/@esbuild/sunos-x64": ["@esbuild/sunos-x64@0.25.12", "", { "os": "sunos", "cpu": "x64" }, "sha512-3wGSCDyuTHQUzt0nV7bocDy72r2lI33QL3gkDNGkod22EsYl04sMf0qLb8luNKTOmgF/eDEDP5BFNwoBKH441w=="],
-
-    "@vertz/cli/esbuild/@esbuild/win32-arm64": ["@esbuild/win32-arm64@0.25.12", "", { "os": "win32", "cpu": "arm64" }, "sha512-rMmLrur64A7+DKlnSuwqUdRKyd3UE7oPJZmnljqEptesKM8wx9J8gx5u0+9Pq0fQQW8vqeKebwNXdfOyP+8Bsg=="],
-
-    "@vertz/cli/esbuild/@esbuild/win32-ia32": ["@esbuild/win32-ia32@0.25.12", "", { "os": "win32", "cpu": "ia32" }, "sha512-HkqnmmBoCbCwxUKKNPBixiWDGCpQGVsrQfJoVGYLPT41XWF8lHuE5N6WhVia2n4o5QK5M4tYr21827fNhi4byQ=="],
-
-    "@vertz/cli/esbuild/@esbuild/win32-x64": ["@esbuild/win32-x64@0.25.12", "", { "os": "win32", "cpu": "x64" }, "sha512-alJC0uCZpTFrSL0CCDjcgleBXPnCrEAhTBILpeAp7M/OFgoqtAetfBzX0xM00MUsVVPpVjlPuMbREqnZCXaTnA=="],
 
     "@vertz/component-docs/wrangler/@cloudflare/unenv-preset": ["@cloudflare/unenv-preset@2.16.0", "", { "peerDependencies": { "unenv": "2.0.0-rc.24", "workerd": "1.20260301.1 || ~1.20260302.1 || ~1.20260303.1 || ~1.20260304.1 || >1.20260305.0 <2.0.0-0" }, "optionalPeers": ["workerd"] }, "sha512-8ovsRpwzPoEqPUzoErAYVv8l3FMZNeBVQfJTvtzP4AgLSRGZISRfuChFxHWUQd3n6cnrwkuTGxT+2cGo8EsyYg=="],
 

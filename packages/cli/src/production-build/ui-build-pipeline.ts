@@ -118,6 +118,22 @@ export const aotJsxStubPlugin: {
 export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
   const startTime = performance.now();
 
+  // Fail fast if native compiler is unavailable — the esbuild fallback
+  // produces apps without signal reactivity, CSS extraction, or hydration.
+  try {
+    const { loadNativeCompiler } = await import('@vertz/ui-server');
+    loadNativeCompiler();
+  } catch {
+    return {
+      success: false,
+      error:
+        'Native compiler not available. Production builds require @vertz/native-compiler.\n' +
+        'Install it: vtz add @vertz/native-compiler\n' +
+        'Or install the platform-specific package for your OS.',
+      durationMs: 0,
+    };
+  }
+
   const {
     projectRoot,
     clientEntry,

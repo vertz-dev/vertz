@@ -33,7 +33,7 @@ export async function createAction(options: CreateOptions): Promise<Result<void,
     console.log(`\nNext steps:`);
     console.log(`  cd ${resolved.projectName}`);
     console.log(`  vtz install`);
-    console.log(`  vtz dev`);
+    console.log(`  vertz dev`);
     return ok(undefined);
   } catch (error) {
     if (error instanceof Error && error.message.includes('already exists')) {

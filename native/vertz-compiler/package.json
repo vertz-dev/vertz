@@ -1,20 +1,29 @@
 {
   "name": "@vertz/native-compiler",
-  "version": "0.1.1",
-  "private": true,
+  "version": "0.2.65",
   "exports": {
     "./vertz-compiler.darwin-arm64.node": "./vertz-compiler.darwin-arm64.node",
+    "./vertz-compiler.darwin-x64.node": "./vertz-compiler.darwin-x64.node",
     "./vertz-compiler.linux-x64.node": "./vertz-compiler.linux-x64.node",
-    "./vertz-compiler.linux-arm64.node": "./vertz-compiler.linux-arm64.node"
+    "./vertz-compiler.linux-arm64.node": "./vertz-compiler.linux-arm64.node",
+    "./package.json": "./package.json"
   },
   "files": [
-    "vertz-compiler.*.node"
+    "vertz-compiler.*.node",
+    "postinstall.cjs"
   ],
   "scripts": {
+    "postinstall": "node postinstall.cjs",
     "build": "which cargo > /dev/null 2>&1 && bash -c 'cargo build --release --manifest-path ../Cargo.toml -p vertz-compiler && if [ \"$(uname)\" = \"Darwin\" ]; then cp ../target/release/libvertz_compiler.dylib ./vertz-compiler.darwin-$([ \"$(uname -m)\" = \"arm64\" ] && echo arm64 || echo x64).node; else cp ../target/release/libvertz_compiler.so ./vertz-compiler.linux-$([ \"$(uname -m)\" = \"aarch64\" ] && echo arm64 || echo x64).node; fi' || echo 'Skipping native build (cargo not found)'",
     "build:debug": "cargo build --manifest-path ../Cargo.toml -p vertz-compiler && if [ \"$(uname)\" = \"Darwin\" ]; then cp ../target/debug/libvertz_compiler.dylib ./vertz-compiler.darwin-arm64.node; else cp ../target/debug/libvertz_compiler.so ./vertz-compiler.linux-x64.node; fi",
     "test": "ls vertz-compiler.*.node 1>/dev/null 2>&1 && bun test __tests__/*.test.ts || echo 'Skipping native tests (binary not found)'",
     "test:parity": "ls vertz-compiler.*.node 1>/dev/null 2>&1 && bun test __tests__/parity/ || echo 'Skipping parity tests'"
+  },
+  "optionalDependencies": {
+    "@vertz/native-compiler-darwin-arm64": "0.2.65",
+    "@vertz/native-compiler-darwin-x64": "0.2.65",
+    "@vertz/native-compiler-linux-x64": "0.2.65",
+    "@vertz/native-compiler-linux-arm64": "0.2.65"
   },
   "devDependencies": {
     "@vertz/test": "workspace:*"

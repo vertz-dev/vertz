@@ -38,9 +38,12 @@ const mockGenerateAotBuildManifest = mock(() => ({
 
 const mockExtractFontMetrics = mock(async () => ({}));
 
+const mockLoadNativeCompiler = mock(() => ({ compile: mock(() => ({ code: '' })) }));
+
 vi.mock('@vertz/ui-server', () => ({
   generateAotBuildManifest: (...args: unknown[]) => mockGenerateAotBuildManifest(...args),
   extractFontMetrics: (...args: unknown[]) => mockExtractFontMetrics(...args),
+  loadNativeCompiler: (...args: unknown[]) => mockLoadNativeCompiler(...args),
 }));
 
 const mockDiscoverRoutes = mock(async () => [] as string[]);
@@ -156,6 +159,18 @@ describe('buildUI', () => {
     mockBunBuild.mockReset();
     // @ts-expect-error — restoring Bun global
     Bun.build = originalBunBuild;
+  });
+
+  it('should return failure when native compiler is unavailable', async () => {
+    mockLoadNativeCompiler.mockImplementation(() => {
+      throw new Error('Binary not found');
+    });
+
+    const result = await buildUI(config);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Native compiler not available');
+    expect(result.durationMs).toBe(0);
   });
 
   it('should produce correct output structure', async () => {

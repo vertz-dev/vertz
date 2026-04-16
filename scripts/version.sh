@@ -30,4 +30,22 @@ jq --arg v "$VERSION" '.optionalDependencies |= with_entries(.value = $v)' \
   packages/runtime/package.json > packages/runtime/package.json.tmp \
   && mv packages/runtime/package.json.tmp packages/runtime/package.json
 
+# Sync native-compiler selector package version
+jq --arg v "$VERSION" '.version = $v' \
+  native/vertz-compiler/package.json > native/vertz-compiler/package.json.tmp \
+  && mv native/vertz-compiler/package.json.tmp native/vertz-compiler/package.json
+
+# Sync native-compiler platform package versions
+for pkg_json in packages/native-compiler-*/package.json; do
+  if [ -f "$pkg_json" ]; then
+    jq --arg v "$VERSION" '.version = $v' "$pkg_json" > "$pkg_json.tmp" \
+      && mv "$pkg_json.tmp" "$pkg_json"
+  fi
+done
+
+# Sync native-compiler optionalDependencies
+jq --arg v "$VERSION" '.optionalDependencies |= with_entries(.value = $v)' \
+  native/vertz-compiler/package.json > native/vertz-compiler/package.json.tmp \
+  && mv native/vertz-compiler/package.json.tmp native/vertz-compiler/package.json
+
 echo "All versions synced to $VERSION"
