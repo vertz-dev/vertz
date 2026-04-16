@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { VertzConfig } from '@vertz/compiler';
+import { detectRuntime } from '../utils/runtime-detect';
 
 const CONFIG_FILES = ['vertz.config.ts', 'vertz.config.js', 'vertz.config.mjs'];
 
@@ -49,17 +50,24 @@ const defaultConfig: VertzConfig = {
   },
 };
 
+/** vtz runtime natively compiles TypeScript — jiti is not needed */
+const isVtzRuntime = detectRuntime() === 'vtz';
+
 export async function loadConfig(configPath?: string): Promise<VertzConfig> {
   if (!configPath) {
     return { ...defaultConfig };
   }
 
-  const { createJiti } = await import('jiti');
-  const jiti = createJiti(import.meta.url, {
-    interopDefault: true,
-  });
-
-  const loaded = (await jiti.import(configPath)) as { default?: VertzConfig } | VertzConfig;
+  let loaded: { default?: VertzConfig } | VertzConfig;
+  if (isVtzRuntime) {
+    loaded = (await import(configPath)) as { default?: VertzConfig } | VertzConfig;
+  } else {
+    const { createJiti } = await import('jiti');
+    const jiti = createJiti(import.meta.url, {
+      interopDefault: true,
+    });
+    loaded = (await jiti.import(configPath)) as { default?: VertzConfig } | VertzConfig;
+  }
 
   const userConfig =
     loaded && typeof loaded === 'object' && 'default' in loaded

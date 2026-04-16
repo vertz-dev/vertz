@@ -21,11 +21,18 @@ import {
   parseMigrationName,
 } from '@vertz/db';
 import { NodeSnapshotStorage } from '@vertz/db/internals';
-import { createJiti } from 'jiti';
+import { detectRuntime } from '../utils/runtime-detect';
 import type { DbCommandContext } from './db';
 
+/** vtz runtime natively compiles TypeScript — jiti is not needed */
+const isVtzRuntime = detectRuntime() === 'vtz';
+
 /** @internal — exported for test spying (avoids global vi.mock on 'jiti') */
-export function _importConfig(configPath: string): Promise<Record<string, unknown>> {
+export async function _importConfig(configPath: string): Promise<Record<string, unknown>> {
+  if (isVtzRuntime) {
+    return import(configPath) as Promise<Record<string, unknown>>;
+  }
+  const { createJiti } = await import('jiti');
   const jiti = createJiti(import.meta.url, { interopDefault: true });
   return jiti.import(configPath) as Promise<Record<string, unknown>>;
 }
@@ -292,7 +299,8 @@ export async function loadMigrationFiles(dir: string): Promise<MigrationFile[]> 
   try {
     entries = await readdir(dir);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || (!code && (error as Error).message?.includes('ENOENT'))) {
       return [];
     }
     throw error;

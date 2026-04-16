@@ -10,6 +10,11 @@ import {
   parseSqliteUrl,
 } from '../load-db-context';
 
+import { detectRuntime } from '../../utils/runtime-detect';
+
+// PGlite uses process.binding() which vtz runtime does not support
+const isVtzRuntime = detectRuntime() === 'vtz';
+
 // ---------------------------------------------------------------------------
 // extractSchemaEntries
 // ---------------------------------------------------------------------------
@@ -661,7 +666,7 @@ describe('createConnection', () => {
 // createConnection — postgres (via PGlite in-memory)
 // ---------------------------------------------------------------------------
 
-describe('createConnection (postgres)', () => {
+describe.skipIf(isVtzRuntime)('createConnection (postgres)', () => {
   let pg: import('@electric-sql/pglite').PGlite;
 
   beforeAll(async () => {
@@ -730,7 +735,7 @@ describe('createConnection (postgres)', () => {
 // createConnection — postgres error path
 // ---------------------------------------------------------------------------
 
-describe('createConnection (postgres — real import)', () => {
+describe.skipIf(isVtzRuntime)('createConnection (postgres — real import)', () => {
   it('creates postgres connection and exercises queryFn and close', async () => {
     // The postgres package IS available in this monorepo.
     // It creates a lazy client even for invalid URLs — errors only happen on query.
