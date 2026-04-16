@@ -3422,6 +3422,79 @@ mod tests {
         assert_eq!(result, serde_json::json!("correct-error"));
     }
 
+    /// RSA generateKey with explicit publicExponent as Uint8Array.
+    /// This is what jose.generateKeyPair('RS256') passes. The JS-side
+    /// normalizeAlgorithm must convert the Uint8Array to a plain array
+    /// before serde_v8 deserializes it into Vec<u8>.
+    #[tokio::test]
+    async fn test_rsa_generate_with_public_exponent_uint8array() {
+        let mut rt = create_runtime();
+        let result = run_async(
+            &mut rt,
+            r#"
+            const keyPair = await crypto.subtle.generateKey(
+                {
+                    name: 'RSASSA-PKCS1-v1_5',
+                    hash: 'SHA-256',
+                    modulusLength: 2048,
+                    publicExponent: new Uint8Array([1, 0, 1]),
+                },
+                true, ['sign', 'verify']
+            );
+            return [
+                keyPair.privateKey.type === 'private',
+                keyPair.publicKey.type === 'public',
+            ];
+        "#,
+        )
+        .await;
+        let arr = result.as_array().unwrap();
+        assert!(
+            arr[0].as_bool().unwrap(),
+            "private key type should be 'private'"
+        );
+        assert!(
+            arr[1].as_bool().unwrap(),
+            "public key type should be 'public'"
+        );
+    }
+
+    /// Same test as above but using the snapshot-restored runtime (new_for_test).
+    /// This specifically tests that the IIFE closure's ArrayBuffer.isView works
+    /// across V8 snapshot boundaries — the root cause of #2671.
+    #[tokio::test]
+    async fn test_rsa_generate_with_public_exponent_snapshot() {
+        let mut rt = VertzJsRuntime::new_for_test(VertzRuntimeOptions::default()).unwrap();
+        let result = run_async(
+            &mut rt,
+            r#"
+            const keyPair = await crypto.subtle.generateKey(
+                {
+                    name: 'RSASSA-PKCS1-v1_5',
+                    hash: 'SHA-256',
+                    modulusLength: 2048,
+                    publicExponent: new Uint8Array([1, 0, 1]),
+                },
+                true, ['sign', 'verify']
+            );
+            return [
+                keyPair.privateKey.type === 'private',
+                keyPair.publicKey.type === 'public',
+            ];
+        "#,
+        )
+        .await;
+        let arr = result.as_array().unwrap();
+        assert!(
+            arr[0].as_bool().unwrap(),
+            "private key type should be 'private' (snapshot runtime)"
+        );
+        assert!(
+            arr[1].as_bool().unwrap(),
+            "public key type should be 'public' (snapshot runtime)"
+        );
+    }
+
     #[tokio::test]
     async fn test_rsa_generate_unsupported_hash_fails() {
         let mut rt = create_runtime();

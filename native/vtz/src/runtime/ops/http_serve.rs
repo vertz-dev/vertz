@@ -292,10 +292,14 @@ pub const HTTP_SERVE_BOOTSTRAP_JS: &str = r#"
           // Process request without blocking the accept loop
           (async () => {
             try {
-              // Build full URL for Request constructor
+              // Build full URL for Request constructor.
+              // Prefer the Host header so the URL hostname matches what the
+              // client used (e.g. "localhost"), not the bind address (e.g. "0.0.0.0").
+              const hostHeader = req.headers.find(([k]) => k.toLowerCase() === 'host');
+              const authority = hostHeader ? hostHeader[1] : `${hostname}:${server.port}`;
               const fullUrl = req.url.startsWith('http')
                 ? req.url
-                : `http://${hostname}:${server.port}${req.url}`;
+                : `http://${authority}${req.url}`;
 
               // Decode base64 body if present
               let body = undefined;
@@ -451,5 +455,38 @@ mod tests {
         .await;
 
         assert_eq!(result.as_str().unwrap(), "POST");
+    }
+
+    /// req.url should use the Host header for the hostname component
+    /// so that `new URL(req.url).origin` matches the client's perspective.
+    #[tokio::test]
+    async fn test_http_serve_uses_host_header_for_url() {
+        let mut rt = create_runtime();
+
+        let result = run_async(
+            &mut rt,
+            r#"
+            const server = await globalThis.__vtz_http.serve(0, '0.0.0.0', async (req) => {
+                const url = new URL(req.url);
+                return new Response(url.hostname, { status: 200 });
+            });
+
+            // Fetch with Host header set to localhost
+            const resp = await fetch(
+                'http://localhost:' + server.port + '/test',
+                { headers: { 'Host': 'localhost:' + server.port } },
+            );
+            const body = await resp.text();
+            server.close();
+            return body;
+            "#,
+        )
+        .await;
+
+        assert_eq!(
+            result.as_str().unwrap(),
+            "localhost",
+            "req.url hostname should come from the Host header"
+        );
     }
 }

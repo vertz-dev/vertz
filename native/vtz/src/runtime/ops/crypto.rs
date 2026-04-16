@@ -201,16 +201,39 @@ pub const CRYPTO_BOOTSTRAP_JS: &str = r#"
 
   globalThis.crypto.randomUUID = () => Deno.core.ops.op_crypto_random_uuid();
 
+  // Snapshot-safe buffer detection.  After V8 snapshot restore, the built-in
+  // constructors captured by this IIFE may differ from those used by ES modules
+  // loaded post-restore, so `instanceof` and `ArrayBuffer.isView` can return
+  // false for cross-realm TypedArrays.  We use Object.prototype.toString.call()
+  // which returns the correct @@toStringTag across realms.
+  const _toString = Object.prototype.toString;
+  const INTEGER_TYPED_ARRAY_TAGS = new Set([
+    '[object Int8Array]', '[object Uint8Array]', '[object Uint8ClampedArray]',
+    '[object Int16Array]', '[object Uint16Array]',
+    '[object Int32Array]', '[object Uint32Array]',
+    '[object BigInt64Array]', '[object BigUint64Array]',
+  ]);
+  const ALL_TYPED_ARRAY_TAGS = new Set([
+    ...INTEGER_TYPED_ARRAY_TAGS,
+    '[object Float32Array]', '[object Float64Array]',
+  ]);
+  function isIntegerTypedArray(v) {
+    return v != null && typeof v === 'object' && INTEGER_TYPED_ARRAY_TAGS.has(_toString.call(v));
+  }
+  function isTypedArray(v) {
+    return v != null && typeof v === 'object' && ALL_TYPED_ARRAY_TAGS.has(_toString.call(v));
+  }
+  function isBufferSource(v) {
+    if (v == null || typeof v !== 'object') return false;
+    const tag = _toString.call(v);
+    // ArrayBuffer or SharedArrayBuffer
+    if (tag === '[object ArrayBuffer]' || tag === '[object SharedArrayBuffer]') return true;
+    // TypedArray or DataView
+    return ALL_TYPED_ARRAY_TAGS.has(tag) || tag === '[object DataView]';
+  }
+
   globalThis.crypto.getRandomValues = (typedArray) => {
-    if (!(typedArray instanceof Int8Array ||
-          typedArray instanceof Uint8Array ||
-          typedArray instanceof Uint8ClampedArray ||
-          typedArray instanceof Int16Array ||
-          typedArray instanceof Uint16Array ||
-          typedArray instanceof Int32Array ||
-          typedArray instanceof Uint32Array ||
-          typedArray instanceof BigInt64Array ||
-          typedArray instanceof BigUint64Array)) {
+    if (!isIntegerTypedArray(typedArray)) {
       throw new TypeError('The provided value is not of type \'(ArrayBufferView)\'');
     }
     if (typedArray.byteLength > 65536) {
@@ -256,19 +279,21 @@ pub const CRYPTO_BOOTSTRAP_JS: &str = r#"
     if (out.hash && typeof out.hash === 'object' && out.hash.name) {
       out.hash = out.hash.name;
     }
-    // Convert publicExponent Uint8Array to plain array for serde_v8 Vec<u8> compat.
-    // salt/info are NOT converted here — they're consumed by toBytes() first
-    // in deriveBits/deriveKey and converted to Array.from() there.
-    if (out.publicExponent && ArrayBuffer.isView(out.publicExponent)) {
-      out.publicExponent = Array.from(new Uint8Array(out.publicExponent.buffer, out.publicExponent.byteOffset, out.publicExponent.byteLength));
+    // Convert publicExponent TypedArray to plain array for serde_v8 Vec<u8> compat.
+    // Uses duck-type check (isTypedArray) instead of ArrayBuffer.isView to survive
+    // V8 snapshot restore where built-in constructor identity may differ.
+    if (out.publicExponent && isTypedArray(out.publicExponent)) {
+      out.publicExponent = Array.from(out.publicExponent);
     }
     return out;
   }
 
   function toBytes(data) {
-    if (data instanceof ArrayBuffer) return new Uint8Array(data);
-    if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-    throw new TypeError('data must be BufferSource');
+    if (!isBufferSource(data)) throw new TypeError('data must be BufferSource');
+    // ArrayBuffer (no byteOffset) — wrap in Uint8Array
+    if (typeof data.byteOffset === 'undefined') return new Uint8Array(data);
+    // TypedArray or DataView — extract byte range
+    return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
   }
 
   function makeCryptoKey(result) {
@@ -653,5 +678,60 @@ mod tests {
             "#,
         );
         assert_eq!(result.unwrap(), "correct_error");
+    }
+
+    #[test]
+    fn test_get_random_values_rejects_float64array() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                try {
+                    crypto.getRandomValues(new Float64Array(10));
+                    "no_error"
+                } catch (e) {
+                    e instanceof TypeError ? "correct_error" : e.message
+                }
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, "correct_error");
+    }
+
+    #[test]
+    fn test_get_random_values_rejects_plain_object() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                try {
+                    crypto.getRandomValues({ byteLength: 4, byteOffset: 0, buffer: { byteLength: 4 } });
+                    "no_error"
+                } catch (e) {
+                    e instanceof TypeError ? "correct_error" : e.message
+                }
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, "correct_error");
+    }
+
+    #[test]
+    fn test_get_random_values_accepts_uint8array() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const arr = new Uint8Array(16);
+                crypto.getRandomValues(arr);
+                // At least one byte should be non-zero (astronomically unlikely to be all zeros)
+                arr.some(b => b !== 0)
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, true);
     }
 }
