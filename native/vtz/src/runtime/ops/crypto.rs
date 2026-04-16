@@ -204,24 +204,36 @@ pub const CRYPTO_BOOTSTRAP_JS: &str = r#"
   // Snapshot-safe buffer detection.  After V8 snapshot restore, the built-in
   // constructors captured by this IIFE may differ from those used by ES modules
   // loaded post-restore, so `instanceof` and `ArrayBuffer.isView` can return
-  // false for cross-realm TypedArrays.  Duck-type checks avoid this.
+  // false for cross-realm TypedArrays.  We use Object.prototype.toString.call()
+  // which returns the correct @@toStringTag across realms.
+  const _toString = Object.prototype.toString;
+  const INTEGER_TYPED_ARRAY_TAGS = new Set([
+    '[object Int8Array]', '[object Uint8Array]', '[object Uint8ClampedArray]',
+    '[object Int16Array]', '[object Uint16Array]',
+    '[object Int32Array]', '[object Uint32Array]',
+    '[object BigInt64Array]', '[object BigUint64Array]',
+  ]);
+  const ALL_TYPED_ARRAY_TAGS = new Set([
+    ...INTEGER_TYPED_ARRAY_TAGS,
+    '[object Float32Array]', '[object Float64Array]',
+  ]);
+  function isIntegerTypedArray(v) {
+    return v != null && typeof v === 'object' && INTEGER_TYPED_ARRAY_TAGS.has(_toString.call(v));
+  }
   function isTypedArray(v) {
-    return v != null && typeof v === 'object' &&
-      typeof v.byteLength === 'number' && typeof v.byteOffset === 'number' &&
-      v.buffer != null && typeof v.buffer.byteLength === 'number';
+    return v != null && typeof v === 'object' && ALL_TYPED_ARRAY_TAGS.has(_toString.call(v));
   }
   function isBufferSource(v) {
-    if (v != null && typeof v === 'object' && typeof v.byteLength === 'number') {
-      // ArrayBuffer or SharedArrayBuffer (no byteOffset)
-      if (typeof v.byteOffset === 'undefined') return true;
-      // TypedArray or DataView
-      return typeof v.byteOffset === 'number';
-    }
-    return false;
+    if (v == null || typeof v !== 'object') return false;
+    const tag = _toString.call(v);
+    // ArrayBuffer or SharedArrayBuffer
+    if (tag === '[object ArrayBuffer]' || tag === '[object SharedArrayBuffer]') return true;
+    // TypedArray or DataView
+    return ALL_TYPED_ARRAY_TAGS.has(tag) || tag === '[object DataView]';
   }
 
   globalThis.crypto.getRandomValues = (typedArray) => {
-    if (!isTypedArray(typedArray)) {
+    if (!isIntegerTypedArray(typedArray)) {
       throw new TypeError('The provided value is not of type \'(ArrayBufferView)\'');
     }
     if (typedArray.byteLength > 65536) {
@@ -666,5 +678,60 @@ mod tests {
             "#,
         );
         assert_eq!(result.unwrap(), "correct_error");
+    }
+
+    #[test]
+    fn test_get_random_values_rejects_float64array() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                try {
+                    crypto.getRandomValues(new Float64Array(10));
+                    "no_error"
+                } catch (e) {
+                    e instanceof TypeError ? "correct_error" : e.message
+                }
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, "correct_error");
+    }
+
+    #[test]
+    fn test_get_random_values_rejects_plain_object() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                try {
+                    crypto.getRandomValues({ byteLength: 4, byteOffset: 0, buffer: { byteLength: 4 } });
+                    "no_error"
+                } catch (e) {
+                    e instanceof TypeError ? "correct_error" : e.message
+                }
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, "correct_error");
+    }
+
+    #[test]
+    fn test_get_random_values_accepts_uint8array() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const arr = new Uint8Array(16);
+                crypto.getRandomValues(arr);
+                // At least one byte should be non-zero (astronomically unlikely to be all zeros)
+                arr.some(b => b !== 0)
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, true);
     }
 }
