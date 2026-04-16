@@ -12,15 +12,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { aotJsxStubPlugin } from '../ui-build-pipeline';
 
-// Bun.build is not available in the vtz runtime — skip the entire suite.
-// These tests exercise the Bun bundler plugin (aotJsxStubPlugin) which requires
-// the real Bun.build() API. vtz shims Bun.build as a function that throws.
-const isVtzRuntime = !!(globalThis as Record<string, unknown>).__vtz_runtime;
-const hasBunBuild =
-  !isVtzRuntime &&
-  typeof globalThis.Bun !== 'undefined' &&
-  typeof globalThis.Bun.build === 'function';
-
 /** Compiled TSX fixture — contains original JSX alongside __ssr_* function. */
 const COMPILED_TSX = `import { __esc } from '@vertz/ui-server';
 
@@ -38,7 +29,7 @@ const BARREL_SOURCE = `import { __esc } from '@vertz/ui-server';
 export { __ssr_HomePage } from './__aot_0_home';
 `;
 
-describe.skipIf(!hasBunBuild)('AOT bundle JSX runtime (#1935)', () => {
+describe('AOT bundle JSX runtime (#1935)', () => {
   let tmpDir: string;
 
   afterEach(() => {
