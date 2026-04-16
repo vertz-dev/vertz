@@ -141,6 +141,7 @@ impl CompilationPipeline {
             root_dir: &self.root_dir,
             src_dir: &self.src_dir,
             target: "dom",
+            test_mode: false,
         };
         let output = self.plugin.compile(&source, &ctx);
 

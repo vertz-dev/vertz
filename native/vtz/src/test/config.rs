@@ -78,6 +78,7 @@ pub fn load_test_config(root_dir: &Path) -> Result<TestConfig, AnyError> {
             root_dir,
             src_dir: &src_dir,
             target: "ssr",
+            test_mode: false,
         };
         let output = plugin.compile(&source, &ctx);
         output.code

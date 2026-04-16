@@ -72,6 +72,18 @@ pub struct VertzModuleLoader {
     /// Key: directory path, Value: `true` if the directory has a package.json with `"type": "module"`.
     /// Missing key means "not yet checked".
     pkg_type_cache: RefCell<HashMap<PathBuf, Option<bool>>>,
+    /// Whether this loader is running in test mode (vtz test).
+    /// When true, all compiled modules get export interposition for spyOn() support.
+    test_mode: bool,
+    /// Export names collected from mock factory return values (JS side).
+    /// Used for proxy generation when `extract_export_names` can't find ESM exports
+    /// (e.g., CJS modules like esbuild).
+    /// Key: raw specifier, Value: export names from the mock factory object.
+    mock_export_names: RefCell<HashMap<String, Vec<String>>>,
+    /// Bare specifiers that are mocked (e.g., "esbuild").
+    /// Checked in resolve() BEFORE synthetic module intercepts, so mocked modules
+    /// take priority over built-in polyfills.
+    mocked_bare_specifiers: RefCell<HashSet<String>>,
 }
 
 impl VertzModuleLoader {
@@ -88,6 +100,9 @@ impl VertzModuleLoader {
             v8_code_cache: None,
             resolution_cache: None,
             pkg_type_cache: RefCell::new(HashMap::new()),
+            test_mode: false,
+            mock_export_names: RefCell::new(HashMap::new()),
+            mocked_bare_specifiers: RefCell::new(HashSet::new()),
         }
     }
 
@@ -109,6 +124,9 @@ impl VertzModuleLoader {
             v8_code_cache: None,
             resolution_cache: None,
             pkg_type_cache: RefCell::new(HashMap::new()),
+            test_mode: false,
+            mock_export_names: RefCell::new(HashMap::new()),
+            mocked_bare_specifiers: RefCell::new(HashSet::new()),
         }
     }
 
@@ -134,7 +152,23 @@ impl VertzModuleLoader {
             v8_code_cache,
             resolution_cache,
             pkg_type_cache: RefCell::new(HashMap::new()),
+            test_mode: false,
+            mock_export_names: RefCell::new(HashMap::new()),
+            mocked_bare_specifiers: RefCell::new(HashSet::new()),
         }
+    }
+
+    /// Enable test mode — all compiled modules get export interposition for spyOn().
+    pub fn set_test_mode(&mut self, enabled: bool) {
+        self.test_mode = enabled;
+    }
+
+    /// Register export names discovered from mock factory return values.
+    /// Used for proxy generation when the original module has no ESM exports.
+    pub fn register_mock_export_names(&self, specifier: &str, names: Vec<String>) {
+        self.mock_export_names
+            .borrow_mut()
+            .insert(specifier.to_string(), names);
     }
 
     /// Register modules that should be mocked (transitive mocking).
@@ -147,6 +181,11 @@ impl VertzModuleLoader {
         test_file_path: &Path,
     ) {
         for specifier in specifiers {
+            // Track bare specifiers so resolve() can skip synthetic module
+            // intercepts for mocked modules (e.g., esbuild).
+            self.mocked_bare_specifiers
+                .borrow_mut()
+                .insert(specifier.clone());
             match self.resolve_specifier(specifier, test_file_path) {
                 Ok(resolved) => {
                     let canonical = self.canonicalize_cached(&resolved);
@@ -181,6 +220,7 @@ impl VertzModuleLoader {
             root_dir: &self.root_dir,
             src_dir: &src_dir,
             target: "ssr",
+            test_mode: self.test_mode,
         };
         self.plugin.compile(source, &ctx)
     }
@@ -638,10 +678,14 @@ impl VertzModuleLoader {
     fn compile_source(&self, source: &str, filename: &str) -> Result<String, AnyError> {
         let target = "ssr";
         let is_test = crate::test::is_test_file(Path::new(filename));
+        // In test mode, enable spy_exports for ALL modules (not just test files)
+        // so spyOn() can replace ESM exports via live binding setters.
+        let spy_exports = self.test_mode;
         let options_hash = format!(
-            "css:{},mock:{}",
-            is_test as u8, // skip_css_transform
-            is_test as u8, // mock_hoisting
+            "css:{},mock:{},spy:{}",
+            is_test as u8,     // skip_css_transform
+            is_test as u8,     // mock_hoisting
+            spy_exports as u8, // spy_exports
         );
         let file_path = PathBuf::from(filename);
 
@@ -701,6 +745,7 @@ impl VertzModuleLoader {
             root_dir: &self.root_dir,
             src_dir: &src_dir,
             target,
+            test_mode: self.test_mode,
         };
 
         let output = self.plugin.compile(source, &ctx);
@@ -2306,11 +2351,6 @@ fn generate_mock_proxy_module(specifier: &str, export_names: &[String]) -> Strin
         }
     }
 
-    // If no default export was extracted but the mock has one, add it
-    if !export_names.iter().any(|n| n == "default") {
-        code.push_str("if ('default' in __m) {{ /* default handled by named exports */ }}\n");
-    }
-
     code
 }
 
@@ -3705,26 +3745,35 @@ impl ModuleLoader for VertzModuleLoader {
         referrer: &str,
         _kind: ResolutionKind,
     ) -> Result<ModuleSpecifier, deno_core::anyhow::Error> {
-        // Intercept @vertz/test and bun:test → synthetic vertz:test module
-        if specifier == "@vertz/test" || specifier == "bun:test" {
-            return Ok(ModuleSpecifier::parse(VERTZ_TEST_SPECIFIER)?);
-        }
+        // If this specifier is mocked, skip ALL synthetic intercepts and fall
+        // through to normal resolution → mocked_paths check. This ensures
+        // vi.mock('esbuild', factory) takes priority over built-in polyfills.
+        let is_mocked = self.mocked_bare_specifiers.borrow().contains(specifier);
 
-        // Intercept vertz:sqlite (canonical), @vertz/sqlite (npm), and bun:sqlite (compat)
-        // → synthetic SQLite module
-        if specifier == "vertz:sqlite" || specifier == "@vertz/sqlite" || specifier == "bun:sqlite"
-        {
-            return Ok(ModuleSpecifier::parse(VERTZ_SQLITE_SPECIFIER)?);
-        }
+        if !is_mocked {
+            // Intercept @vertz/test and bun:test → synthetic vertz:test module
+            if specifier == "@vertz/test" || specifier == "bun:test" {
+                return Ok(ModuleSpecifier::parse(VERTZ_TEST_SPECIFIER)?);
+            }
 
-        // Intercept esbuild → synthetic esbuild module
-        if specifier == "esbuild" {
-            return Ok(ModuleSpecifier::parse(ESBUILD_SPECIFIER)?);
-        }
+            // Intercept vertz:sqlite (canonical), @vertz/sqlite (npm), and bun:sqlite (compat)
+            // → synthetic SQLite module
+            if specifier == "vertz:sqlite"
+                || specifier == "@vertz/sqlite"
+                || specifier == "bun:sqlite"
+            {
+                return Ok(ModuleSpecifier::parse(VERTZ_SQLITE_SPECIFIER)?);
+            }
 
-        // Intercept node:* specifiers → synthetic modules
-        if let Some(synthetic) = node_specifier_to_synthetic(specifier) {
-            return Ok(ModuleSpecifier::parse(synthetic)?);
+            // Intercept esbuild → synthetic esbuild module
+            if specifier == "esbuild" {
+                return Ok(ModuleSpecifier::parse(ESBUILD_SPECIFIER)?);
+            }
+
+            // Intercept node:* specifiers → synthetic modules
+            if let Some(synthetic) = node_specifier_to_synthetic(specifier) {
+                return Ok(ModuleSpecifier::parse(synthetic)?);
+            }
         }
 
         // Internal synthetic module references
@@ -3842,7 +3891,16 @@ impl ModuleLoader for VertzModuleLoader {
 
                 // Read the original source to discover export names
                 let source_text = std::fs::read_to_string(&path).unwrap_or_default();
-                let export_names = extract_export_names(&source_text);
+                let mut export_names = extract_export_names(&source_text);
+
+                // Fallback: use export names from the mock factory object (JS side).
+                // This handles CJS modules (e.g., esbuild) where extract_export_names
+                // can't find ESM exports.
+                if export_names.is_empty() {
+                    if let Some(names) = self.mock_export_names.borrow().get(&mock_specifier) {
+                        export_names = names.clone();
+                    }
+                }
 
                 let proxy = generate_mock_proxy_module(&mock_specifier, &export_names);
                 return Ok(ModuleSource::new(

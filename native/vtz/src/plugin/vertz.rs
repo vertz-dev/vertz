@@ -32,6 +32,9 @@ impl FrameworkPlugin for VertzPlugin {
                 fast_refresh: Some(!is_test),
                 skip_css_transform: Some(is_test),
                 mock_hoisting: Some(is_test),
+                // Enable spy_exports for ALL modules in test mode so spyOn()
+                // can replace ESM exports via live binding setters.
+                spy_exports: Some(ctx.test_mode),
                 ..Default::default()
             },
         );
@@ -210,6 +213,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile("export const x = 1;", &ctx);
         assert!(output.code.contains("const x = 1"));
@@ -224,6 +228,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile(
             "export default function App() { return <div>Hello</div>; }",
@@ -247,6 +252,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let code = "const x = 1;\nimport.meta.hot.accept();\nconst y = 2;";
         let result = plugin.post_process(code, &ctx);
@@ -263,6 +269,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let code = "const __$moduleId = '/project/src/app.tsx';";
         let result = plugin.post_process(code, &ctx);
@@ -349,6 +356,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "ssr",
+            test_mode: false,
         };
         let source = r#"const styles = css({ root: ['flex', 'p:4'] });"#;
         let output = plugin.compile(source, &ctx);
@@ -371,6 +379,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "ssr",
+            test_mode: false,
         };
         let source = r#"const styles = css({ root: ['flex'] });"#;
         let output = plugin.compile(source, &ctx);
@@ -389,6 +398,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "ssr",
+            test_mode: false,
         };
         let source = r#"const styles = css({ root: ['flex'] });"#;
         let output = plugin.compile(source, &ctx);
@@ -407,6 +417,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "ssr",
+            test_mode: false,
         };
         let source = r#"const styles = css({ root: ['flex'] });"#;
         let output = plugin.compile(source, &ctx);
@@ -444,6 +455,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile(
             "export default function App() { return <div>Hello</div>; }",
@@ -469,6 +481,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile(
             "export default function App() { return <div>Hello</div>; }",
@@ -489,6 +502,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile(
             "export default function App() { return <div>Hello</div>; }",
@@ -509,6 +523,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile(
             "export default function App() { return <div>Hello</div>; }",
@@ -529,6 +544,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile(
             "export default function App() { return <div>Hello</div>; }",
@@ -549,6 +565,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile(
             "export default function App() { return <div>Hello</div>; }",
@@ -569,6 +586,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "ssr",
+            test_mode: false,
         };
         let source = r#"const styles = css({ root: ['flex', 'p:4'] });"#;
         let output = plugin.compile(source, &ctx);

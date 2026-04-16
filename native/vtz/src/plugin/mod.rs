@@ -158,6 +158,8 @@ pub struct CompileContext<'a> {
     pub src_dir: &'a Path,
     /// "dom" for browser, "ssr" for server rendering.
     pub target: &'a str,
+    /// Whether the test runner is active — enables spy_exports for all modules.
+    pub test_mode: bool,
 }
 
 /// Result of plugin compilation.
@@ -440,6 +442,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         assert_eq!(plugin.post_process("unchanged", &ctx), "unchanged");
     }
@@ -470,6 +473,7 @@ mod tests {
             root_dir: Path::new("/project"),
             src_dir: Path::new("/project/src"),
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile("const x = 1;", &ctx);
         assert_eq!(output.code, "const x = 1;");

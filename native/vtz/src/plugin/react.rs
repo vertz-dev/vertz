@@ -275,6 +275,7 @@ mod tests {
             root_dir: root,
             src_dir: src,
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile("export const x: number = 1;", &ctx);
         assert!(
@@ -304,6 +305,7 @@ mod tests {
             root_dir: root,
             src_dir: src,
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile(
             "export default function App() { return <div>Hello</div>; }",
@@ -341,6 +343,7 @@ mod tests {
             root_dir: root,
             src_dir: src,
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile(
             "import React from 'react';\nexport default function App() { return <div>Hello</div>; }",
@@ -369,6 +372,7 @@ mod tests {
             root_dir: root,
             src_dir: src,
             target: "dom",
+            test_mode: false,
         };
         let source = r#"
             interface ButtonProps {
@@ -409,6 +413,7 @@ mod tests {
             root_dir: root,
             src_dir: src,
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile(
             "export function List() { return <><div>A</div><div>B</div></>; }",
@@ -437,6 +442,7 @@ mod tests {
             root_dir: root,
             src_dir: src,
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile("export const add = (a, b) => a + b;", &ctx);
         assert!(output.diagnostics.is_empty());
@@ -452,6 +458,7 @@ mod tests {
             root_dir: root,
             src_dir: src,
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile("export function { broken syntax }", &ctx);
         assert!(!output.diagnostics.is_empty(), "Should have parse errors");
@@ -466,6 +473,7 @@ mod tests {
             root_dir: root,
             src_dir: src,
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile(
             "export function Spread(props: any) { return <div {...props} />; }",
@@ -493,6 +501,7 @@ mod tests {
             root_dir: root,
             src_dir: src,
             target: "dom",
+            test_mode: false,
         };
         let source = r#"
             export function Layout() {
@@ -583,6 +592,7 @@ mod tests {
             root_dir: root,
             src_dir: src,
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile(
             "export default function Counter() { return <div>0</div>; }",
@@ -611,6 +621,7 @@ mod tests {
             root_dir: root,
             src_dir: src,
             target: "dom",
+            test_mode: false,
         };
         // Component that uses a hook — should get $RefreshSig$ tracking
         let output = plugin.compile(
@@ -648,6 +659,7 @@ mod tests {
             root_dir: root,
             src_dir: src,
             target: "dom",
+            test_mode: false,
         };
         let output = plugin.compile(
             "export default function App() { return <div>Hello</div>; }",
