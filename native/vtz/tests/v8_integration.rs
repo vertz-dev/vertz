@@ -1659,3 +1659,334 @@ async fn test_node_util_types_is_typed_array_negative() {
         );
     }
 }
+
+// --- Bug #2686: convert remaining node:util.types instanceof checks to toString-based ---
+
+#[tokio::test]
+async fn test_node_util_types_is_date() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier =
+        deno_core::ModuleSpecifier::parse("file:///virtual/util-types-is-date.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import { types } from 'node:util';
+
+        // Positive
+        console.log("Date: " + types.isDate(new Date()));
+
+        // Negative
+        console.log("string: " + types.isDate("2024-01-01"));
+        console.log("number: " + types.isDate(Date.now()));
+        console.log("null: " + types.isDate(null));
+        console.log("undefined: " + types.isDate(undefined));
+        console.log("object: " + types.isDate({}));
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0], "Date: true",
+        "isDate(new Date()) should be true"
+    );
+    let negatives = ["string", "number", "null", "undefined", "object"];
+    for (i, name) in negatives.iter().enumerate() {
+        assert_eq!(
+            output.stdout[i + 1],
+            format!("{}: false", name),
+            "isDate should return false for {}",
+            name
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_node_util_types_is_regexp() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier =
+        deno_core::ModuleSpecifier::parse("file:///virtual/util-types-is-regexp.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import { types } from 'node:util';
+
+        // Positive
+        console.log("RegExp-literal: " + types.isRegExp(/abc/));
+        console.log("RegExp-ctor: " + types.isRegExp(new RegExp("abc")));
+
+        // Negative
+        console.log("string: " + types.isRegExp("/abc/"));
+        console.log("null: " + types.isRegExp(null));
+        console.log("undefined: " + types.isRegExp(undefined));
+        console.log("object: " + types.isRegExp({}));
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "RegExp-literal: true");
+    assert_eq!(output.stdout[1], "RegExp-ctor: true");
+    let negatives = ["string", "null", "undefined", "object"];
+    for (i, name) in negatives.iter().enumerate() {
+        assert_eq!(
+            output.stdout[i + 2],
+            format!("{}: false", name),
+            "isRegExp should return false for {}",
+            name
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_node_util_types_is_promise() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier =
+        deno_core::ModuleSpecifier::parse("file:///virtual/util-types-is-promise.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import { types } from 'node:util';
+
+        // Positive
+        console.log("Promise: " + types.isPromise(Promise.resolve(1)));
+        console.log("Promise-ctor: " + types.isPromise(new Promise(() => {})));
+
+        // Negative — thenable is NOT a Promise
+        console.log("thenable: " + types.isPromise({ then: () => {} }));
+        console.log("null: " + types.isPromise(null));
+        console.log("undefined: " + types.isPromise(undefined));
+        console.log("number: " + types.isPromise(42));
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "Promise: true");
+    assert_eq!(output.stdout[1], "Promise-ctor: true");
+    let negatives = ["thenable", "null", "undefined", "number"];
+    for (i, name) in negatives.iter().enumerate() {
+        assert_eq!(
+            output.stdout[i + 2],
+            format!("{}: false", name),
+            "isPromise should return false for {}",
+            name
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_node_util_types_is_array_buffer() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier =
+        deno_core::ModuleSpecifier::parse("file:///virtual/util-types-is-arraybuffer.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import { types } from 'node:util';
+
+        // Positive
+        console.log("ArrayBuffer: " + types.isArrayBuffer(new ArrayBuffer(8)));
+
+        // Negative
+        console.log("SharedArrayBuffer: " + types.isArrayBuffer(new SharedArrayBuffer(8)));
+        console.log("Uint8Array: " + types.isArrayBuffer(new Uint8Array(8)));
+        console.log("null: " + types.isArrayBuffer(null));
+        console.log("undefined: " + types.isArrayBuffer(undefined));
+        console.log("object: " + types.isArrayBuffer({}));
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "ArrayBuffer: true");
+    let negatives = [
+        "SharedArrayBuffer",
+        "Uint8Array",
+        "null",
+        "undefined",
+        "object",
+    ];
+    for (i, name) in negatives.iter().enumerate() {
+        assert_eq!(
+            output.stdout[i + 1],
+            format!("{}: false", name),
+            "isArrayBuffer should return false for {}",
+            name
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_node_util_types_is_uint8array() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier =
+        deno_core::ModuleSpecifier::parse("file:///virtual/util-types-is-uint8array.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import { types } from 'node:util';
+
+        // Positive
+        console.log("Uint8Array: " + types.isUint8Array(new Uint8Array(8)));
+
+        // Negative
+        console.log("Int8Array: " + types.isUint8Array(new Int8Array(8)));
+        console.log("Uint16Array: " + types.isUint8Array(new Uint16Array(8)));
+        console.log("ArrayBuffer: " + types.isUint8Array(new ArrayBuffer(8)));
+        console.log("null: " + types.isUint8Array(null));
+        console.log("undefined: " + types.isUint8Array(undefined));
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "Uint8Array: true");
+    let negatives = [
+        "Int8Array",
+        "Uint16Array",
+        "ArrayBuffer",
+        "null",
+        "undefined",
+    ];
+    for (i, name) in negatives.iter().enumerate() {
+        assert_eq!(
+            output.stdout[i + 1],
+            format!("{}: false", name),
+            "isUint8Array should return false for {}",
+            name
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_node_util_types_is_set() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier =
+        deno_core::ModuleSpecifier::parse("file:///virtual/util-types-is-set.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import { types } from 'node:util';
+
+        // Positive
+        console.log("Set: " + types.isSet(new Set()));
+        console.log("Set-with-values: " + types.isSet(new Set([1, 2, 3])));
+
+        // Negative
+        console.log("WeakSet: " + types.isSet(new WeakSet()));
+        console.log("Map: " + types.isSet(new Map()));
+        console.log("array: " + types.isSet([1, 2, 3]));
+        console.log("null: " + types.isSet(null));
+        console.log("undefined: " + types.isSet(undefined));
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "Set: true");
+    assert_eq!(output.stdout[1], "Set-with-values: true");
+    let negatives = ["WeakSet", "Map", "array", "null", "undefined"];
+    for (i, name) in negatives.iter().enumerate() {
+        assert_eq!(
+            output.stdout[i + 2],
+            format!("{}: false", name),
+            "isSet should return false for {}",
+            name
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_node_util_types_is_map() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier =
+        deno_core::ModuleSpecifier::parse("file:///virtual/util-types-is-map.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import { types } from 'node:util';
+
+        // Positive
+        console.log("Map: " + types.isMap(new Map()));
+        console.log("Map-with-entries: " + types.isMap(new Map([["a", 1]])));
+
+        // Negative
+        console.log("WeakMap: " + types.isMap(new WeakMap()));
+        console.log("Set: " + types.isMap(new Set()));
+        console.log("object: " + types.isMap({}));
+        console.log("null: " + types.isMap(null));
+        console.log("undefined: " + types.isMap(undefined));
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "Map: true");
+    assert_eq!(output.stdout[1], "Map-with-entries: true");
+    let negatives = ["WeakMap", "Set", "object", "null", "undefined"];
+    for (i, name) in negatives.iter().enumerate() {
+        assert_eq!(
+            output.stdout[i + 2],
+            format!("{}: false", name),
+            "isMap should return false for {}",
+            name
+        );
+    }
+}

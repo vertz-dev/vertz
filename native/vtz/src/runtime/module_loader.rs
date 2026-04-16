@@ -3390,10 +3390,9 @@ function inherits(ctor, superCtor) {
   Object.setPrototypeOf(ctor, superCtor);
 }
 
-// Use Object.prototype.toString for isTypedArray to survive V8 snapshot boundaries (#2682).
+// Use Object.prototype.toString for all type checks to survive V8 snapshot boundaries (#2682, #2686).
 // Note: this is spoofable via Symbol.toStringTag, but that is acceptable for this shim —
-// it is not a security boundary. A V8-native op (v8::Value::is_typed_array) would be
-// needed for spoofing resistance.
+// it is not a security boundary. A V8-native op would be needed for spoofing resistance.
 const _toString = Object.prototype.toString;
 const TYPED_ARRAY_TAGS = new Set([
   '[object Int8Array]', '[object Uint8Array]', '[object Uint8ClampedArray]',
@@ -3403,14 +3402,14 @@ const TYPED_ARRAY_TAGS = new Set([
   '[object Float32Array]', '[object Float64Array]',
 ]);
 const _types = {
-  isDate: (v) => v instanceof Date,
-  isRegExp: (v) => v instanceof RegExp,
-  isPromise: (v) => v instanceof Promise,
-  isArrayBuffer: (v) => v instanceof ArrayBuffer,
+  isDate: (v) => v != null && typeof v === 'object' && _toString.call(v) === '[object Date]',
+  isRegExp: (v) => v != null && typeof v === 'object' && _toString.call(v) === '[object RegExp]',
+  isPromise: (v) => v != null && typeof v === 'object' && _toString.call(v) === '[object Promise]',
+  isArrayBuffer: (v) => v != null && typeof v === 'object' && _toString.call(v) === '[object ArrayBuffer]',
   isTypedArray: (v) => v != null && typeof v === 'object' && TYPED_ARRAY_TAGS.has(_toString.call(v)),
-  isUint8Array: (v) => v instanceof Uint8Array,
-  isSet: (v) => v instanceof Set,
-  isMap: (v) => v instanceof Map,
+  isUint8Array: (v) => v != null && typeof v === 'object' && _toString.call(v) === '[object Uint8Array]',
+  isSet: (v) => v != null && typeof v === 'object' && _toString.call(v) === '[object Set]',
+  isMap: (v) => v != null && typeof v === 'object' && _toString.call(v) === '[object Map]',
 };
 
 export { promisify, format, inspect, deprecate, callbackify, inherits, TextDecoder, TextEncoder };
