@@ -1,5 +1,5 @@
 ---
-'vtz': patch
+'@vertz/runtime': patch
 ---
 
 fix(vtz): floor float delay before BigInt conversion in setTimeout/setInterval

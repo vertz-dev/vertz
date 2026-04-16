@@ -1,5 +1,5 @@
 ---
-'vtz': patch
+'@vertz/runtime': patch
 ---
 
 fix(vtz): resolve JWKS-based JWT verification returning null in full chain
