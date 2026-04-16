@@ -956,4 +956,32 @@ mod tests {
             "batch"
         ));
     }
+
+    #[test]
+    fn async_shorthand_method_is_not_standalone() {
+        assert!(!contains_standalone_call(
+            "const obj = { async batch(items) { return []; } };",
+            "batch"
+        ));
+    }
+
+    #[test]
+    fn generator_shorthand_method_is_not_standalone() {
+        assert!(!contains_standalone_call(
+            "const obj = { *batch() { yield 1; } };",
+            "batch"
+        ));
+    }
+
+    #[test]
+    fn getter_setter_methods_are_not_standalone() {
+        assert!(!contains_standalone_call(
+            "const obj = { get signal() { return 0; } };",
+            "signal"
+        ));
+        assert!(!contains_standalone_call(
+            "const obj = { set signal(v) { } };",
+            "signal"
+        ));
+    }
 }
