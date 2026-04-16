@@ -264,8 +264,26 @@ fn is_method_definition_context(code: &str, name_pos: usize) -> bool {
     }
 
     // Generator method: `* name(`
-    if before.ends_with('*') {
-        return true;
+    // Must verify the `*` is a generator star (preceded by a structural char
+    // like `,`, `{`, `;`), not a multiplication operator (preceded by an
+    // identifier, number, or closing paren/bracket).
+    if let Some(without_star) = before.strip_suffix('*') {
+        let before_star = without_star.trim_end();
+        if before_star.is_empty() {
+            return true;
+        }
+        let last = before_star.as_bytes()[before_star.len() - 1];
+        // If preceded by an expression-producing token, this is multiplication
+        if last.is_ascii_alphanumeric()
+            || last == b'_'
+            || last == b'$'
+            || last == b')'
+            || last == b']'
+        {
+            // Multiplication — not a generator
+        } else {
+            return true;
+        }
     }
 
     for keyword in &["async", "get", "set", "static"] {
@@ -831,5 +849,28 @@ mod tests {
     fn longer_identifier_ending_in_keyword_does_not_false_exclude() {
         // `myasync` ends with `async` but is not the keyword — batch is still standalone
         assert!(contains_standalone_call("myasync batch()", "batch"));
+    }
+
+    #[test]
+    fn multiplication_before_call_is_not_generator() {
+        // `a * batch(fn)` — the `*` is multiplication, not a generator star
+        assert!(contains_standalone_call("a * batch(fn)", "batch"));
+        assert!(contains_standalone_call("count * signal(0)", "signal"));
+    }
+
+    #[test]
+    fn static_async_method_is_rejected() {
+        assert!(!contains_standalone_call(
+            "static async batch(items) {",
+            "batch"
+        ));
+    }
+
+    #[test]
+    fn return_await_yield_are_standalone_calls() {
+        assert!(contains_standalone_call("return batch()", "batch"));
+        assert!(contains_standalone_call("await batch()", "batch"));
+        assert!(contains_standalone_call("yield batch()", "batch"));
+        assert!(contains_standalone_call("void batch()", "batch"));
     }
 }
