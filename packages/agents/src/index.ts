@@ -14,11 +14,9 @@ export type {
   InvokeOptions,
   ModelProvider,
   OnStuckBehavior,
-  ToolApprovalConfig,
   ToolConfig,
   ToolContext,
   ToolDefinition,
-  ToolExecution,
   ToolProvider,
   InferToolProvider,
 } from './types';
