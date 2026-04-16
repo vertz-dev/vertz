@@ -99,7 +99,7 @@ impl ProxyConfig {
         }
 
         // Sort by prefix length descending so longest match wins.
-        rules.sort_by(|a, b| b.prefix.len().cmp(&a.prefix.len()));
+        rules.sort_by_key(|r| std::cmp::Reverse(r.prefix.len()));
 
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(5))

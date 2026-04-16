@@ -133,7 +133,7 @@ pub fn parse_overrides(
     }
 
     // Sort by specificity: longer parent_path first (more specific wins during matching)
-    rules.sort_by(|a, b| b.parent_path.len().cmp(&a.parent_path.len()));
+    rules.sort_by_key(|r| std::cmp::Reverse(r.parent_path.len()));
 
     Ok(OverrideMap { rules })
 }

@@ -580,16 +580,14 @@ impl SignalGraph {
     /// Effect subscribers are queued for batch flush.
     fn schedule_notify(&mut self, subscriber_id: u32) {
         match self.nodes.get(subscriber_id as usize) {
-            Some(SignalNode::Computed { state, .. }) => {
-                if *state != ComputedState::Dirty {
-                    self.mark_computed_dirty(subscriber_id);
-                }
+            Some(SignalNode::Computed { state, .. }) if *state != ComputedState::Dirty => {
+                self.mark_computed_dirty(subscriber_id);
             }
-            Some(SignalNode::Effect { disposed, .. }) => {
-                if !disposed && !self.effect_scheduled[subscriber_id as usize] {
-                    self.effect_scheduled.set(subscriber_id as usize, true);
-                    self.pending_effects.push(subscriber_id);
-                }
+            Some(SignalNode::Effect { disposed, .. })
+                if !disposed && !self.effect_scheduled[subscriber_id as usize] =>
+            {
+                self.effect_scheduled.set(subscriber_id as usize, true);
+                self.pending_effects.push(subscriber_id);
             }
             _ => {}
         }

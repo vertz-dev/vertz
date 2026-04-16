@@ -215,10 +215,8 @@ fn resolve_condition_value(
     for key in &["import", "node", "module", "default", "require"] {
         if let Some(val) = conditions.get(*key) {
             match val {
-                serde_json::Value::String(s) => {
-                    if is_safe_export_target(s) {
-                        return Some(s.clone());
-                    }
+                serde_json::Value::String(s) if is_safe_export_target(s) => {
+                    return Some(s.clone());
                 }
                 serde_json::Value::Object(nested) => {
                     // Nested conditions (e.g., import: { types: "...", default: "..." })

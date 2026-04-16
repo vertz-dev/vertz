@@ -208,6 +208,8 @@ async fn handle_ws_connection(state: InspectorState, socket: WebSocket) {
     let mut forward_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_receiver.next().await {
             match msg {
+                // Cannot collapse into match guard: `text` is moved by unbounded_send()
+                #[allow(clippy::collapsible_match)]
                 Message::Text(text) => {
                     if forward_tx.unbounded_send(text).is_err() {
                         break;

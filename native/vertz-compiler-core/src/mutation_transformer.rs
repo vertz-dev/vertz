@@ -9,7 +9,7 @@ pub fn transform_mutations(ms: &mut MagicString, mutations: &[MutationInfo]) {
 
     // Process mutations in reverse order (end-to-start) to preserve positions
     let mut sorted: Vec<&MutationInfo> = mutations.iter().collect();
-    sorted.sort_by(|a, b| b.start.cmp(&a.start));
+    sorted.sort_by_key(|b| std::cmp::Reverse(b.start));
 
     for mutation in sorted {
         let original_text = ms.slice(mutation.start, mutation.end);
