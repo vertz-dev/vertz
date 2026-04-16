@@ -853,6 +853,124 @@ mod tests {
     }
 
     #[test]
+    fn test_preload_mock_conditional() {
+        // Conditional mocks in preloads (the real-world pattern from #2667):
+        // `if (!available) { vi.mock('spec', factory) }`
+        // The bridge queries runtime state after evaluation, so conditional mocks work.
+        let tmp = tempfile::tempdir().unwrap();
+        let base = tmp.path();
+
+        let helper = base.join("helper.ts");
+        fs::write(&helper, "export const value = 'real';").unwrap();
+
+        // Preload mocks conditionally — the condition is true, so the mock fires
+        let preload = write_test_file(
+            base,
+            "preload-conditional.ts",
+            r#"
+            const shouldMock = true;
+            if (shouldMock) {
+                vi.mock('./helper', () => ({ value: 'conditional-mock' }));
+            }
+            "#,
+        );
+
+        let test_file = write_test_file(
+            base,
+            "cond.test.ts",
+            r#"
+            import { value } from './helper';
+
+            describe('conditional preload mock', () => {
+                it('receives conditionally mocked value', () => {
+                    expect(value).toBe('conditional-mock');
+                });
+            });
+            "#,
+        );
+
+        let result = execute_test_file_with_options(
+            &test_file,
+            &ExecuteOptions {
+                preload: vec![preload],
+                ..Default::default()
+            },
+        );
+
+        assert!(
+            result.file_error.is_none(),
+            "File error: {:?}",
+            result.file_error
+        );
+        assert_eq!(result.passed(), 1, "Conditional mock should be effective");
+        assert_eq!(result.failed(), 0);
+    }
+
+    #[test]
+    fn test_preload_mock_multiple_preloads() {
+        // Two preload scripts each mocking different modules.
+        // The diff-based known_mock_keys approach correctly attributes
+        // each mock to its originating preload for resolution.
+        let tmp = tempfile::tempdir().unwrap();
+        let base = tmp.path();
+
+        let mod_a = base.join("mod-a.ts");
+        fs::write(&mod_a, "export const a = 'real-a';").unwrap();
+        let mod_b = base.join("mod-b.ts");
+        fs::write(&mod_b, "export const b = 'real-b';").unwrap();
+
+        let preload_a = write_test_file(
+            base,
+            "preload-a.ts",
+            r#"
+            vi.mock('./mod-a', () => ({ a: 'mocked-a' }));
+            "#,
+        );
+
+        let preload_b = write_test_file(
+            base,
+            "preload-b.ts",
+            r#"
+            vi.mock('./mod-b', () => ({ b: 'mocked-b' }));
+            "#,
+        );
+
+        let test_file = write_test_file(
+            base,
+            "multi.test.ts",
+            r#"
+            import { a } from './mod-a';
+            import { b } from './mod-b';
+
+            describe('multiple preload mocks', () => {
+                it('receives mock from first preload', () => {
+                    expect(a).toBe('mocked-a');
+                });
+                it('receives mock from second preload', () => {
+                    expect(b).toBe('mocked-b');
+                });
+            });
+            "#,
+        );
+
+        let result = execute_test_file_with_options(
+            &test_file,
+            &ExecuteOptions {
+                preload: vec![preload_a, preload_b],
+                ..Default::default()
+            },
+        );
+
+        assert!(
+            result.file_error.is_none(),
+            "File error: {:?}",
+            result.file_error
+        );
+        assert_eq!(result.passed(), 2, "Both preload mocks should be effective");
+        assert_eq!(result.failed(), 0);
+    }
+
+    #[test]
     fn test_root_dir_affects_bun_cache_resolution() {
         // The module loader's Bun cache fallback starts from `self.root_dir`.
         // When root_dir is the workspace root (not the test file's parent),
