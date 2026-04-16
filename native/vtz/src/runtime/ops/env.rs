@@ -497,6 +497,7 @@ mod tests {
         assert_eq!(result, serde_json::json!(true));
     }
 
+    #[test]
     fn test_process_arch_is_a_string() {
         let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
         let result = rt.execute_script("<test>", "typeof process.arch").unwrap();
