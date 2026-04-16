@@ -5,6 +5,41 @@ use oxc_syntax::scope::ScopeFlags;
 
 use crate::magic_string::MagicString;
 
+/// Strip TypeScript type annotations from an expression string fragment.
+///
+/// Used by mock hoisting to produce valid JavaScript preambles from TypeScript
+/// factory source text. Wraps the expression in a dummy variable declaration,
+/// parses it, strips TS syntax, and extracts the cleaned expression.
+///
+/// Returns the original string unchanged if parsing fails.
+pub fn strip_ts_from_expression(expr_source: &str) -> String {
+    use oxc_allocator::Allocator;
+    use oxc_parser::Parser;
+    use oxc_span::SourceType;
+
+    let prefix = "var _f = ";
+    let suffix = ";";
+    let wrapped = format!("{}{}{}", prefix, expr_source, suffix);
+
+    let allocator = Allocator::default();
+    let parser_ret = Parser::new(&allocator, &wrapped, SourceType::tsx()).parse();
+
+    if !parser_ret.errors.is_empty() {
+        // Parse failed; return original (best-effort)
+        return expr_source.to_string();
+    }
+
+    let mut ms = MagicString::new(&wrapped);
+    strip_typescript_syntax(&mut ms, &parser_ret.program, &wrapped);
+
+    let result = ms.to_string();
+    if result.len() >= prefix.len() + suffix.len() {
+        result[prefix.len()..result.len() - suffix.len()].to_string()
+    } else {
+        expr_source.to_string()
+    }
+}
+
 /// Strip TypeScript-specific syntax from the source.
 /// Must run before JSX transform so that `get_transformed_slice()` returns clean JS.
 pub fn strip_typescript_syntax(ms: &mut MagicString, program: &Program, source: &str) {
@@ -1722,6 +1757,94 @@ export const x = 1;"#,
         assert!(
             result.contains("function foo(a, b, c)"),
             "params not cleaned: {}",
+            result
+        );
+    }
+
+    // ── strip_ts_from_expression tests ─────────────────────────────────
+
+    #[test]
+    fn test_strip_ts_from_arrow_with_type_annotations() {
+        let result = strip_ts_from_expression("(...args: unknown[]) => pushMock(...args)");
+        assert!(
+            !result.contains(": unknown[]"),
+            "type annotation not stripped: {}",
+            result
+        );
+        assert!(
+            result.contains("(...args) => pushMock(...args)"),
+            "function logic not preserved: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_ts_from_factory_with_typed_params() {
+        let result = strip_ts_from_expression(
+            r#"() => ({
+  push: (...args: unknown[]) => pushMock(...args),
+  reset: (opts: ResetOptions) => resetMock(opts),
+})"#,
+        );
+        assert!(
+            !result.contains(": unknown[]"),
+            "rest param type not stripped: {}",
+            result
+        );
+        assert!(
+            !result.contains(": ResetOptions"),
+            "param type not stripped: {}",
+            result
+        );
+        assert!(
+            result.contains("(...args) => pushMock(...args)"),
+            "function body not preserved: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_ts_from_expression_preserves_plain_js() {
+        let result = strip_ts_from_expression("() => ({ add: vi.fn() })");
+        assert_eq!(result, "() => ({ add: vi.fn() })");
+    }
+
+    #[test]
+    fn test_strip_ts_from_expression_with_as_cast() {
+        let result = strip_ts_from_expression("(x as string).toUpperCase()");
+        assert!(
+            !result.contains("as string"),
+            "as cast not stripped: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_ts_from_expression_with_generic_call() {
+        let result = strip_ts_from_expression("createMock<MyType>()");
+        assert!(
+            !result.contains("<MyType>"),
+            "generic not stripped: {}",
+            result
+        );
+        assert!(
+            result.contains("createMock()"),
+            "call not preserved: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_ts_from_arrow_with_return_type() {
+        let result = strip_ts_from_expression("(_req: Request): Response => new Response('mock')");
+        assert!(
+            !result.contains(": Request"),
+            "param type not stripped: {}",
+            result
+        );
+        assert!(
+            !result.contains(": Response"),
+            "return type not stripped: {}",
             result
         );
     }
