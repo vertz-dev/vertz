@@ -263,6 +263,18 @@ pub fn op_process_kill(
     Ok(())
 }
 
+/// Terminate the process with the given exit code.
+///
+/// Backs `process.exit(code)`. Flushes stdout/stderr so buffered writes reach
+/// the terminal before exit. Invoked from JS via the process shim bootstrap.
+#[op2(fast)]
+pub fn op_process_exit(#[smi] code: i32) {
+    use std::io::Write;
+    let _ = std::io::stdout().flush();
+    let _ = std::io::stderr().flush();
+    std::process::exit(code);
+}
+
 /// Get the op declarations for process ops.
 pub fn op_decls() -> Vec<OpDecl> {
     vec![
@@ -273,6 +285,7 @@ pub fn op_decls() -> Vec<OpDecl> {
         op_process_spawn(),
         op_process_wait(),
         op_process_kill(),
+        op_process_exit(),
     ]
 }
 

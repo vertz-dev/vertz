@@ -198,20 +198,19 @@ pub fn find_config(root_dir: &Path) -> Result<PathBuf, String> {
 }
 
 /// Find a JS runtime to execute the config file.
-/// Tries: bun → node (with tsx)
+///
+/// Always uses the running vtz binary (via `current_exe()`) with the hidden
+/// `__exec` subcommand. There's no fallback: vtz is a TypeScript runtime, it
+/// is always available when `vtz ci` is itself running, and relying on an
+/// external runtime (bun, node+tsx) would mask bugs in the vtz install /
+/// execution path by silently picking up a different interpreter.
 fn find_runtime() -> Result<(String, Vec<String>), String> {
-    // Try bun first
-    if which::which("bun").is_ok() {
-        return Ok(("bun".to_string(), vec!["run".to_string()]));
-    }
-    // Fallback: node + tsx
-    if which::which("node").is_ok() {
-        return Ok((
-            "node".to_string(),
-            vec!["--import".to_string(), "tsx".to_string()],
-        ));
-    }
-    Err("no JavaScript runtime found. Install bun (recommended) or node + tsx.".to_string())
+    let current_exe = std::env::current_exe()
+        .map_err(|e| format!("failed to determine current vtz binary path: {e}"))?;
+    Ok((
+        current_exe.to_string_lossy().into_owned(),
+        vec!["__exec".to_string()],
+    ))
 }
 
 /// Load the config from ci.config.ts and return (PipeConfig, ConfigBridge).

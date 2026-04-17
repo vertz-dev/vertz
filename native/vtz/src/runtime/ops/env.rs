@@ -175,7 +175,7 @@ pub const ENV_BOOTSTRAP_JS: &str = r#"
   }
   if (!globalThis.process.exit) {
     globalThis.process.exit = function(code) {
-      throw new Error('process.exit(' + (code !== undefined ? code : '') + ') is not supported in the Vertz runtime');
+      Deno.core.ops.op_process_exit(typeof code === 'number' ? (code | 0) : 0);
     };
   }
   if (!globalThis.process.nextTick) {

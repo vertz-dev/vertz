@@ -62,6 +62,23 @@ pub enum Command {
     Ci(CiArgs),
     /// Run code generation (delegates to @vertz/cli)
     Codegen(CodegenArgs),
+    /// Internal: execute a single ESM/TS file through the vtz runtime with
+    /// the given argv. Used by `vtz ci` (and similar internal tooling) to
+    /// self-host script execution without requiring bun or tsx on PATH.
+    /// Not intended for direct use by end users.
+    #[command(name = "__exec", hide = true)]
+    InternalExec(InternalExecArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct InternalExecArgs {
+    /// Path to the JavaScript or TypeScript file to execute.
+    pub file: String,
+
+    /// Arguments passed through as process.argv (argv[2..]). The file path
+    /// itself goes at argv[1]; the vtz binary at argv[0].
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    pub args: Vec<String>,
 }
 
 #[derive(Parser, Debug)]
