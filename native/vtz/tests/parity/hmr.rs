@@ -1,11 +1,17 @@
 use crate::common::*;
 use futures_util::StreamExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::time::timeout;
+use vertz_runtime::compiler::cache::CompilationCache;
 use vertz_runtime::hmr::protocol::HmrMessage;
-use vertz_runtime::watcher::file_watcher::{FileChangeKind, FileWatcher, FileWatcherConfig};
+use vertz_runtime::plugin::vertz::VertzPlugin;
+use vertz_runtime::plugin::{hmr_action_to_message, FrameworkPlugin, HmrAction};
+use vertz_runtime::watcher::file_watcher::{
+    FileChange, FileChangeKind, FileWatcher, FileWatcherConfig,
+};
 use vertz_runtime::watcher::module_graph::ModuleGraph;
+use vertz_runtime::watcher::{new_shared_module_graph, process_file_change};
 
 /// Parity #37: File change triggers module update message on WebSocket.
 /// Uses direct `hmr_hub.broadcast()` for deterministic testing (Tier 1).
@@ -127,6 +133,96 @@ async fn entry_file_change_triggers_full_reload() {
         "Expected Modify or Create, got: {:?}",
         change.kind
     );
+}
+
+/// Parity #41: Deleting a file broadcasts an HMR Update for its dependents
+/// and cleans the module graph so future invalidations are not contaminated.
+#[tokio::test]
+async fn file_delete_triggers_hmr_update_and_cleans_graph() {
+    let root = Path::new("/project");
+    let entry = PathBuf::from("/project/src/app.tsx");
+    let deleted = PathBuf::from("/project/src/utils.ts");
+
+    let cache = CompilationCache::new();
+    let graph = new_shared_module_graph();
+
+    // app.tsx imports utils.ts
+    {
+        let mut g = graph.write().unwrap();
+        g.update_module(&entry, vec![deleted.clone()]);
+    }
+
+    let result = process_file_change(
+        &FileChange {
+            kind: FileChangeKind::Remove,
+            path: deleted.clone(),
+        },
+        &cache,
+        &graph,
+        &entry,
+    );
+
+    // Deleted file must be gone from the graph.
+    assert!(
+        !graph.read().unwrap().has_module(&deleted),
+        "deleted file must be removed from graph"
+    );
+
+    // Dependent must be in the invalidation result.
+    assert!(
+        result.invalidated_files.contains(&entry),
+        "dependent must be invalidated after delete"
+    );
+
+    // Plugin strategy must produce a ModuleUpdate (not a no-op) for the dependent.
+    let action = VertzPlugin.hmr_strategy(&result);
+    let modules = match action {
+        HmrAction::ModuleUpdate(m) => m,
+        other => panic!("expected ModuleUpdate for delete with dependents, got {other:?}"),
+    };
+    assert!(
+        modules.iter().any(|p| p == &entry),
+        "update modules must include the dependent"
+    );
+
+    // Message serialized through the plugin pipeline is an Update with the
+    // dependent's root-relative URL.
+    let msg = hmr_action_to_message(&HmrAction::ModuleUpdate(modules.clone()), root);
+    match msg {
+        HmrMessage::Update { modules: mods, .. } => {
+            assert!(
+                mods.iter().any(|m| m == "/src/app.tsx"),
+                "broadcast update must include the dependent's URL, got: {mods:?}"
+            );
+        }
+        other => panic!("expected Update HMR message, got {other:?}"),
+    }
+}
+
+/// Parity #42: Deleting the entry file triggers a FullReload.
+#[tokio::test]
+async fn entry_file_delete_triggers_full_reload() {
+    let entry = PathBuf::from("/project/src/app.tsx");
+
+    let cache = CompilationCache::new();
+    let graph = new_shared_module_graph();
+    graph.write().unwrap().update_module(&entry, vec![]);
+
+    let result = process_file_change(
+        &FileChange {
+            kind: FileChangeKind::Remove,
+            path: entry.clone(),
+        },
+        &cache,
+        &graph,
+        &entry,
+    );
+
+    assert!(result.is_entry_file);
+    match VertzPlugin.hmr_strategy(&result) {
+        HmrAction::FullReload(_) => {}
+        other => panic!("expected FullReload for entry-file delete, got {other:?}"),
+    }
 }
 
 /// Parity #40: Module graph tracks transitive dependents.

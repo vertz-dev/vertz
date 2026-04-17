@@ -63,7 +63,8 @@ pub fn process_file_change(
 
     let is_entry_file = change.path == entry_file;
 
-    // Get transitive dependents from the module graph
+    // Get transitive dependents from the module graph BEFORE any structural
+    // mutation — so deleted nodes still contribute their dependents here.
     let invalidated_files: Vec<PathBuf> = {
         let graph = graph.read().unwrap();
         let affected = graph.get_transitive_dependents(&change.path);
@@ -78,6 +79,13 @@ pub fn process_file_change(
     // If the changed file is new (not in graph yet), just invalidate it
     if invalidated_files.is_empty() {
         cache.invalidate(&change.path);
+    }
+
+    // On delete, drop the module from the graph so its ghost edges don't
+    // contaminate future invalidation cascades.
+    if matches!(change.kind, FileChangeKind::Remove) {
+        let mut graph = graph.write().unwrap();
+        graph.remove_module(&change.path);
     }
 
     InvalidationResult {
@@ -292,6 +300,64 @@ mod tests {
         assert!(!result
             .invalidated_files
             .contains(&PathBuf::from("/src/Input.tsx")));
+    }
+
+    #[test]
+    fn test_process_file_change_remove_cleans_graph_and_invalidates_dependents() {
+        let cache = CompilationCache::new();
+        let graph = new_shared_module_graph();
+        let entry = PathBuf::from("/src/app.tsx");
+
+        // app depends on utils
+        {
+            let mut g = graph.write().unwrap();
+            g.update_module(
+                Path::new("/src/app.tsx"),
+                vec![PathBuf::from("/src/utils.ts")],
+            );
+        }
+        cache.insert(PathBuf::from("/src/utils.ts"), make_cached_module("utils"));
+        cache.insert(PathBuf::from("/src/app.tsx"), make_cached_module("app"));
+
+        let change = FileChange {
+            kind: FileChangeKind::Remove,
+            path: PathBuf::from("/src/utils.ts"),
+        };
+
+        let result = process_file_change(&change, &cache, &graph, &entry);
+
+        // Deleted file must be gone from the graph
+        {
+            let g = graph.read().unwrap();
+            assert!(
+                !g.has_module(Path::new("/src/utils.ts")),
+                "deleted module must be removed from graph"
+            );
+            // app should no longer reference utils as a dependency
+            let app_deps = g.get_dependencies(Path::new("/src/app.tsx"));
+            assert!(
+                !app_deps.contains(&PathBuf::from("/src/utils.ts")),
+                "reverse edges must be cleaned on remove"
+            );
+        }
+
+        // Dependents must be in the invalidation result so HMR can notify them
+        assert!(
+            result
+                .invalidated_files
+                .contains(&PathBuf::from("/src/app.tsx")),
+            "dependents must be invalidated on remove"
+        );
+
+        // Cache must not retain stale entries for the deleted file or its dependents
+        assert!(
+            cache.get_unchecked(Path::new("/src/utils.ts")).is_none(),
+            "cache entry for deleted file must be removed"
+        );
+        assert!(
+            cache.get_unchecked(Path::new("/src/app.tsx")).is_none(),
+            "cache entry for dependent must be invalidated"
+        );
     }
 
     #[test]
