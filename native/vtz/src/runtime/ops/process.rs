@@ -1,8 +1,37 @@
 use deno_core::op2;
 use deno_core::OpDecl;
+use deno_core::OpState;
 use std::collections::HashMap;
 use std::process::{Command, Stdio};
 use std::sync::{Mutex, OnceLock};
+
+use super::env::IsolateEnv;
+
+/// Apply an env policy to `cmd`:
+/// - If `env_override` is `Some`, replace the child's env entirely with it
+///   (matches Node.js semantics when `opts.env` is set).
+/// - Otherwise, replace with the isolate's env store (so JS mutations to
+///   `process.env` are visible to child processes, matching Node's "child
+///   inherits parent's env" default).
+fn apply_child_env(
+    cmd: &mut Command,
+    isolate_env: &IsolateEnv,
+    env_override: Option<HashMap<String, String>>,
+) {
+    cmd.env_clear();
+    match env_override {
+        Some(map) => {
+            for (k, v) in map {
+                cmd.env(k, v);
+            }
+        }
+        None => {
+            for (k, v) in isolate_env.0.borrow().iter() {
+                cmd.env(k, v);
+            }
+        }
+    }
+}
 
 /// Synchronously spawn a child process and capture its output.
 ///
@@ -11,6 +40,7 @@ use std::sync::{Mutex, OnceLock};
 #[op2]
 #[serde]
 pub fn op_command_output_sync(
+    state: &mut OpState,
     #[string] file: String,
     #[serde] args: Vec<String>,
     #[string] cwd: Option<String>,
@@ -23,13 +53,8 @@ pub fn op_command_output_sync(
         cmd.current_dir(dir);
     }
 
-    if let Some(env_map) = env {
-        // Node.js replaces the entire environment when opts.env is set.
-        cmd.env_clear();
-        for (key, value) in env_map {
-            cmd.env(key, value);
-        }
-    }
+    let isolate_env = state.borrow::<IsolateEnv>();
+    apply_child_env(&mut cmd, isolate_env, env);
 
     let output = cmd.output().map_err(|e| {
         deno_core::error::type_error(format!("Failed to execute command '{file}': {e}"))
@@ -94,6 +119,7 @@ fn known_pids() -> &'static Mutex<std::collections::HashSet<u32>> {
 #[op2]
 #[serde]
 pub fn op_process_spawn(
+    state: &mut OpState,
     #[string] file: String,
     #[serde] args: Vec<String>,
     #[string] cwd: Option<String>,
@@ -107,12 +133,8 @@ pub fn op_process_spawn(
         cmd.current_dir(dir);
     }
 
-    if let Some(env_map) = env {
-        cmd.env_clear();
-        for (key, value) in env_map {
-            cmd.env(key, value);
-        }
-    }
+    let isolate_env = state.borrow::<IsolateEnv>();
+    apply_child_env(&mut cmd, isolate_env, env);
 
     match stdio.as_deref() {
         Some("inherit") => {
