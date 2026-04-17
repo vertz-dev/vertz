@@ -1,3 +1,5 @@
+import { UNITLESS_PROPERTIES } from '../css/unitless-properties';
+
 /**
  * Convert a camelCase CSS property name to kebab-case.
  * Handles vendor prefixes: WebkitX → -webkit-x, MozX → -moz-x, msX → -ms-x.
@@ -12,61 +14,15 @@ function camelToKebab(prop: string): string {
 }
 
 /**
- * CSS properties that accept unitless numeric values (no 'px' suffix).
- * Matches React's behavior — see react-dom/src/shared/CSSProperty.js.
- */
-const UNITLESS = new Set([
-  'animationIterationCount',
-  'aspectRatio',
-  'borderImageOutset',
-  'borderImageSlice',
-  'borderImageWidth',
-  'boxFlex',
-  'boxFlexGroup',
-  'boxOrdinalGroup',
-  'columnCount',
-  'columns',
-  'flex',
-  'flexGrow',
-  'flexPositive',
-  'flexShrink',
-  'flexNegative',
-  'flexOrder',
-  'gridArea',
-  'gridRow',
-  'gridRowEnd',
-  'gridRowSpan',
-  'gridRowStart',
-  'gridColumn',
-  'gridColumnEnd',
-  'gridColumnSpan',
-  'gridColumnStart',
-  'fontWeight',
-  'lineClamp',
-  'lineHeight',
-  'opacity',
-  'order',
-  'orphans',
-  'tabSize',
-  'widows',
-  'zIndex',
-  'zoom',
-  'fillOpacity',
-  'floodOpacity',
-  'stopOpacity',
-  'strokeDasharray',
-  'strokeDashoffset',
-  'strokeMiterlimit',
-  'strokeOpacity',
-  'strokeWidth',
-  'scale',
-]);
-
-/**
  * Format a CSS value — append 'px' for non-zero numeric values on dimensional properties.
  */
 function formatValue(key: string, value: string | number): string {
-  if (typeof value !== 'number' || value === 0 || key.startsWith('--') || UNITLESS.has(key)) {
+  if (
+    typeof value !== 'number' ||
+    value === 0 ||
+    key.startsWith('--') ||
+    UNITLESS_PROPERTIES.has(key)
+  ) {
     return String(value);
   }
   return `${value}px`;

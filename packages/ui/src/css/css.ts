@@ -33,6 +33,9 @@ import { parseShorthand } from './shorthand-parser';
 import type { CSSDeclaration } from './token-resolver';
 import { resolveToken } from './token-resolver';
 import type { CSSDeclarations } from './css-properties';
+import type { StrictBlockValue, StyleBlock } from './style-block';
+import { isToken } from './token';
+import { UNITLESS_PROPERTIES } from './unitless-properties';
 import type { UtilityClass } from './utility-types';
 
 /**
@@ -52,17 +55,18 @@ export type StyleValue = UtilityClass | CSSDeclarations;
  */
 export type StyleEntry = UtilityClass | Record<string, StyleValue[] | CSSDeclarations>;
 
-/** Input to css(): a record of named style blocks. */
-export type CSSInput = Record<string, StyleEntry[]>;
+/** Input to css(): a record of named style blocks. Each block is either a
+ * token-string array (legacy form) or a `StyleBlock` object (preferred form). */
+export type CSSInput = Record<string, StyleEntry[] | StyleBlock>;
 
 /**
  * Output of css(): block names as top-level properties, plus non-enumerable `css`.
  *
- * The generic constraint uses `Record<string, unknown[]>` instead of `CSSInput`
- * because CSSOutput only uses the keys of T (to map them to string class names).
- * This allows theme component types to use `string[]` block values for simplicity.
+ * Generic constraint is intentionally loose (`Record<string, unknown>`) because
+ * CSSOutput only uses `keyof T` to map names to class strings — it never inspects
+ * the block values themselves. This accepts both array-form and object-form inputs.
  */
-export type CSSOutput<T extends Record<string, unknown[]> = CSSInput> = {
+export type CSSOutput<T extends Record<string, unknown> = CSSInput> = {
   readonly [K in keyof T & string]: string;
 } & { readonly css: string };
 
@@ -151,8 +155,10 @@ export function getInjectedCSS(): string[] {
  * @param filePath - Source file path for deterministic hashing.
  * @returns Object with block names as keys (class name strings) and non-enumerable `css` property.
  */
-export function css<T extends CSSInput>(
-  input: T & { [K in keyof T & 'css']?: never },
+export function css<const T extends CSSInput>(
+  input: {
+    [K in keyof T]: K extends 'css' ? never : StrictBlockValue<T[K]>;
+  },
   filePath: string = DEFAULT_FILE_PATH,
 ): CSSOutput<T> {
   if ('css' in input) {
@@ -162,8 +168,25 @@ export function css<T extends CSSInput>(
   const classNames: Record<string, string> = {};
   const cssRules: string[] = [];
 
-  for (const [blockName, entries] of Object.entries(input)) {
-    const styleFingerprint = serializeEntries(entries);
+  // Fingerprint is only needed when filePath is the runtime default, to
+  // disambiguate `css({ root: A })` vs `css({ root: B })` in the same process.
+  // When filePath is a real source path, the compiler's class-name formula
+  // (filePath::blockName — no fingerprint) must match the runtime's so
+  // SSR/HMR hybrid output doesn't produce ghost classes. See
+  // packages/ui/src/css/__tests__/class-name-parity.test.ts.
+  const useFingerprint = filePath === DEFAULT_FILE_PATH;
+
+  for (const [blockName, blockValue] of Object.entries(input as CSSInput)) {
+    if (!Array.isArray(blockValue)) {
+      const styleFingerprint = useFingerprint ? serializeBlock(blockValue) : '';
+      const className = generateClassName(filePath, blockName, styleFingerprint);
+      classNames[blockName] = className;
+      cssRules.push(...renderStyleBlock(blockValue, `.${className}`));
+      continue;
+    }
+
+    const entries = blockValue;
+    const styleFingerprint = useFingerprint ? serializeEntries(entries) : '';
     const className = generateClassName(filePath, blockName, styleFingerprint);
     classNames[blockName] = className;
 
@@ -284,6 +307,80 @@ function serializeEntries(entries: StyleEntry[]): string {
         .join(';');
     })
     .join('|');
+}
+
+function isStyleBlock(value: unknown): value is StyleBlock {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && !isToken(value);
+}
+
+/** camelCase CSS property name → kebab-case, with vendor-prefix handling. */
+function camelToKebab(prop: string): string {
+  const third = prop[2];
+  if (prop.startsWith('ms') && third !== undefined && third >= 'A' && third <= 'Z') {
+    prop = `Ms${prop.slice(2)}`;
+  }
+  return prop.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+}
+
+function formatStyleValue(camelKey: string, value: string | number): string {
+  if (
+    typeof value !== 'number' ||
+    value === 0 ||
+    camelKey.startsWith('--') ||
+    UNITLESS_PROPERTIES.has(camelKey)
+  ) {
+    return String(value);
+  }
+  return `${value}px`;
+}
+
+/** Render a StyleBlock as a list of CSS rules rooted at `classSelector`. */
+function renderStyleBlock(block: StyleBlock, classSelector: string): string[] {
+  const declarations: CSSDeclaration[] = [];
+  const nestedRules: string[] = [];
+
+  for (const [key, value] of Object.entries(block)) {
+    if (value == null) continue;
+    if (key.startsWith('&')) {
+      const childSelector = key.replaceAll('&', classSelector);
+      nestedRules.push(...renderStyleBlock(value as StyleBlock, childSelector));
+      continue;
+    }
+    if (key.startsWith('@')) {
+      const innerRules = renderStyleBlock(value as StyleBlock, classSelector);
+      nestedRules.push(wrapAtRule(key, innerRules));
+      continue;
+    }
+    const property = key.startsWith('--') ? key : camelToKebab(key);
+    declarations.push({ property, value: formatStyleValue(key, value as string | number) });
+  }
+
+  const out: string[] = [];
+  if (declarations.length > 0) {
+    out.push(formatRule(classSelector, declarations));
+  }
+  out.push(...nestedRules);
+  return out;
+}
+
+/** Wrap a set of already-rendered rules inside an at-rule. */
+function wrapAtRule(atRule: string, innerRules: string[]): string {
+  const indented = innerRules.map((rule) => rule.replace(/^/gm, '  ')).join('\n');
+  return `${atRule} {\n${indented}\n}`;
+}
+
+/** Deterministic fingerprint of a StyleBlock (sorted keys, recursed). */
+function serializeBlock(block: StyleBlock): string {
+  const keys = Object.keys(block).sort();
+  return keys
+    .map((key) => {
+      const value = (block as Record<string, unknown>)[key];
+      if (isStyleBlock(value)) {
+        return `${key}:{${serializeBlock(value)}}`;
+      }
+      return `${key}=${String(value)}`;
+    })
+    .join(';');
 }
 
 /** Format a CSS rule from selector + declarations. */

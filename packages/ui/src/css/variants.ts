@@ -32,17 +32,23 @@
 
 import type { StyleEntry } from './css';
 import { css } from './css';
+import type { StrictBlockValue, StyleBlock } from './style-block';
+import { isToken } from './token';
+
+/** A single block value: either token-string entries or a StyleBlock object. */
+type BlockValue = StyleEntry[] | StyleBlock;
 
 // ─── Types ──────────────────────────────────────────────────────
 
 /**
- * A record of variant names to their possible values (each value maps to style entries).
+ * A record of variant names to their possible values.
  *
- * Uses `unknown[]` for the style array type to allow both `StyleEntry[]` (constrained)
- * and `string[]` (legacy theme component types). Only the keys (variant names and
- * option names) are used for type inference; style values are handled at runtime.
+ * Each option value is either a style-entry array or a StyleBlock object. Both
+ * shapes are accepted transiently during migration from the token-string API.
+ * Only the keys (variant names and option names) drive type inference; values
+ * are checked at runtime.
  */
-type VariantDefinitions = Record<string, Record<string, unknown[]>>;
+type VariantDefinitions = Record<string, Record<string, unknown[] | StyleBlock>>;
 
 /** Extract the variant props type from a variant definitions object. */
 export type VariantProps<V extends VariantDefinitions> = {
@@ -52,12 +58,12 @@ export type VariantProps<V extends VariantDefinitions> = {
 /** A compound variant rule: matches when all specified variant values are active. */
 type CompoundVariant<V extends VariantDefinitions> = {
   [K in keyof V]?: keyof V[K];
-} & { styles: StyleEntry[] };
+} & { styles: BlockValue };
 
 /** Configuration for the variants() function. */
 export interface VariantsConfig<V extends VariantDefinitions> {
   /** Base styles applied to all variants. */
-  base: StyleEntry[];
+  base: BlockValue;
   /** Variant definitions: each key is a variant name, each value is a map of option to styles. */
   variants: V;
   /** Default variant values used when no override is provided. */
@@ -65,6 +71,17 @@ export interface VariantsConfig<V extends VariantDefinitions> {
   /** Compound variants: styles applied when multiple variant values match simultaneously. */
   compoundVariants?: CompoundVariant<V>[];
 }
+
+/**
+ * Strict per-option validation: each option's object-form block must only use
+ * known CSS properties / selector keys. Array-form options pass through.
+ * Gets call-site type errors through generic inference where EPC alone misses.
+ */
+type StrictVariants<V extends VariantDefinitions> = {
+  [K in keyof V]: {
+    [O in keyof V[K]]: StrictBlockValue<V[K][O]>;
+  };
+};
 
 /** The function returned by variants(). Takes optional variant props and returns a className string. */
 export interface VariantFunction<V extends VariantDefinitions> {
@@ -75,6 +92,24 @@ export interface VariantFunction<V extends VariantDefinitions> {
 
 // ─── Implementation ─────────────────────────────────────────────
 
+/** Stable string for either an array of entries or an object block. */
+function serializeBlockValue(value: BlockValue): string {
+  if (Array.isArray(value)) {
+    return value.map((s) => (typeof s === 'string' ? s : JSON.stringify(s))).join(',');
+  }
+  // Object block — sort keys, recurse on nested StyleBlock values.
+  const keys = Object.keys(value).sort();
+  return keys
+    .map((key) => {
+      const v = (value as Record<string, unknown>)[key];
+      if (v != null && typeof v === 'object' && !Array.isArray(v) && !isToken(v)) {
+        return `${key}:{${serializeBlockValue(v as StyleBlock)}}`;
+      }
+      return `${key}=${String(v)}`;
+    })
+    .join(';');
+}
+
 /**
  * Derive a deterministic file path key from the config structure.
  * This ensures that identical configs always produce the same class names.
@@ -82,10 +117,7 @@ export interface VariantFunction<V extends VariantDefinitions> {
 function deriveConfigKey(config: VariantsConfig<VariantDefinitions>): string {
   const parts: string[] = [];
 
-  // Serialize base styles
-  for (const entry of config.base) {
-    parts.push(typeof entry === 'string' ? entry : JSON.stringify(entry));
-  }
+  parts.push(serializeBlockValue(config.base));
 
   // Serialize variant definitions (sorted by variant name for stability)
   const variantNames = Object.keys(config.variants).sort();
@@ -96,13 +128,17 @@ function deriveConfigKey(config: VariantsConfig<VariantDefinitions>): string {
     for (const optionName of optionNames) {
       const styles = options[optionName];
       if (!styles) continue;
-      parts.push(
-        `${variantName}:${optionName}=${styles.map((s) => (typeof s === 'string' ? s : JSON.stringify(s))).join(',')}`,
-      );
+      parts.push(`${variantName}:${optionName}=${serializeBlockValue(styles as BlockValue)}`);
     }
   }
 
   return `__variants__${parts.join('|')}`;
+}
+
+/** Is a block value "empty" — has no styles to emit? */
+function isEmptyBlock(value: BlockValue): boolean {
+  if (Array.isArray(value)) return value.length === 0;
+  return Object.keys(value).length === 0;
 }
 
 /**
@@ -116,23 +152,23 @@ function deriveConfigKey(config: VariantsConfig<VariantDefinitions>): string {
  * @returns A function that accepts variant props and returns a className string.
  */
 export function variants<V extends VariantDefinitions>(
-  config: VariantsConfig<V>,
+  config: VariantsConfig<V> & { variants: StrictVariants<V> },
 ): VariantFunction<V> {
   const { base, variants: variantDefs, defaultVariants, compoundVariants } = config;
   const filePath = deriveConfigKey(config as VariantsConfig<VariantDefinitions>);
 
   // Eagerly compile base styles (always used when the variant function is called)
-  const baseResult = css({ base: base as StyleEntry[] }, filePath);
+  const baseResult = css({ base } as Record<string, BlockValue>, filePath);
 
   // Lazy caches for variant options and compound variants
   const variantCache = new Map<string, { className: string; css: string }>();
 
   // Store raw config for lazy compilation
-  const variantStyles: Record<string, Record<string, StyleEntry[]>> = {};
+  const variantStyles: Record<string, Record<string, BlockValue>> = {};
   for (const [variantName, options] of Object.entries(variantDefs)) {
     variantStyles[variantName] = {};
-    for (const [optionName, styles] of Object.entries(options as Record<string, StyleEntry[]>)) {
-      if (styles.length > 0) {
+    for (const [optionName, styles] of Object.entries(options as Record<string, BlockValue>)) {
+      if (!isEmptyBlock(styles)) {
         variantStyles[variantName][optionName] = styles;
       }
     }
@@ -150,7 +186,7 @@ export function variants<V extends VariantDefinitions>(
     if (!styles) return undefined;
 
     const blockName = cacheKey;
-    const result = css({ [blockName]: styles }, filePath);
+    const result = css({ [blockName]: styles } as Record<string, BlockValue>, filePath);
     const className = (result as Record<string, string>)[blockName];
     if (className) {
       variantCache.set(cacheKey, { className, css: result.css });
@@ -174,10 +210,13 @@ export function variants<V extends VariantDefinitions>(
     const cached = compoundCache.get(index);
     if (cached) return cached.className;
 
-    if (styles.length === 0) return undefined;
+    if (isEmptyBlock(styles as BlockValue)) return undefined;
 
     const blockName = `compound_${index}`;
-    const result = css({ [blockName]: styles }, filePath);
+    const result = css(
+      { [blockName]: styles as BlockValue } as Record<string, BlockValue>,
+      filePath,
+    );
     const className = (result as Record<string, string>)[blockName];
     if (className) {
       compoundCache.set(index, { className, css: result.css });

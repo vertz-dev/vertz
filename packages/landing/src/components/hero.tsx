@@ -47,462 +47,427 @@ const CODE_TABS = [
   { id: 'schema', label: 'Schema', filename: 'schema.ts', tokens: TOKENS_SCHEMA },
 ] as const;
 
+const TIMING = '150ms cubic-bezier(0.4, 0, 0.2, 1)';
+const TRANSITION_COLORS = [
+  `color ${TIMING}`,
+  `background-color ${TIMING}`,
+  `border-color ${TIMING}`,
+  `outline-color ${TIMING}`,
+  `text-decoration-color ${TIMING}`,
+  `fill ${TIMING}`,
+  `stroke ${TIMING}`,
+].join(', ');
+const SHADOW_2XL = '0 25px 50px -12px rgb(0 0 0 / 0.25)';
+
 const s = css({
-  section: [
-    'flex',
-    'items:center',
-    'justify:center',
-    'px:6',
-    'min-h:screen',
-    {
-      '&': { 'padding-top': '5rem' },
-      '@media (min-width: 1024px)': {
-        'padding-left': '3rem',
-        'padding-right': '3rem',
-        'padding-top': '0',
-      },
+  section: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingInline: '1.5rem',
+    minHeight: '100vh',
+    paddingTop: '5rem',
+    '@media (min-width: 1024px)': {
+      paddingLeft: '3rem',
+      paddingRight: '3rem',
+      paddingTop: 0,
     },
-  ],
-  grid: [
-    'flex',
-    'flex-col',
-    'gap:12',
-    'w:full',
-    'max-w:6xl',
-    'mx:auto',
-    'items:center',
-    {
-      '@media (min-width: 1024px)': {
-        'flex-direction': 'row',
-        'align-items': 'center',
-        gap: '4rem',
-      },
+  },
+  grid: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '3rem',
+    width: '100%',
+    maxWidth: '72rem',
+    marginInline: 'auto',
+    alignItems: 'center',
+    '@media (min-width: 1024px)': {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: '4rem',
     },
-  ],
-  textCol: [
-    'flex',
-    'flex-col',
-    'text:center',
-    {
-      '@media (min-width: 1024px)': {
-        'text-align': 'left',
-        flex: '1 1 0%',
-        'min-width': '0',
-      },
+  },
+  textCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    textAlign: 'center',
+    '@media (min-width: 1024px)': {
+      textAlign: 'left',
+      flex: '1 1 0%',
+      minWidth: 0,
     },
-  ],
-  codeCol: [
-    'w:full',
-    {
-      '@media (min-width: 1024px)': {
-        flex: '1 1 0%',
-        'min-width': '0',
-      },
+  },
+  codeCol: {
+    width: '100%',
+    '@media (min-width: 1024px)': {
+      flex: '1 1 0%',
+      minWidth: 0,
     },
-  ],
-  badge: [
-    'flex',
-    'items:center',
-    'gap:2',
-    'mb:6',
-    { '@media (min-width: 1024px)': { 'justify-content': 'flex-start' } },
-  ],
-  badgeDotWrap: ['relative', 'flex', 'h:2.5', 'w:2.5'],
-  badgeDotPing: ['absolute', 'inline-flex', 'h:full', 'w:full', 'rounded:full', 'opacity:40'],
-  badgeDot: ['relative', 'inline-flex', 'rounded:full', 'h:2.5', 'w:2.5'],
-  badgeText: ['font:xs', 'tracking:widest', 'uppercase', { '&': { color: '#6B6560' } }],
-  h1: [],
-  h1Line: ['block'],
-  h1LineFaded: ['block', { '&': { color: '#6B6560' } }],
-  rotatingWrap: [
-    'relative',
-    {
-      '&': {
-        display: 'inline-block',
-        overflow: 'hidden',
-        'vertical-align': 'bottom',
-        height: '1.15em',
-      },
+  },
+  badge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    marginBottom: '1.5rem',
+    '@media (min-width: 1024px)': { justifyContent: 'flex-start' },
+  },
+  badgeDotWrap: {
+    position: 'relative',
+    display: 'flex',
+    height: '0.625rem',
+    width: '0.625rem',
+  },
+  badgeDotPing: {
+    position: 'absolute',
+    display: 'inline-flex',
+    height: '100%',
+    width: '100%',
+    borderRadius: '9999px',
+    opacity: 0.4,
+  },
+  badgeDot: {
+    position: 'relative',
+    display: 'inline-flex',
+    borderRadius: '9999px',
+    height: '0.625rem',
+    width: '0.625rem',
+  },
+  badgeText: {
+    fontSize: '0.75rem',
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color: '#6B6560',
+  },
+  h1: {},
+  h1Line: { display: 'block' },
+  h1LineFaded: { display: 'block', color: '#6B6560' },
+  rotatingWrap: {
+    position: 'relative',
+    display: 'inline-block',
+    overflow: 'hidden',
+    verticalAlign: 'bottom',
+    height: '1.15em',
+  },
+  rotatingWord: {
+    display: 'block',
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: '100%',
+  },
+  rotatingWordActive: {
+    display: 'block',
+    position: 'relative',
+  },
+  description: {
+    marginTop: '1.5rem',
+    fontSize: '1rem',
+    maxWidth: '36rem',
+    lineHeight: 1.625,
+    color: '#9C9690',
+  },
+  descriptionHighlight: {
+    fontWeight: 500,
+    color: '#E8E4DC',
+  },
+  ctas: {
+    marginTop: '2.5rem',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: '1rem',
+    '@media (min-width: 1024px)': {
+      alignItems: 'flex-start',
     },
-  ],
-  rotatingWord: [
-    'block',
-    {
-      '&': {
-        position: 'absolute',
-        left: '0',
-        top: '0',
-        width: '100%',
-      },
-    },
-  ],
-  rotatingWordActive: [
-    'block',
-    {
-      '&': {
-        position: 'relative',
-      },
-    },
-  ],
-  description: ['mt:6', 'font:base', 'max-w:xl', 'leading:relaxed', { '&': { color: '#9C9690' } }],
-  descriptionHighlight: ['weight:medium', { '&': { color: '#E8E4DC' } }],
-  ctas: [
-    'mt:10',
-    'flex',
-    'flex-col',
-    'items:stretch',
-    'gap:4',
-    {
-      '@media (min-width: 1024px)': {
-        'align-items': 'flex-start',
-      },
-    },
-  ],
-  githubLink: [
-    'flex',
-    'items:center',
-    'justify:center',
-    'gap:2',
-    'py:3',
-    'px:6',
-    'font:sm',
-    'uppercase',
-    'tracking:wider',
-    'transition:colors',
-    { '&': { color: '#6B6560' } },
-    {
-      '@media (min-width: 640px)': { display: 'inline-flex' },
-    },
-  ],
-  discordLink: [
-    'flex',
-    'items:center',
-    'justify:center',
-    'gap:2',
-    'py:3',
-    'px:6',
-    'font:sm',
-    'uppercase',
-    'tracking:wider',
-    'transition:colors',
-    { '&': { color: '#6B6560' } },
-    {
-      '@media (min-width: 640px)': { display: 'inline-flex' },
-    },
-  ],
-  docsLink: [
-    'flex',
-    'items:center',
-    'justify:center',
-    'gap:2',
-    'py:3',
-    'px:6',
-    'font:sm',
-    'uppercase',
-    'tracking:wider',
-    'transition:colors',
-    { '&': { color: '#6B6560' } },
-    {
-      '@media (min-width: 640px)': { display: 'inline-flex' },
-    },
-  ],
-  // Code group styles
-  codeGroup: [
-    'border:1',
-    'shadow:2xl',
-    {
-      '&': {
-        overflow: 'hidden',
-        'background-color': '#1C1B1A',
-        'border-color': '#2A2826',
-        'border-radius': '2px',
-      },
-    },
-  ],
-  tabBar: ['flex', 'border-b:1', { '&': { 'border-color': '#2A2826' } }],
-  tab: [
-    'py:2.5',
-    'px:4',
-    'font:xs',
-    'tracking:wide',
-    'cursor:pointer',
-    'transition:colors',
-    'border-b:2',
-    {
-      '&': {
-        background: 'none',
-        border: 'none',
-        'border-bottom': '2px solid transparent',
-        outline: 'none',
-      },
-    },
-  ],
-  codeBody: [
-    'p:5',
-    'font:xs',
-    'leading:relaxed',
-    { '&': { color: '#D4D0C8' } },
-    { '&': { 'overflow-x': 'auto' } },
-  ],
-  filename: ['font:xs', 'text:gray.500', 'px:6', 'pt:4', 'pb:0'],
+  },
+  githubLink: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    paddingBlock: '0.75rem',
+    paddingInline: '1.5rem',
+    fontSize: '0.875rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    transition: TRANSITION_COLORS,
+    color: '#6B6560',
+    '@media (min-width: 640px)': { display: 'inline-flex' },
+  },
+  discordLink: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    paddingBlock: '0.75rem',
+    paddingInline: '1.5rem',
+    fontSize: '0.875rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    transition: TRANSITION_COLORS,
+    color: '#6B6560',
+    '@media (min-width: 640px)': { display: 'inline-flex' },
+  },
+  docsLink: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    paddingBlock: '0.75rem',
+    paddingInline: '1.5rem',
+    fontSize: '0.875rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    transition: TRANSITION_COLORS,
+    color: '#6B6560',
+    '@media (min-width: 640px)': { display: 'inline-flex' },
+  },
+  codeGroup: {
+    borderWidth: '1px',
+    boxShadow: SHADOW_2XL,
+    overflow: 'hidden',
+    backgroundColor: '#1C1B1A',
+    borderColor: '#2A2826',
+    borderRadius: '2px',
+  },
+  tabBar: {
+    display: 'flex',
+    borderBottomWidth: '1px',
+    borderColor: '#2A2826',
+  },
+  tab: {
+    paddingBlock: '0.625rem',
+    paddingInline: '1rem',
+    fontSize: '0.75rem',
+    letterSpacing: '0.025em',
+    cursor: 'pointer',
+    transition: TRANSITION_COLORS,
+    borderBottomWidth: '2px',
+    background: 'none',
+    border: 'none',
+    borderBottom: '2px solid transparent',
+    outline: 'none',
+  },
+  codeBody: {
+    padding: '1.25rem',
+    fontSize: '0.75rem',
+    lineHeight: 1.625,
+    color: '#D4D0C8',
+    overflowX: 'auto',
+  },
+  filename: {
+    fontSize: '0.75rem',
+    color: 'var(--color-gray-500)',
+    paddingInline: '1.5rem',
+    paddingTop: '1rem',
+    paddingBottom: 0,
+  },
 });
 
 // ── Mini todo app styles ────────────────────────────────────
 
 const app = css({
-  wrap: [
-    'p:5',
-    {
-      '&': {
-        'font-family': 'var(--font-sans)',
-        'font-size': '0.8rem',
-      },
+  wrap: {
+    padding: '1.25rem',
+    fontFamily: 'var(--font-sans)',
+    fontSize: '0.8rem',
+  },
+  inputRow: {
+    display: 'flex',
+    gap: '0.5rem',
+    marginBottom: '0.75rem',
+  },
+  input: {
+    flex: '1',
+    height: '36px',
+    padding: '0 0.75rem',
+    background: '#111110',
+    border: '1px solid #2A2826',
+    borderRadius: '6px',
+    boxSizing: 'border-box',
+    color: '#E8E4DC',
+    fontSize: '0.8rem',
+    fontFamily: 'var(--font-sans)',
+    outline: 'none',
+    '&::placeholder': { color: '#4A4540' },
+    '&:focus': { borderColor: '#C8451B' },
+  },
+  addBtn: {
+    height: '36px',
+    padding: '0 1rem',
+    background: '#C8451B',
+    border: 'none',
+    borderRadius: '6px',
+    boxSizing: 'border-box',
+    color: '#fff',
+    fontSize: '0.8rem',
+    fontFamily: 'var(--font-sans)',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    '&:hover': { background: '#d65229' },
+  },
+  listWrap: {
+    position: 'relative',
+    maxHeight: '280px',
+    overflowY: 'auto',
+    scrollbarWidth: 'thin',
+    scrollbarColor: '#4A4540 transparent',
+  },
+  listFade: {
+    left: 0,
+    right: 0,
+    height: '28px',
+    pointerEvents: 'none',
+    zIndex: 1,
+    transition: 'opacity 250ms ease',
+  },
+  listFadeTop: {
+    background: 'linear-gradient(to bottom, #1C1B1A, transparent)',
+  },
+  listFadeBottom: {
+    background: 'linear-gradient(to top, #1C1B1A, transparent)',
+  },
+  list: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  todo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    padding: '0.5rem 0.75rem',
+    background: '#111110',
+    borderRadius: '2px',
+    border: '1px solid #2A2826',
+    '&[data-presence="enter"]': {
+      animation: `${listEnter} 200ms ease-out`,
     },
-  ],
-  inputRow: ['flex', 'gap:2', 'mb:3'],
-  input: [
-    {
-      '&': {
-        flex: '1',
-        height: '36px',
-        padding: '0 0.75rem',
-        background: '#111110',
-        border: '1px solid #2A2826',
-        'border-radius': '6px',
-        'box-sizing': 'border-box',
-        color: '#E8E4DC',
-        'font-size': '0.8rem',
-        'font-family': 'var(--font-sans)',
-        outline: 'none',
-      },
-      '&::placeholder': { color: '#4A4540' },
-      '&:focus': { 'border-color': '#C8451B' },
+    '&[data-presence="exit"]': {
+      overflow: 'hidden',
+      pointerEvents: 'none',
     },
-  ],
-  addBtn: [
-    {
-      '&': {
-        height: '36px',
-        padding: '0 1rem',
-        background: '#C8451B',
-        border: 'none',
-        'border-radius': '6px',
-        'box-sizing': 'border-box',
-        color: '#fff',
-        'font-size': '0.8rem',
-        'font-family': 'var(--font-sans)',
-        cursor: 'pointer',
-        'white-space': 'nowrap',
-      },
-      '&:hover': { background: '#d65229' },
+  },
+  checkbox: {
+    width: '0.875rem',
+    height: '0.875rem',
+    borderRadius: '2px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    padding: 0,
+    lineHeight: 1,
+    border: '1px solid #4A4540',
+    background: 'transparent',
+    color: '#fff',
+    position: 'relative',
+    '&[data-state="checked"]': {
+      background: '#C8451B',
+      borderColor: '#C8451B',
     },
-  ],
-  listWrap: [
-    {
-      '&': {
-        position: 'relative',
-        'max-height': '280px',
-        'overflow-y': 'auto',
-        'scrollbar-width': 'thin',
-        'scrollbar-color': '#4A4540 transparent',
-      },
+    '&[data-state="checked"][data-toggled]': {
+      animation: `${checkBgIn} 150ms ease-out forwards`,
     },
-  ],
-  listFade: [
-    {
-      '&': {
-        left: '0',
-        right: '0',
-        height: '28px',
-        'pointer-events': 'none',
-        'z-index': '1',
-        transition: 'opacity 250ms ease',
-      },
+    '&[data-state="unchecked"][data-toggled]': {
+      animation: `${checkBgOut} 150ms ease-out forwards`,
     },
-  ],
-  listFadeTop: [
-    {
-      '&': {
-        background: 'linear-gradient(to bottom, #1C1B1A, transparent)',
-      },
+    '& [data-part="indicator"]': {
+      position: 'absolute',
+      inset: 0,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      pointerEvents: 'none',
     },
-  ],
-  listFadeBottom: [
-    {
-      '&': {
-        background: 'linear-gradient(to top, #1C1B1A, transparent)',
-      },
+    '& [data-part="indicator-icon"]': {
+      width: '9px',
+      height: '9px',
+      opacity: 0,
+      transform: 'scale(0.5)',
     },
-  ],
-  list: ['flex', 'flex-col', 'gap:1'],
-  todo: [
-    'flex',
-    'items:center',
-    'gap:3',
-    {
-      '&': {
-        padding: '0.5rem 0.75rem',
-        background: '#111110',
-        'border-radius': '2px',
-        border: '1px solid #2A2826',
-      },
-      '&[data-presence="enter"]': {
-        animation: `${listEnter} 200ms ease-out`,
-      },
-      '&[data-presence="exit"]': {
-        overflow: 'hidden',
-        'pointer-events': 'none',
-      },
+    '& [data-icon="check"] path': {
+      strokeDasharray: 30,
+      strokeDashoffset: 30,
     },
-  ],
-  checkbox: [
-    {
-      '&': {
-        width: '0.875rem',
-        height: '0.875rem',
-        'border-radius': '2px',
-        cursor: 'pointer',
-        display: 'flex',
-        'align-items': 'center',
-        'justify-content': 'center',
-        'flex-shrink': '0',
-        padding: '0',
-        'line-height': '1',
-        border: '1px solid #4A4540',
-        background: 'transparent',
-        color: '#fff',
-        position: 'relative',
-      },
-      '&[data-state="checked"]': {
-        background: '#C8451B',
-        'border-color': '#C8451B',
-      },
-      '&[data-state="checked"][data-toggled]': {
-        animation: `${checkBgIn} 150ms ease-out forwards`,
-      },
-      '&[data-state="unchecked"][data-toggled]': {
-        animation: `${checkBgOut} 150ms ease-out forwards`,
-      },
-      '& [data-part="indicator"]': {
-        position: 'absolute',
-        inset: '0',
-        display: 'flex',
-        'align-items': 'center',
-        'justify-content': 'center',
-        'pointer-events': 'none',
-      },
-      '& [data-part="indicator-icon"]': {
-        width: '9px',
-        height: '9px',
-        opacity: '0',
-        transform: 'scale(0.5)',
-      },
-      '& [data-icon="check"] path': {
-        'stroke-dasharray': '30',
-        'stroke-dashoffset': '30',
-      },
-      '&[data-state="checked"] [data-icon="check"]': {
-        opacity: '1',
-        transform: 'scale(1)',
-      },
-      '&[data-state="checked"] [data-icon="check"] path': {
-        'stroke-dashoffset': '0',
-      },
-      '&[data-state="checked"][data-toggled] [data-icon="check"]': {
-        animation: `${checkIconIn} 150ms ease-out forwards`,
-      },
-      '&[data-state="checked"][data-toggled] [data-icon="check"] path': {
-        animation: `${checkStrokeIn} 200ms ease-out 50ms forwards`,
-      },
-      '&[data-state="unchecked"][data-toggled] [data-icon="check"]': {
-        animation: `${checkIconOut} 150ms ease-out forwards`,
-      },
-      '&[data-state="unchecked"][data-toggled] [data-icon="check"] path': {
-        animation: `${checkStrokeOut} 150ms ease-out forwards`,
-      },
+    '&[data-state="checked"] [data-icon="check"]': {
+      opacity: 1,
+      transform: 'scale(1)',
     },
-  ],
-  todoText: [
-    {
-      '&': {
-        flex: '1',
-        transition: 'color 0.15s',
-        'min-width': '0',
-      },
+    '&[data-state="checked"] [data-icon="check"] path': {
+      strokeDashoffset: 0,
     },
-  ],
-  deleteBtn: [
-    {
-      '&': {
-        background: 'none',
-        border: 'none',
-        color: '#4A4540',
-        cursor: 'pointer',
-        padding: '0.25rem',
-        'font-size': '0.7rem',
-        'line-height': '1',
-        'flex-shrink': '0',
-        transition: 'color 0.15s',
-      },
-      '&:hover': { color: '#ef4444' },
+    '&[data-state="checked"][data-toggled] [data-icon="check"]': {
+      animation: `${checkIconIn} 150ms ease-out forwards`,
     },
-  ],
-  counter: [
-    {
-      '&': {
-        'margin-top': '0.75rem',
-        'font-size': '0.7rem',
-        color: '#4A4540',
-        'font-family': 'var(--font-mono)',
-      },
+    '&[data-state="checked"][data-toggled] [data-icon="check"] path': {
+      animation: `${checkStrokeIn} 200ms ease-out 50ms forwards`,
     },
-  ],
-  presenceBar: [
-    'flex',
-    'items:center',
-    'gap:2',
-    {
-      '&': {
-        'margin-top': '0.5rem',
-        'font-size': '0.65rem',
-        color: '#6B6560',
-        'font-family': 'var(--font-mono)',
-      },
+    '&[data-state="unchecked"][data-toggled] [data-icon="check"]': {
+      animation: `${checkIconOut} 150ms ease-out forwards`,
     },
-  ],
-  presenceDot: [
-    {
-      '&': {
-        width: '6px',
-        height: '6px',
-        'border-radius': '50%',
-        background: '#10B981',
-        'flex-shrink': '0',
-      },
+    '&[data-state="unchecked"][data-toggled] [data-icon="check"] path': {
+      animation: `${checkStrokeOut} 150ms ease-out forwards`,
     },
-  ],
-  shareBtn: [
-    {
-      '&': {
-        'margin-left': 'auto',
-        background: 'none',
-        border: '1px solid #2A2826',
-        'border-radius': '4px',
-        color: '#9C9690',
-        cursor: 'pointer',
-        padding: '0.15rem 0.5rem',
-        'font-size': '0.6rem',
-        'font-family': 'var(--font-mono)',
-        'text-transform': 'uppercase',
-        'letter-spacing': '0.05em',
-        transition: 'border-color 0.15s, color 0.15s',
-      },
-      '&:hover': {
-        'border-color': '#4A4540',
-        color: '#E8E4DC',
-      },
+  },
+  todoText: {
+    flex: '1',
+    transition: 'color 0.15s',
+    minWidth: 0,
+  },
+  deleteBtn: {
+    background: 'none',
+    border: 'none',
+    color: '#4A4540',
+    cursor: 'pointer',
+    padding: '0.25rem',
+    fontSize: '0.7rem',
+    lineHeight: 1,
+    flexShrink: 0,
+    transition: 'color 0.15s',
+    '&:hover': { color: '#ef4444' },
+  },
+  counter: {
+    marginTop: '0.75rem',
+    fontSize: '0.7rem',
+    color: '#4A4540',
+    fontFamily: 'var(--font-mono)',
+  },
+  presenceBar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    marginTop: '0.5rem',
+    fontSize: '0.65rem',
+    color: '#6B6560',
+    fontFamily: 'var(--font-mono)',
+  },
+  presenceDot: {
+    width: '6px',
+    height: '6px',
+    borderRadius: '50%',
+    background: '#10B981',
+    flexShrink: 0,
+  },
+  shareBtn: {
+    marginLeft: 'auto',
+    background: 'none',
+    border: '1px solid #2A2826',
+    borderRadius: '4px',
+    color: '#9C9690',
+    cursor: 'pointer',
+    padding: '0.15rem 0.5rem',
+    fontSize: '0.6rem',
+    fontFamily: 'var(--font-mono)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    transition: 'border-color 0.15s, color 0.15s',
+    '&:hover': {
+      borderColor: '#4A4540',
+      color: '#E8E4DC',
     },
-  ],
+  },
 });
 
 // ── Mini todo app component ─────────────────────────────────

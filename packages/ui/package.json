@@ -71,6 +71,7 @@
   },
   "scripts": {
     "build": "vtzx vertz-build",
+    "lint": "vtzx tsx scripts/check-unitless-parity.ts",
     "test": "vtz test",
     "test:benchmark": "vtz test src/dom/__tests__/hydration-deferred-effects-bench.local.ts",
     "test:watch": "vtz test --watch",

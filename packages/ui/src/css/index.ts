@@ -60,6 +60,14 @@ export type {
 export { compileTheme, defineTheme } from './theme';
 export type { ThemeChild, ThemeProviderProps } from './theme-provider';
 export { ThemeProvider } from './theme-provider';
+export type {
+  TokenPath,
+  VertzThemeColors,
+  VertzThemeFonts,
+  VertzThemeSpacing,
+  VertzThemeTokens,
+} from './token';
+export { isToken, TOKEN_BRAND, token } from './token';
 export type { CSSDeclaration, ResolvedStyle } from './token-resolver';
 export {
   isKnownProperty,

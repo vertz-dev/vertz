@@ -40,9 +40,14 @@ export type {
   Theme,
   ThemeInput,
   ThemeProviderProps,
+  TokenPath,
   VariantFunction,
   VariantProps,
   VariantsConfig,
+  VertzThemeColors,
+  VertzThemeFonts,
+  VertzThemeSpacing,
+  VertzThemeTokens,
 } from './css';
 export {
   ANIMATION_DURATION,
@@ -72,6 +77,7 @@ export {
   slideOutToRight,
   slideOutToTop,
   ThemeProvider,
+  token,
   variants,
   zoomIn,
   zoomOut,

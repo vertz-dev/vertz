@@ -10,6 +10,7 @@
 
 export type { CSSInput, CSSOutput, StyleEntry, StyleValue } from './css';
 export { css } from './css';
+export type { SelectorKey, StyleBlock, StyleDeclarations } from './style-block';
 export type {
   CamelCSSDeclarations,
   CamelCSSPropertyName,
@@ -35,6 +36,14 @@ export { globalCss } from './global-css';
 export { s } from './s';
 export type { CompiledTheme, CompileThemeOptions, Theme, ThemeInput } from './theme';
 export { compileTheme, defineTheme } from './theme';
+export type {
+  TokenPath,
+  VertzThemeColors,
+  VertzThemeFonts,
+  VertzThemeSpacing,
+  VertzThemeTokens,
+} from './token';
+export { token } from './token';
 export type { ThemeProviderProps } from './theme-provider';
 export { ThemeProvider } from './theme-provider';
 export type { UtilityClass } from './utility-types';
