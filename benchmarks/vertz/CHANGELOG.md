@@ -1,5 +1,14 @@
 # @vertz-benchmarks/vertz-app
 
+## 0.0.69
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/theme-shadcn@0.2.71
+  - @vertz/ui@0.2.71
+  - @vertz/ui-server@0.2.71
+
 ## 0.0.68
 
 ### Patch Changes

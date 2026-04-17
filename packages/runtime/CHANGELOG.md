@@ -1,5 +1,19 @@
 # @vertz/runtime
 
+## 0.2.71
+
+### Patch Changes
+
+- [#2754](https://github.com/vertz-dev/vertz/pull/2754) [`4dfdf15`](https://github.com/vertz-dev/vertz/commit/4dfdf158bfc44786b2d5e49700dfb9bd8e926e92) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): import rewriter now skips JS comments
+
+  The `/@deps/` import rewriter did not recognize `//` or `/* */` comments,
+  so an apostrophe inside a comment (e.g. `// indicator's data-state`)
+  opened a fake string literal that swallowed every `import` statement until
+  the next apostrophe. In `@vertz/theme-shadcn@0.2.70/dist/index.js` this
+  leaked 5 of 46 bare `@vertz/ui` imports to the browser despite #2740.
+  The rewriter and its `from` search now skip line and block comments.
+  Closes #2730.
+
 ## 0.2.70
 
 ### Patch Changes
