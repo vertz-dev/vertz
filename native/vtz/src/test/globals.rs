@@ -176,6 +176,7 @@ if (typeof globalThis.HTMLElement === 'undefined') {
     }
     let currentImpl = impl || null;
     let onceQueue = [];
+    let mockDisplayName = '';
     const mockState = { calls: [], results: [], lastCall: undefined };
 
     function mockFn(...args) {
@@ -221,12 +222,50 @@ if (typeof globalThis.HTMLElement === 'undefined') {
     mockFn.mockImplementationOnce = (fn) => { onceQueue.push(fn); return mockFn; };
     mockFn.mockReturnThis = () => { currentImpl = function() { return this; }; return mockFn; };
 
+    // vitest-compat: getMockImplementation() returns the currently set implementation,
+    // or `undefined` if none is set. Does not consider the once-queue — matches vitest's
+    // behavior where getMockImplementation exposes only the "default" impl.
+    mockFn.getMockImplementation = () => currentImpl === null ? undefined : currentImpl;
+
+    // vitest-compat: name accessors. vitest defaults to 'vi.fn()'; we default to '' so
+    // callers can distinguish "unset" cheaply. mockName() sets and returns the mock for
+    // chaining. getMockName() returns the current name.
+    mockFn.mockName = (name) => { mockDisplayName = String(name); return mockFn; };
+    mockFn.getMockName = () => mockDisplayName;
+
+    // vitest-compat: withImplementation(fn, cb) temporarily swaps currentImpl with `fn`,
+    // runs cb, then restores. If cb returns a Promise, the restoration awaits it so the
+    // temp impl remains active until the async work completes. Returns cb's result.
+    // NOTE: does NOT touch onceQueue — only the default implementation is swapped,
+    // matching vitest semantics.
+    mockFn.withImplementation = (fn, cb) => {
+      const prev = currentImpl;
+      currentImpl = fn;
+      let result;
+      try {
+        result = cb();
+      } catch (e) {
+        currentImpl = prev;
+        throw e;
+      }
+      if (result && typeof result.then === 'function') {
+        return result.then(
+          (v) => { currentImpl = prev; return v; },
+          (e) => { currentImpl = prev; throw e; },
+        );
+      }
+      currentImpl = prev;
+      return result;
+    };
+
     mockFn.mockReset = () => {
       mockState.calls.length = 0;
       mockState.results.length = 0;
       mockState.lastCall = undefined;
       currentImpl = null;
       onceQueue.length = 0;
+      // vitest resets the name too on mockReset (keeps it on mockClear).
+      mockDisplayName = '';
       return mockFn;
     };
 
@@ -2542,6 +2581,183 @@ mod tests {
             "fallback test failed: {:?}",
             arr[0]["error"]
         );
+    }
+
+    #[test]
+    fn test_mock_get_mock_implementation() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('getMockImplementation', () => {
+                it('returns undefined for a bare mock with no impl', () => {
+                    const fn = mock();
+                    expect(fn.getMockImplementation()).toBeUndefined();
+                });
+                it('returns the initial implementation passed to mock()', () => {
+                    const impl = (x) => x + 1;
+                    const fn = mock(impl);
+                    expect(fn.getMockImplementation()).toBe(impl);
+                });
+                it('reflects the most recent mockImplementation() call', () => {
+                    const fn = mock();
+                    const impl1 = () => 1;
+                    const impl2 = () => 2;
+                    fn.mockImplementation(impl1);
+                    expect(fn.getMockImplementation()).toBe(impl1);
+                    fn.mockImplementation(impl2);
+                    expect(fn.getMockImplementation()).toBe(impl2);
+                });
+                it('returns undefined after mockReset()', () => {
+                    const fn = mock(() => 42);
+                    fn.mockReset();
+                    expect(fn.getMockImplementation()).toBeUndefined();
+                });
+                it('does not expose once-queue entries', () => {
+                    const fn = mock(() => 'default');
+                    fn.mockImplementationOnce(() => 'once');
+                    // getMockImplementation returns the default, not the once-queue head.
+                    const impl = fn.getMockImplementation();
+                    expect(impl()).toBe('default');
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 5);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "getMockImplementation test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_mock_name_round_trip() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('mockName / getMockName', () => {
+                it('defaults to empty string', () => {
+                    const fn = mock();
+                    expect(fn.getMockName()).toBe('');
+                });
+                it('round-trips via mockName()', () => {
+                    const fn = mock();
+                    fn.mockName('myMock');
+                    expect(fn.getMockName()).toBe('myMock');
+                });
+                it('mockName() returns the mock for chaining', () => {
+                    const fn = mock();
+                    expect(fn.mockName('x')).toBe(fn);
+                });
+                it('mockName coerces non-string inputs', () => {
+                    const fn = mock();
+                    fn.mockName(42);
+                    expect(fn.getMockName()).toBe('42');
+                });
+                it('mockReset clears the name', () => {
+                    const fn = mock();
+                    fn.mockName('will-be-cleared');
+                    fn.mockReset();
+                    expect(fn.getMockName()).toBe('');
+                });
+                it('mockClear preserves the name', () => {
+                    const fn = mock();
+                    fn.mockName('stays');
+                    fn.mockClear();
+                    expect(fn.getMockName()).toBe('stays');
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 6);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "mockName test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_mock_with_implementation() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('withImplementation', () => {
+                it('runs cb with the temp impl and restores the original', () => {
+                    const fn = mock(() => 'original');
+                    const cbResult = fn.withImplementation(() => 'temp', () => {
+                        return fn();
+                    });
+                    expect(cbResult).toBe('temp');
+                    // After withImplementation, the original impl is restored.
+                    expect(fn()).toBe('original');
+                });
+                it('restores even when cb throws', () => {
+                    const fn = mock(() => 'original');
+                    let caught = false;
+                    try {
+                        fn.withImplementation(() => 'temp', () => { throw new Error('boom'); });
+                    } catch (e) {
+                        caught = true;
+                        expect(e.message).toBe('boom');
+                    }
+                    expect(caught).toBe(true);
+                    expect(fn()).toBe('original');
+                });
+                it('awaits async cb and restores after resolution', async () => {
+                    const fn = mock(() => 'original');
+                    const p = fn.withImplementation(() => 'temp', async () => {
+                        // Temp impl is active for the whole async body.
+                        return fn();
+                    });
+                    const r = await p;
+                    expect(r).toBe('temp');
+                    expect(fn()).toBe('original');
+                });
+                it('restores after async cb rejection', async () => {
+                    const fn = mock(() => 'original');
+                    let caught = false;
+                    try {
+                        await fn.withImplementation(() => 'temp', async () => {
+                            throw new Error('async-boom');
+                        });
+                    } catch (e) {
+                        caught = true;
+                        expect(e.message).toBe('async-boom');
+                    }
+                    expect(caught).toBe(true);
+                    expect(fn()).toBe('original');
+                });
+                it('leaves getMockImplementation unchanged after withImplementation', () => {
+                    const originalImpl = () => 'original';
+                    const fn = mock(originalImpl);
+                    fn.withImplementation(() => 'temp', () => fn());
+                    expect(fn.getMockImplementation()).toBe(originalImpl);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 5);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "withImplementation test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
     }
 
     #[test]
