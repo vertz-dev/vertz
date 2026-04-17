@@ -1,20 +1,20 @@
+use crate::pm::error::{PmError, PmResult};
 use crate::pm::resolver::ResolvedGraph;
 use crate::pm::workspace::WorkspacePackage;
 use std::path::Path;
 
 /// Write a single bin stub shell script to `bin_dir/<bin_name>`.
-fn write_bin_stub(
-    bin_dir: &Path,
-    bin_name: &str,
-    target: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn write_bin_stub(bin_dir: &Path, bin_name: &str, target: &str) -> PmResult<()> {
     let stub_path = bin_dir.join(bin_name);
 
     // Ensure parent directory exists (scoped bin names like @babel/parser
     // require creating .bin/@babel/)
     if let Some(parent) = stub_path.parent() {
         if parent != bin_dir {
-            std::fs::create_dir_all(parent)?;
+            std::fs::create_dir_all(parent).map_err(|source| PmError::WriteFile {
+                path: parent.to_path_buf(),
+                source,
+            })?;
         }
     }
 
@@ -27,13 +27,19 @@ fn write_bin_stub(
         )
     };
 
-    std::fs::write(&stub_path, stub_content)?;
+    std::fs::write(&stub_path, stub_content).map_err(|source| PmError::WriteFile {
+        path: stub_path.clone(),
+        source,
+    })?;
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let perms = std::fs::Permissions::from_mode(0o755);
-        std::fs::set_permissions(&stub_path, perms)?;
+        std::fs::set_permissions(&stub_path, perms).map_err(|source| PmError::WriteFile {
+            path: stub_path.clone(),
+            source,
+        })?;
     }
 
     Ok(())
@@ -49,9 +55,12 @@ pub fn generate_bin_stubs(
     root_dir: &Path,
     graph: &ResolvedGraph,
     workspaces: &[WorkspacePackage],
-) -> Result<usize, Box<dyn std::error::Error>> {
+) -> PmResult<usize> {
     let bin_dir = root_dir.join("node_modules").join(".bin");
-    std::fs::create_dir_all(&bin_dir)?;
+    std::fs::create_dir_all(&bin_dir).map_err(|source| PmError::WriteFile {
+        path: bin_dir.clone(),
+        source,
+    })?;
 
     let mut count = 0;
 
@@ -616,5 +625,19 @@ mod tests {
             "workspace bin should take precedence: {}",
             content
         );
+    }
+
+    #[test]
+    fn test_generate_bin_stubs_bin_dir_creation_failure_returns_write_variant() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        // Block `node_modules/.bin` creation by making `node_modules` a regular file
+        std::fs::write(root.join("node_modules"), "blocker").unwrap();
+
+        let err = generate_bin_stubs(root, &ResolvedGraph::default(), &[]).unwrap_err();
+        let PmError::WriteFile { path, .. } = err else {
+            panic!("expected WriteFile, got {err:?}");
+        };
+        assert_eq!(path, root.join("node_modules").join(".bin"));
     }
 }

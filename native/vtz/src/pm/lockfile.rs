@@ -1,3 +1,4 @@
+use crate::pm::error::{PmError, PmResult};
 use crate::pm::types::{Lockfile, LockfileEntry};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -82,8 +83,11 @@ pub fn write_lockfile(path: &Path, lockfile: &Lockfile) -> Result<(), std::io::E
 }
 
 /// Read and parse a lockfile from disk
-pub fn read_lockfile(path: &Path) -> Result<Lockfile, Box<dyn std::error::Error>> {
-    let content = std::fs::read_to_string(path)?;
+pub fn read_lockfile(path: &Path) -> PmResult<Lockfile> {
+    let content = std::fs::read_to_string(path).map_err(|source| PmError::ReadFile {
+        path: path.to_path_buf(),
+        source,
+    })?;
     parse_lockfile(&content)
 }
 
@@ -107,7 +111,7 @@ fn parse_lockfile_version(content: &str) -> u32 {
 }
 
 /// Parse lockfile content into a Lockfile struct
-pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Error>> {
+pub fn parse_lockfile(content: &str) -> PmResult<Lockfile> {
     let version = parse_lockfile_version(content);
     let mut lockfile = Lockfile {
         version,

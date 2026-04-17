@@ -1,3 +1,4 @@
+use crate::pm::error::{PmError, PmResult};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -70,7 +71,7 @@ fn strip_protocol(url: &str) -> &str {
 /// - Comment lines starting with # or ;
 /// - `${ENV_VAR}` interpolation
 /// - Keys: registry, @scope:registry, //<url>/:_authToken, always-auth
-pub fn parse_npmrc(content: &str) -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
+pub fn parse_npmrc(content: &str) -> PmResult<BTreeMap<String, String>> {
     parse_npmrc_with_env(content, |name| std::env::var(name))
 }
 
@@ -79,7 +80,7 @@ pub fn parse_npmrc(content: &str) -> Result<BTreeMap<String, String>, Box<dyn st
 fn parse_npmrc_with_env(
     content: &str,
     env_fn: impl Fn(&str) -> Result<String, std::env::VarError>,
-) -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
+) -> PmResult<BTreeMap<String, String>> {
     let mut entries = BTreeMap::new();
 
     for line in content.lines() {
@@ -104,22 +105,19 @@ fn parse_npmrc_with_env(
 fn interpolate_env_vars(
     value: &str,
     env_fn: &impl Fn(&str) -> Result<String, std::env::VarError>,
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> PmResult<String> {
     let mut result = String::new();
     let mut rest = value;
 
     while let Some(start) = rest.find("${") {
         result.push_str(&rest[..start]);
         let after_start = &rest[start + 2..];
-        let end = after_start
-            .find('}')
-            .ok_or_else(|| format!("error: malformed .npmrc — unclosed ${{}} in: {}", value))?;
+        let end = after_start.find('}').ok_or_else(|| PmError::InvalidNpmrc {
+            reason: format!("unclosed ${{}} in: {}", value),
+        })?;
         let var_name = &after_start[..end];
-        let var_value = env_fn(var_name).map_err(|_| {
-            format!(
-                "error: .npmrc references undefined environment variable ${{{}}}",
-                var_name
-            )
+        let var_value = env_fn(var_name).map_err(|_| PmError::UndefinedEnvVar {
+            name: var_name.to_string(),
         })?;
         result.push_str(&var_value);
         rest = &after_start[end + 1..];
@@ -156,10 +154,7 @@ fn config_from_entries(entries: &BTreeMap<String, String>) -> RegistryConfig {
 ///
 /// `home_dir` overrides the `HOME` env var for locating `~/.npmrc`.
 /// Pass `None` to use the `HOME` environment variable (production default).
-pub fn load_registry_config(
-    root_dir: &Path,
-    home_dir: Option<&Path>,
-) -> Result<RegistryConfig, Box<dyn std::error::Error>> {
+pub fn load_registry_config(root_dir: &Path, home_dir: Option<&Path>) -> PmResult<RegistryConfig> {
     let mut merged_entries: BTreeMap<String, String> = BTreeMap::new();
 
     // Resolve home directory: explicit parameter or HOME env var
@@ -182,7 +177,11 @@ pub fn load_registry_config(
     // Load project .npmrc (higher priority — overwrites per-key)
     let project_npmrc = root_dir.join(".npmrc");
     if project_npmrc.exists() {
-        let content = std::fs::read_to_string(&project_npmrc)?;
+        let content =
+            std::fs::read_to_string(&project_npmrc).map_err(|source| PmError::ReadFile {
+                path: project_npmrc.clone(),
+                source,
+            })?;
         let entries = parse_npmrc(&content)?;
         merged_entries.extend(entries);
     }
@@ -257,11 +256,23 @@ mod tests {
         let env_fn =
             |_: &str| -> Result<String, std::env::VarError> { Err(std::env::VarError::NotPresent) };
         let content = "//host/:_authToken=${UNDEFINED_TOKEN_3G_TEST}\n";
-        let result = parse_npmrc_with_env(content, env_fn);
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("UNDEFINED_TOKEN_3G_TEST"));
-        assert!(err.contains("undefined environment variable"));
+        let err = parse_npmrc_with_env(content, env_fn).unwrap_err();
+        let PmError::UndefinedEnvVar { name } = err else {
+            panic!("expected UndefinedEnvVar, got {err:?}");
+        };
+        assert_eq!(name, "UNDEFINED_TOKEN_3G_TEST");
+    }
+
+    #[test]
+    fn test_parse_npmrc_malformed_interpolation_returns_typed_variant() {
+        let env_fn = |_: &str| -> Result<String, std::env::VarError> { Ok(String::new()) };
+        // unterminated ${...} expression
+        let content = "//host/:_authToken=${UNCLOSED\n";
+        let err = parse_npmrc_with_env(content, env_fn).unwrap_err();
+        let PmError::InvalidNpmrc { reason } = err else {
+            panic!("expected InvalidNpmrc, got {err:?}");
+        };
+        assert!(reason.contains("unclosed"));
     }
 
     #[test]

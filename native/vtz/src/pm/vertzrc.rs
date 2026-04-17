@@ -1,3 +1,4 @@
+use crate::pm::error::{PmError, PmResult};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -101,13 +102,17 @@ pub fn match_trust_pattern(package_name: &str, patterns: &[String]) -> bool {
 }
 
 /// Load .vertzrc from the given directory. Returns default config if file doesn't exist.
-pub fn load_vertzrc(root_dir: &Path) -> Result<VertzConfig, Box<dyn std::error::Error>> {
+pub fn load_vertzrc(root_dir: &Path) -> PmResult<VertzConfig> {
     let path = root_dir.join(".vertzrc");
     if !path.exists() {
         return Ok(VertzConfig::default());
     }
-    let content = std::fs::read_to_string(&path)?;
-    let config: VertzConfig = serde_json::from_str(&content)?;
+    let content = std::fs::read_to_string(&path).map_err(|source| PmError::ReadFile {
+        path: path.clone(),
+        source,
+    })?;
+    let config: VertzConfig = serde_json::from_str(&content)
+        .map_err(|source| PmError::InvalidVertzrc { path, source })?;
     Ok(config)
 }
 
@@ -116,10 +121,7 @@ pub fn load_vertzrc(root_dir: &Path) -> Result<VertzConfig, Box<dyn std::error::
 /// Uses a separate `.vertzrc.lock` sentinel file for advisory locking so
 /// the lock survives the atomic rename of the actual config file.
 /// Writes atomically via temp file + rename.
-pub fn save_vertzrc(
-    root_dir: &Path,
-    config: &VertzConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn save_vertzrc(root_dir: &Path, config: &VertzConfig) -> PmResult<()> {
     let path = root_dir.join(".vertzrc");
     let lock_path = root_dir.join(".vertzrc.lock");
     let content = serde_json::to_string_pretty(config)?;
@@ -129,13 +131,28 @@ pub fn save_vertzrc(
         .create(true)
         .write(true)
         .truncate(false)
-        .open(&lock_path)?;
-    lock_file.lock_exclusive()?;
+        .open(&lock_path)
+        .map_err(|source| PmError::WriteFile {
+            path: lock_path.clone(),
+            source,
+        })?;
+    lock_file
+        .lock_exclusive()
+        .map_err(|source| PmError::WriteFile {
+            path: lock_path.clone(),
+            source,
+        })?;
 
     // Write atomically: write to temp file then rename
     let tmp_path = root_dir.join(".vertzrc.tmp");
-    std::fs::write(&tmp_path, format!("{}\n", content))?;
-    std::fs::rename(&tmp_path, &path)?;
+    std::fs::write(&tmp_path, format!("{}\n", content)).map_err(|source| PmError::WriteFile {
+        path: tmp_path.clone(),
+        source,
+    })?;
+    std::fs::rename(&tmp_path, &path).map_err(|source| PmError::WriteFile {
+        path: path.clone(),
+        source,
+    })?;
 
     // Lock is released when lock_file is dropped
     Ok(())
@@ -155,10 +172,7 @@ pub enum ScriptPolicy {
 /// Set trust-scripts to the given values (replaces entire list).
 /// Returns names that were in the old list but not the new one.
 /// Deduplicates input values.
-pub fn config_set_trust_scripts(
-    root_dir: &Path,
-    values: &[String],
-) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+pub fn config_set_trust_scripts(root_dir: &Path, values: &[String]) -> PmResult<Vec<String>> {
     let mut config = load_vertzrc(root_dir)?;
     let new_set: std::collections::HashSet<&str> = values.iter().map(|s| s.as_str()).collect();
     let removed: Vec<String> = config
@@ -181,10 +195,7 @@ pub fn config_set_trust_scripts(
 }
 
 /// Add values to trust-scripts (deduplicates).
-pub fn config_add_trust_scripts(
-    root_dir: &Path,
-    values: &[String],
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn config_add_trust_scripts(root_dir: &Path, values: &[String]) -> PmResult<()> {
     let mut config = load_vertzrc(root_dir)?;
     for v in values {
         if !config.trust_scripts.contains(v) {
@@ -197,10 +208,7 @@ pub fn config_add_trust_scripts(
 
 /// Remove values from trust-scripts.
 /// Returns names that were actually removed.
-pub fn config_remove_trust_scripts(
-    root_dir: &Path,
-    values: &[String],
-) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+pub fn config_remove_trust_scripts(root_dir: &Path, values: &[String]) -> PmResult<Vec<String>> {
     let mut config = load_vertzrc(root_dir)?;
     let remove_set: std::collections::HashSet<&str> = values.iter().map(|s| s.as_str()).collect();
     let removed: Vec<String> = config
@@ -217,28 +225,31 @@ pub fn config_remove_trust_scripts(
 }
 
 /// Get current trust-scripts list.
-pub fn config_get_trust_scripts(
-    root_dir: &Path,
-) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+pub fn config_get_trust_scripts(root_dir: &Path) -> PmResult<Vec<String>> {
     let config = load_vertzrc(root_dir)?;
     Ok(config.trust_scripts)
 }
 
 /// Initialize trust-scripts by scanning node_modules for packages with
 /// postinstall scripts in their package.json.
-pub fn config_init_trust_scripts(
-    root_dir: &Path,
-) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+pub fn config_init_trust_scripts(root_dir: &Path) -> PmResult<Vec<String>> {
     let nm_dir = root_dir.join("node_modules");
     if !nm_dir.exists() {
-        return Err("No node_modules found. Run `vertz install` first.".into());
+        return Err(PmError::NoNodeModules);
     }
 
     let mut names: Vec<String> = Vec::new();
 
     // Scan top-level packages
-    for entry in std::fs::read_dir(&nm_dir)? {
-        let entry = entry?;
+    let nm_entries = std::fs::read_dir(&nm_dir).map_err(|source| PmError::ReadFile {
+        path: nm_dir.clone(),
+        source,
+    })?;
+    for entry in nm_entries {
+        let entry = entry.map_err(|source| PmError::ReadFile {
+            path: nm_dir.clone(),
+            source,
+        })?;
         let name = entry.file_name().to_string_lossy().to_string();
         if name.starts_with('.') {
             continue;
@@ -247,8 +258,16 @@ pub fn config_init_trust_scripts(
             // Scoped package — scan subdirectory
             let scope_dir = entry.path();
             if scope_dir.is_dir() {
-                for sub in std::fs::read_dir(&scope_dir)? {
-                    let sub = sub?;
+                let scope_entries =
+                    std::fs::read_dir(&scope_dir).map_err(|source| PmError::ReadFile {
+                        path: scope_dir.clone(),
+                        source,
+                    })?;
+                for sub in scope_entries {
+                    let sub = sub.map_err(|source| PmError::ReadFile {
+                        path: scope_dir.clone(),
+                        source,
+                    })?;
                     let sub_name = format!("{}/{}", name, sub.file_name().to_string_lossy());
                     if has_postinstall_in_node_modules(&nm_dir, &sub_name) {
                         names.push(sub_name);
@@ -630,8 +649,7 @@ mod tests {
     fn test_config_init_trust_scripts_no_node_modules() {
         let dir = tempfile::tempdir().unwrap();
         let result = config_init_trust_scripts(dir.path());
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No node_modules"));
+        assert!(matches!(result, Err(PmError::NoNodeModules)));
     }
 
     #[test]
@@ -941,5 +959,16 @@ mod tests {
         let raw = std::fs::read_to_string(dir.path().join(".vertzrc")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
         assert!(parsed.get("desktop").is_none());
+    }
+
+    #[test]
+    fn test_load_vertzrc_invalid_json_returns_typed_variant() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(".vertzrc"), "{ not json").unwrap();
+        let err = load_vertzrc(dir.path()).unwrap_err();
+        let PmError::InvalidVertzrc { path, .. } = err else {
+            panic!("expected InvalidVertzrc, got {err:?}");
+        };
+        assert_eq!(path, dir.path().join(".vertzrc"));
     }
 }
