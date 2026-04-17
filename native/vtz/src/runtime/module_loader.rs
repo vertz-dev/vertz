@@ -86,81 +86,109 @@ pub struct VertzModuleLoader {
     mocked_bare_specifiers: RefCell<HashSet<String>>,
 }
 
-impl VertzModuleLoader {
-    pub fn new(root_dir: &str, plugin: std::sync::Arc<dyn FrameworkPlugin>) -> Self {
+/// Builder for `VertzModuleLoader`.
+///
+/// There is exactly one place in this module that initializes the `VertzModuleLoader`
+/// struct: `VertzModuleLoaderBuilder::build`. Adding a new field requires updating
+/// the builder — the compiler (via complete struct literal exhaustiveness) enforces
+/// that nothing gets forgotten.
+pub struct VertzModuleLoaderBuilder {
+    root_dir: PathBuf,
+    plugin: std::sync::Arc<dyn FrameworkPlugin>,
+    compile_cache_enabled: bool,
+    shared_source_cache: Option<std::sync::Arc<SharedSourceCache>>,
+    v8_code_cache: Option<std::sync::Arc<V8CodeCache>>,
+    resolution_cache: Option<std::sync::Arc<SharedResolutionCache>>,
+    test_mode: bool,
+}
+
+impl VertzModuleLoaderBuilder {
+    fn new(root_dir: &str, plugin: std::sync::Arc<dyn FrameworkPlugin>) -> Self {
         Self {
             root_dir: PathBuf::from(root_dir),
-            source_maps: RefCell::new(HashMap::new()),
-            newline_indices: RefCell::new(HashMap::new()),
-            canon_cache: RefCell::new(HashMap::new()),
-            compile_cache: CompileCache::new(Path::new(root_dir), false),
             plugin,
-            mocked_paths: RefCell::new(HashMap::new()),
+            compile_cache_enabled: false,
             shared_source_cache: None,
             v8_code_cache: None,
             resolution_cache: None,
-            pkg_type_cache: RefCell::new(HashMap::new()),
             test_mode: false,
-            mock_export_names: RefCell::new(HashMap::new()),
-            mocked_bare_specifiers: RefCell::new(HashSet::new()),
         }
     }
 
-    /// Create a new module loader with compilation caching enabled.
-    pub fn new_with_cache(
-        root_dir: &str,
-        cache_enabled: bool,
-        plugin: std::sync::Arc<dyn FrameworkPlugin>,
+    /// Enable the disk-backed compilation cache (content-hash keyed).
+    pub fn compile_cache_enabled(mut self, enabled: bool) -> Self {
+        self.compile_cache_enabled = enabled;
+        self
+    }
+
+    /// Attach a cross-isolate in-memory source cache. Accepts `Arc<_>` or
+    /// `Option<Arc<_>>`.
+    pub fn shared_source_cache(
+        mut self,
+        cache: impl Into<Option<std::sync::Arc<SharedSourceCache>>>,
     ) -> Self {
-        Self {
-            root_dir: PathBuf::from(root_dir),
-            source_maps: RefCell::new(HashMap::new()),
-            newline_indices: RefCell::new(HashMap::new()),
-            canon_cache: RefCell::new(HashMap::new()),
-            compile_cache: CompileCache::new(Path::new(root_dir), cache_enabled),
-            plugin,
-            mocked_paths: RefCell::new(HashMap::new()),
-            shared_source_cache: None,
-            v8_code_cache: None,
-            resolution_cache: None,
-            pkg_type_cache: RefCell::new(HashMap::new()),
-            test_mode: false,
-            mock_export_names: RefCell::new(HashMap::new()),
-            mocked_bare_specifiers: RefCell::new(HashSet::new()),
-        }
+        self.shared_source_cache = cache.into();
+        self
     }
 
-    /// Create a new module loader with disk caching and shared in-memory source
-    /// cache for cross-isolate deduplication.
-    pub fn new_with_shared_cache(
-        root_dir: &str,
-        cache_enabled: bool,
-        plugin: std::sync::Arc<dyn FrameworkPlugin>,
-        shared_source_cache: Option<std::sync::Arc<SharedSourceCache>>,
-        v8_code_cache: Option<std::sync::Arc<V8CodeCache>>,
-        resolution_cache: Option<std::sync::Arc<SharedResolutionCache>>,
+    /// Attach a cross-isolate V8 bytecode cache. Accepts `Arc<_>` or
+    /// `Option<Arc<_>>`.
+    pub fn v8_code_cache(mut self, cache: impl Into<Option<std::sync::Arc<V8CodeCache>>>) -> Self {
+        self.v8_code_cache = cache.into();
+        self
+    }
+
+    /// Attach a cross-isolate module-resolution cache. Accepts `Arc<_>` or
+    /// `Option<Arc<_>>`.
+    pub fn resolution_cache(
+        mut self,
+        cache: impl Into<Option<std::sync::Arc<SharedResolutionCache>>>,
     ) -> Self {
-        Self {
-            root_dir: PathBuf::from(root_dir),
-            source_maps: RefCell::new(HashMap::new()),
-            canon_cache: RefCell::new(HashMap::new()),
-            compile_cache: CompileCache::new(Path::new(root_dir), cache_enabled),
-            plugin,
-            mocked_paths: RefCell::new(HashMap::new()),
-            newline_indices: RefCell::new(HashMap::new()),
-            shared_source_cache,
-            v8_code_cache,
-            resolution_cache,
-            pkg_type_cache: RefCell::new(HashMap::new()),
-            test_mode: false,
-            mock_export_names: RefCell::new(HashMap::new()),
-            mocked_bare_specifiers: RefCell::new(HashSet::new()),
-        }
+        self.resolution_cache = cache.into();
+        self
     }
 
-    /// Enable test mode — all compiled modules get export interposition for spyOn().
-    pub fn set_test_mode(&mut self, enabled: bool) {
+    /// Enable test mode — all compiled modules get export interposition for
+    /// spyOn() support on ESM exports.
+    pub fn test_mode(mut self, enabled: bool) -> Self {
         self.test_mode = enabled;
+        self
+    }
+
+    pub fn build(self) -> VertzModuleLoader {
+        VertzModuleLoader {
+            compile_cache: CompileCache::new(&self.root_dir, self.compile_cache_enabled),
+            root_dir: self.root_dir,
+            source_maps: RefCell::new(HashMap::new()),
+            newline_indices: RefCell::new(HashMap::new()),
+            canon_cache: RefCell::new(HashMap::new()),
+            plugin: self.plugin,
+            mocked_paths: RefCell::new(HashMap::new()),
+            shared_source_cache: self.shared_source_cache,
+            v8_code_cache: self.v8_code_cache,
+            resolution_cache: self.resolution_cache,
+            pkg_type_cache: RefCell::new(HashMap::new()),
+            test_mode: self.test_mode,
+            mock_export_names: RefCell::new(HashMap::new()),
+            mocked_bare_specifiers: RefCell::new(HashSet::new()),
+        }
+    }
+}
+
+impl VertzModuleLoader {
+    /// Convenience constructor: a loader with defaults (no shared caches, no
+    /// disk compile cache, not in test mode).
+    pub fn new(root_dir: &str, plugin: std::sync::Arc<dyn FrameworkPlugin>) -> Self {
+        Self::builder(root_dir, plugin).build()
+    }
+
+    /// Start building a `VertzModuleLoader`. Use the returned builder to configure
+    /// caches and test mode, then call `.build()`.
+    pub fn builder(
+        root_dir: &str,
+        plugin: std::sync::Arc<dyn FrameworkPlugin>,
+    ) -> VertzModuleLoaderBuilder {
+        VertzModuleLoaderBuilder::new(root_dir, plugin)
     }
 
     /// Register export names discovered from mock factory return values.
@@ -6166,5 +6194,45 @@ export async function asyncFn() {}
         let mut names = super::extract_export_names(source);
         names.sort();
         assert_eq!(names, vec!["asyncFn", "realFn"]);
+    }
+
+    #[test]
+    fn builder_produces_loader_with_defaults() {
+        let tmp = create_temp_dir();
+        let loader =
+            VertzModuleLoader::builder(&tmp.path().to_string_lossy(), test_plugin()).build();
+        assert!(loader.shared_source_cache.is_none());
+        assert!(loader.v8_code_cache.is_none());
+        assert!(loader.resolution_cache.is_none());
+        assert!(!loader.test_mode);
+        assert_eq!(loader.root_dir, tmp.path());
+    }
+
+    #[test]
+    fn builder_sets_all_shared_caches_and_test_mode() {
+        let tmp = create_temp_dir();
+        let shared = std::sync::Arc::new(SharedSourceCache::new());
+        let v8 = std::sync::Arc::new(V8CodeCache::new(true));
+        let res = std::sync::Arc::new(SharedResolutionCache::new());
+        let loader = VertzModuleLoader::builder(&tmp.path().to_string_lossy(), test_plugin())
+            .compile_cache_enabled(true)
+            .shared_source_cache(shared.clone())
+            .v8_code_cache(v8.clone())
+            .resolution_cache(res.clone())
+            .test_mode(true)
+            .build();
+        assert!(std::sync::Arc::ptr_eq(
+            loader.shared_source_cache.as_ref().unwrap(),
+            &shared,
+        ));
+        assert!(std::sync::Arc::ptr_eq(
+            loader.v8_code_cache.as_ref().unwrap(),
+            &v8,
+        ));
+        assert!(std::sync::Arc::ptr_eq(
+            loader.resolution_cache.as_ref().unwrap(),
+            &res,
+        ));
+        assert!(loader.test_mode);
     }
 }
