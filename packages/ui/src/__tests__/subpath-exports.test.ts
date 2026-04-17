@@ -146,8 +146,10 @@ describe('Subpath Exports — @vertz/ui/css', () => {
     'globalCss',
     'googleFont',
     's',
+    'token',
     'variants',
   ];
+  const objectExports = new Set(['token']);
 
   test('exports exactly the public API (no internal leaks)', async () => {
     const mod = await import('../css/public');
@@ -155,10 +157,13 @@ describe('Subpath Exports — @vertz/ui/css', () => {
     expect(actualExports).toEqual(expectedExports);
   });
 
-  test('all exports are functions', async () => {
+  test('all exports are functions or objects', async () => {
     const mod = await import('../css/public');
     for (const name of expectedExports) {
-      expect(mod[name as keyof typeof mod], `${name} should be a function`).toBeTypeOf('function');
+      const expectedType = objectExports.has(name) ? 'object' : 'function';
+      expect(mod[name as keyof typeof mod], `${name} should be a ${expectedType}`).toBeTypeOf(
+        expectedType,
+      );
     }
   });
 
@@ -185,6 +190,7 @@ describe('Subpath Exports — @vertz/ui/css', () => {
     expect(subpath.globalCss).toBe(main.globalCss);
     expect(subpath.s).toBe(main.s);
     expect(subpath.ThemeProvider).toBe(main.ThemeProvider);
+    expect(subpath.token).toBe(main.token);
     expect(subpath.variants).toBe(main.variants);
   });
 });
@@ -270,6 +276,7 @@ describe('Subpath Exports — main barrel backward compat', () => {
     expect(main.globalCss).toBeTypeOf('function');
     expect(main.s).toBeTypeOf('function');
     expect(main.ThemeProvider).toBeTypeOf('function');
+    expect(main.token).toBeTypeOf('object');
     expect(main.variants).toBeTypeOf('function');
   });
 });
