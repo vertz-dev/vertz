@@ -1,5 +1,88 @@
 # @vertz/runtime
 
+## 0.2.69
+
+### Patch Changes
+
+- [#2748](https://github.com/vertz-dev/vertz/pull/2748) [`d220831`](https://github.com/vertz-dev/vertz/commit/d2208316b502e667b9a435942609b8e5cb36ce71) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(vtz): add vitest-compatible mock APIs to `@vertz/test`
+
+  Real-world test suites written against vitest often call `getMockImplementation()`,
+  `getMockName()`, `mockName()`, and `withImplementation()` on mock functions. Our
+  runtime exposed `mock()` / `vi.fn()` without those methods, so tests migrated
+  from vitest hit `TypeError: x.getMockImplementation is not a function` (surfaced
+  in #2731).
+
+  This PR fills the gap. Added to every mock created by `mock()`, `vi.fn()`, and
+  `spyOn()`:
+
+  - **`getMockImplementation()`** — returns the current default implementation, or
+    `undefined` if none is set. Does not consider the once-queue (matches vitest).
+  - **`getMockName()`** — returns the display name set via `mockName()`. Defaults
+    to `''` (empty string).
+  - **`mockName(name)`** — sets the display name for diagnostics. Returns the mock
+    for chaining. Cleared by `mockReset()`; preserved by `mockClear()`.
+  - **`withImplementation(fn, cb)`** — temporarily swaps the default implementation
+    with `fn`, runs `cb`, then restores the original — awaiting `cb` if it returns
+    a Promise. Returns `cb`'s result. Restores cleanly on both sync and async
+    exceptions. Does not disturb `getMockImplementation()` after return.
+
+  Also added type declarations for all four methods to `MockFunction` in
+  `@vertz/test`, and added Rust + TS test coverage (10 Rust tests, 15 TS tests).
+
+  Not implemented (intentionally): `mockThrow` / `mockThrowOnce` (v4.1.0+ vitest,
+  would add surface without strong use-case), `mock.settledResults` /
+  `mock.instances` / `mock.contexts` / `mock.invocationCallOrder` (separate state
+  that the runtime doesn't currently track — follow-up if demand materializes).
+
+- [#2740](https://github.com/vertz-dev/vertz/pull/2740) [`48875ca`](https://github.com/vertz-dev/vertz/commit/48875ca7370dd4858134b928a2bbe6ffa2001275) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): rewrite bare imports inside pre-bundled `/@deps/` files
+
+  The dev server's pre-bundle short-circuit previously served files from
+  `.vertz/deps/` verbatim. When a bundle still contained bare specifiers
+  (e.g. an `@vertz/theme-shadcn` bundle with `import { css } from "@vertz/ui"`),
+  the browser rejected it with `Failed to resolve module specifier "@vertz/ui"`.
+  The pre-bundle branch now runs the same import rewriter used by the direct
+  `node_modules/` serve path. Closes #2730.
+
+- [#2742](https://github.com/vertz-dev/vertz/pull/2742) [`7f7ff47`](https://github.com/vertz-dev/vertz/commit/7f7ff478308153e488dbd4ab4e2a1208c3e2449d) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): `vtz ci` now loads `ci.config.ts` through vtz itself (no more bun/tsx dependency)
+
+  `vtz ci`'s config loader used to spawn an external JS runtime to evaluate
+  `ci.config.ts` — preferring bun, falling back to `node --import tsx`. That
+  made bun (or a tsx devDependency) a hard requirement for `vtz ci`, even
+  though vtz is itself a TypeScript runtime. The fallback chain was
+  discovered in #2739 while trying to drop bun from CI; the `@vertz/ci`
+  package.json's exports field also doesn't satisfy strict-Node ESM, which
+  tsx uses, so the fallback was fragile.
+
+  This PR makes vtz self-host:
+
+  - **New hidden subcommand `vtz __exec <file> [args...]`** — runs a
+    single JS/TS file through the vtz runtime with `process.argv` populated.
+    Not intended for end-user use; exists to support internal tooling like
+    `vtz ci`.
+  - **`find_runtime()` in `ci/config.rs`** now prefers the current vtz binary
+    via `std::env::current_exe()` with `__exec`. bun/node+tsx stay as
+    fallbacks for the edge case where `current_exe()` is unavailable.
+  - **`process.exit(code)` is now implemented** (via a new `op_process_exit`
+    op). It previously threw. The existing `.pipe/_loader.mjs` calls
+    `process.exit(0)` at the end of its run, so this is necessary for the
+    loader to terminate cleanly under vtz.
+
+  After this lands, `vtz ci` has zero external-runtime dependencies — vtz
+  alone is sufficient. Unblocks migrating CI from `bun install` to
+  `vtz install --frozen` (tracked separately).
+
+- [#2747](https://github.com/vertz-dev/vertz/pull/2747) [`7fea5d7`](https://github.com/vertz-dev/vertz/commit/7fea5d736750d879f44a09a8ef1d8bb64f91f9cd) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): semver resolver must not return versions that don't satisfy the range
+
+  `vtz install` incorrectly resolved `esbuild: ^0.27.3` to `0.25.12` when a stale
+  lockfile entry existed, because the lockfile-reuse fast path trusted the pinned
+  version without revalidating that it still satisfied the requested range. The
+  companion `graph_to_lockfile` path also wrote root-dep entries by name-only,
+  blindly accepting whichever hoisted version was present.
+
+  Both paths now verify that the chosen version satisfies the declared range. A
+  stale or out-of-range pin falls through to a fresh registry resolve instead of
+  silently being reused. Closes #2738.
+
 ## 0.2.68
 
 ### Patch Changes
