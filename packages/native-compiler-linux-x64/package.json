@@ -1,6 +1,6 @@
 {
   "name": "@vertz/native-compiler-linux-x64",
-  "version": "0.2.68",
+  "version": "0.2.69",
   "private": true,
   "description": "Vertz native compiler binary for Linux x64",
   "repository": {

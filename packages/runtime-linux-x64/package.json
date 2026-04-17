@@ -1,6 +1,6 @@
 {
   "name": "@vertz/runtime-linux-x64",
-  "version": "0.2.68",
+  "version": "0.2.69",
   "private": true,
   "description": "Vertz runtime binary for Linux x64",
   "repository": {
