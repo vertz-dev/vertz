@@ -10,6 +10,7 @@
 
 export type { CSSInput, CSSOutput, StyleEntry, StyleValue } from './css';
 export { css } from './css';
+export type { SelectorKey, StyleBlock, StyleDeclarations } from './style-block';
 export type {
   CamelCSSDeclarations,
   CamelCSSPropertyName,
