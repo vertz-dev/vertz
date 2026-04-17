@@ -19,10 +19,13 @@ try {
   const platform = process.platform === 'darwin' ? 'darwin' : 'linux';
   const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
   const binaryName = `vertz-compiler.${platform}-${arch}.node`;
-  require.resolve(`@vertz/native-compiler/${binaryName}`);
+  // Actually load the binary — resolving isn't enough because the vtz runtime
+  // cannot currently execute N-API `.node` addons and fails with a UTF-8 read
+  // error. Runtimes that do support `.node` (e.g. bun) succeed here.
+  require(`@vertz/native-compiler/${binaryName}`);
   nativeCompilerAvailable = true;
 } catch {
-  // Binary not available — mock the module
+  // Binary not loadable — mock the module
 }
 
 // Export for tests to use with describe.skipIf

@@ -24,6 +24,37 @@ pub fn rewrite_imports(
     let mut i = 0;
 
     while i < len {
+        // Skip line comments (`// ...`) — apostrophes or `import`/`export` words
+        // inside a comment must not start string scanning or be rewritten.
+        // Regression guard for #2730: comments like `// indicator's data-state`
+        // otherwise opened an unterminated fake string that swallowed real
+        // `import` statements downstream.
+        if chars[i] == '/' && i + 1 < len && chars[i + 1] == '/' {
+            while i < len && chars[i] != '\n' {
+                result.push(chars[i]);
+                i += 1;
+            }
+            continue;
+        }
+
+        // Skip block comments (`/* ... */`) for the same reason.
+        if chars[i] == '/' && i + 1 < len && chars[i + 1] == '*' {
+            result.push(chars[i]);
+            result.push(chars[i + 1]);
+            i += 2;
+            while i < len {
+                if chars[i] == '*' && i + 1 < len && chars[i + 1] == '/' {
+                    result.push(chars[i]);
+                    result.push(chars[i + 1]);
+                    i += 2;
+                    break;
+                }
+                result.push(chars[i]);
+                i += 1;
+            }
+            continue;
+        }
+
         // Skip string literals so we don't match 'import'/'export' inside strings
         if chars[i] == '\'' || chars[i] == '"' {
             let quote = chars[i];
@@ -223,6 +254,28 @@ fn find_from_keyword(chars: &[char], start: usize, len: usize) -> Option<usize> 
     let limit = len.min(start + 2000);
 
     while i < limit {
+        // Skip line comments so apostrophes or `from` inside them don't
+        // derail the search. Mirrors the main loop in `rewrite_imports`.
+        if i + 1 < len && chars[i] == '/' && chars[i + 1] == '/' {
+            while i < len && chars[i] != '\n' {
+                i += 1;
+            }
+            continue;
+        }
+
+        // Skip block comments for the same reason.
+        if i + 1 < len && chars[i] == '/' && chars[i + 1] == '*' {
+            i += 2;
+            while i < len {
+                if chars[i] == '*' && i + 1 < len && chars[i + 1] == '/' {
+                    i += 2;
+                    break;
+                }
+                i += 1;
+            }
+            continue;
+        }
+
         // Skip string literals to avoid matching 'from' inside strings
         if i < len && (chars[i] == '\'' || chars[i] == '"') {
             let quote = chars[i];
@@ -788,6 +841,79 @@ const msg = `import something`;"#;
         assert_eq!(
             result, code,
             "String literals containing 'import'/'export' must be preserved"
+        );
+    }
+
+    // Regression for #2730: a line comment containing an apostrophe (e.g.
+    // "// indicator's data-state") must not hijack the rewriter into string
+    // mode and swallow real `import` statements that follow. Reproduces the
+    // real-world failure in `@vertz/theme-shadcn/dist/index.js` where 5 bare
+    // `@vertz/ui` imports leaked to the browser downstream of such comments.
+    #[test]
+    fn test_rewrite_imports_ignores_apostrophe_in_line_comment() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+
+        let code = r#"import { variants } from "@vertz/ui";
+// CSS controls which icon is visible based on the indicator's data-state.
+function foo() { return 42; }
+import { css } from "@vertz/ui";
+export { variants, css, foo };
+"#;
+
+        let result = rewrite_imports(code, &src_dir.join("app.tsx"), &src_dir, tmp.path(), None);
+
+        assert!(
+            !result.contains("from \"@vertz/ui\""),
+            "bare `@vertz/ui` must not leak past a line comment with an apostrophe:\n{}",
+            result
+        );
+    }
+
+    // Regression for #2730 (block comment variant): apostrophes inside a
+    // `/* ... */` block comment must also be ignored, not treated as the
+    // opening quote of a string literal.
+    #[test]
+    fn test_rewrite_imports_ignores_apostrophe_in_block_comment() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+
+        let code = r#"import { a } from "pkg-a";
+/* describes the consumer's intent across
+   multiple lines — note the apostrophe */
+import { b } from "pkg-b";
+"#;
+
+        let result = rewrite_imports(code, &src_dir.join("app.tsx"), &src_dir, tmp.path(), None);
+
+        assert!(
+            !result.contains("from \"pkg-a\"") && !result.contains("from \"pkg-b\""),
+            "bare specifiers must be rewritten across a block comment with an apostrophe:\n{}",
+            result
+        );
+    }
+
+    // The rewriter must preserve comment content verbatim — it must not
+    // mutate text inside `//` or `/* */` (e.g. by trying to rewrite a
+    // bare-looking identifier that happens to live in a comment).
+    #[test]
+    fn test_rewrite_imports_preserves_comment_content() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+
+        let code = r#"// import { x } from "some-pkg"; — this is documentation
+/* import { y } from 'other-pkg'; */
+const x = 1;
+"#;
+
+        let result = rewrite_imports(code, &src_dir.join("app.tsx"), &src_dir, tmp.path(), None);
+
+        assert_eq!(
+            result, code,
+            "comment text containing import/export syntax must be preserved verbatim"
         );
     }
 
