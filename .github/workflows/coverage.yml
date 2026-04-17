@@ -39,15 +39,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: native
-          shared-key: vtz-ci-dev
+          shared-key: vtz-ci-release
 
-      - name: Build vtz from source (dev profile)
+      - name: Build vtz from source (release profile)
         run: |
           cd native
-          cargo build -p vtz
+          cargo build -p vtz --release
           cd ..
           mkdir -p packages/runtime-linux-x64
-          cp native/target/debug/vtz packages/runtime-linux-x64/vtz
+          cp native/target/release/vtz packages/runtime-linux-x64/vtz
           chmod +x packages/runtime-linux-x64/vtz
           bash scripts/link-runtime.sh
           echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
