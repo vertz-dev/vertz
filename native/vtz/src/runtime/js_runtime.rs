@@ -255,18 +255,17 @@ impl VertzJsRuntime {
                 .to_string_lossy()
                 .to_string()
         });
-        let mut loader = VertzModuleLoader::new_with_shared_cache(
-            &root_dir,
-            cache_enabled,
-            options.plugin.clone(),
-            options.shared_source_cache.clone(),
-            options.v8_code_cache.clone(),
-            options.resolution_cache.clone(),
+        // Test mode enables export interposition on all compiled modules,
+        // which is what makes spyOn() work on ESM exports.
+        let module_loader = Rc::new(
+            VertzModuleLoader::builder(&root_dir, options.plugin.clone())
+                .compile_cache_enabled(cache_enabled)
+                .shared_source_cache(options.shared_source_cache.clone())
+                .v8_code_cache(options.v8_code_cache.clone())
+                .resolution_cache(options.resolution_cache.clone())
+                .test_mode(true)
+                .build(),
         );
-        // Enable test mode so all compiled modules get export interposition
-        // for spyOn() support on ESM exports.
-        loader.set_test_mode(true);
-        let module_loader = Rc::new(loader);
         let snapshot = crate::test::snapshot::get_test_snapshot();
 
         let mut runtime = JsRuntime::new(RuntimeOptions {
@@ -466,14 +465,14 @@ impl VertzJsRuntime {
                 .to_string()
         });
 
-        let module_loader = Rc::new(VertzModuleLoader::new_with_shared_cache(
-            &root_dir,
-            cache_enabled,
-            options.plugin.clone(),
-            options.shared_source_cache.clone(),
-            options.v8_code_cache.clone(),
-            options.resolution_cache.clone(),
-        ));
+        let module_loader = Rc::new(
+            VertzModuleLoader::builder(&root_dir, options.plugin.clone())
+                .compile_cache_enabled(cache_enabled)
+                .shared_source_cache(options.shared_source_cache.clone())
+                .v8_code_cache(options.v8_code_cache.clone())
+                .resolution_cache(options.resolution_cache.clone())
+                .build(),
+        );
 
         let snapshot = crate::runtime::snapshot::get_production_snapshot();
 
