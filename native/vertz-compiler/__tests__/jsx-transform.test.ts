@@ -928,7 +928,11 @@ describe('Feature: Reactive source API property access in JSX', () => {
     });
 
     describe('When a child expression references a reactive source property', () => {
-      it('Then wraps the child in __child() (not __insert())', () => {
+      it('Then tracks reactivity (not __insert())', () => {
+        // `??` compiles through __conditional (the nullish-coalescing variant),
+        // which is a reactive primitive like __child. Either __child or
+        // __conditional keeps reactivity — only __insert is the non-reactive
+        // static path that must NOT be used here.
         const code = compileAndGetCode(`
           import { useAuth } from '@vertz/ui/auth';
           function App() {
@@ -936,7 +940,7 @@ describe('Feature: Reactive source API property access in JSX', () => {
             return <span>{auth.user?.name ?? auth.user?.email}</span>;
           }
         `);
-        expect(code).toContain('__child(');
+        expect(code).toMatch(/__(child|conditional)\(/);
         expect(code).not.toMatch(/__insert\([^,]+,\s*auth\.user/);
       });
     });
