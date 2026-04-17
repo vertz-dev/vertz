@@ -27,7 +27,7 @@ use crate::watcher::SharedModuleGraph;
 #[derive(Clone)]
 pub struct DevServerState {
     /// Framework plugin for compilation, HMR, and MCP extensibility.
-    pub plugin: Arc<dyn crate::plugin::FrameworkPlugin>,
+    pub plugin: Arc<dyn crate::plugin::VtzPlugin>,
     pub pipeline: CompilationPipeline,
     pub root_dir: PathBuf,
     pub src_dir: PathBuf,
@@ -869,7 +869,7 @@ fn parse_location_from_message(message: &str) -> (Option<u32>, Option<u32>) {
 mod tests {
     use super::*;
 
-    fn test_plugin() -> Arc<dyn crate::plugin::FrameworkPlugin> {
+    fn test_plugin() -> Arc<dyn crate::plugin::VtzPlugin> {
         Arc::new(crate::plugin::vertz::VertzPlugin)
     }
 

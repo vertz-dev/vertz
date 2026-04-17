@@ -54,7 +54,7 @@ pub struct VertzRuntimeOptions {
     /// Whether to enable the disk-backed compilation cache. Defaults to false.
     pub compile_cache: bool,
     /// Framework plugin for compilation. Defaults to VertzPlugin.
-    pub plugin: Arc<dyn crate::plugin::FrameworkPlugin>,
+    pub plugin: Arc<dyn crate::plugin::VtzPlugin>,
     /// Shared in-memory source cache for cross-isolate deduplication.
     /// When set, compiled sources are cached in memory and shared across
     /// worker threads, eliminating redundant disk I/O.

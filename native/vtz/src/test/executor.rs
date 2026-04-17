@@ -203,7 +203,7 @@ fn execute_test_file_inner(
     root_dir: &str,
     options: &ExecuteOptions,
 ) -> Result<ExecuteInnerResult, AnyError> {
-    let plugin: std::sync::Arc<dyn crate::plugin::FrameworkPlugin> =
+    let plugin: std::sync::Arc<dyn crate::plugin::VtzPlugin> =
         std::sync::Arc::new(crate::plugin::vertz::VertzPlugin);
     let mut runtime = VertzJsRuntime::new_for_test(VertzRuntimeOptions {
         root_dir: Some(root_dir.to_string()),

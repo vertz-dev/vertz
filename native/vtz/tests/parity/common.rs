@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use vertz_runtime::config::ServerConfig;
 use vertz_runtime::plugin::vertz::VertzPlugin;
-use vertz_runtime::plugin::FrameworkPlugin;
+use vertz_runtime::plugin::VtzPlugin;
 use vertz_runtime::server::http::build_router;
 use vertz_runtime::server::module_server::DevServerState;
 
@@ -24,7 +24,7 @@ pub fn fixture_path(name: &str) -> PathBuf {
 }
 
 /// Create the default Vertz framework plugin for tests.
-pub fn test_plugin() -> Arc<dyn FrameworkPlugin> {
+pub fn test_plugin() -> Arc<dyn VtzPlugin> {
     Arc::new(VertzPlugin)
 }
 

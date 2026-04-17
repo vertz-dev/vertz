@@ -1,4 +1,4 @@
-use crate::plugin::FrameworkPlugin;
+use crate::plugin::VtzPlugin;
 use std::path::Path;
 
 /// The HMR client JS (embedded at compile time). Runtime-provided, generic.
@@ -27,7 +27,7 @@ pub fn generate_html_shell(
     preload_hints: &[String],
     inline_css: Option<&str>,
     title: &str,
-    plugin: &dyn FrameworkPlugin,
+    plugin: &dyn VtzPlugin,
 ) -> String {
     generate_html_shell_with_hmr(
         entry_path,
@@ -51,7 +51,7 @@ pub fn generate_html_shell_with_hmr(
     inline_css: Option<&str>,
     title: &str,
     enable_hmr: bool,
-    plugin: &dyn FrameworkPlugin,
+    plugin: &dyn VtzPlugin,
 ) -> String {
     let entry_url = path_to_url(entry_path, root_dir);
     let root_id = plugin.root_element_id();

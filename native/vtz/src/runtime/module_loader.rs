@@ -12,7 +12,7 @@ use deno_core::ModuleType;
 use deno_core::RequestedModuleType;
 use deno_core::ResolutionKind;
 
-use crate::plugin::{CompileContext, FrameworkPlugin};
+use crate::plugin::{CompileContext, VtzPlugin};
 use crate::runtime::compile_cache::{
     CachedCompilation, CompileCache, SharedResolutionCache, SharedSourceCache, V8CodeCache,
 };
@@ -61,7 +61,7 @@ pub struct VertzModuleLoader {
     newline_indices: NewlineIndexStore,
     canon_cache: RefCell<HashMap<PathBuf, PathBuf>>,
     compile_cache: CompileCache,
-    plugin: std::sync::Arc<dyn FrameworkPlugin>,
+    plugin: std::sync::Arc<dyn VtzPlugin>,
     /// Canonical paths of modules that should be intercepted with mock proxies.
     /// Key: canonical file path, Value: raw specifier (for `globalThis.__vertz_mocked_modules` lookup).
     mocked_paths: RefCell<HashMap<PathBuf, String>>,
@@ -94,7 +94,7 @@ pub struct VertzModuleLoader {
 /// that nothing gets forgotten.
 pub struct VertzModuleLoaderBuilder {
     root_dir: PathBuf,
-    plugin: std::sync::Arc<dyn FrameworkPlugin>,
+    plugin: std::sync::Arc<dyn VtzPlugin>,
     compile_cache_enabled: bool,
     shared_source_cache: Option<std::sync::Arc<SharedSourceCache>>,
     v8_code_cache: Option<std::sync::Arc<V8CodeCache>>,
@@ -103,7 +103,7 @@ pub struct VertzModuleLoaderBuilder {
 }
 
 impl VertzModuleLoaderBuilder {
-    fn new(root_dir: &str, plugin: std::sync::Arc<dyn FrameworkPlugin>) -> Self {
+    fn new(root_dir: &str, plugin: std::sync::Arc<dyn VtzPlugin>) -> Self {
         Self {
             root_dir: PathBuf::from(root_dir),
             plugin,
@@ -178,7 +178,7 @@ impl VertzModuleLoaderBuilder {
 impl VertzModuleLoader {
     /// Convenience constructor: a loader with defaults (no shared caches, no
     /// disk compile cache, not in test mode).
-    pub fn new(root_dir: &str, plugin: std::sync::Arc<dyn FrameworkPlugin>) -> Self {
+    pub fn new(root_dir: &str, plugin: std::sync::Arc<dyn VtzPlugin>) -> Self {
         Self::builder(root_dir, plugin).build()
     }
 
@@ -186,7 +186,7 @@ impl VertzModuleLoader {
     /// caches and test mode, then call `.build()`.
     pub fn builder(
         root_dir: &str,
-        plugin: std::sync::Arc<dyn FrameworkPlugin>,
+        plugin: std::sync::Arc<dyn VtzPlugin>,
     ) -> VertzModuleLoaderBuilder {
         VertzModuleLoaderBuilder::new(root_dir, plugin)
     }
@@ -4278,7 +4278,7 @@ mod tests {
         tempfile::tempdir().unwrap()
     }
 
-    fn test_plugin() -> std::sync::Arc<dyn FrameworkPlugin> {
+    fn test_plugin() -> std::sync::Arc<dyn VtzPlugin> {
         std::sync::Arc::new(crate::plugin::vertz::VertzPlugin)
     }
 
@@ -4857,7 +4857,7 @@ export function Hello() {
     /// the module loader delegates compilation to the plugin.
     struct MarkerPlugin;
 
-    impl FrameworkPlugin for MarkerPlugin {
+    impl VtzPlugin for MarkerPlugin {
         fn name(&self) -> &str {
             "marker"
         }
@@ -4888,7 +4888,7 @@ export function Hello() {
         let ts_file = tmp.path().join("test.ts");
         std::fs::write(&ts_file, "const x: number = 42; export { x };").unwrap();
 
-        let plugin: std::sync::Arc<dyn FrameworkPlugin> = std::sync::Arc::new(MarkerPlugin);
+        let plugin: std::sync::Arc<dyn VtzPlugin> = std::sync::Arc::new(MarkerPlugin);
         let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), plugin);
         let specifier = ModuleSpecifier::from_file_path(&ts_file).unwrap();
         let response = loader.load(&specifier, None, false, RequestedModuleType::None);

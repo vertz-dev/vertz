@@ -1730,7 +1730,7 @@ async fn run_internal_exec(file: &str, extra_args: &[String]) -> Result<i32, Str
         .or_else(|| std::env::current_dir().ok())
         .unwrap_or_else(|| std::path::PathBuf::from("."));
 
-    let plugin: Arc<dyn vertz_runtime::plugin::FrameworkPlugin> =
+    let plugin: Arc<dyn vertz_runtime::plugin::VtzPlugin> =
         Arc::new(vertz_runtime::plugin::vertz::VertzPlugin);
 
     let mut runtime = VertzJsRuntime::new(VertzRuntimeOptions {

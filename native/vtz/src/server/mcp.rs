@@ -1590,7 +1590,7 @@ mod tests {
     use crate::watcher;
     use std::time::Instant;
 
-    fn test_plugin() -> std::sync::Arc<dyn crate::plugin::FrameworkPlugin> {
+    fn test_plugin() -> std::sync::Arc<dyn crate::plugin::VtzPlugin> {
         std::sync::Arc::new(crate::plugin::vertz::VertzPlugin)
     }
 

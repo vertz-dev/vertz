@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 /// Implementations provide framework-specific compilation, HMR behavior,
 /// and client-side scripts. The runtime handles everything else: file watching,
 /// module graph, caching, HTTP serving, WebSocket transport.
-pub trait FrameworkPlugin: Send + Sync {
+pub trait VtzPlugin: Send + Sync {
     /// Human-readable name (e.g., "vertz", "react").
     fn name(&self) -> &str;
 
@@ -298,7 +298,7 @@ mod tests {
     // A minimal plugin for testing the trait and default impls.
     struct TestPlugin;
 
-    impl FrameworkPlugin for TestPlugin {
+    impl VtzPlugin for TestPlugin {
         fn name(&self) -> &str {
             "test"
         }
