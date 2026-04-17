@@ -36,7 +36,13 @@ export { globalCss } from './global-css';
 export { s } from './s';
 export type { CompiledTheme, CompileThemeOptions, Theme, ThemeInput } from './theme';
 export { compileTheme, defineTheme } from './theme';
-export type { TokenPath, VertzThemeTokens } from './token';
+export type {
+  TokenPath,
+  VertzThemeColors,
+  VertzThemeFonts,
+  VertzThemeSpacing,
+  VertzThemeTokens,
+} from './token';
 export { token } from './token';
 export type { ThemeProviderProps } from './theme-provider';
 export { ThemeProvider } from './theme-provider';

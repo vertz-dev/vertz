@@ -44,6 +44,9 @@ export type {
   VariantFunction,
   VariantProps,
   VariantsConfig,
+  VertzThemeColors,
+  VertzThemeFonts,
+  VertzThemeSpacing,
   VertzThemeTokens,
 } from './css';
 export {

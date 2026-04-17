@@ -33,6 +33,7 @@
 import type { StyleEntry } from './css';
 import { css } from './css';
 import type { StyleBlock } from './style-block';
+import { isToken } from './token';
 
 /** A single block value: either token-string entries or a StyleBlock object. */
 type BlockValue = StyleEntry[] | StyleBlock;
@@ -90,7 +91,7 @@ function serializeBlockValue(value: BlockValue): string {
   return keys
     .map((key) => {
       const v = (value as Record<string, unknown>)[key];
-      if (v != null && typeof v === 'object' && !Array.isArray(v)) {
+      if (v != null && typeof v === 'object' && !Array.isArray(v) && !isToken(v)) {
         return `${key}:{${serializeBlockValue(v as StyleBlock)}}`;
       }
       return `${key}=${String(v)}`;
