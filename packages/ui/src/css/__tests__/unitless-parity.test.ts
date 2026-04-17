@@ -40,9 +40,7 @@ function parseRustMatcher(source: string): Set<string> {
 }
 
 function parseRustArray(source: string): Set<string> {
-  const match = source.match(
-    /pub const UNITLESS_PROPERTIES:\s*&\[&str\]\s*=\s*&\[([\s\S]*?)\];/,
-  );
+  const match = source.match(/pub const UNITLESS_PROPERTIES:\s*&\[&str\]\s*=\s*&\[([\s\S]*?)\];/);
   if (!match) throw new Error('Could not find UNITLESS_PROPERTIES array in css_unitless.rs');
   return extractQuotedNames(match[1] ?? '');
 }
