@@ -1,6 +1,6 @@
 //! CSS properties that accept unitless numeric values (no 'px' suffix).
 //! Mirror of `packages/ui/src/css/unitless-properties.ts`. Parity enforced by
-//! `packages/ui/scripts/check-unitless-parity.ts`.
+//! `packages/ui/src/css/__tests__/unitless-parity.test.ts`.
 
 /// Return true if a camelCase CSS property name is unitless.
 pub fn is_unitless(camel_property: &str) -> bool {

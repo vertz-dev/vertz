@@ -2,7 +2,7 @@
  * CSS properties that accept unitless numeric values (no 'px' suffix).
  * Single source of truth — mirrored in
  * `native/vertz-compiler-core/src/css_unitless.rs` (parity enforced by
- * `packages/ui/scripts/check-unitless-parity.ts`).
+ * `packages/ui/src/css/__tests__/unitless-parity.test.ts`).
  *
  * Matches React's behavior — see react-dom/src/shared/CSSProperty.js.
  * Keys are camelCase.
