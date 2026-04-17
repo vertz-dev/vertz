@@ -34,6 +34,19 @@ export interface MockFunction<TArgs extends unknown[] = unknown[], TReturn = unk
   mockRejectedValue(value: unknown): MockFunction<TArgs, TReturn>;
   mockRejectedValueOnce(value: unknown): MockFunction<TArgs, TReturn>;
   mockImplementationOnce(fn: (...args: TArgs) => TReturn): MockFunction<TArgs, TReturn>;
+  mockReturnThis(): MockFunction<TArgs, TReturn>;
+  /** Returns the current implementation, or `undefined` if none is set. */
+  getMockImplementation(): ((...args: TArgs) => TReturn) | undefined;
+  /** Returns the name assigned via `mockName()`, or `''` if unset. */
+  getMockName(): string;
+  /** Sets the display name used in diagnostics. Returns the mock for chaining. */
+  mockName(name: string): MockFunction<TArgs, TReturn>;
+  /**
+   * Temporarily sets the implementation to `fn` while running `cb`. Restores the
+   * prior implementation afterwards — awaiting `cb` if it returns a Promise.
+   * Returns whatever `cb` returns.
+   */
+  withImplementation<R>(fn: (...args: TArgs) => TReturn, cb: () => R): R;
   mockClear(): MockFunction<TArgs, TReturn>;
   mockReset(): MockFunction<TArgs, TReturn>;
   mockRestore(): MockFunction<TArgs, TReturn>;
