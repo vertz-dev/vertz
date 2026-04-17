@@ -1,5 +1,93 @@
 # @vertz/runtime
 
+## 0.2.70
+
+### Patch Changes
+
+- [#2750](https://github.com/vertz-dev/vertz/pull/2750) [`f7f05f4`](https://github.com/vertz-dev/vertz/commit/f7f05f4a7e56da83c47b37817149e071ce13522b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): vi.mock propagates through transitive imports (resolves #2731)
+
+  When a test file did `vi.mock('m', () => ({ fn: ... }))` and then drove
+  production code that itself called `await import('m')`, the production code
+  got the REAL frozen module namespace — `spyOn` mutations from the test
+  didn't propagate. Static imports of mocked modules were fine; only the
+  dynamic-import path leaked the real module.
+
+  Three concrete fixes, all needed together:
+
+  1. **Wrap dynamic `import()` in non-test files when the test runner is
+     active.** The mock-hoisting compiler pass already wrapped dynamic imports
+     in test files via `__vertz_unwrap_module` so frozen ES module namespaces
+     become mutable; this PR extends the same wrap to every module compiled
+     while `spy_exports` is on (i.e., the entire dependency graph during a
+     `vtz test` run). Without it, `cli.ts → await import('@vertz/compiler')`
+     bypassed the spy installed by `cli.test.ts`.
+
+  2. **Restore initial impl on `mockRestore()` for `mock(impl)`.** vtz had
+     `mockRestore = mockReset` for plain mocks, which dropped the
+     factory-supplied implementation to `null`. This broke the common pattern
+     `vi.mock('m', () => ({ fn: mock(() => obj) }))` + `vi.restoreAllMocks()`
+     in `afterEach` — the first cleanup nuked `fn`'s impl for every following
+     test. Now matches vitest: "for `vi.fn(impl)`, `mockRestore` reverts to
+     `impl`". `mockReset` still clears, as documented.
+
+  3. **Union synthetic-polyfill exports into the mock proxy.** When mocking a
+     bare specifier with a vtz polyfill (esbuild, `node:*`), the proxy module
+     only exported names declared on disk + names returned by the factory.
+     CJS modules like esbuild expose nothing the regex-based extractor can see,
+     so transitive imports of unmocked exports (`import { transformSync } from
+'esbuild'` in `@vertz/ui-server/bun-plugin`) failed at import time with
+     "module does not provide an export named transformSync" — even when the
+     call path never reached `transformSync()` at runtime. The proxy now
+     advertises the full polyfill surface (values are `undefined` unless the
+     factory supplied them), preserving spec-compliant import resolution.
+
+  Unskipped 3 test blocks that had been parked on this:
+  `packages/cli/src/__tests__/cli.test.ts` (codegen command action),
+  `packages/cli/src/production-build/__tests__/orchestrator.test.ts`
+  (BuildOrchestrator), and
+  `packages/cli/src/production-build/__tests__/ui-build-pipeline.test.ts`
+  (buildUI). 133/134 tests pass; one buildUI assertion that expects an actual
+  Brotli `.br` sidecar remains skipped because vtz's `node:zlib` polyfill is a
+  passthrough — tracked separately as a runtime polyfill gap, not a mock issue.
+
+- [#2749](https://github.com/vertz-dev/vertz/pull/2749) [`d5d0a76`](https://github.com/vertz-dev/vertz/commit/d5d0a7647977217f4cb1b7aaba930af6fc5435c4) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): `node:http.createServer()` + `listen()` + `fetch()` + `close()` no longer hangs under the vtz test runner (resolves #2718, #2720)
+
+  The synthetic `node:http` module exposed `createServer()` whose `listen()`
+  implementation treated `globalThis.__vtz_http.serve()` as asynchronous —
+  but `serve()` is a synchronous op that returns the server object directly.
+  The resulting `.then()` on a non-thenable threw a `TypeError` that was
+  swallowed by the `new Promise((resolve) => server.listen(0, resolve))`
+  idiom, so the listen callback never fired and tests hung at the 120 s
+  watchdog. The same bug existed in the CJS `require('http')` shim.
+
+  Fixing the shim surfaced three secondary defects in the underlying op
+  layer:
+
+  - **`close()` aborted the axum task immediately**, cancelling in-flight
+    response futures mid-reply so clients hung on `fetch()`. Replaced the
+    abort-handle teardown with axum's `with_graceful_shutdown(...)` signal
+    so existing connections drain before the task exits.
+  - **`op_http_serve_respond` keyed the pending oneshot map per server**,
+    so replying after close (which removed the `ServerInstance` from state)
+    silently dropped the response. Moved the pending-responses map onto
+    `HttpServeState` and keyed it globally by `request_id` so in-flight
+    replies work across close.
+  - **`op_http_serve_accept` and `op_http_serve_respond` returned an
+    "Unknown server id" error** when the JS accept loop re-polled after
+    `close()`, poisoning the event loop and failing unrelated tests. Both
+    ops now treat a missing server as a soft null/no-op.
+
+  The JS `createServer()` shim also gained proper Node-compatible semantics:
+  `listen(cb)` invokes the callback via `queueMicrotask`; `close(cb)`
+  defers the callback until all in-flight requests finish; new connections
+  received after `close()` receive a `503` instead of entering the user
+  handler.
+
+  Previously-quarantined `packages/ui-server/src/__tests__/node-handler.local.ts`
+  and `packages/docs/src/__tests__/docs-cli-actions.local.ts` are restored
+  to `.test.ts` and now run under `vtz test`. The `test:integration` npm
+  scripts that fell back to bun for these files are removed.
+
 ## 0.2.69
 
 ### Patch Changes

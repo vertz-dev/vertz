@@ -1,6 +1,6 @@
 {
   "name": "@vertz/native-compiler-linux-arm64",
-  "version": "0.2.69",
+  "version": "0.2.70",
   "private": true,
   "description": "Vertz native compiler binary for Linux arm64",
   "repository": {

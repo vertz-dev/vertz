@@ -1,5 +1,12 @@
 # @vertz/desktop
 
+## 0.2.70
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.70
+
 ## 0.2.69
 
 ### Patch Changes
