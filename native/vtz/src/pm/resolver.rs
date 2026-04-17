@@ -8,6 +8,38 @@ use futures_util::stream::{FuturesUnordered, StreamExt};
 use node_semver::{Range, Version};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
+/// Returns true iff `version_str` satisfies `range_str` under npm semver rules.
+///
+/// Both inputs must parse successfully; otherwise returns false (fail-closed).
+/// `"github:..."` specifiers and other non-semver ranges always return false —
+/// callers must route those through their own equality check.
+pub fn version_satisfies_range(version_str: &str, range_str: &str) -> bool {
+    let Ok(version) = Version::parse(version_str) else {
+        return false;
+    };
+    let Ok(range) = Range::parse(range_str) else {
+        return false;
+    };
+    range.satisfies(&version)
+}
+
+/// Returns true iff a lockfile entry's pinned version still satisfies `range_str`.
+///
+/// This guards the lockfile-reuse fast path in `resolve_one_task`: a stale entry
+/// (e.g. `esbuild@^0.27.3` → 0.25.12, left over from a prior install where the
+/// range or registry state differed) must NOT be silently trusted. If the pinned
+/// version no longer satisfies the range, callers must fall through to a fresh
+/// registry resolve.
+///
+/// GitHub entries (range starts with `github:`) are treated as always-valid here,
+/// because they are pinned by SHA — semver has no meaning for them.
+pub fn lockfile_entry_satisfies_range(entry: &LockfileEntry, range_str: &str) -> bool {
+    if range_str.starts_with("github:") || range_str.starts_with("link:") {
+        return true;
+    }
+    version_satisfies_range(&entry.version, range_str)
+}
+
 /// Resolve the best matching version for a range from available versions
 pub fn resolve_version<'a>(
     range_str: &str,
@@ -260,8 +292,12 @@ async fn resolve_one_task<'a>(
     // Check lockfile first for pinned version (use ORIGINAL range for lockfile key)
     let lockfile_key = Lockfile::spec_key(name, range);
     if let Some(entry) = lockfile.entries.get(&lockfile_key) {
-        // If override is active, ignore lockfile version — use override instead
-        if effective_range == *range {
+        // If override is active, ignore lockfile version — use override instead.
+        // Also require the pinned version to still satisfy the requested range.
+        // A stale or corrupted lockfile entry (e.g. `esbuild@^0.27.3` → 0.25.12
+        // left over from an earlier install) must NOT be silently trusted —
+        // fall through to the registry-resolve path so a fresh pick is made.
+        if effective_range == *range && lockfile_entry_satisfies_range(entry, range) {
             let graph_key = ResolvedGraph::key(name, &entry.version);
 
             let resolved = ResolvedPackage {
@@ -522,12 +558,17 @@ pub fn graph_to_lockfile(
 
     for (name, range) in all_deps {
         let key = Lockfile::spec_key(name, range);
-        // Find the resolved version for this dep
-        if let Some(pkg) = graph
-            .packages
-            .values()
-            .find(|p| p.name == *name && p.nest_path.is_empty())
-        {
+        // Find the resolved version for this dep. Match by name AND by semver range:
+        // without the range check, a root dep would get wired to whichever version was
+        // hoisted, even if that version doesn't satisfy the declared range (see #2738).
+        // Fall back to name-only for `link:` workspace refs and `github:` specifiers,
+        // which are not semver.
+        let is_non_semver = range.starts_with("github:") || range.starts_with("link:");
+        if let Some(pkg) = graph.packages.values().find(|p| {
+            p.name == *name
+                && p.nest_path.is_empty()
+                && (is_non_semver || version_satisfies_range(&p.version, range))
+        }) {
             let graph_key = ResolvedGraph::key(name, &pkg.version);
             let scripts = graph.scripts.get(&graph_key).cloned().unwrap_or_default();
             lockfile.entries.insert(
@@ -756,6 +797,181 @@ mod tests {
         );
         let result = resolve_version(">=1.0.0 <2.0.0", &meta.versions, &meta.dist_tags).unwrap();
         assert_eq!(result.version, "1.5.0");
+    }
+
+    // Regression tests for #2738: `^0.27.3` must never match 0.25.12.
+    // Bug: the resolver was trusting stale lockfile entries without revalidating
+    // that the pinned version actually satisfies the range.
+    #[test]
+    fn test_resolve_version_caret_rejects_lower_minor() {
+        // esbuild scenario: range `^0.27.3` must pick 0.27.3, not 0.25.12.
+        let meta = make_metadata(
+            "esbuild",
+            vec![
+                make_version("esbuild", "0.25.12", &[]),
+                make_version("esbuild", "0.27.0", &[]),
+                make_version("esbuild", "0.27.3", &[]),
+            ],
+        );
+        let result = resolve_version("^0.27.3", &meta.versions, &meta.dist_tags).unwrap();
+        assert_eq!(
+            result.version, "0.27.3",
+            "^0.27.3 must pick the highest version in [0.27.3, 0.28.0), not 0.25.12"
+        );
+    }
+
+    #[test]
+    fn test_version_satisfies_range_caret_zero_x() {
+        // Directly validate the bounded-caret semantics we rely on at the lockfile-reuse
+        // path in `resolve_one_task`: a pinned 0.25.12 must NOT be treated as satisfying
+        // `^0.27.3`.
+        assert!(
+            !version_satisfies_range("0.25.12", "^0.27.3"),
+            "0.25.12 must NOT satisfy ^0.27.3"
+        );
+        assert!(
+            version_satisfies_range("0.27.3", "^0.27.3"),
+            "0.27.3 must satisfy ^0.27.3"
+        );
+        assert!(
+            version_satisfies_range("0.27.5", "^0.27.3"),
+            "0.27.5 must satisfy ^0.27.3"
+        );
+        assert!(
+            !version_satisfies_range("0.28.0", "^0.27.3"),
+            "0.28.0 must NOT satisfy ^0.27.3"
+        );
+    }
+
+    #[test]
+    fn test_version_satisfies_range_tilde() {
+        // `~0.27.3` == [0.27.3, 0.28.0)
+        assert!(
+            !version_satisfies_range("0.25.12", "~0.27.3"),
+            "0.25.12 must NOT satisfy ~0.27.3"
+        );
+        assert!(
+            version_satisfies_range("0.27.3", "~0.27.3"),
+            "0.27.3 must satisfy ~0.27.3"
+        );
+        assert!(
+            version_satisfies_range("0.27.5", "~0.27.3"),
+            "0.27.5 must satisfy ~0.27.3"
+        );
+        assert!(
+            !version_satisfies_range("0.28.0", "~0.27.3"),
+            "0.28.0 must NOT satisfy ~0.27.3"
+        );
+    }
+
+    #[test]
+    fn test_version_satisfies_range_explicit() {
+        // Explicit range `>=0.27.3 <0.28.0` accepts 0.27.3 and 0.27.5, rejects 0.25.12.
+        assert!(
+            !version_satisfies_range("0.25.12", ">=0.27.3 <0.28.0"),
+            "0.25.12 must NOT satisfy >=0.27.3 <0.28.0"
+        );
+        assert!(
+            version_satisfies_range("0.27.3", ">=0.27.3 <0.28.0"),
+            "0.27.3 must satisfy >=0.27.3 <0.28.0"
+        );
+        assert!(
+            version_satisfies_range("0.27.5", ">=0.27.3 <0.28.0"),
+            "0.27.5 must satisfy >=0.27.3 <0.28.0"
+        );
+    }
+
+    #[test]
+    fn test_graph_to_lockfile_rejects_hoisted_version_outside_range() {
+        // Regression for #2738: if the hoisted package version does not satisfy
+        // the declared range, `graph_to_lockfile` must NOT wire the lockfile
+        // entry for that range to it. Only a version that actually satisfies
+        // the range should be picked.
+        let mut graph = ResolvedGraph::default();
+        // Pretend hoisting picked an older `esbuild@0.25.12` (maybe from a
+        // stray transitive in a prior state). A newer `0.27.3` is nested.
+        graph.packages.insert(
+            "esbuild@0.25.12".to_string(),
+            ResolvedPackage {
+                name: "esbuild".to_string(),
+                version: "0.25.12".to_string(),
+                tarball_url: "https://registry.npmjs.org/esbuild/-/esbuild-0.25.12.tgz".to_string(),
+                integrity: "sha512-stale".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![], // hoisted to root
+                os: None,
+                cpu: None,
+            },
+        );
+        graph.packages.insert(
+            "esbuild@0.27.3".to_string(),
+            ResolvedPackage {
+                name: "esbuild".to_string(),
+                version: "0.27.3".to_string(),
+                tarball_url: "https://registry.npmjs.org/esbuild/-/esbuild-0.27.3.tgz".to_string(),
+                integrity: "sha512-correct".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec!["some-parent".to_string()], // nested
+                os: None,
+                cpu: None,
+            },
+        );
+
+        let mut deps = BTreeMap::new();
+        deps.insert("esbuild".to_string(), "^0.27.3".to_string());
+
+        let lockfile = graph_to_lockfile(&graph, &deps, &[], &HashSet::new());
+
+        // Before the fix, the hoisted-by-name lookup picked 0.25.12 and wrote it
+        // under the `esbuild@^0.27.3` key even though it doesn't satisfy the range.
+        // After the fix, the lookup must skip non-matching hoisted versions;
+        // the only entry the test can assert on is that 0.25.12 is NOT wired here.
+        if let Some(entry) = lockfile.entries.get("esbuild@^0.27.3") {
+            assert_ne!(
+                entry.version, "0.25.12",
+                "graph_to_lockfile must not wire ^0.27.3 to a hoisted 0.25.12"
+            );
+        }
+    }
+
+    #[test]
+    fn test_lockfile_entry_satisfies_for_current_range_rejects_stale() {
+        // Simulates a lockfile left over from an earlier install, pinned to 0.25.12
+        // under the key `esbuild@^0.27.3`. On the next install the resolver must NOT
+        // reuse this stale pin; it must re-resolve against the registry.
+        let stale = LockfileEntry {
+            name: "esbuild".to_string(),
+            range: "^0.27.3".to_string(),
+            version: "0.25.12".to_string(),
+            resolved: String::new(),
+            integrity: String::new(),
+            dependencies: BTreeMap::new(),
+            optional_dependencies: BTreeMap::new(),
+            bin: BTreeMap::new(),
+            scripts: BTreeMap::new(),
+            optional: false,
+            overridden: false,
+            os: None,
+            cpu: None,
+        };
+
+        assert!(
+            !lockfile_entry_satisfies_range(&stale, "^0.27.3"),
+            "stale lockfile entry pinned to 0.25.12 must not satisfy ^0.27.3"
+        );
+
+        let fresh = LockfileEntry {
+            version: "0.27.3".to_string(),
+            ..stale
+        };
+        assert!(
+            lockfile_entry_satisfies_range(&fresh, "^0.27.3"),
+            "fresh lockfile entry pinned to 0.27.3 must satisfy ^0.27.3"
+        );
     }
 
     #[test]
