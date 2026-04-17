@@ -1814,30 +1814,64 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
           let _server = null;
           let _port = 0;
           let _hostname = '0.0.0.0';
-          return {
+          let _closed = false;
+          let _pending = 0;
+          let _closeCbs = [];
+          function _teardownIfDone() {
+            if (!_closed || _pending !== 0) return;
+            if (_server) { try { _server.close(); } catch (_) {} _server = null; }
+            const cbs = _closeCbs.splice(0);
+            for (const fn of cbs) { queueMicrotask(() => { try { fn(); } catch (_) {} }); }
+          }
+          const api = {
             listen(port, host, cb) {
               if (typeof host === 'function') { cb = host; host = '0.0.0.0'; }
-              globalThis.__vtz_http.serve(port, host || '0.0.0.0', async (req) => {
-                const url = new URL(req.url);
-                const msg = { url: url.pathname + url.search, method: req.method, headers: Object.fromEntries(req.headers.entries()), _body: req,
-                  on(event, cb2) { if (event === 'data') req.text().then(cb2); else if (event === 'end') req.text().then(() => cb2()); return this; } };
-                const res = { statusCode: 200, _headers: {}, _chunks: [], _resolve: null,
-                  promise: null,
-                  setHeader(n, v) { this._headers[n.toLowerCase()] = v; return this; },
-                  getHeader(n) { return this._headers[n.toLowerCase()]; },
-                  writeHead(s, h) { this.statusCode = s; this.headersSent = true; if (h) Object.entries(h).forEach(([k,v]) => this.setHeader(k,v)); return this; },
-                  write(chunk) { this._chunks.push(typeof chunk === 'string' ? new TextEncoder().encode(chunk) : chunk instanceof Uint8Array ? chunk : new TextEncoder().encode(String(chunk))); return true; },
-                  end(data) { if (data != null) this.write(data); let len = 0; for (const c of this._chunks) len += c.length; const body = new Uint8Array(len); let off = 0; for (const c of this._chunks) { body.set(c, off); off += c.length; } this._resolve(new Response(body, { status: this.statusCode, headers: this._headers })); },
-                };
-                res.promise = new Promise((resolve) => { res._resolve = resolve; });
-                handler(msg, res);
-                return res.promise;
-              }).then((s) => { _server = s; _port = s.port; _hostname = s.hostname; if (cb) cb(); }).catch((err) => { if (cb) cb(err); else throw err; });
+              if (typeof cb === 'number') { cb = arguments[3]; }
+              try {
+                // __vtz_http.serve is SYNCHRONOUS and returns the server object.
+                _server = globalThis.__vtz_http.serve(port, host || '0.0.0.0', async (req) => {
+                  if (_closed) return new Response('Server is closing', { status: 503 });
+                  _pending++;
+                  try {
+                    const url = new URL(req.url);
+                    const msg = { url: url.pathname + url.search, method: req.method, headers: Object.fromEntries(req.headers.entries()), _body: req,
+                      on(event, cb2) { if (event === 'data') req.text().then(cb2); else if (event === 'end') req.text().then(() => cb2()); return this; } };
+                    const res = { statusCode: 200, _headers: {}, _chunks: [], _resolve: null,
+                      promise: null,
+                      setHeader(n, v) { this._headers[n.toLowerCase()] = v; return this; },
+                      getHeader(n) { return this._headers[n.toLowerCase()]; },
+                      writeHead(s, h) { this.statusCode = s; this.headersSent = true; if (h) Object.entries(h).forEach(([k,v]) => this.setHeader(k,v)); return this; },
+                      write(chunk) { this._chunks.push(typeof chunk === 'string' ? new TextEncoder().encode(chunk) : chunk instanceof Uint8Array ? chunk : new TextEncoder().encode(String(chunk))); return true; },
+                      end(data) { if (data != null) this.write(data); let len = 0; for (const c of this._chunks) len += c.length; const body = new Uint8Array(len); let off = 0; for (const c of this._chunks) { body.set(c, off); off += c.length; } this._resolve(new Response(body, { status: this.statusCode, headers: this._headers })); },
+                    };
+                    res.promise = new Promise((resolve) => { res._resolve = resolve; });
+                    handler(msg, res);
+                    return await res.promise;
+                  } finally {
+                    _pending--;
+                    _teardownIfDone();
+                  }
+                });
+                _port = _server.port;
+                _hostname = _server.hostname;
+                if (cb) queueMicrotask(() => cb());
+              } catch (err) {
+                if (cb) queueMicrotask(() => cb(err));
+                else throw err;
+              }
               return this;
             },
-            close(cb) { if (_server) _server.close(); if (cb) cb(); },
-            address() { return { port: _port, address: _hostname }; },
+            close(cb) {
+              if (_closed) { if (cb) queueMicrotask(() => cb()); return this; }
+              _closed = true;
+              if (cb) _closeCbs.push(cb);
+              if (_pending === 0) _teardownIfDone();
+              return this;
+            },
+            address() { return _port ? { port: _port, address: _hostname } : null; },
+            on() { return this; }, once() { return this; }, off() { return this; }, removeListener() { return this; }, emit() { return false; }, unref() { return this; }, ref() { return this; },
           };
+          return api;
         }
         return { createServer };
       }
@@ -3459,28 +3493,73 @@ function createServer(handler) {
   let _server = null;
   let _port = 0;
   let _hostname = '0.0.0.0';
-  return {
+  let _closed = false;
+  let _pending = 0;
+  let _closeCbs = [];
+  function _teardownIfDone() {
+    if (!_closed || _pending !== 0) return;
+    if (_server) { try { _server.close(); } catch (_) {} _server = null; }
+    const cbs = _closeCbs.splice(0);
+    for (const fn of cbs) { queueMicrotask(() => { try { fn(); } catch (_) {} }); }
+  }
+  const api = {
     listen(port, host, cb) {
       if (typeof host === 'function') { cb = host; host = '0.0.0.0'; }
-      globalThis.__vtz_http.serve(port, host || '0.0.0.0', async (req) => {
-        const msg = new IncomingMessage(req);
-        const res = new ServerResponse();
-        handler(msg, res);
-        return res.promise;
-      }).then((s) => {
-        _server = s;
-        _port = s.port;
-        _hostname = s.hostname;
-        if (cb) cb();
-      }).catch((err) => {
-        if (cb) cb(err);
+      // Optional third-arg backlog (ignored) or callback
+      if (typeof cb === 'number') { cb = arguments[3]; }
+      try {
+        // globalThis.__vtz_http.serve is SYNCHRONOUS — it returns the server
+        // object with the port already bound. Do NOT treat the result as a
+        // promise.
+        _server = globalThis.__vtz_http.serve(port, host || '0.0.0.0', async (req) => {
+          // Reject new connections after close() — pre-existing in-flight
+          // requests are tracked via _pending; new ones post-close get 503.
+          if (_closed) {
+            return new Response('Server is closing', { status: 503 });
+          }
+          _pending++;
+          try {
+            const msg = new IncomingMessage(req);
+            const res = new ServerResponse();
+            handler(msg, res);
+            return await res.promise;
+          } finally {
+            _pending--;
+            _teardownIfDone();
+          }
+        });
+        _port = _server.port;
+        _hostname = _server.hostname;
+        // Invoke callback asynchronously so listeners attached after .listen()
+        // returns still see the 'listening' state, matching Node semantics.
+        if (cb) queueMicrotask(() => { try { cb(); } catch (e) { throw e; } });
+      } catch (err) {
+        if (cb) queueMicrotask(() => cb(err));
         else throw err;
-      });
+      }
       return this;
     },
-    close(cb) { if (_server) _server.close(); if (cb) cb(); },
-    address() { return { port: _port, address: _hostname }; },
+    close(cb) {
+      // Node's semantics: close() stops accepting NEW connections and fires
+      // the callback when all in-flight requests have completed. Aborting the
+      // tokio task immediately would cancel in-flight responses and hang the
+      // client — defer the teardown until _pending drops to 0.
+      if (_closed) { if (cb) queueMicrotask(() => cb()); return this; }
+      _closed = true;
+      if (cb) _closeCbs.push(cb);
+      if (_pending === 0) _teardownIfDone();
+      return this;
+    },
+    address() { return _port ? { port: _port, address: _hostname } : null; },
+    on() { return this; },
+    once() { return this; },
+    off() { return this; },
+    removeListener() { return this; },
+    emit() { return false; },
+    unref() { return this; },
+    ref() { return this; },
   };
+  return api;
 }
 
 export { createServer, IncomingMessage, ServerResponse };

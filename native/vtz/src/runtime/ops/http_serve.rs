@@ -44,16 +44,21 @@ type PendingResponses = Arc<TokioMutex<HashMap<u32, oneshot::Sender<HttpResponse
 struct ServerInstance {
     /// Receives incoming requests from the Axum handler.
     request_rx: Arc<TokioMutex<mpsc::Receiver<IncomingRequest>>>,
-    /// Shared map of request_id → response sender.
-    pending_responses: PendingResponses,
-    /// Handle to abort the server task on close.
-    abort_handle: tokio::task::AbortHandle,
+    /// Signals the axum server to stop accepting new connections. Existing
+    /// connections are allowed to complete (graceful shutdown) before the
+    /// task exits.
+    shutdown_tx: Option<oneshot::Sender<()>>,
 }
 
 /// Shared state for all HTTP servers, stored in OpState.
+///
+/// `pending_responses` is keyed globally by `request_id` (not scoped per
+/// server) so that `op_http_serve_respond` can still dispatch replies after
+/// the parent server has been closed but before in-flight requests drain.
 #[derive(Default)]
 pub struct HttpServeState {
     servers: HashMap<u32, ServerInstance>,
+    pending_responses: PendingResponses,
 }
 
 /// Custom serde helper for Option<Vec<u8>> — serialize as base64 string or null.
@@ -104,12 +109,19 @@ pub fn op_http_serve(
     // Channel: Axum handler → JS accept loop
     let (request_tx, request_rx) = mpsc::channel::<IncomingRequest>(64);
 
-    // Shared pending response map
-    let pending: PendingResponses = Arc::new(TokioMutex::new(HashMap::new()));
-    let pending_for_axum = Arc::clone(&pending);
+    // Reuse the global (per-HttpServeState) pending-responses map keyed by
+    // request_id. This lets `op_http_serve_respond` dispatch replies even
+    // after the parent server has been closed but before in-flight requests
+    // complete (graceful shutdown path).
+    let pending_for_axum = Arc::clone(&state.borrow::<HttpServeState>().pending_responses);
+
+    // Create a shutdown signal for graceful axum shutdown. When we want to
+    // close the server, sending on `shutdown_tx` causes axum::serve to stop
+    // accepting new connections and wait for in-flight responses to finish.
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
     // Start the Axum server in a background task
-    let join_handle = tokio::spawn(async move {
+    tokio::spawn(async move {
         let app = axum::Router::new().fallback(move |req: axum::extract::Request| {
             let tx = request_tx.clone();
             let pending = Arc::clone(&pending_for_axum);
@@ -164,11 +176,14 @@ pub fn op_http_serve(
             }
         });
 
-        // Ignore the error when the server is aborted
-        let _ = axum::serve(listener, app).await;
+        // Run with graceful shutdown — axum waits for in-flight connections
+        // to drain before returning.
+        let _ = axum::serve(listener, app)
+            .with_graceful_shutdown(async move {
+                let _ = shutdown_rx.await;
+            })
+            .await;
     });
-
-    let abort_handle = join_handle.abort_handle();
 
     // Store server state
     {
@@ -177,8 +192,7 @@ pub fn op_http_serve(
             server_id,
             ServerInstance {
                 request_rx: Arc::new(TokioMutex::new(request_rx)),
-                pending_responses: pending,
-                abort_handle,
+                shutdown_tx: Some(shutdown_tx),
             },
         );
     }
@@ -199,14 +213,17 @@ pub async fn op_http_serve_accept(
     state: Rc<RefCell<OpState>>,
     #[smi] server_id: u32,
 ) -> Result<serde_json::Value, AnyError> {
+    // If the server was already closed between two accept iterations, return
+    // null to let the JS accept loop terminate cleanly instead of throwing an
+    // "Unknown server id" error (which would bubble into user code and fail
+    // unrelated tests by poisoning the event loop).
     let request_rx = {
         let op_state = state.borrow();
         let http_state = op_state.borrow::<HttpServeState>();
-        let server = http_state
-            .servers
-            .get(&server_id)
-            .ok_or_else(|| deno_core::anyhow::anyhow!("Unknown server id: {}", server_id))?;
-        Arc::clone(&server.request_rx)
+        match http_state.servers.get(&server_id) {
+            Some(server) => Arc::clone(&server.request_rx),
+            None => return Ok(serde_json::Value::Null),
+        }
     };
 
     let mut rx = request_rx.lock().await;
@@ -220,22 +237,20 @@ pub async fn op_http_serve_accept(
 #[op2]
 pub fn op_http_serve_respond(
     state: &mut OpState,
-    #[smi] server_id: u32,
+    #[smi] _server_id: u32,
     #[smi] request_id: u32,
     #[smi] status: u16,
     #[serde] headers: Vec<(String, String)>,
     #[buffer] body: &[u8],
 ) -> Result<(), AnyError> {
+    // Look up the pending response sender by global request_id. This works
+    // even after the parent server has been removed from state, so in-flight
+    // replies can still complete during graceful shutdown.
+    //
+    // Sync op but TokioMutex — try_lock should always succeed because the
+    // axum handler only holds the lock briefly (to insert on request intake).
     let http_state = state.borrow_mut::<HttpServeState>();
-    let server = http_state
-        .servers
-        .get(&server_id)
-        .ok_or_else(|| deno_core::anyhow::anyhow!("Unknown server id: {}", server_id))?;
-
-    // We need to get the oneshot sender from the pending map.
-    // Since we're in a sync op but pending_responses uses TokioMutex,
-    // we use try_lock which should succeed since no other holder exists.
-    let mut pending = server
+    let mut pending = http_state
         .pending_responses
         .try_lock()
         .map_err(|_| deno_core::anyhow::anyhow!("Pending responses lock contention"))?;
@@ -252,11 +267,20 @@ pub fn op_http_serve_respond(
 }
 
 /// Close an HTTP server.
+///
+/// Signals graceful shutdown — axum stops accepting new connections and waits
+/// for in-flight responses to finish before the task exits. In-flight replies
+/// still resolve because `op_http_serve_respond` looks up its oneshot sender
+/// in a global per-state map keyed by `request_id` (not per-server), so
+/// removing the `ServerInstance` here is safe.
 #[op2(fast)]
 pub fn op_http_serve_close(state: &mut OpState, #[smi] server_id: u32) -> Result<(), AnyError> {
     let http_state = state.borrow_mut::<HttpServeState>();
-    if let Some(server) = http_state.servers.remove(&server_id) {
-        server.abort_handle.abort();
+    if let Some(mut server) = http_state.servers.remove(&server_id) {
+        if let Some(tx) = server.shutdown_tx.take() {
+            // Ignore error — rx can already be dropped if the task is gone.
+            let _ = tx.send(());
+        }
     }
     Ok(())
 }
@@ -488,5 +512,62 @@ mod tests {
             "localhost",
             "req.url hostname should come from the Host header"
         );
+    }
+
+    /// Graceful shutdown: an in-flight request started before close() must
+    /// still receive its response. This covers the regression fixed for #2718
+    /// where close() used to abort the axum task mid-response.
+    #[tokio::test]
+    async fn test_http_serve_graceful_shutdown_preserves_in_flight_response() {
+        let mut rt = create_runtime();
+
+        let result = run_async(
+            &mut rt,
+            r#"
+            let release;
+            const gate = new Promise((r) => { release = r; });
+
+            const server = globalThis.__vtz_http.serve(0, '127.0.0.1', async (_req) => {
+                await gate;
+                return new Response('survived', { status: 200 });
+            });
+
+            const fetchPromise = fetch('http://127.0.0.1:' + server.port + '/');
+            // Wait for the handler to be running.
+            await new Promise((r) => setTimeout(r, 20));
+            server.close();
+            // Now release the handler — it should still be able to respond.
+            release();
+            const resp = await fetchPromise;
+            return await resp.text();
+            "#,
+        )
+        .await;
+
+        assert_eq!(result.as_str().unwrap(), "survived");
+    }
+
+    /// After close() completes, the accept loop must exit cleanly (no spurious
+    /// "Unknown server id" errors) even if the outer event loop re-polls the
+    /// accept op after the ServerInstance has been removed from state.
+    #[tokio::test]
+    async fn test_http_serve_close_does_not_throw_unknown_server_id() {
+        let mut rt = create_runtime();
+
+        let result = run_async(
+            &mut rt,
+            r#"
+            const server = globalThis.__vtz_http.serve(0, '127.0.0.1', async () => {
+                return new Response('ok');
+            });
+            server.close();
+            // Give the accept loop a tick to run past the now-removed server.
+            await new Promise((r) => setTimeout(r, 10));
+            return 'done';
+            "#,
+        )
+        .await;
+
+        assert_eq!(result.as_str().unwrap(), "done");
     }
 }
