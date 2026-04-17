@@ -1,3 +1,4 @@
+use crate::pm::error::{PmError, PmResult};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -203,30 +204,34 @@ impl Lockfile {
 }
 
 /// Read and parse package.json from a project directory
-pub fn read_package_json(root_dir: &Path) -> Result<PackageJson, Box<dyn std::error::Error>> {
+pub fn read_package_json(root_dir: &Path) -> PmResult<PackageJson> {
     let path = root_dir.join("package.json");
-    let content = std::fs::read_to_string(&path)
-        .map_err(|e| format!("Could not read {}: {}", path.display(), e))?;
-    let pkg: PackageJson =
-        serde_json::from_str(&content).map_err(|e| format!("Invalid package.json: {}", e))?;
+    let content = std::fs::read_to_string(&path).map_err(|source| PmError::ReadFile {
+        path: path.clone(),
+        source,
+    })?;
+    let pkg: PackageJson = serde_json::from_str(&content)
+        .map_err(|source| PmError::InvalidPackageJson { path, source })?;
     Ok(pkg)
 }
 
 /// Write package.json back to disk using read-modify-write to preserve unmodeled fields.
 /// All fields on the `PackageJson` struct are written back; unmodeled fields in the
 /// existing file are preserved as-is.
-pub fn write_package_json(
-    root_dir: &Path,
-    pkg: &PackageJson,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn write_package_json(root_dir: &Path, pkg: &PackageJson) -> PmResult<()> {
     let path = root_dir.join("package.json");
-    let existing = std::fs::read_to_string(&path)
-        .map_err(|e| format!("Could not read {}: {}", path.display(), e))?;
+    let existing = std::fs::read_to_string(&path).map_err(|source| PmError::ReadFile {
+        path: path.clone(),
+        source,
+    })?;
     let mut value: serde_json::Value =
-        serde_json::from_str(&existing).map_err(|e| format!("Invalid package.json: {}", e))?;
+        serde_json::from_str(&existing).map_err(|source| PmError::InvalidPackageJson {
+            path: path.clone(),
+            source,
+        })?;
     let obj = value
         .as_object_mut()
-        .ok_or("package.json is not an object")?;
+        .ok_or_else(|| PmError::PackageJsonNotObject { path: path.clone() })?;
 
     // --- Scalar fields (remove when None) ---
     if let Some(name) = &pkg.name {
@@ -303,7 +308,10 @@ pub fn write_package_json(
     }
 
     let content = serde_json::to_string_pretty(&value)? + "\n";
-    std::fs::write(&path, content)?;
+    std::fs::write(&path, content).map_err(|source| PmError::WriteFile {
+        path: path.clone(),
+        source,
+    })?;
     Ok(())
 }
 
@@ -714,8 +722,7 @@ mod tests {
     fn test_read_package_json_not_found() {
         let dir = tempfile::tempdir().unwrap();
         let result = read_package_json(dir.path());
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Could not read"));
+        assert!(matches!(result, Err(PmError::ReadFile { .. })));
     }
 
     #[test]
