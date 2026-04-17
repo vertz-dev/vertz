@@ -435,14 +435,30 @@ pub async fn handle_deps_request(
     if let Some(file_path) = prebundle::resolve_deps_file(path, &state.deps_dir) {
         match std::fs::read_to_string(&file_path) {
             Ok(content) => {
+                // Rewrite any bare specifiers the bundle may still contain (e.g. an
+                // esbuild run that left externals in place, or a manual / stale bundle).
+                // The browser cannot resolve bare specifiers, so this is load-bearing
+                // for the `/@deps/` path. See #2730.
+                let real_path =
+                    std::fs::canonicalize(&file_path).unwrap_or_else(|_| file_path.clone());
+                let rewritten = crate::compiler::import_rewriter::rewrite_imports(
+                    &content,
+                    &real_path,
+                    &real_path,
+                    &state.root_dir,
+                    None,
+                );
+                // `no-cache` mirrors `serve_js_file`: the rewritten body depends on
+                // external state (node_modules layout), so long-lived immutable
+                // caching would pin a stale URL past a dep upgrade.
                 return Response::builder()
                     .status(StatusCode::OK)
                     .header(
                         header::CONTENT_TYPE,
                         "application/javascript; charset=utf-8",
                     )
-                    .header(header::CACHE_CONTROL, "max-age=31536000, immutable")
-                    .body(Body::from(content))
+                    .header(header::CACHE_CONTROL, "no-cache")
+                    .body(Body::from(rewritten))
                     .unwrap();
             }
             Err(e) => {
@@ -1215,7 +1231,7 @@ mod tests {
     // ── handle_deps_request: prebundled dep read error ──────────────
 
     #[tokio::test]
-    async fn test_handle_deps_request_cache_immutable() {
+    async fn test_handle_deps_request_prebundled_no_cache() {
         let tmp = tempfile::tempdir().unwrap();
         let state = create_test_state(tmp.path());
         std::fs::write(tmp.path().join(".vertz/deps/zod.js"), "export default {};").unwrap();
@@ -1228,7 +1244,9 @@ mod tests {
         let resp = handle_deps_request(State(state), req).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let cc = resp.headers().get(header::CACHE_CONTROL).unwrap();
-        assert!(cc.to_str().unwrap().contains("immutable"));
+        // Pre-bundled files are rewritten per request (resolving bare specifiers against
+        // the current node_modules state), so long-lived caching would pin stale URLs.
+        assert_eq!(cc.to_str().unwrap(), "no-cache");
     }
 
     // ── handle_deps_request: node_modules direct path ───────────────
@@ -1585,6 +1603,191 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         let cc = resp.headers().get(header::CACHE_CONTROL).unwrap();
         assert_eq!(cc.to_str().unwrap(), "no-cache");
+    }
+
+    // Regression for #2730: bare specifiers inside /@deps/ files (e.g. a dependency
+    // package re-exporting from @vertz/ui) must be rewritten to /@deps/ URLs — the
+    // browser cannot resolve bare specifiers.
+    #[tokio::test]
+    async fn test_handle_deps_rewrites_bare_imports_in_dep_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = create_test_state(tmp.path());
+
+        // Layout: the consumer package imports @vertz/ui with a bare specifier.
+        let consumer = tmp
+            .path()
+            .join("node_modules/@vertz/theme-shadcn/dist/index.js");
+        std::fs::create_dir_all(consumer.parent().unwrap()).unwrap();
+        std::fs::write(
+            &consumer,
+            "import { css as css10 } from \"@vertz/ui\";\nexport const t = css10;\n",
+        )
+        .unwrap();
+
+        // The imported package must exist so the rewriter can resolve a concrete
+        // /@deps/ URL — but even without resolution it must never leave the bare
+        // specifier in place.
+        let ui_dir = tmp.path().join("node_modules/@vertz/ui");
+        let ui_dist = ui_dir.join("dist");
+        std::fs::create_dir_all(&ui_dist).unwrap();
+        std::fs::write(ui_dist.join("index.js"), "export const css = () => ({});\n").unwrap();
+        std::fs::write(
+            ui_dir.join("package.json"),
+            r#"{"name":"@vertz/ui","version":"0.0.0","exports":{".":"./dist/index.js"}}"#,
+        )
+        .unwrap();
+
+        let req = Request::builder()
+            .uri("/@deps/@vertz/theme-shadcn/dist/index.js")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = handle_deps_request(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let text = String::from_utf8(body.to_vec()).unwrap();
+
+        assert!(
+            !text.contains("from \"@vertz/ui\"") && !text.contains("from '@vertz/ui'"),
+            "bare '@vertz/ui' specifier must not leak to the browser:\n{}",
+            text
+        );
+        assert!(
+            text.contains("/@deps/@vertz/ui"),
+            "bare '@vertz/ui' must be rewritten to a /@deps/ URL:\n{}",
+            text
+        );
+    }
+
+    // Regression for #2730: pre-bundled deps served from `.vertz/deps/` must also
+    // have their bare imports rewritten. Without this, a stale bundle (or one
+    // produced by a build step that left bare specifiers in place) leaks
+    // bare `@vertz/ui` imports to the browser.
+    #[tokio::test]
+    async fn test_handle_deps_rewrites_bare_imports_in_prebundled_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = create_test_state(tmp.path());
+
+        // Pre-bundled dep with bare imports — simulates what happens when esbuild
+        // leaves unresolved externals or a prior build produced a bundle that still
+        // references workspace packages by bare specifier.
+        let prebundle_path = tmp.path().join(".vertz/deps/@vertz__theme-shadcn.js");
+        std::fs::create_dir_all(prebundle_path.parent().unwrap()).unwrap();
+        std::fs::write(
+            &prebundle_path,
+            "import { css as css10 } from \"@vertz/ui\";\nexport const t = css10;\n",
+        )
+        .unwrap();
+
+        // The target package must exist for the rewriter to produce a concrete URL.
+        let ui_dir = tmp.path().join("node_modules/@vertz/ui");
+        std::fs::create_dir_all(ui_dir.join("dist")).unwrap();
+        std::fs::write(
+            ui_dir.join("dist/index.js"),
+            "export const css = () => ({});\n",
+        )
+        .unwrap();
+        std::fs::write(
+            ui_dir.join("package.json"),
+            r#"{"name":"@vertz/ui","version":"0.0.0","exports":{".":"./dist/index.js"}}"#,
+        )
+        .unwrap();
+
+        let req = Request::builder()
+            .uri("/@deps/@vertz/theme-shadcn")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = handle_deps_request(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let text = String::from_utf8(body.to_vec()).unwrap();
+
+        assert!(
+            !text.contains("from \"@vertz/ui\"") && !text.contains("from '@vertz/ui'"),
+            "bare '@vertz/ui' specifier must not leak to the browser from a prebundled dep:\n{}",
+            text
+        );
+        assert!(
+            text.contains("/@deps/@vertz/ui"),
+            "bare '@vertz/ui' must be rewritten to a /@deps/ URL:\n{}",
+            text
+        );
+    }
+
+    // Regression for #2730 (monorepo layout): when the dep package is a workspace
+    // symlink pointing outside the project's node_modules tree, canonicalization
+    // takes resolution into the source tree. Bare imports inside the canonicalized
+    // file must still be rewritten.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_handle_deps_rewrites_bare_imports_in_workspace_symlinked_dep() {
+        let tmp = tempfile::tempdir().unwrap();
+
+        // Real package locations outside the project.
+        let ws_theme = tmp.path().join("packages/theme-shadcn/dist");
+        std::fs::create_dir_all(&ws_theme).unwrap();
+        std::fs::write(
+            ws_theme.join("index.js"),
+            "import { css as c1 } from \"@vertz/ui\";\nimport { css as c2 } from \"@vertz/ui\";\nexport const t = [c1, c2];\n",
+        )
+        .unwrap();
+
+        let ws_ui = tmp.path().join("packages/ui");
+        std::fs::create_dir_all(ws_ui.join("dist")).unwrap();
+        std::fs::write(
+            ws_ui.join("dist/index.js"),
+            "export const css = () => ({});\n",
+        )
+        .unwrap();
+        std::fs::write(
+            ws_ui.join("package.json"),
+            r#"{"name":"@vertz/ui","version":"0.0.0","exports":{".":"./dist/index.js"}}"#,
+        )
+        .unwrap();
+
+        // Consumer project with symlinks into the workspace packages.
+        let project = tmp.path().join("examples/app");
+        let nm_scope = project.join("node_modules/@vertz");
+        std::fs::create_dir_all(&nm_scope).unwrap();
+        std::os::unix::fs::symlink(
+            tmp.path().join("packages/theme-shadcn"),
+            nm_scope.join("theme-shadcn"),
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(&ws_ui, nm_scope.join("ui")).unwrap();
+
+        let state = create_test_state(&project);
+
+        let req = Request::builder()
+            .uri("/@deps/@vertz/theme-shadcn/dist/index.js")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = handle_deps_request(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let text = String::from_utf8(body.to_vec()).unwrap();
+
+        assert!(
+            !text.contains("from \"@vertz/ui\"") && !text.contains("from '@vertz/ui'"),
+            "bare '@vertz/ui' specifier must not leak to the browser:\n{}",
+            text
+        );
+        assert!(
+            text.contains("/@deps/@vertz/ui"),
+            "bare '@vertz/ui' must be rewritten to a /@deps/ URL:\n{}",
+            text
+        );
     }
 
     // ── handle_source_file: source map content type ─────────────────
