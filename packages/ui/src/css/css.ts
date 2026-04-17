@@ -308,9 +308,7 @@ function serializeEntries(entries: StyleEntry[]): string {
 }
 
 function isStyleBlock(value: unknown): value is StyleBlock {
-  return (
-    typeof value === 'object' && value !== null && !Array.isArray(value) && !isToken(value)
-  );
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && !isToken(value);
 }
 
 /** camelCase CSS property name → kebab-case, with vendor-prefix handling. */
