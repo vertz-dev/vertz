@@ -28,7 +28,6 @@
   "scripts": {
     "build": "vtzx vertz-build",
     "test": "vtz test",
-    "test:integration": "bun test 'src/__tests__/docs-cli-actions.local.ts'",
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
