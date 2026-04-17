@@ -63,11 +63,6 @@ fn build_dev_config(args: &cli::DevArgs) -> ServerConfig {
     config.watch_deps = !args.no_watch_deps;
 
     let vertzrc = vertz_runtime::pm::vertzrc::load_vertzrc(&config.root_dir).unwrap_or_default();
-    config.plugin = vertz_runtime::config::resolve_plugin_choice(
-        args.plugin.as_deref(),
-        vertzrc.plugin.as_deref(),
-        &config.root_dir,
-    );
     config.extra_watch_paths = vertzrc.extra_watch_paths;
     config.proxy_name = args.name.clone();
     config.bridge_port = args.bridge_port;

@@ -1,4 +1,3 @@
-pub mod react;
 pub mod vertz;
 
 use crate::compiler::pipeline::CompileError;

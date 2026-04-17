@@ -1434,13 +1434,8 @@ pub async fn start_server_with_lifecycle(
         eprintln!();
     }
 
-    // Select plugin based on config (CLI flag > .vertzrc > auto-detect > default)
-    let plugin: Arc<dyn crate::plugin::FrameworkPlugin> = match config.plugin {
-        crate::config::PluginChoice::React => {
-            Arc::new(crate::plugin::react::ReactPlugin::default())
-        }
-        crate::config::PluginChoice::Vertz => Arc::new(crate::plugin::vertz::VertzPlugin),
-    };
+    let plugin: Arc<dyn crate::plugin::FrameworkPlugin> =
+        Arc::new(crate::plugin::vertz::VertzPlugin);
 
     let (router, state, inspector_session_rx) = build_router(&config, plugin);
 

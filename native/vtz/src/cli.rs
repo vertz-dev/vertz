@@ -137,10 +137,6 @@ pub struct DevArgs {
     #[arg(long)]
     pub no_watch_deps: bool,
 
-    /// Framework plugin to use (vertz, react). Auto-detected from package.json if omitted.
-    #[arg(long)]
-    pub plugin: Option<String>,
-
     /// Custom name for proxy subdomain override (e.g., --name dashboard → https://dashboard.localhost)
     #[arg(long)]
     pub name: Option<String>,
