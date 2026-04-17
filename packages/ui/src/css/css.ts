@@ -34,6 +34,7 @@ import type { CSSDeclaration } from './token-resolver';
 import { resolveToken } from './token-resolver';
 import type { CSSDeclarations } from './css-properties';
 import type { StyleBlock } from './style-block';
+import { isToken } from './token';
 import { UNITLESS_PROPERTIES } from './unitless-properties';
 import type { UtilityClass } from './utility-types';
 
@@ -307,7 +308,9 @@ function serializeEntries(entries: StyleEntry[]): string {
 }
 
 function isStyleBlock(value: unknown): value is StyleBlock {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  return (
+    typeof value === 'object' && value !== null && !Array.isArray(value) && !isToken(value)
+  );
 }
 
 /** camelCase CSS property name → kebab-case, with vendor-prefix handling. */
