@@ -1680,7 +1680,103 @@ async fn async_main(cli: Cli) {
 
             std::process::exit(status.code().unwrap_or(1));
         }
+        Command::InternalExec(args) => {
+            let code = run_internal_exec(&args.file, &args.args)
+                .await
+                .unwrap_or_else(|e| {
+                    eprintln!("error: {e}");
+                    1
+                });
+            std::process::exit(code);
+        }
     }
+}
+
+/// Execute a single JS/TS file through the vtz runtime with the given argv.
+///
+/// Backs the hidden `vtz __exec` subcommand. Loads the file as an ES module,
+/// sets `process.argv` to `[vtz_bin, file, ...extra_args]`, runs the event
+/// loop to completion, and returns the process exit code (or 1 on error).
+///
+/// Used by `vtz ci` (see `ci/config.rs` `find_runtime`) to self-host config
+/// loading without depending on bun or tsx.
+async fn run_internal_exec(file: &str, extra_args: &[String]) -> Result<i32, String> {
+    use deno_core::ModuleSpecifier;
+    use std::sync::Arc;
+    use vertz_runtime::runtime::js_runtime::{VertzJsRuntime, VertzRuntimeOptions};
+
+    let file_path = std::path::PathBuf::from(file);
+    let abs_path = if file_path.is_absolute() {
+        file_path.clone()
+    } else {
+        std::env::current_dir()
+            .map_err(|e| format!("failed to read cwd: {e}"))?
+            .join(&file_path)
+    };
+
+    if !abs_path.is_file() {
+        return Err(format!("file not found: {}", abs_path.display()));
+    }
+
+    let root_dir = abs_path
+        .parent()
+        .and_then(|p| {
+            // Walk up for the nearest package.json to use as root — falls back to cwd.
+            let mut candidate = p.to_path_buf();
+            loop {
+                if candidate.join("package.json").is_file() {
+                    return Some(candidate);
+                }
+                if !candidate.pop() {
+                    return None;
+                }
+            }
+        })
+        .or_else(|| std::env::current_dir().ok())
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+
+    let plugin: Arc<dyn vertz_runtime::plugin::FrameworkPlugin> =
+        Arc::new(vertz_runtime::plugin::vertz::VertzPlugin);
+
+    let mut runtime = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(root_dir.to_string_lossy().into_owned()),
+        plugin,
+        ..Default::default()
+    })
+    .map_err(|e| format!("failed to init runtime: {e}"))?;
+
+    // Populate process.argv: [vtz_bin, abs_file, ...extra_args]
+    let argv_entries: Vec<String> = std::iter::once(
+        std::env::current_exe()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_else(|_| "vtz".to_string()),
+    )
+    .chain(std::iter::once(abs_path.to_string_lossy().into_owned()))
+    .chain(extra_args.iter().cloned())
+    .collect();
+    let argv_json =
+        serde_json::to_string(&argv_entries).map_err(|e| format!("failed to encode argv: {e}"))?;
+    let set_argv = format!(
+        "globalThis.process = globalThis.process || {{}}; globalThis.process.argv = {argv_json};"
+    );
+    runtime
+        .execute_script_void("[vtz:set-argv]", &set_argv)
+        .map_err(|e| format!("failed to set argv: {e}"))?;
+
+    let specifier = ModuleSpecifier::from_file_path(&abs_path)
+        .map_err(|_| format!("invalid file path: {}", abs_path.display()))?;
+
+    runtime
+        .load_main_module(&specifier)
+        .await
+        .map_err(|e| format!("failed to load module: {e}"))?;
+
+    runtime
+        .run_event_loop()
+        .await
+        .map_err(|e| format!("event loop error: {e}"))?;
+
+    Ok(0)
 }
 
 #[cfg(test)]
