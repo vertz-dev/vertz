@@ -1750,51 +1750,62 @@ pub async fn start_server_with_lifecycle(
                                         .clear_category(ErrorCategory::Runtime)
                                         .await;
 
-                                    // Attempt recompilation for error recovery
-                                    let compile_result = watcher_state.pipeline
-                                        .compile_for_browser(&change.path);
+                                    // For delete events: skip compilation and import-graph
+                                    // rewriting — the file is gone. process_file_change still
+                                    // cleans up the graph entry and invalidates dependents.
+                                    let is_remove = matches!(
+                                        change.kind,
+                                        crate::watcher::file_watcher::FileChangeKind::Remove,
+                                    );
 
-                                    // Check if compilation produced an error module
-                                    if compile_result.code.contains("console.error(`[vertz] Compilation error:") {
-                                        // Read the source to provide a snippet
+                                    if !is_remove {
+                                        // Attempt recompilation for error recovery
+                                        let compile_result = watcher_state.pipeline
+                                            .compile_for_browser(&change.path);
+
+                                        // Check if compilation produced an error module
+                                        if compile_result.code.contains("console.error(`[vertz] Compilation error:") {
+                                            // Read the source to provide a snippet
+                                            let source = std::fs::read_to_string(&change.path)
+                                                .unwrap_or_default();
+                                            let snippet = if !source.is_empty() {
+                                                Some(extract_snippet(&source, 1, 3))
+                                            } else {
+                                                None
+                                            };
+
+                                            let mut error = DevError::build(
+                                                format!("Compilation failed: {}", file_str)
+                                            ).with_file(file_str.clone());
+
+                                            if let Some(s) = snippet {
+                                                error = error.with_snippet(s);
+                                            }
+
+                                            watcher_state.error_broadcaster
+                                                .report_error(error)
+                                                .await;
+
+                                            continue;
+                                        }
+
+                                        // Update module graph with this file's imports
+                                        // so transitive dependents are invalidated correctly.
                                         let source = std::fs::read_to_string(&change.path)
                                             .unwrap_or_default();
-                                        let snippet = if !source.is_empty() {
-                                            Some(extract_snippet(&source, 1, 3))
-                                        } else {
-                                            None
-                                        };
-
-                                        let mut error = DevError::build(
-                                            format!("Compilation failed: {}", file_str)
-                                        ).with_file(file_str.clone());
-
-                                        if let Some(s) = snippet {
-                                            error = error.with_snippet(s);
-                                        }
-
-                                        watcher_state.error_broadcaster
-                                            .report_error(error)
-                                            .await;
-
-                                        continue;
-                                    }
-
-                                    // Update module graph with this file's imports
-                                    // so transitive dependents are invalidated correctly.
-                                    let source = std::fs::read_to_string(&change.path)
-                                        .unwrap_or_default();
-                                    if !source.is_empty() {
-                                        let deps = crate::deps::scanner::scan_local_dependencies(
-                                            &source,
-                                            &change.path,
-                                        );
-                                        if let Ok(mut graph) = watcher_state.module_graph.write() {
-                                            graph.update_module(&change.path, deps);
+                                        if !source.is_empty() {
+                                            let deps = crate::deps::scanner::scan_local_dependencies(
+                                                &source,
+                                                &change.path,
+                                            );
+                                            if let Ok(mut graph) = watcher_state.module_graph.write() {
+                                                graph.update_module(&change.path, deps);
+                                            }
                                         }
                                     }
 
-                                    // Compilation succeeded — process the change normally
+                                    // Process the change — invalidates cache, computes dependents,
+                                    // and for Remove events also cleans the graph.
                                     let result = watcher::process_file_change(
                                         change,
                                         watcher_state.pipeline.cache(),
