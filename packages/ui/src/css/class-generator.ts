@@ -10,10 +10,15 @@
  *
  * @param filePath - Source file path (used as part of the hash input).
  * @param blockName - The named block within css() (e.g. 'card', 'title').
- * @param styleFingerprint - Serialized style entries for disambiguation.
- *   At compile time this is empty (file paths are unique enough).
- *   At runtime this prevents collisions when multiple css() calls share
- *   the same default file path ('__runtime__') and block name.
+ * @param styleFingerprint - Serialized style entries for disambiguation. Pass
+ *   `''` for compile-time parity: the Rust compiler's `generate_class_name`
+ *   only hashes `filePath::blockName`, so when the caller has a real file
+ *   path the fingerprint MUST be empty — otherwise SSR/HMR hybrid output
+ *   contains ghost classes (compiler and runtime produce different names).
+ *   The fingerprint is only used when `filePath` is the runtime default
+ *   (`__runtime__`), to disambiguate ad-hoc `css()` calls that share a
+ *   block name. See
+ *   `packages/ui/src/css/__tests__/class-name-parity.test.ts`.
  * @returns A scoped class name like `_a1b2c3d4`.
  */
 export function generateClassName(

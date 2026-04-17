@@ -165,9 +165,17 @@ export function css<T extends CSSInput>(
   const classNames: Record<string, string> = {};
   const cssRules: string[] = [];
 
+  // Fingerprint is only needed when filePath is the runtime default, to
+  // disambiguate `css({ root: A })` vs `css({ root: B })` in the same process.
+  // When filePath is a real source path, the compiler's class-name formula
+  // (filePath::blockName — no fingerprint) must match the runtime's so
+  // SSR/HMR hybrid output doesn't produce ghost classes. See
+  // packages/ui/src/css/__tests__/class-name-parity.test.ts.
+  const useFingerprint = filePath === DEFAULT_FILE_PATH;
+
   for (const [blockName, blockValue] of Object.entries(input)) {
     if (!Array.isArray(blockValue)) {
-      const styleFingerprint = serializeBlock(blockValue);
+      const styleFingerprint = useFingerprint ? serializeBlock(blockValue) : '';
       const className = generateClassName(filePath, blockName, styleFingerprint);
       classNames[blockName] = className;
       cssRules.push(...renderStyleBlock(blockValue, `.${className}`));
@@ -175,7 +183,7 @@ export function css<T extends CSSInput>(
     }
 
     const entries = blockValue;
-    const styleFingerprint = serializeEntries(entries);
+    const styleFingerprint = useFingerprint ? serializeEntries(entries) : '';
     const className = generateClassName(filePath, blockName, styleFingerprint);
     classNames[blockName] = className;
 

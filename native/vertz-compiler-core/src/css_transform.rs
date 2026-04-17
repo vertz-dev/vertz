@@ -1070,6 +1070,36 @@ mod tests {
         assert_eq!(code1, code2);
     }
 
+    /// Parity gate: `generate_class_name(filePath, blockName)` must produce
+    /// exactly the same class name as the TS runtime's
+    /// `generateClassName(filePath, blockName, "")`. The expected hashes here
+    /// mirror the ones in
+    /// `packages/ui/src/css/__tests__/class-name-parity.test.ts`. If one side
+    /// drifts, both tests fail and you must update both to match.
+    #[test]
+    fn class_name_parity_matches_ts_runtime() {
+        let cases: &[(&str, &str, &str)] = &[
+            (
+                "packages/landing/src/components/hero.tsx",
+                "badgeDotPing",
+                "_d1f23282",
+            ),
+            (
+                "packages/ui/src/css/__tests__/fixtures/example.tsx",
+                "root",
+                "_dbd94807",
+            ),
+            ("a.tsx", "b", "_ec9614e9"),
+        ];
+        for (file_path, block_name, expected) in cases {
+            let actual = generate_class_name(file_path, block_name);
+            assert_eq!(
+                &actual, expected,
+                "class-name parity drift: file_path={file_path} block_name={block_name}",
+            );
+        }
+    }
+
     #[test]
     fn different_block_names_different_hashes() {
         let (code, _) = transform("const s = css({ root: ['flex'], header: ['grid'] });");
