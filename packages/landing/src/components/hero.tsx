@@ -123,7 +123,7 @@ const s = css({
     height: '100%',
     width: '100%',
     borderRadius: '9999px',
-    opacity: 40,
+    opacity: 0.4,
   },
   badgeDot: {
     position: 'relative',
