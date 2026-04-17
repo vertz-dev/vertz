@@ -45,30 +45,38 @@ pub fn process_file_change(
     graph: &SharedModuleGraph,
     entry_file: &Path,
 ) -> InvalidationResult {
-    // A CSS file is "CSS-only" if it has no JS dependents in the module graph.
-    // When a CSS file is imported by JS (`import './styles.css'`), it's served
-    // as a JS module — so changes should trigger a module update, not a CSS update.
-    let is_css_only = if change
-        .path
-        .extension()
-        .map(|ext| ext == "css")
-        .unwrap_or(false)
-    {
-        let g = graph.read().unwrap();
-        let dependents = g.get_dependents(&change.path);
-        dependents.is_empty()
-    } else {
-        false
-    };
-
     let is_entry_file = change.path == entry_file;
+    let is_remove = matches!(change.kind, FileChangeKind::Remove);
 
-    // Get transitive dependents from the module graph BEFORE any structural
-    // mutation — so deleted nodes still contribute their dependents here.
-    let invalidated_files: Vec<PathBuf> = {
-        let graph = graph.read().unwrap();
-        let affected = graph.get_transitive_dependents(&change.path);
-        affected.into_iter().collect()
+    // Snapshot dependents and (for Remove) clean up the graph under a single
+    // write lock so a concurrent module_server fetch can't add a dependent
+    // between the read and write phases.
+    let (invalidated_files, is_css_only) = {
+        let mut g = graph.write().unwrap();
+
+        // A CSS file is "CSS-only" if it has no JS dependents in the module
+        // graph. When a CSS file is imported by JS (`import './styles.css'`),
+        // it's served as a JS module — so changes should trigger a module
+        // update, not a CSS update. A deleted CSS file is never CSS-only:
+        // re-fetching the URL would 404, so we must escalate to a module
+        // update / full reload.
+        let is_css = change
+            .path
+            .extension()
+            .map(|ext| ext == "css")
+            .unwrap_or(false);
+        let is_css_only = is_css && !is_remove && g.get_dependents(&change.path).is_empty();
+
+        let invalidated: Vec<PathBuf> = g
+            .get_transitive_dependents(&change.path)
+            .into_iter()
+            .collect();
+
+        if is_remove {
+            g.remove_module(&change.path);
+        }
+
+        (invalidated, is_css_only)
     };
 
     // Invalidate all affected files in the compilation cache
@@ -79,13 +87,6 @@ pub fn process_file_change(
     // If the changed file is new (not in graph yet), just invalidate it
     if invalidated_files.is_empty() {
         cache.invalidate(&change.path);
-    }
-
-    // On delete, drop the module from the graph so its ghost edges don't
-    // contaminate future invalidation cascades.
-    if matches!(change.kind, FileChangeKind::Remove) {
-        let mut graph = graph.write().unwrap();
-        graph.remove_module(&change.path);
     }
 
     InvalidationResult {
@@ -357,6 +358,27 @@ mod tests {
         assert!(
             cache.get_unchecked(Path::new("/src/app.tsx")).is_none(),
             "cache entry for dependent must be invalidated"
+        );
+    }
+
+    #[test]
+    fn test_process_file_change_standalone_css_delete_is_not_css_only() {
+        // A standalone CSS file with no JS dependents would normally be treated
+        // as CSS-only (HMR re-fetches the stylesheet URL). On delete, that URL
+        // 404s — so Remove events must escalate past CssUpdate.
+        let cache = CompilationCache::new();
+        let graph = new_shared_module_graph();
+        let entry = PathBuf::from("/src/app.tsx");
+
+        let change = FileChange {
+            kind: FileChangeKind::Remove,
+            path: PathBuf::from("/src/styles.css"),
+        };
+
+        let result = process_file_change(&change, &cache, &graph, &entry);
+        assert!(
+            !result.is_css_only,
+            "deleted CSS file must not be treated as css_only (would 404 on re-fetch)"
         );
     }
 
