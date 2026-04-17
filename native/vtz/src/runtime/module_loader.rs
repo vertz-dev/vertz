@@ -4126,17 +4126,37 @@ impl ModuleLoader for VertzModuleLoader {
 
                 // Read the original source to discover export names
                 let source_text = std::fs::read_to_string(&path).unwrap_or_default();
-                let mut export_names = extract_export_names(&source_text);
+                let mut export_names_set: std::collections::HashSet<String> =
+                    extract_export_names(&source_text).into_iter().collect();
 
-                // Fallback: use export names from the mock factory object (JS side).
-                // This handles CJS modules (e.g., esbuild) where extract_export_names
-                // can't find ESM exports.
-                if export_names.is_empty() {
-                    if let Some(names) = self.mock_export_names.borrow().get(&mock_specifier) {
-                        export_names = names.clone();
+                // For bare specifiers that have a synthetic polyfill (esbuild, node:*, etc.),
+                // union in those exports too. The CJS module on disk may not declare ESM
+                // exports the regex can find, but the polyfill does. Without this, importing
+                // an export the test factory didn't supply would fail with
+                // "module does not provide an export named X" — even when the consumer's
+                // call path never reaches that import at runtime.
+                let synthetic = node_specifier_to_synthetic(&mock_specifier).or(
+                    match mock_specifier.as_str() {
+                        "esbuild" => Some(ESBUILD_SPECIFIER),
+                        _ => None,
+                    },
+                );
+                if let Some(synthetic) = synthetic {
+                    if let Some(synth_src) = synthetic_module_source(synthetic) {
+                        export_names_set.extend(extract_export_names(synth_src));
                     }
                 }
 
+                // Always merge in export names from the mock factory object (JS side).
+                // This handles CJS modules (e.g., esbuild) where extract_export_names
+                // can't find ESM exports, and ensures any factory-supplied keys are
+                // exported even if they don't appear in the original module's source.
+                if let Some(names) = self.mock_export_names.borrow().get(&mock_specifier) {
+                    export_names_set.extend(names.iter().cloned());
+                }
+
+                let mut export_names: Vec<String> = export_names_set.into_iter().collect();
+                export_names.sort();
                 let proxy = generate_mock_proxy_module(&mock_specifier, &export_names);
                 return Ok(ModuleSource::new(
                     ModuleType::JavaScript,

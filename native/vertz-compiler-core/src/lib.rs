@@ -294,6 +294,17 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
     // Must run after TypeScript stripping (needs clean JS) and before component transforms.
     if enable_spy_exports {
         spy_exports::transform_spy_exports(&mut ms, &parser_ret.program, source);
+
+        // Wrap dynamic `import()` expressions with `.then(__vertz_unwrap_module)` so
+        // that frozen Module namespaces become mutable. Without this, production code
+        // that does `await import('@vertz/foo')` and the test that does `spyOn(mod, 'fn')`
+        // each get their own frozen namespace — mutations in the test don't propagate.
+        // The mock_hoisting transform also wraps dynamic imports for test files; this
+        // is the per-non-test-file equivalent so transitive `spyOn`-on-dynamic-import
+        // works through the entire module graph in test mode (#2731).
+        if !enable_mock_hoisting {
+            mock_hoisting::wrap_dynamic_imports(&mut ms, &parser_ret.program);
+        }
     }
 
     // Route code splitting -- convert static imports in defineRoutes to dynamic imports.
@@ -1306,6 +1317,88 @@ export function App() {
             "Found @vertz/ui imports outside template strings:\n{}\n\nFull output:\n{}",
             outside_imports.join("\n"),
             code
+        );
+    }
+
+    // ── Dynamic import wrapping for transitive spyOn (#2731) ──────────
+
+    /// Production code in test mode (spy_exports on, mock_hoisting off — i.e. the
+    /// non-test files in a test run) must wrap dynamic `import()` with the
+    /// `__vertz_unwrap_module` helper. Without this, `await import(...)` in
+    /// production code returns a frozen Module namespace; the test file's
+    /// `spyOn(mod, 'fn')` mutation can't propagate to the production code's
+    /// own dynamic-import result.
+    #[test]
+    fn spy_exports_wraps_dynamic_imports_in_non_test_files() {
+        let opts = CompileOptions {
+            filename: Some("src/cli.ts".to_string()),
+            spy_exports: Some(true),
+            mock_hoisting: Some(false),
+            ..Default::default()
+        };
+        let source = r#"export async function main() {
+  const mod = await import('@vertz/compiler');
+  return mod.createCompiler();
+}
+"#;
+        let result = compile(source, opts);
+        assert!(
+            result
+                .code
+                .contains("import('@vertz/compiler').then(globalThis.__vertz_unwrap_module)"),
+            "spy_exports must wrap dynamic import() with __vertz_unwrap_module so \
+             spyOn(mod, 'fn') from a test file propagates to production-code \
+             dynamic imports of the same module. Got:\n{}",
+            result.code
+        );
+    }
+
+    /// Without spy_exports the wrapping must NOT be applied — keeps production
+    /// builds clean of test-only runtime helpers.
+    #[test]
+    fn no_dynamic_import_wrap_when_spy_exports_disabled() {
+        let opts = CompileOptions {
+            filename: Some("src/cli.ts".to_string()),
+            spy_exports: Some(false),
+            mock_hoisting: Some(false),
+            ..Default::default()
+        };
+        let source = r#"export async function main() {
+  const mod = await import('@vertz/compiler');
+  return mod.createCompiler();
+}
+"#;
+        let result = compile(source, opts);
+        assert!(
+            !result.code.contains("__vertz_unwrap_module"),
+            "Without spy_exports the dynamic import wrap must not appear. Got:\n{}",
+            result.code
+        );
+    }
+
+    /// Test files (mock_hoisting=true) already wrap dynamic imports inside
+    /// `transform_mock_hoisting`. The spy_exports branch must not wrap a
+    /// SECOND time and produce a double `.then(...)` chain.
+    #[test]
+    fn dynamic_import_wrap_not_duplicated_for_test_files() {
+        let opts = CompileOptions {
+            filename: Some("src/foo.test.ts".to_string()),
+            spy_exports: Some(true),
+            mock_hoisting: Some(true),
+            ..Default::default()
+        };
+        let source = r#"async function setup() {
+  const mod = await import('./util');
+  return mod;
+}
+"#;
+        let result = compile(source, opts);
+        // Exactly one wrap, not two
+        let occurrences = result.code.matches("__vertz_unwrap_module").count();
+        assert_eq!(
+            occurrences, 1,
+            "Test files must not get the dynamic import wrap applied twice. Got {} occurrences in:\n{}",
+            occurrences, result.code
         );
     }
 

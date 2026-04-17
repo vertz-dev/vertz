@@ -103,13 +103,7 @@ function defaultBunBuildImpl(opts: { outdir: string; entrypoints: string[] }) {
 
 // ── Test suite ──────────────────────────────────────────────────────
 
-// Skipped under `vtz test` pending #2731. Assertions drive buildUI through
-// mocked @vertz/compiler + esbuild + @vertz/ui-server/bun-plugin. The
-// transitive resolver interactions produce the same failure class as
-// production-build/__tests__/orchestrator.test.ts — either the mock doesn't
-// propagate into transitive imports, or vitest-only mock APIs (.mockImplementation
-// discovery) aren't available in vtz's @vertz/test surface. Track with #2731.
-describe.skip('buildUI', () => {
+describe('buildUI', () => {
   let tmpDir: string;
   let config: UIBuildConfig;
 
@@ -168,7 +162,10 @@ describe.skip('buildUI', () => {
   });
 
   it('should return failure when native compiler is unavailable', async () => {
-    mockLoadNativeCompiler.mockImplementation(() => {
+    // Use mockImplementationOnce so the throw only affects this test — the
+    // factory-supplied default impl reasserts on the next call, keeping
+    // subsequent tests independent of ordering.
+    mockLoadNativeCompiler.mockImplementationOnce(() => {
       throw new Error('Binary not found');
     });
 
@@ -764,7 +761,12 @@ describe.skip('buildUI', () => {
   // ── Brotli compression ────────────────────────────────────────────
 
   describe('brotli compression', () => {
-    it('should create .br files for eligible files over min size', async () => {
+    // Skipped under vtz: vtz's node:zlib polyfill stub for brotliCompressSync
+    // is a passthrough (returns the input unchanged). buildUI's compressor
+    // only writes .br sidecars when compressed.length < content.length, so
+    // the passthrough never produces output. This is a vtz polyfill gap, not
+    // a buildUI bug — track separately when adding real Brotli to the runtime.
+    it.skip('should create .br files for eligible files over min size', async () => {
       // Override client build to create a large JS file
       mockBunBuild
         .mockImplementationOnce((opts: { outdir: string }) => {

@@ -174,7 +174,15 @@ if (typeof globalThis.HTMLElement === 'undefined') {
     if (impl !== undefined && impl !== null && typeof impl !== 'function') {
       throw new Error('mock() argument must be a function or undefined');
     }
-    let currentImpl = impl || null;
+    // The "original" implementation — captured from the mock() call and
+    // re-applied by mockRestore() so that factory-supplied impls survive
+    // cleanup hooks like vi.restoreAllMocks(). This matches vitest:
+    // "For a mock function created via vi.fn(impl), the implementation
+    // is restored to the one passed to vi.fn()." Critical for
+    // `vi.mock('m', () => ({ fn: mock(() => obj) }))` patterns where
+    // resetting impls between tests would break the factory contract.
+    const initialImpl = impl || null;
+    let currentImpl = initialImpl;
     let onceQueue = [];
     let mockDisplayName = '';
     const mockState = { calls: [], results: [], lastCall: undefined };
@@ -277,9 +285,17 @@ if (typeof globalThis.HTMLElement === 'undefined') {
     };
 
     mockFn.mockRestore = () => {
-      // For plain mock(), mockRestore is the same as mockReset.
-      // spyOn overrides this to restore the original.
-      return mockFn.mockReset();
+      // Restore to the initial impl captured at mock() creation time.
+      // Matches vitest: vi.fn(impl).mockRestore() reverts to `impl`,
+      // not to a fresh no-op. spyOn overrides this to restore the
+      // original target object method.
+      mockState.calls.length = 0;
+      mockState.results.length = 0;
+      mockState.lastCall = undefined;
+      currentImpl = initialImpl;
+      onceQueue.length = 0;
+      mockDisplayName = '';
+      return mockFn;
     };
 
     allMocks.add(mockFn);
@@ -2630,6 +2646,58 @@ mod tests {
             assert_eq!(
                 item["status"], "pass",
                 "getMockImplementation test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    /// Regression for #2731: mockRestore on a plain mock(impl) must restore the
+    /// initial impl, not clear it. Critical for vi.mock() factories where the
+    /// factory returns mock(() => obj) — calling vi.restoreAllMocks() in
+    /// afterEach (or any test cleanup) must not break the factory contract for
+    /// subsequent tests.
+    #[test]
+    fn test_mock_restore_preserves_initial_impl() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('mockRestore semantics', () => {
+                it('restores initial impl on mock(impl).mockRestore()', () => {
+                    const fn = mock(() => 'initial');
+                    fn.mockImplementation(() => 'changed');
+                    expect(fn()).toBe('changed');
+                    fn.mockRestore();
+                    expect(fn()).toBe('initial');
+                });
+                it('clears impl on mock().mockRestore() (no initial impl)', () => {
+                    const fn = mock();
+                    fn.mockReturnValue('temp');
+                    fn.mockRestore();
+                    expect(fn()).toBeUndefined();
+                });
+                it('vi.restoreAllMocks preserves factory impl across tests', () => {
+                    // Simulate a vi.mock() factory pattern: outer mock returns
+                    // an object; the outer mock has an impl, so it survives.
+                    const factory = mock(() => ({ ok: true }));
+                    const result1 = factory();
+                    expect(result1.ok).toBe(true);
+                    vi.restoreAllMocks();
+                    // After restoreAllMocks, factory must still produce the object.
+                    const result2 = factory();
+                    expect(result2).toBeDefined();
+                    expect(result2.ok).toBe(true);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 3);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "mockRestore semantics test {} ({}) failed: {:?}",
                 i, item["name"], item["error"]
             );
         }

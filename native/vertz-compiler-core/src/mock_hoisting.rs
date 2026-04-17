@@ -670,7 +670,7 @@ fn ms_overwrite(ms: &mut MagicString, start: u32, end: u32, text: &str) {
 
 /// Wrap dynamic `import()` expressions with `.then(globalThis.__vertz_unwrap_module)`
 /// so the returned module namespace is mutable (enabling `spyOn` on ES modules).
-fn wrap_dynamic_imports(ms: &mut MagicString, program: &Program) {
+pub fn wrap_dynamic_imports(ms: &mut MagicString, program: &Program) {
     let mut visitor = DynamicImportVisitor {
         insert_positions: Vec::new(),
     };
