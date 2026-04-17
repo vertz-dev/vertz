@@ -65,7 +65,7 @@ vi.mock('@vertz/codegen', () => ({
 }));
 
 const mockCreateVertzBunPlugin = mock(() => ({
-  plugin: { name: 'vertz-bun-plugin', setup: mock() },
+  plugin: { name: 'vertz-build-plugin', setup: mock() },
   fileExtractions: new Map(),
   cssSidecarMap: new Map(),
   updateManifest: mock(() => ({ changed: false })),
@@ -73,8 +73,8 @@ const mockCreateVertzBunPlugin = mock(() => ({
   reloadEntitySchema: mock(() => false),
 }));
 
-vi.mock('@vertz/ui-server/bun-plugin', () => ({
-  createVertzBunPlugin: mockCreateVertzBunPlugin,
+vi.mock('@vertz/ui-server/build-plugin', () => ({
+  createVertzBuildPlugin: mockCreateVertzBunPlugin,
 }));
 
 const mockRun = mock().mockResolvedValue(undefined);
@@ -206,7 +206,7 @@ describe('PipelineOrchestrator', () => {
       await failingOrchestrator.dispose();
     });
 
-    it('should call createVertzBunPlugin when no injected validator is provided', async () => {
+    it('should call createVertzBuildPlugin when no injected validator is provided', async () => {
       mockCreateVertzBunPlugin.mockClear();
 
       const noValidatorOrchestrator = new PipelineOrchestrator({
@@ -230,7 +230,7 @@ describe('PipelineOrchestrator', () => {
       await noValidatorOrchestrator.dispose();
     });
 
-    it('should report failure when createVertzBunPlugin throws', async () => {
+    it('should report failure when createVertzBuildPlugin throws', async () => {
       mockCreateVertzBunPlugin.mockImplementationOnce(() => {
         throw new Error('Cannot find module @vertz/ui/reactivity.json');
       });

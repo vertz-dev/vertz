@@ -14,12 +14,12 @@ export default defineConfig([
   },
   {
     entry: [
-      'src/bun-plugin/index.ts',
-      'src/bun-plugin/fast-refresh-runtime.ts',
-      'src/bun-plugin/fast-refresh-dom-state.ts',
-      'src/bun-plugin/state-inspector.ts',
+      'src/build-plugin/index.ts',
+      'src/build-plugin/fast-refresh-runtime.ts',
+      'src/build-plugin/fast-refresh-dom-state.ts',
+      'src/build-plugin/state-inspector.ts',
     ],
-    outDir: 'dist/bun-plugin',
+    outDir: 'dist/build-plugin',
     dts: false,
     target: 'node',
   },

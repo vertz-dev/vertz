@@ -87,9 +87,9 @@
       "import": "./dist/ui-components.js",
       "types": "./dist/ui-components.d.ts"
     },
-    "./ui-server/bun-plugin": {
-      "import": "./dist/ui-server-bun-plugin.js",
-      "types": "./dist/ui-server-bun-plugin.d.ts"
+    "./ui-server/build-plugin": {
+      "import": "./dist/ui-server-build-plugin.js",
+      "types": "./dist/ui-server-build-plugin.d.ts"
     },
     "./ui-auth": {
       "import": "./dist/ui-auth.js",

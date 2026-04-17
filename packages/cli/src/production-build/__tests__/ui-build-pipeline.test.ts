@@ -23,12 +23,12 @@ vi.mock('../route-chunk-manifest', () => ({
 const mockCreateVertzBunPlugin = mock(() => {
   const fileExtractions = new Map();
   fileExtractions.set('test.tsx', { css: '.test { color: red; }' });
-  const plugin = { name: 'vertz-bun-plugin-mock', setup() {} };
+  const plugin = { name: 'vertz-build-plugin-mock', setup() {} };
   return { plugin, fileExtractions, cssSidecarMap: new Map() };
 });
 
-vi.mock('@vertz/ui-server/bun-plugin', () => ({
-  createVertzBunPlugin: (...args: unknown[]) => mockCreateVertzBunPlugin(...args),
+vi.mock('@vertz/ui-server/build-plugin', () => ({
+  createVertzBuildPlugin: (...args: unknown[]) => mockCreateVertzBunPlugin(...args),
 }));
 
 const mockGenerateAotBuildManifest = mock(() => ({
@@ -134,7 +134,7 @@ describe('buildUI', () => {
     mockCreateVertzBunPlugin.mockImplementation(() => {
       const fileExtractions = new Map();
       fileExtractions.set('test.tsx', { css: '.test { color: red; }' });
-      const plugin = { name: 'vertz-bun-plugin-mock', setup() {} };
+      const plugin = { name: 'vertz-build-plugin-mock', setup() {} };
       return { plugin, fileExtractions, cssSidecarMap: new Map() };
     });
     mockGenerateAotBuildManifest.mockReturnValue({

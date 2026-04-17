@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@vertz/test';
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
-import { captureDOMState, restoreDOMState } from '../bun-plugin/fast-refresh-dom-state';
+import { captureDOMState, restoreDOMState } from '../build-plugin/fast-refresh-dom-state';
 
 beforeAll(() => {
   GlobalRegistrator.register({ url: 'http://localhost/' });

@@ -1,7 +1,7 @@
 /**
  * Tests for incremental HMR manifest updates in the Bun plugin.
  *
- * Verifies that createVertzBunPlugin() exposes updateManifest() and
+ * Verifies that createVertzBuildPlugin() exposes updateManifest() and
  * deleteManifest() functions for the file watcher to use.
  *
  * @see https://github.com/vertz-dev/vertz/issues/991
@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createVertzBunPlugin } from '../bun-plugin/plugin';
+import { createVertzBuildPlugin } from '../build-plugin/plugin';
 import type { DebugLogger } from '../debug-logger';
 import { DiagnosticsCollector } from '../diagnostics-collector';
 
@@ -51,7 +51,7 @@ function createTempProject(): {
   };
 }
 
-describe('bun-plugin manifest HMR', () => {
+describe('build-plugin manifest HMR', () => {
   let project: ReturnType<typeof createTempProject>;
 
   beforeEach(() => {
@@ -63,10 +63,10 @@ describe('bun-plugin manifest HMR', () => {
   });
 
   describe('updateManifest', () => {
-    it('is returned by createVertzBunPlugin', () => {
+    it('is returned by createVertzBuildPlugin', () => {
       project.write('app.tsx', 'export function App() { return <div />; }');
 
-      const result = createVertzBunPlugin({
+      const result = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         hmr: false,
@@ -87,7 +87,7 @@ describe('bun-plugin manifest HMR', () => {
       `,
       );
 
-      const result = createVertzBunPlugin({
+      const result = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         hmr: false,
@@ -119,7 +119,7 @@ describe('bun-plugin manifest HMR', () => {
       `,
     );
 
-    const result = createVertzBunPlugin({
+    const result = createVertzBuildPlugin({
       projectRoot: project.dir,
       srcDir: project.srcDir,
       hmr: false,
@@ -143,7 +143,7 @@ describe('bun-plugin manifest HMR', () => {
   it('returns changed: true for new file not in initial manifest', () => {
     project.write('app.tsx', 'export function App() { return <div />; }');
 
-    const result = createVertzBunPlugin({
+    const result = createVertzBuildPlugin({
       projectRoot: project.dir,
       srcDir: project.srcDir,
       hmr: false,
@@ -175,10 +175,10 @@ describe('bun-plugin manifest HMR', () => {
   });
 
   describe('deleteManifest', () => {
-    it('is returned by createVertzBunPlugin', () => {
+    it('is returned by createVertzBuildPlugin', () => {
       project.write('app.tsx', 'export function App() { return <div />; }');
 
-      const result = createVertzBunPlugin({
+      const result = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         hmr: false,
@@ -196,7 +196,7 @@ describe('bun-plugin manifest HMR', () => {
       `,
       );
 
-      const result = createVertzBunPlugin({
+      const result = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         hmr: false,
@@ -209,7 +209,7 @@ describe('bun-plugin manifest HMR', () => {
     it('returns false when file had no manifest entry', () => {
       project.write('app.tsx', 'export function App() { return <div />; }');
 
-      const result = createVertzBunPlugin({
+      const result = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         hmr: false,
@@ -228,7 +228,7 @@ describe('bun-plugin manifest HMR', () => {
       `,
     );
 
-    const result = createVertzBunPlugin({
+    const result = createVertzBuildPlugin({
       projectRoot: project.dir,
       srcDir: project.srcDir,
       hmr: false,
@@ -257,7 +257,7 @@ describe('bun-plugin manifest HMR', () => {
       `,
       );
 
-      const result = createVertzBunPlugin({
+      const result = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         hmr: false,
@@ -287,7 +287,7 @@ describe('bun-plugin manifest HMR', () => {
       `,
       );
 
-      const result = createVertzBunPlugin({
+      const result = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         hmr: false,
@@ -326,7 +326,7 @@ describe('bun-plugin manifest HMR', () => {
       `,
       );
 
-      const result = createVertzBunPlugin({
+      const result = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         hmr: false,
@@ -378,7 +378,7 @@ describe('bun-plugin manifest HMR', () => {
       `,
       );
 
-      const result = createVertzBunPlugin({
+      const result = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         hmr: false,
@@ -412,7 +412,7 @@ describe('bun-plugin manifest HMR', () => {
       `,
       );
 
-      const result = createVertzBunPlugin({
+      const result = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         hmr: false,
@@ -445,7 +445,7 @@ describe('bun-plugin manifest HMR', () => {
       `,
       );
 
-      const result = createVertzBunPlugin({
+      const result = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         hmr: false,
@@ -474,7 +474,7 @@ describe('bun-plugin manifest HMR', () => {
       `,
       );
 
-      const result = createVertzBunPlugin({
+      const result = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         hmr: false,
@@ -506,7 +506,7 @@ describe('bun-plugin manifest HMR', () => {
 
       const diagnostics = new DiagnosticsCollector();
 
-      createVertzBunPlugin({
+      createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         hmr: false,
@@ -523,7 +523,7 @@ describe('bun-plugin manifest HMR', () => {
 
       const diagnostics = new DiagnosticsCollector();
 
-      createVertzBunPlugin({
+      createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         hmr: false,
@@ -557,7 +557,7 @@ describe('bun-plugin manifest HMR', () => {
       `,
       );
 
-      createVertzBunPlugin({
+      createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         hmr: false,

@@ -9,7 +9,7 @@
 import { describe, expect, it, mock } from '@vertz/test';
 import { TraceMap } from '@jridgewell/trace-mapping';
 
-import { createVertzBunPlugin } from '../plugin';
+import { createVertzBuildPlugin } from '../plugin';
 
 // Mock Bun.file to return test source code
 const mockSource = `
@@ -37,7 +37,7 @@ function extractSourceMap(contents: string): TraceMap | null {
 describe('source map line offset', () => {
   it('should produce a valid source map with non-empty mappings', async () => {
     // Create plugin with HMR + Fast Refresh (dev defaults)
-    const { plugin } = createVertzBunPlugin({
+    const { plugin } = createVertzBuildPlugin({
       hmr: true,
       fastRefresh: true,
       projectRoot: '/test-project',
@@ -91,7 +91,7 @@ export default function StyledComp() {
 }
 `.trim();
 
-    const { plugin } = createVertzBunPlugin({
+    const { plugin } = createVertzBuildPlugin({
       hmr: true,
       fastRefresh: true,
       projectRoot: '/test-project',

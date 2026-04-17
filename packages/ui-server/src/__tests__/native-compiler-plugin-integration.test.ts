@@ -10,7 +10,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadNativeCompiler } from '../compiler/native-compiler';
-import { createVertzBunPlugin } from '../bun-plugin/plugin';
+import { createVertzBuildPlugin } from '../build-plugin/plugin';
 
 // Check if the native binary is available on this platform
 function isNativeBinaryAvailable(): boolean {
@@ -96,7 +96,7 @@ describe('Feature: Native compiler plugin integration', () => {
       it('Then produces compiled output with native compiler', async () => {
         const filePath = project.write('App.tsx', 'function App() { return <div>Hello</div>; }');
 
-        const { plugin } = createVertzBunPlugin({
+        const { plugin } = createVertzBuildPlugin({
           projectRoot: project.dir,
           srcDir: project.srcDir,
           hmr: false,
@@ -121,7 +121,7 @@ describe('Feature: Native compiler plugin integration', () => {
 }`,
         );
 
-        const { plugin } = createVertzBunPlugin({
+        const { plugin } = createVertzBuildPlugin({
           projectRoot: project.dir,
           srcDir: project.srcDir,
           hmr: false,
@@ -140,7 +140,7 @@ describe('Feature: Native compiler plugin integration', () => {
       it('Then always uses the native compiler', async () => {
         const filePath = project.write('App.tsx', 'function App() { return <div>Hello</div>; }');
 
-        const { plugin } = createVertzBunPlugin({
+        const { plugin } = createVertzBuildPlugin({
           projectRoot: project.dir,
           srcDir: project.srcDir,
           hmr: false,
@@ -164,7 +164,7 @@ describe('Feature: Native compiler plugin integration', () => {
 }`,
         );
 
-        const { plugin } = createVertzBunPlugin({
+        const { plugin } = createVertzBuildPlugin({
           projectRoot: project.dir,
           srcDir: project.srcDir,
           hmr: false,
@@ -183,7 +183,7 @@ describe('Feature: Native compiler plugin integration', () => {
       it('Then produces output with inline source map', async () => {
         const filePath = project.write('App.tsx', 'function App() { return <div>Hello</div>; }');
 
-        const { plugin } = createVertzBunPlugin({
+        const { plugin } = createVertzBuildPlugin({
           projectRoot: project.dir,
           srcDir: project.srcDir,
           hmr: false,

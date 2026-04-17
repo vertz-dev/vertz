@@ -8,7 +8,7 @@
 
 import { describe, expect, it, mock } from '@vertz/test';
 import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping';
-import { createVertzBunPlugin } from '../plugin';
+import { createVertzBuildPlugin } from '../plugin';
 
 // Helper: extract inline source map from plugin output
 function extractSourceMap(contents: string): TraceMap | null {
@@ -34,7 +34,7 @@ export function App() {
 `.trim();
 
     it('Then compiles the file via native compiler with routeSplitting', async () => {
-      const { plugin } = createVertzBunPlugin({
+      const { plugin } = createVertzBuildPlugin({
         hmr: false,
         fastRefresh: false,
         routeSplitting: true,
@@ -67,7 +67,7 @@ export function App() {
     });
 
     it('Then produces a valid source map', async () => {
-      const { plugin } = createVertzBunPlugin({
+      const { plugin } = createVertzBuildPlugin({
         hmr: false,
         fastRefresh: false,
         routeSplitting: true,
@@ -118,7 +118,7 @@ export function App() {
 
   describe('Given routeSplitting is disabled (default)', () => {
     it('Then does not register a .ts onLoad handler', () => {
-      const { plugin } = createVertzBunPlugin({
+      const { plugin } = createVertzBuildPlugin({
         hmr: false,
         fastRefresh: false,
         projectRoot: '/test-project',
@@ -147,7 +147,7 @@ export function App() {
 }
 `.trim();
 
-      const { plugin } = createVertzBunPlugin({
+      const { plugin } = createVertzBuildPlugin({
         hmr: false,
         fastRefresh: false,
         projectRoot: '/test-project',

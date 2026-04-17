@@ -2,7 +2,7 @@ import type { CSSExtractionResult } from '../compiler/css/types';
 import type { DebugLogger } from '../debug-logger';
 import type { DiagnosticsCollector } from '../diagnostics-collector';
 
-export interface VertzBunPluginOptions {
+export interface VertzBuildPluginOptions {
   /** Regex filter for files to transform. Defaults to .tsx files. */
   filter?: RegExp;
   /** Compilation target. 'dom' (default) or 'tui'. */
@@ -57,8 +57,17 @@ export interface ManifestUpdateResult {
   changed: boolean;
 }
 
-export interface VertzBunPluginResult {
-  /** The Bun plugin to pass to Bun.build or bunfig.toml. */
+/**
+ * Result of `createVertzBuildPlugin()`.
+ *
+ * Note: `plugin` is typed as `BunPlugin` for structural compatibility with the
+ * production build toolchain (vtz build consumes the BunPlugin shape internally).
+ * The factory name uses "Build" — not "Bun" — because its purpose (production
+ * build integration), not its runtime, drives the name. Dev is vtz; only the
+ * production build pipeline consumes this.
+ */
+export interface VertzBuildPluginResult {
+  /** The production-build plugin (BunPlugin-shaped for toolchain compatibility). */
   plugin: import('bun').BunPlugin;
   /** CSS extractions for all transformed files (for production dead CSS elimination). */
   fileExtractions: FileExtractionsMap;
