@@ -2,6 +2,7 @@ use oxc_ast::ast::*;
 use oxc_ast_visit::Visit;
 
 use crate::css_token_tables;
+use crate::css_unitless;
 use crate::magic_string::MagicString;
 
 /// Classification of a css() call.
@@ -20,10 +21,18 @@ struct CssCallInfo {
     blocks: Vec<CssBlock>,
 }
 
-/// A single block in a css() call: { blockName: ['shorthand', ...] }
+/// A single block in a css() call. Can be either array-form (legacy shorthand
+/// entries) or object-form (new `StyleBlock` tree).
 struct CssBlock {
     name: String,
-    entries: Vec<CssEntry>,
+    content: CssBlockContent,
+}
+
+enum CssBlockContent {
+    /// Array-form: `{ card: ['p:4', 'bg:primary'] }`
+    Entries(Vec<CssEntry>),
+    /// Object-form: `{ card: { padding: 16, color: 'red', '&:hover': { ... } } }`
+    Block(Vec<StyleBlockNode>),
 }
 
 /// An entry in a css block's array value.
@@ -36,6 +45,25 @@ enum CssEntry {
         entries: Vec<CssEntry>,
         raw_declarations: Vec<(String, String)>,
     },
+}
+
+/// A node in a `StyleBlock` tree (object-form css() input).
+enum StyleBlockNode {
+    Declaration {
+        /// Key as written in source: camelCase property or `--custom-prop`.
+        camel_key: String,
+        value: StyleDeclValue,
+    },
+    Selector {
+        /// `&...` combinator (e.g. `&:hover`, `& > span`) or `@...` at-rule.
+        selector: String,
+        children: Vec<StyleBlockNode>,
+    },
+}
+
+enum StyleDeclValue {
+    String(String),
+    Number(f64),
 }
 
 /// Transform static css() calls — extract CSS and replace with class name maps.
@@ -61,7 +89,12 @@ pub fn transform_css(ms: &mut MagicString, program: &Program, file_path: &str) -
 
         for block in &call.blocks {
             let class_name = generate_class_name(file_path, &block.name);
-            let rules = build_css_rules(&class_name, &block.entries);
+            let rules = match &block.content {
+                CssBlockContent::Entries(entries) => build_css_rules(&class_name, entries),
+                CssBlockContent::Block(nodes) => {
+                    build_style_block_rules(&format!(".{class_name}"), nodes)
+                }
+            };
             class_names.push((block.name.clone(), class_name));
             css_rules.extend(rules);
         }
@@ -155,6 +188,57 @@ fn is_static_css_value(expr: &Expression) -> bool {
             }
             true
         }
+        Expression::ObjectExpression(obj) => is_static_style_block(obj),
+        _ => false,
+    }
+}
+
+/// Validate that an object expression can be extracted as a StyleBlock tree.
+/// Accepts string/number declarations and nested `&`/`@` selector objects.
+fn is_static_style_block(obj: &ObjectExpression) -> bool {
+    if obj.properties.is_empty() {
+        return false;
+    }
+    for prop in &obj.properties {
+        match prop {
+            ObjectPropertyKind::ObjectProperty(p) => {
+                let key = extract_style_block_key(&p.key);
+                let Some(key) = key else { return false };
+                let is_selector = key.starts_with('&') || key.starts_with('@');
+                if is_selector {
+                    match &p.value {
+                        Expression::ObjectExpression(inner) => {
+                            if !is_static_style_block(inner) {
+                                return false;
+                            }
+                        }
+                        _ => return false,
+                    }
+                } else if !is_static_scalar_value(&p.value) {
+                    return false;
+                }
+            }
+            ObjectPropertyKind::SpreadProperty(_) => return false,
+        }
+    }
+    true
+}
+
+/// Extract a StyleBlock key as a static string. Rejects numeric or computed keys.
+fn extract_style_block_key(key: &PropertyKey) -> Option<String> {
+    match key {
+        PropertyKey::StaticIdentifier(id) => Some(id.name.to_string()),
+        PropertyKey::StringLiteral(s) => Some(s.value.to_string()),
+        _ => None,
+    }
+}
+
+fn is_static_scalar_value(expr: &Expression) -> bool {
+    match expr {
+        Expression::StringLiteral(_) | Expression::NumericLiteral(_) => true,
+        Expression::UnaryExpression(u) if u.operator == UnaryOperator::UnaryNegation => {
+            matches!(&u.argument, Expression::NumericLiteral(_))
+        }
         _ => false,
     }
 }
@@ -213,11 +297,60 @@ fn extract_blocks(obj: &ObjectExpression) -> Vec<CssBlock> {
     for prop in &obj.properties {
         if let ObjectPropertyKind::ObjectProperty(p) = prop {
             let name = extract_property_name(&p.key);
-            let entries = extract_entries(&p.value);
-            blocks.push(CssBlock { name, entries });
+            let content = extract_block_content(&p.value);
+            blocks.push(CssBlock { name, content });
         }
     }
     blocks
+}
+
+fn extract_block_content(expr: &Expression) -> CssBlockContent {
+    match expr {
+        Expression::ArrayExpression(_) => CssBlockContent::Entries(extract_entries(expr)),
+        Expression::ObjectExpression(obj) => CssBlockContent::Block(extract_style_block(obj)),
+        _ => CssBlockContent::Entries(Vec::new()),
+    }
+}
+
+fn extract_style_block(obj: &ObjectExpression) -> Vec<StyleBlockNode> {
+    let mut nodes = Vec::new();
+    for prop in &obj.properties {
+        if let ObjectPropertyKind::ObjectProperty(p) = prop {
+            let Some(key) = extract_style_block_key(&p.key) else {
+                continue;
+            };
+            let is_selector = key.starts_with('&') || key.starts_with('@');
+            if is_selector {
+                if let Expression::ObjectExpression(inner) = &p.value {
+                    nodes.push(StyleBlockNode::Selector {
+                        selector: key,
+                        children: extract_style_block(inner),
+                    });
+                }
+            } else if let Some(value) = extract_scalar_value(&p.value) {
+                nodes.push(StyleBlockNode::Declaration {
+                    camel_key: key,
+                    value,
+                });
+            }
+        }
+    }
+    nodes
+}
+
+fn extract_scalar_value(expr: &Expression) -> Option<StyleDeclValue> {
+    match expr {
+        Expression::StringLiteral(s) => Some(StyleDeclValue::String(s.value.to_string())),
+        Expression::NumericLiteral(n) => Some(StyleDeclValue::Number(n.value)),
+        Expression::UnaryExpression(u) if u.operator == UnaryOperator::UnaryNegation => {
+            if let Expression::NumericLiteral(n) = &u.argument {
+                Some(StyleDeclValue::Number(-n.value))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
 }
 
 fn extract_property_name(key: &PropertyKey) -> String {
@@ -325,13 +458,26 @@ fn djb2_hash(s: &str) -> u32 {
 
 // ─── camelCase → kebab-case ──────────────────────────────────────
 
+/// camelCase → kebab-case, mirroring the TS implementation.
+///
+/// Matches every uppercase letter to `-<lower>`; the leading dash is desired
+/// for vendor-prefix names like `WebkitTransform` → `-webkit-transform` or
+/// `MsGridRow` → `-ms-grid-row`. The `ms*` prefix is capitalized first so the
+/// leading dash is emitted the same way as `Webkit*` / `Moz*` prefixes.
 fn camel_to_kebab(s: &str) -> String {
-    let mut result = String::with_capacity(s.len() + 4);
-    for (i, c) in s.chars().enumerate() {
+    let bytes = s.as_bytes();
+    let needs_ms_fix =
+        bytes.len() > 2 && bytes[0] == b'm' && bytes[1] == b's' && bytes[2].is_ascii_uppercase();
+    let normalized: String = if needs_ms_fix {
+        format!("Ms{}", &s[2..])
+    } else {
+        s.to_string()
+    };
+
+    let mut result = String::with_capacity(normalized.len() + 4);
+    for c in normalized.chars() {
         if c.is_ascii_uppercase() {
-            if i > 0 {
-                result.push('-');
-            }
+            result.push('-');
             result.push(c.to_ascii_lowercase());
         } else {
             result.push(c);
@@ -429,6 +575,83 @@ fn format_at_rule(at_rule: &str, class_selector: &str, declarations: &[String]) 
         .collect::<Vec<_>>()
         .join("\n");
     format!("{at_rule} {{\n  {class_selector} {{\n{props}\n  }}\n}}")
+}
+
+// ─── StyleBlock (object-form) rendering ─────────────────────────────
+
+/// Render a `StyleBlock` tree as CSS rules rooted at `class_selector`.
+/// Mirrors the TS `renderStyleBlock` implementation in `packages/ui/src/css/css.ts`.
+fn build_style_block_rules(class_selector: &str, nodes: &[StyleBlockNode]) -> Vec<String> {
+    let mut declarations: Vec<String> = Vec::new();
+    let mut nested_rules: Vec<String> = Vec::new();
+
+    for node in nodes {
+        match node {
+            StyleBlockNode::Declaration { camel_key, value } => {
+                let property = if camel_key.starts_with("--") {
+                    camel_key.clone()
+                } else {
+                    camel_to_kebab(camel_key)
+                };
+                let formatted = format_style_value(camel_key, value);
+                declarations.push(format!("{property}: {formatted};"));
+            }
+            StyleBlockNode::Selector { selector, children } => {
+                if let Some(stripped) = selector.strip_prefix('@') {
+                    let inner = build_style_block_rules(class_selector, children);
+                    if !inner.is_empty() {
+                        nested_rules.push(wrap_at_rule(&format!("@{stripped}"), &inner));
+                    }
+                } else {
+                    let resolved = selector.replace('&', class_selector);
+                    nested_rules.extend(build_style_block_rules(&resolved, children));
+                }
+            }
+        }
+    }
+
+    let mut out = Vec::new();
+    if !declarations.is_empty() {
+        out.push(format_css_rule(class_selector, &declarations));
+    }
+    out.extend(nested_rules);
+    out
+}
+
+fn format_style_value(camel_key: &str, value: &StyleDeclValue) -> String {
+    match value {
+        StyleDeclValue::String(s) => s.clone(),
+        StyleDeclValue::Number(n) => {
+            let num = format_number(*n);
+            if *n == 0.0 || camel_key.starts_with("--") || css_unitless::is_unitless(camel_key) {
+                num
+            } else {
+                format!("{num}px")
+            }
+        }
+    }
+}
+
+fn format_number(n: f64) -> String {
+    if n.is_finite() && n.fract() == 0.0 && n.abs() < 1e16 {
+        format!("{}", n as i64)
+    } else {
+        format!("{n}")
+    }
+}
+
+fn wrap_at_rule(at_rule: &str, inner_rules: &[String]) -> String {
+    let indented: String = inner_rules
+        .iter()
+        .map(|rule| {
+            rule.lines()
+                .map(|l| format!("  {l}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("{at_rule} {{\n{indented}\n}}")
 }
 
 // ─── Shorthand Parsing ──────────────────────────────────────────
@@ -1058,5 +1281,134 @@ const b = css({ root: ['grid'] });
         let css = result.css.unwrap();
         assert!(css.contains("display: flex;"), "css: {}", css);
         assert!(css.contains("padding: 1rem;"), "css: {}", css);
+    }
+
+    // ── Object-form css() input (StyleBlock) ──────────────────────────
+
+    #[test]
+    fn object_form_basic_declaration() {
+        let source = r#"const s = css({ card: { padding: 16, color: 'red' } });"#;
+        let (code, css) = transform(source);
+        assert!(css.contains("padding: 16px;"), "css: {}", css);
+        assert!(css.contains("color: red;"), "css: {}", css);
+        assert!(code.contains("card:"), "code: {}", code);
+        assert!(code.contains("Object.defineProperty("), "code: {}", code);
+    }
+
+    #[test]
+    fn object_form_unitless_property_no_px() {
+        let source = r#"const s = css({ card: { lineHeight: 1.5, opacity: 1, zIndex: 10 } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains("line-height: 1.5;"), "css: {}", css);
+        assert!(css.contains("opacity: 1;"), "css: {}", css);
+        assert!(css.contains("z-index: 10;"), "css: {}", css);
+        assert!(!css.contains("px"), "unitless should not have px: {}", css);
+    }
+
+    #[test]
+    fn object_form_zero_is_unitless() {
+        let source = r#"const s = css({ card: { padding: 0 } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains("padding: 0;"), "css: {}", css);
+        assert!(!css.contains("0px"), "0 should not get px suffix: {}", css);
+    }
+
+    #[test]
+    fn object_form_camel_to_kebab() {
+        let source = r#"const s = css({ card: { backgroundColor: 'blue', gridTemplateColumns: 'repeat(3, 1fr)' } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains("background-color: blue;"), "css: {}", css);
+        assert!(
+            css.contains("grid-template-columns: repeat(3, 1fr);"),
+            "css: {}",
+            css
+        );
+    }
+
+    #[test]
+    fn object_form_custom_property_passthrough() {
+        let source = r#"const s = css({ card: { '--tone': 'muted', color: 'var(--tone)' } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains("--tone: muted;"), "css: {}", css);
+        assert!(css.contains("color: var(--tone);"), "css: {}", css);
+    }
+
+    #[test]
+    fn object_form_vendor_prefix_webkit() {
+        let source =
+            r#"const s = css({ card: { WebkitTransform: 'none', MozAppearance: 'none' } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains("-webkit-transform: none;"), "css: {}", css);
+        assert!(css.contains("-moz-appearance: none;"), "css: {}", css);
+    }
+
+    #[test]
+    fn object_form_nested_ampersand_selector() {
+        let source = r#"const s = css({ card: { color: 'red', '&:hover': { color: 'blue' } } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains("color: red;"), "css: {}", css);
+        assert!(css.contains(":hover"), "css: {}", css);
+        assert!(css.contains("color: blue;"), "css: {}", css);
+    }
+
+    #[test]
+    fn object_form_at_media_rule() {
+        let source = r#"const s = css({ card: { padding: 8, '@media (min-width: 768px)': { padding: 16 } } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains("@media (min-width: 768px)"), "css: {}", css);
+        assert!(css.contains("padding: 8px;"), "css: {}", css);
+        assert!(css.contains("padding: 16px;"), "css: {}", css);
+    }
+
+    #[test]
+    fn object_form_deeply_nested() {
+        let source = r#"const s = css({ card: { '&:hover': { '& > span': { color: 'red' } } } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains(":hover > span"), "css: {}", css);
+        assert!(css.contains("color: red;"), "css: {}", css);
+    }
+
+    #[test]
+    fn object_form_reactive_when_value_is_variable() {
+        let source = r#"const s = css({ card: { color: someVar } });"#;
+        let (code, css) = transform(source);
+        assert!(css.is_empty(), "reactive should not extract CSS");
+        assert!(code.contains("css("), "reactive should not be replaced");
+    }
+
+    #[test]
+    fn object_form_reactive_when_nested_has_spread() {
+        let source = r#"const s = css({ card: { '&:hover': { ...base } } });"#;
+        let (_, css) = transform(source);
+        assert!(css.is_empty());
+    }
+
+    #[test]
+    fn object_form_reactive_when_spread() {
+        let source = r#"const s = css({ card: { ...base } });"#;
+        let (_, css) = transform(source);
+        assert!(css.is_empty());
+    }
+
+    #[test]
+    fn object_form_class_name_deterministic() {
+        let (code1, _) = transform("const s = css({ card: { padding: 16 } });");
+        let (code2, _) = transform("const s = css({ card: { padding: 16 } });");
+        assert_eq!(code1, code2);
+    }
+
+    #[test]
+    fn object_form_empty_block_is_reactive() {
+        let source = r#"const s = css({ card: {} });"#;
+        let (_, css) = transform(source);
+        // Empty object block has no usable declarations → treated as reactive.
+        assert!(css.is_empty());
+    }
+
+    #[test]
+    fn object_form_negative_numeric_value() {
+        let source = r#"const s = css({ card: { marginTop: -8 } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains("margin-top: -8px;"), "css: {}", css);
     }
 }
