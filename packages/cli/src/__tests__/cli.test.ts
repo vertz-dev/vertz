@@ -394,11 +394,7 @@ describe('createCLI', () => {
     });
   });
 
-  // Skipped under `vtz test` pending #2731. The 3 tests in this block assert
-  // against mocks that drive createCLI's codegen action through @vertz/compiler
-  // + @vertz/codegen mocks. Same underlying mock/resolver interop issue as
-  // production-build/__tests__/orchestrator.test.ts. Fix is tracked with those.
-  describe.skip('codegen command action', () => {
+  describe('codegen command action', () => {
     let exitSpy: MockFunction<(...args: unknown[]) => unknown>;
     let errorSpy: MockFunction<(...args: unknown[]) => unknown>;
     let logSpy: MockFunction<(...args: unknown[]) => unknown>;

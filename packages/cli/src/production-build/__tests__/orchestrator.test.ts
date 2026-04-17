@@ -23,22 +23,23 @@ import { join } from 'node:path';
 import { BuildOrchestrator, createBuildOrchestrator } from '../orchestrator';
 import type { BuildConfig, BuildManifest } from '../types';
 
-// Mock dependencies
+// Mock dependencies — every mock uses a factory-supplied implementation so it
+// survives `vi.restoreAllMocks()` (vitest semantics: mockRestore returns mocks
+// to their initial state, which means a `mock().mockResolvedValue(x)` mock
+// drops to `undefined`, but `mock(() => Promise.resolve(x))` retains its impl).
 vi.mock('@vertz/compiler', () => {
-  const mockGenerate = mock().mockResolvedValue(undefined);
-
   return {
     createCompiler: mock(() => ({
-      analyze: mock().mockResolvedValue({
+      analyze: mock(async () => ({
         modules: [{ name: 'test', services: [], routes: [], schemas: [] }],
         routes: [],
         schemas: [],
         env: { variables: [] },
         middlewares: [],
-      }),
-      validate: mock().mockResolvedValue([]),
-      compile: mock().mockResolvedValue({ success: true, diagnostics: [] }),
-      getConfig: mock().mockReturnValue({
+      })),
+      validate: mock(async () => []),
+      compile: mock(async () => ({ success: true, diagnostics: [] })),
+      getConfig: mock(() => ({
         strict: false,
         forceGenerate: false,
         compiler: {
@@ -57,37 +58,37 @@ vi.mock('@vertz/compiler', () => {
             detectDeadCode: false,
           },
         },
-      }),
+      })),
     })),
     Compiler: mock(),
     OpenAPIGenerator: class {
-      generate = mockGenerate;
+      generate = mock(async () => undefined);
     },
   };
 });
 
 vi.mock('@vertz/codegen', () => ({
   createCodegenPipeline: mock(() => ({
-    validate: mock().mockReturnValue([]),
-    generate: mock().mockResolvedValue({
+    validate: mock(() => []),
+    generate: mock(async () => ({
       files: [{ path: 'test.ts', content: 'export type Test = string;' }],
       fileCount: 1,
       generators: ['typescript'],
       incremental: { written: ['test.ts'], skipped: [], removed: [] },
-    }),
-    resolveOutputDir: mock().mockReturnValue('.vertz/generated'),
+    })),
+    resolveOutputDir: mock(() => '.vertz/generated'),
     resolveConfig: mock((config) => config),
   })),
-  generate: mock().mockResolvedValue({
+  generate: mock(async () => ({
     files: [{ path: 'test.ts', content: 'export type Test = string;' }],
     fileCount: 1,
     generators: ['typescript'],
-  }),
+  })),
 }));
 
-// Mock esbuild - create a default mock implementation
+// Mock esbuild — factory impl so default behavior survives restoreAllMocks.
 vi.mock('esbuild', () => ({
-  build: mock().mockResolvedValue({
+  build: mock(async () => ({
     errors: [],
     warnings: [],
     metafile: {
@@ -99,22 +100,10 @@ vi.mock('esbuild', () => ({
         },
       },
     },
-  }),
+  })),
 }));
 
-// Skipped under `vtz test` pending #2731.
-//
-// These tests mock @vertz/compiler, @vertz/codegen, and esbuild, then drive the
-// full BuildOrchestrator.build() pipeline. The mocks work in isolation but the
-// pipeline transitively imports @vertz/ui-server/bun-plugin which does its own
-// esbuild resolution — vtz's module loader + vi.mock interaction in this
-// specific transitive chain produces `Cannot read properties of undefined
-// (reading 'analyze')` and `mockCreate.getMockImplementation is not a function`
-// (vtz's mock API doesn't expose getMockImplementation). Fixing properly needs
-// either: (a) splitting these into integration tests that run the real pipeline
-// against a fixture app, or (b) tightening vtz's mock + resolver parity with
-// vitest. Track both in #2731.
-describe.skip('BuildOrchestrator', () => {
+describe('BuildOrchestrator', () => {
   let orchestrator: BuildOrchestrator;
 
   const defaultConfig: BuildConfig = {
