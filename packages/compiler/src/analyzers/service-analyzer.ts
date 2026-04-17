@@ -4,6 +4,7 @@ import type {
   EntityAccessRuleKind,
   HttpMethod,
   InjectRef,
+  SchemaRef,
   ServiceActionIR,
   ServiceIR,
   ServiceMethodIR,
@@ -18,6 +19,7 @@ import {
 } from '../utils/ast-helpers';
 import { isFromImport } from '../utils/import-resolver';
 import { BaseAnalyzer } from './base-analyzer';
+import { resolveSchemaRefFromExpression } from './utils/schema-type-resolver';
 
 export interface ServiceAnalyzerResult {
   services: ServiceIR[];
@@ -122,7 +124,26 @@ export class ServiceAnalyzer extends BaseAnalyzer<ServiceAnalyzerResult> {
       const pathExpr = getPropertyValue(actionConfig, 'path');
       const path = pathExpr ? (getStringValue(pathExpr) ?? undefined) : undefined;
 
-      actions.push({ name: actionName, method, path });
+      const bodyExpr = getPropertyValue(actionConfig, 'body');
+      const responseExpr = getPropertyValue(actionConfig, 'response');
+      const body: SchemaRef | undefined = bodyExpr
+        ? resolveSchemaRefFromExpression(bodyExpr)
+        : undefined;
+      const response: SchemaRef | undefined = responseExpr
+        ? resolveSchemaRefFromExpression(responseExpr)
+        : undefined;
+
+      if (!bodyExpr && !responseExpr) {
+        const loc = getSourceLocation(init);
+        this.addDiagnostic({
+          code: 'SERVICE_ACTION_MISSING_SCHEMA',
+          severity: 'warning',
+          message: `Service action "${actionName}" is missing body and response schema`,
+          ...loc,
+        });
+      }
+
+      actions.push({ name: actionName, method, path, body, response });
     }
 
     return actions;

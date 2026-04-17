@@ -239,6 +239,176 @@ export const svc = service('my-svc', {
     });
   });
 
+  describe('Feature: service-analyzer extracts action schemas', () => {
+    describe('Given action({ body, response, handler }) referencing SchemaLike<T> constants', () => {
+      it('Then ServiceActionIR.body is inline with resolvedFields mirroring the T shape', async () => {
+        const project = createProject();
+        project.createSourceFile(
+          'src/svc.ts',
+          `import { service, action } from '@vertz/server';
+export interface SchemaLike<T> { parse(data: unknown): { ok: true; data: T } | { ok: false; error: Error }; }
+export const sendBody: SchemaLike<{ to: string; subject: string }> = {} as SchemaLike<{ to: string; subject: string }>;
+export const sendResponse: SchemaLike<{ ok: boolean }> = {} as SchemaLike<{ ok: boolean }>;
+export const notifications = service('notifications', {
+  access: { send: () => true },
+  actions: {
+    send: action({ body: sendBody, response: sendResponse, handler: async () => ({ ok: true }) }),
+  },
+});`,
+        );
+        const analyzer = new ServiceAnalyzer(project, resolveConfig());
+        const result = await analyzer.analyze();
+        const send = result.services[0]?.actions[0];
+        expect(send?.body?.kind).toBe('inline');
+        if (send?.body?.kind === 'inline') {
+          expect(send.body.resolvedFields).toEqual(
+            expect.arrayContaining([
+              { name: 'to', tsType: 'string', optional: false },
+              { name: 'subject', tsType: 'string', optional: false },
+            ]),
+          );
+        }
+      });
+
+      it('Then ServiceActionIR.response is inline with resolvedFields mirroring the T shape', async () => {
+        const project = createProject();
+        project.createSourceFile(
+          'src/svc.ts',
+          `import { service, action } from '@vertz/server';
+export interface SchemaLike<T> { parse(data: unknown): { ok: true; data: T } | { ok: false; error: Error }; }
+export const sendBody: SchemaLike<{ to: string }> = {} as SchemaLike<{ to: string }>;
+export const sendResponse: SchemaLike<{ ok: boolean; count?: number }> = {} as SchemaLike<{ ok: boolean; count?: number }>;
+export const notifications = service('notifications', {
+  access: { send: () => true },
+  actions: {
+    send: action({ body: sendBody, response: sendResponse, handler: async () => ({ ok: true }) }),
+  },
+});`,
+        );
+        const analyzer = new ServiceAnalyzer(project, resolveConfig());
+        const result = await analyzer.analyze();
+        const send = result.services[0]?.actions[0];
+        expect(send?.response?.kind).toBe('inline');
+        if (send?.response?.kind === 'inline') {
+          expect(send.response.resolvedFields).toEqual(
+            expect.arrayContaining([
+              { name: 'ok', tsType: 'boolean', optional: false },
+              { name: 'count', tsType: 'number', optional: true },
+            ]),
+          );
+        }
+      });
+    });
+
+    describe('Given a GET action with only response (no body)', () => {
+      it('Then body is undefined and response is resolved', async () => {
+        const project = createProject();
+        project.createSourceFile(
+          'src/svc.ts',
+          `import { service, action } from '@vertz/server';
+export interface SchemaLike<T> { parse(data: unknown): { ok: true; data: T } | { ok: false; error: Error }; }
+export const statusResponse: SchemaLike<{ status: string }> = {} as SchemaLike<{ status: string }>;
+export const svc = service('my-svc', {
+  access: { status: () => true },
+  actions: {
+    status: action({ method: 'GET', response: statusResponse, handler: async () => ({ status: 'ok' }) }),
+  },
+});`,
+        );
+        const analyzer = new ServiceAnalyzer(project, resolveConfig());
+        const result = await analyzer.analyze();
+        const status = result.services[0]?.actions[0];
+        expect(status?.body).toBeUndefined();
+        expect(status?.response?.kind).toBe('inline');
+      });
+
+      it('Then no SERVICE_ACTION_MISSING_SCHEMA diagnostic is emitted when response is present', async () => {
+        const project = createProject();
+        project.createSourceFile(
+          'src/svc.ts',
+          `import { service, action } from '@vertz/server';
+export interface SchemaLike<T> { parse(data: unknown): { ok: true; data: T } | { ok: false; error: Error }; }
+export const statusResponse: SchemaLike<{ status: string }> = {} as SchemaLike<{ status: string }>;
+export const svc = service('my-svc', {
+  access: { status: () => true },
+  actions: {
+    status: action({ method: 'GET', response: statusResponse, handler: async () => ({ status: 'ok' }) }),
+  },
+});`,
+        );
+        const analyzer = new ServiceAnalyzer(project, resolveConfig());
+        await analyzer.analyze();
+        const diags = analyzer.getDiagnostics();
+        expect(diags.find((d) => d.code === 'SERVICE_ACTION_MISSING_SCHEMA')).toBeUndefined();
+      });
+    });
+
+    describe('Given an action with no body and no response', () => {
+      it('Then body and response are both undefined', async () => {
+        const project = createProject();
+        project.createSourceFile(
+          'src/svc.ts',
+          `import { service, action } from '@vertz/server';
+export const svc = service('my-svc', {
+  access: { bare: () => true },
+  actions: {
+    bare: action({ handler: async () => ({}) }),
+  },
+});`,
+        );
+        const analyzer = new ServiceAnalyzer(project, resolveConfig());
+        const result = await analyzer.analyze();
+        const bare = result.services[0]?.actions[0];
+        expect(bare?.body).toBeUndefined();
+        expect(bare?.response).toBeUndefined();
+      });
+
+      it('Then a SERVICE_ACTION_MISSING_SCHEMA warning is added', async () => {
+        const project = createProject();
+        project.createSourceFile(
+          'src/svc.ts',
+          `import { service, action } from '@vertz/server';
+export const svc = service('my-svc', {
+  access: { bare: () => true },
+  actions: {
+    bare: action({ handler: async () => ({}) }),
+  },
+});`,
+        );
+        const analyzer = new ServiceAnalyzer(project, resolveConfig());
+        await analyzer.analyze();
+        const diags = analyzer.getDiagnostics();
+        const missing = diags.find((d) => d.code === 'SERVICE_ACTION_MISSING_SCHEMA');
+        expect(missing).toBeDefined();
+        expect(missing?.severity).toBe('warning');
+      });
+    });
+
+    describe('Given an action whose body references an unresolvable expression', () => {
+      it('Then body is inline with resolvedFields undefined', async () => {
+        const project = createProject();
+        project.createSourceFile(
+          'src/svc.ts',
+          `import { service, action } from '@vertz/server';
+const mystery: unknown = {};
+export const svc = service('my-svc', {
+  access: { weird: () => true },
+  actions: {
+    weird: action({ body: mystery as any, handler: async () => ({}) }),
+  },
+});`,
+        );
+        const analyzer = new ServiceAnalyzer(project, resolveConfig());
+        const result = await analyzer.analyze();
+        const weird = result.services[0]?.actions[0];
+        expect(weird?.body?.kind).toBe('inline');
+        if (weird?.body?.kind === 'inline') {
+          expect(weird.body.resolvedFields).toBeUndefined();
+        }
+      });
+    });
+  });
+
   describe('access rule parsing', () => {
     it('extracts access rules per action', async () => {
       const project = createProject();
