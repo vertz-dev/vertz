@@ -33,7 +33,7 @@ import { parseShorthand } from './shorthand-parser';
 import type { CSSDeclaration } from './token-resolver';
 import { resolveToken } from './token-resolver';
 import type { CSSDeclarations } from './css-properties';
-import type { StyleBlock } from './style-block';
+import type { StrictBlockValue, StyleBlock } from './style-block';
 import { isToken } from './token';
 import { UNITLESS_PROPERTIES } from './unitless-properties';
 import type { UtilityClass } from './utility-types';
@@ -155,8 +155,10 @@ export function getInjectedCSS(): string[] {
  * @param filePath - Source file path for deterministic hashing.
  * @returns Object with block names as keys (class name strings) and non-enumerable `css` property.
  */
-export function css<T extends CSSInput>(
-  input: T & { [K in keyof T & 'css']?: never },
+export function css<const T extends CSSInput>(
+  input: {
+    [K in keyof T]: K extends 'css' ? never : StrictBlockValue<T[K]>;
+  },
   filePath: string = DEFAULT_FILE_PATH,
 ): CSSOutput<T> {
   if ('css' in input) {
@@ -174,7 +176,7 @@ export function css<T extends CSSInput>(
   // packages/ui/src/css/__tests__/class-name-parity.test.ts.
   const useFingerprint = filePath === DEFAULT_FILE_PATH;
 
-  for (const [blockName, blockValue] of Object.entries(input)) {
+  for (const [blockName, blockValue] of Object.entries(input as CSSInput)) {
     if (!Array.isArray(blockValue)) {
       const styleFingerprint = useFingerprint ? serializeBlock(blockValue) : '';
       const className = generateClassName(filePath, blockName, styleFingerprint);

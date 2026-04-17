@@ -50,3 +50,15 @@ void variants({
   base: { bacgroundColor: 'red' },
   variants: {},
 });
+
+// prettier-ignore
+// @ts-expect-error — typo nested inside base selector
+void variants({ base: { padding: 4, '&:hover': { bacgroundColor: 'red' } }, variants: {} });
+
+// prettier-ignore
+// @ts-expect-error — typo inside a variant option block
+void variants({ base: { padding: 4 }, variants: { intent: { primary: { bacgroundColor: 'red' } } } });
+
+// prettier-ignore
+// @ts-expect-error — typo inside compoundVariants styles block
+void variants({ base: { padding: 4 }, variants: { intent: { primary: { color: 'red' } } }, compoundVariants: [{ intent: 'primary', styles: { bacgroundColor: 'red' } }] });

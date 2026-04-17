@@ -471,3 +471,19 @@ css({
     'definitely-not-a-utility',
   ],
 });
+
+// ─── css() — object-form typo rejection (strict validator) ─────────
+
+// @ts-expect-error — top-level typo in object-form block
+css({ card: { bacgroundColor: 'red' } });
+
+// prettier-ignore
+// @ts-expect-error — typo inside nested selector
+css({ card: { padding: 16, '&:hover': { fooBar: 'baz' } } });
+
+// prettier-ignore
+// @ts-expect-error — typo inside @media nested block
+css({ card: { padding: 16, '@media (min-width: 768px)': { bacgroundColor: 'red' } } });
+
+// Valid object-form block — no error
+css({ card: { padding: 16, backgroundColor: 'red', '&:hover': { color: 'blue' } } });

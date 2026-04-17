@@ -32,7 +32,7 @@
 
 import type { StyleEntry } from './css';
 import { css } from './css';
-import type { StyleBlock } from './style-block';
+import type { StrictBlockValue, StyleBlock } from './style-block';
 import { isToken } from './token';
 
 /** A single block value: either token-string entries or a StyleBlock object. */
@@ -71,6 +71,17 @@ export interface VariantsConfig<V extends VariantDefinitions> {
   /** Compound variants: styles applied when multiple variant values match simultaneously. */
   compoundVariants?: CompoundVariant<V>[];
 }
+
+/**
+ * Strict per-option validation: each option's object-form block must only use
+ * known CSS properties / selector keys. Array-form options pass through.
+ * Gets call-site type errors through generic inference where EPC alone misses.
+ */
+type StrictVariants<V extends VariantDefinitions> = {
+  [K in keyof V]: {
+    [O in keyof V[K]]: StrictBlockValue<V[K][O]>;
+  };
+};
 
 /** The function returned by variants(). Takes optional variant props and returns a className string. */
 export interface VariantFunction<V extends VariantDefinitions> {
@@ -141,7 +152,7 @@ function isEmptyBlock(value: BlockValue): boolean {
  * @returns A function that accepts variant props and returns a className string.
  */
 export function variants<V extends VariantDefinitions>(
-  config: VariantsConfig<V>,
+  config: VariantsConfig<V> & { variants: StrictVariants<V> },
 ): VariantFunction<V> {
   const { base, variants: variantDefs, defaultVariants, compoundVariants } = config;
   const filePath = deriveConfigKey(config as VariantsConfig<VariantDefinitions>);
