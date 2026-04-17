@@ -52,6 +52,7 @@
   },
   "overrides": {
     "@vitest/mocker": "^4.0.18",
+    "esbuild": "0.27.3",
     "rollup": "^4.59.0",
     "vite": "^7.3.1"
   }
