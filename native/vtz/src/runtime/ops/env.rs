@@ -1,31 +1,59 @@
 use deno_core::op2;
 use deno_core::OpDecl;
+use deno_core::OpState;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
+
+/// Per-isolate environment variable store.
+///
+/// Seeded from `std::env::vars()` when the isolate is created, then diverges
+/// independently. JS mutations to `process.env` operate on this store and do
+/// NOT touch the process-global `std::env` — this prevents parallel isolates
+/// (e.g. `vtz test` worker threads running multiple files in one process) from
+/// racing on shared OS env state.
+///
+/// Matches the isolation semantics of bun/vitest test workers, where each
+/// worker has its own `process.env` copy.
+#[derive(Default)]
+pub struct IsolateEnv(pub Rc<RefCell<HashMap<String, String>>>);
+
+impl IsolateEnv {
+    /// Seed from the current process environment. Called once per isolate at
+    /// creation time.
+    pub fn from_process_env() -> Self {
+        Self(Rc::new(RefCell::new(std::env::vars().collect())))
+    }
+}
 
 /// Get an environment variable. Returns null if not set.
 #[op2]
 #[string]
-pub fn op_env_get(#[string] key: String) -> Option<String> {
-    std::env::var(&key).ok()
+pub fn op_env_get(state: &mut OpState, #[string] key: String) -> Option<String> {
+    let env = state.borrow::<IsolateEnv>();
+    env.0.borrow().get(&key).cloned()
 }
 
 /// Set an environment variable.
 #[op2(fast)]
-pub fn op_env_set(#[string] key: String, #[string] value: String) {
-    std::env::set_var(&key, &value);
+pub fn op_env_set(state: &mut OpState, #[string] key: String, #[string] value: String) {
+    let env = state.borrow::<IsolateEnv>();
+    env.0.borrow_mut().insert(key, value);
 }
 
 /// Remove an environment variable.
 #[op2(fast)]
-pub fn op_env_remove(#[string] key: String) {
-    std::env::remove_var(&key);
+pub fn op_env_remove(state: &mut OpState, #[string] key: String) {
+    let env = state.borrow::<IsolateEnv>();
+    env.0.borrow_mut().remove(&key);
 }
 
 /// List all environment variable names.
 #[op2]
 #[serde]
-pub fn op_env_keys() -> Vec<String> {
-    std::env::vars().map(|(k, _)| k).collect()
+pub fn op_env_keys(state: &mut OpState) -> Vec<String> {
+    let env = state.borrow::<IsolateEnv>();
+    env.0.borrow().keys().cloned().collect()
 }
 
 /// Get the current working directory.
@@ -419,6 +447,44 @@ mod tests {
             .unwrap();
         assert_eq!(result, serde_json::json!(true));
         std::env::remove_var("VERTZ_KEYS_TEST");
+    }
+
+    #[test]
+    fn test_process_env_isolated_across_isolates() {
+        // Regression: under `vtz test`, parallel test files each get their own
+        // V8 isolate but used to share process.env via std::env, causing env
+        // mutations (e.g. NODE_ENV=production) to race across files.
+        // Each isolate must have its own process.env.
+        let mut rt1 = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let mut rt2 = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+
+        rt1.execute_script(
+            "<test>",
+            "process.env.VERTZ_ISOLATION_TEST = 'isolate_one'; null",
+        )
+        .unwrap();
+        rt2.execute_script(
+            "<test>",
+            "process.env.VERTZ_ISOLATION_TEST = 'isolate_two'; null",
+        )
+        .unwrap();
+
+        let r1 = rt1
+            .execute_script("<test>", "process.env.VERTZ_ISOLATION_TEST")
+            .unwrap();
+        let r2 = rt2
+            .execute_script("<test>", "process.env.VERTZ_ISOLATION_TEST")
+            .unwrap();
+
+        assert_eq!(r1, serde_json::json!("isolate_one"));
+        assert_eq!(r2, serde_json::json!("isolate_two"));
+
+        // Mutations must NOT leak to the process-global std::env either —
+        // otherwise other tests running in the same cargo test process race.
+        assert!(
+            std::env::var("VERTZ_ISOLATION_TEST").is_err(),
+            "JS mutations to process.env should not leak to std::env"
+        );
     }
 
     #[test]

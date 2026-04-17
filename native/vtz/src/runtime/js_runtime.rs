@@ -177,6 +177,7 @@ impl VertzJsRuntime {
                 state.put(crypto_subtle::CryptoKeyStore::default());
                 state.put(sqlite::SqliteStore::default());
                 state.put(http_serve::HttpServeState::default());
+                state.put(env::IsolateEnv::from_process_env());
             })),
             ..Default::default()
         };
@@ -242,6 +243,7 @@ impl VertzJsRuntime {
                 state.put(crypto_subtle::CryptoKeyStore::default());
                 state.put(sqlite::SqliteStore::default());
                 state.put(http_serve::HttpServeState::default());
+                state.put(env::IsolateEnv::from_process_env());
             })),
             ..Default::default()
         };
@@ -451,6 +453,7 @@ impl VertzJsRuntime {
                 state.put(crypto_subtle::CryptoKeyStore::default());
                 state.put(sqlite::SqliteStore::default());
                 state.put(http_serve::HttpServeState::default());
+                state.put(env::IsolateEnv::from_process_env());
             })),
             ..Default::default()
         };
