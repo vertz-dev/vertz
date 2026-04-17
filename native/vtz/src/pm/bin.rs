@@ -626,4 +626,18 @@ mod tests {
             content
         );
     }
+
+    #[test]
+    fn test_generate_bin_stubs_bin_dir_creation_failure_returns_write_variant() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        // Block `node_modules/.bin` creation by making `node_modules` a regular file
+        std::fs::write(root.join("node_modules"), "blocker").unwrap();
+
+        let err = generate_bin_stubs(root, &ResolvedGraph::default(), &[]).unwrap_err();
+        let PmError::WriteFile { path, .. } = err else {
+            panic!("expected WriteFile, got {err:?}");
+        };
+        assert_eq!(path, root.join("node_modules").join(".bin"));
+    }
 }

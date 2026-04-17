@@ -12,7 +12,7 @@ pub enum PmError {
         source: std::io::Error,
     },
 
-    #[error("failed to write {path}: {source}")]
+    #[error("failed to write to {path}: {source}")]
     WriteFile {
         path: PathBuf,
         #[source]
@@ -28,9 +28,6 @@ pub enum PmError {
 
     #[error("package.json at {path} is not a JSON object")]
     PackageJsonNotObject { path: PathBuf },
-
-    #[error("invalid lockfile at {path}: {reason}")]
-    InvalidLockfile { path: PathBuf, reason: String },
 
     #[error("invalid .vertzrc at {path}: {source}")]
     InvalidVertzrc {

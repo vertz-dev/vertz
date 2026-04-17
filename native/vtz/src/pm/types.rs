@@ -1301,4 +1301,39 @@ mod tests {
         assert_eq!(response["lodash"].len(), 1);
         assert_eq!(response["lodash"][0].id, 1234);
     }
+
+    #[test]
+    fn test_read_package_json_invalid_json_returns_typed_variant() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("package.json"), "{ not json").unwrap();
+        let err = read_package_json(dir.path()).unwrap_err();
+        let PmError::InvalidPackageJson { path, .. } = err else {
+            panic!("expected InvalidPackageJson");
+        };
+        assert_eq!(path, dir.path().join("package.json"));
+    }
+
+    #[test]
+    fn test_write_package_json_non_object_returns_typed_variant() {
+        let dir = tempfile::tempdir().unwrap();
+        // write a package.json whose top-level is a JSON array, not an object
+        std::fs::write(dir.path().join("package.json"), "[]").unwrap();
+        let pkg: PackageJson = serde_json::from_str("{}").unwrap();
+        let err = write_package_json(dir.path(), &pkg).unwrap_err();
+        let PmError::PackageJsonNotObject { path } = err else {
+            panic!("expected PackageJsonNotObject");
+        };
+        assert_eq!(path, dir.path().join("package.json"));
+    }
+
+    #[test]
+    fn test_write_package_json_missing_source_returns_read_variant() {
+        let dir = tempfile::tempdir().unwrap();
+        let pkg: PackageJson = serde_json::from_str("{}").unwrap();
+        let err = write_package_json(dir.path(), &pkg).unwrap_err();
+        let PmError::ReadFile { path, .. } = err else {
+            panic!("expected ReadFile, got {err:?}");
+        };
+        assert_eq!(path, dir.path().join("package.json"));
+    }
 }

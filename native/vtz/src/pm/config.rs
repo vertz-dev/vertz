@@ -256,11 +256,23 @@ mod tests {
         let env_fn =
             |_: &str| -> Result<String, std::env::VarError> { Err(std::env::VarError::NotPresent) };
         let content = "//host/:_authToken=${UNDEFINED_TOKEN_3G_TEST}\n";
-        let result = parse_npmrc_with_env(content, env_fn);
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("UNDEFINED_TOKEN_3G_TEST"));
-        assert!(err.contains("undefined environment variable"));
+        let err = parse_npmrc_with_env(content, env_fn).unwrap_err();
+        let PmError::UndefinedEnvVar { name } = err else {
+            panic!("expected UndefinedEnvVar, got {err:?}");
+        };
+        assert_eq!(name, "UNDEFINED_TOKEN_3G_TEST");
+    }
+
+    #[test]
+    fn test_parse_npmrc_malformed_interpolation_returns_typed_variant() {
+        let env_fn = |_: &str| -> Result<String, std::env::VarError> { Ok(String::new()) };
+        // unterminated ${...} expression
+        let content = "//host/:_authToken=${UNCLOSED\n";
+        let err = parse_npmrc_with_env(content, env_fn).unwrap_err();
+        let PmError::InvalidNpmrc { reason } = err else {
+            panic!("expected InvalidNpmrc, got {err:?}");
+        };
+        assert!(reason.contains("unclosed"));
     }
 
     #[test]

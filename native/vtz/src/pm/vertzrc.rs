@@ -136,7 +136,12 @@ pub fn save_vertzrc(root_dir: &Path, config: &VertzConfig) -> PmResult<()> {
             path: lock_path.clone(),
             source,
         })?;
-    lock_file.lock_exclusive()?;
+    lock_file
+        .lock_exclusive()
+        .map_err(|source| PmError::WriteFile {
+            path: lock_path.clone(),
+            source,
+        })?;
 
     // Write atomically: write to temp file then rename
     let tmp_path = root_dir.join(".vertzrc.tmp");
@@ -236,8 +241,15 @@ pub fn config_init_trust_scripts(root_dir: &Path) -> PmResult<Vec<String>> {
     let mut names: Vec<String> = Vec::new();
 
     // Scan top-level packages
-    for entry in std::fs::read_dir(&nm_dir)? {
-        let entry = entry?;
+    let nm_entries = std::fs::read_dir(&nm_dir).map_err(|source| PmError::ReadFile {
+        path: nm_dir.clone(),
+        source,
+    })?;
+    for entry in nm_entries {
+        let entry = entry.map_err(|source| PmError::ReadFile {
+            path: nm_dir.clone(),
+            source,
+        })?;
         let name = entry.file_name().to_string_lossy().to_string();
         if name.starts_with('.') {
             continue;
@@ -246,8 +258,16 @@ pub fn config_init_trust_scripts(root_dir: &Path) -> PmResult<Vec<String>> {
             // Scoped package — scan subdirectory
             let scope_dir = entry.path();
             if scope_dir.is_dir() {
-                for sub in std::fs::read_dir(&scope_dir)? {
-                    let sub = sub?;
+                let scope_entries =
+                    std::fs::read_dir(&scope_dir).map_err(|source| PmError::ReadFile {
+                        path: scope_dir.clone(),
+                        source,
+                    })?;
+                for sub in scope_entries {
+                    let sub = sub.map_err(|source| PmError::ReadFile {
+                        path: scope_dir.clone(),
+                        source,
+                    })?;
                     let sub_name = format!("{}/{}", name, sub.file_name().to_string_lossy());
                     if has_postinstall_in_node_modules(&nm_dir, &sub_name) {
                         names.push(sub_name);
@@ -939,5 +959,16 @@ mod tests {
         let raw = std::fs::read_to_string(dir.path().join(".vertzrc")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
         assert!(parsed.get("desktop").is_none());
+    }
+
+    #[test]
+    fn test_load_vertzrc_invalid_json_returns_typed_variant() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(".vertzrc"), "{ not json").unwrap();
+        let err = load_vertzrc(dir.path()).unwrap_err();
+        let PmError::InvalidVertzrc { path, .. } = err else {
+            panic!("expected InvalidVertzrc, got {err:?}");
+        };
+        assert_eq!(path, dir.path().join(".vertzrc"));
     }
 }
