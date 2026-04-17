@@ -718,4 +718,94 @@ export class Builder<T> { build(): T { return {} as T; } }"#;
             code
         );
     }
+
+    #[test]
+    fn nested_jsx_in_callback_inside_nested_jsx_is_transformed() {
+        // Regression: `calendar.tsx` in @vertz/ui-primitives failed to load under
+        // `vtz test` with "Unexpected token '<'" because the JSX collector
+        // returned early for JSX elements already inside another JSX node,
+        // skipping the walk into their expression containers. As a result, an
+        // arrow-function callback like
+        //
+        //   <thead>
+        //     <tr>
+        //       {Array.from({length: 7}, (_, i) => <th>{...}</th>)}
+        //     </tr>
+        //   </thead>
+        //
+        // never had the inner `<th>` registered as a top-level JSX node, so it
+        // reached the runtime untransformed.
+        let source = r#"function CalendarRoot() {
+  const DAY_NAMES = ['Su', 'Mo'];
+  const thead = (
+    <thead>
+      <tr>
+        {Array.from({ length: 2 }, (_, i) => {
+          return <th scope="col">{DAY_NAMES[i] ?? ''}</th>;
+        })}
+      </tr>
+    </thead>
+  );
+  return thead;
+}
+export const Calendar = { Root: CalendarRoot };
+"#;
+        let result = crate::compile(
+            source,
+            crate::CompileOptions {
+                filename: Some("calendar.tsx".to_string()),
+                target: Some("ssr".to_string()),
+                spy_exports: Some(true),
+                fast_refresh: Some(true),
+                ..Default::default()
+            },
+        );
+        assert!(
+            !result.code.contains("<th scope"),
+            "Inner JSX `<th>` inside Array.from callback (two JSX levels deep) \
+             was not transformed:\n{}",
+            result.code
+        );
+    }
+
+    #[test]
+    fn fragment_in_conditional_children_of_nested_jsx() {
+        // Regression: `date-picker-composed.tsx` in @vertz/ui-primitives failed
+        // with "Unexpected token '<'". A JSX Fragment sitting in the falsy
+        // branch of `{children ?? (<>...</>)}` inside a nested JSX element was
+        // never transformed because the old collector skipped descending into
+        // nested JSX children, so the fragment was never registered as a
+        // top-level JSX node.
+        let source = r#"function ComposedDatePickerRoot({ children }) {
+  return (
+    <Provider>
+      <span>
+        {children ?? (
+          <>
+            <Trigger />
+            <Content />
+          </>
+        )}
+      </span>
+    </Provider>
+  );
+}
+"#;
+        let result = crate::compile(
+            source,
+            crate::CompileOptions {
+                filename: Some("x.tsx".to_string()),
+                target: Some("ssr".to_string()),
+                spy_exports: Some(true),
+                fast_refresh: Some(true),
+                ..Default::default()
+            },
+        );
+        // Neither the fragment nor its custom-component children should survive.
+        assert!(
+            !result.code.contains("<>") && !result.code.contains("<Trigger"),
+            "Fragment/children inside conditional inside nested JSX not transformed:\n{}",
+            result.code
+        );
+    }
 }

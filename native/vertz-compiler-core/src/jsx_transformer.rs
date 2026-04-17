@@ -435,19 +435,26 @@ impl<'a, 'c> Visit<'c> for JsxCollector<'a> {
             return;
         }
         if !self.in_jsx {
-            // Top-level JSX element
+            // Top-level JSX element — record for transformation.
             self.nodes.push(JsxNodeInfo {
                 start: elem.span.start,
                 end: elem.span.end,
                 kind: JsxNodeKind::Element,
             });
-            // Don't recurse — children are handled by transform
             let was = self.in_jsx;
             self.in_jsx = true;
             oxc_ast_visit::walk::walk_jsx_element(self, elem);
             self.in_jsx = was;
+        } else {
+            // Nested JSX inside another JSX node — the outer transform handles
+            // rendering this element, so don't push it as a separate top-level
+            // node. But we MUST still walk its children: any JSX expression
+            // container `{ expr }` may contain callbacks (Array.from, filter,
+            // forEach, etc.) whose bodies contain JSX that needs its own
+            // transform. The arrow-function visitor resets `in_jsx = false`
+            // when entering such a callback, and JSX inside is then collected.
+            oxc_ast_visit::walk::walk_jsx_element(self, elem);
         }
-        // If already in JSX, skip — nested JSX is handled by the transform
     }
 
     fn visit_jsx_fragment(&mut self, frag: &JSXFragment<'c>) {
@@ -464,6 +471,9 @@ impl<'a, 'c> Visit<'c> for JsxCollector<'a> {
             self.in_jsx = true;
             oxc_ast_visit::walk::walk_jsx_fragment(self, frag);
             self.in_jsx = was;
+        } else {
+            // See visit_jsx_element — walk children so nested callback JSX is discovered.
+            oxc_ast_visit::walk::walk_jsx_fragment(self, frag);
         }
     }
 }
@@ -585,6 +595,17 @@ enum ExprKind {
     LogicalAnd {
         left_start: u32,
         left_end: u32,
+        right_start: u32,
+        right_end: u32,
+        right_is_jsx: bool,
+    },
+    /// `left ?? right` — render `left` when it is neither null nor undefined,
+    /// otherwise render `right`. Handled like a conditional so nested JSX in
+    /// either branch is recursively transformed.
+    Coalesce {
+        left_start: u32,
+        left_end: u32,
+        left_is_jsx: bool,
         right_start: u32,
         right_end: u32,
         right_is_jsx: bool,
@@ -1018,6 +1039,16 @@ fn classify_inner_expression<'a>(expr: &Expression<'a>, source: &str) -> ExprKin
                 right_is_jsx,
             }
         }
+        Expression::LogicalExpression(logical) if logical.operator == LogicalOperator::Coalesce => {
+            ExprKind::Coalesce {
+                left_start: logical.left.span().start,
+                left_end: logical.left.span().end,
+                left_is_jsx: is_jsx_expression(&logical.left),
+                right_start: logical.right.span().start,
+                right_end: logical.right.span().end,
+                right_is_jsx: is_jsx_expression(&logical.right),
+            }
+        }
         Expression::CallExpression(call) => {
             classify_map_call(call, source).unwrap_or(ExprKind::Normal)
         }
@@ -1301,6 +1332,11 @@ fn transform_child_as_value(
                 ));
             }
             if let ExprKind::LogicalAnd { .. } = expr_kind {
+                return Some(transform_conditional_code(
+                    ms, program, expr_kind, rx, counter,
+                ));
+            }
+            if let ExprKind::Coalesce { .. } = expr_kind {
                 return Some(transform_conditional_code(
                     ms, program, expr_kind, rx, counter,
                 ));
@@ -1617,6 +1653,10 @@ fn transform_child(
                 let code = transform_conditional_code(ms, program, expr_kind, rx, counter);
                 return Some(format!("__append({}, {})", parent_var, code));
             }
+            if let ExprKind::Coalesce { .. } = expr_kind {
+                let code = transform_conditional_code(ms, program, expr_kind, rx, counter);
+                return Some(format!("__append({}, {})", parent_var, code));
+            }
 
             // List
             if let ExprKind::List {
@@ -1778,6 +1818,41 @@ fn transform_conditional_code(
             format!(
                 "__conditional(() => {}, () => {}, () => null)",
                 cond_text, true_branch
+            )
+        }
+        ExprKind::Coalesce {
+            left_start,
+            left_end,
+            left_is_jsx,
+            right_start,
+            right_end,
+            right_is_jsx,
+        } => {
+            // `left ?? right` — render `left` when not nullish, else `right`.
+            // Bind `left` to a local so we don't evaluate it twice.
+            let left_text =
+                apply_inline_subs(&ms.get_transformed_slice(*left_start, *left_end), rx);
+            let true_branch = transform_branch(
+                ms,
+                program,
+                *left_start,
+                *left_end,
+                *left_is_jsx,
+                rx,
+                counter,
+            );
+            let false_branch = transform_branch(
+                ms,
+                program,
+                *right_start,
+                *right_end,
+                *right_is_jsx,
+                rx,
+                counter,
+            );
+            format!(
+                "__conditional(() => ({}) != null, () => {}, () => {})",
+                left_text, true_branch, false_branch
             )
         }
         _ => String::new(),
