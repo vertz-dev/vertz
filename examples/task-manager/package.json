@@ -1,6 +1,6 @@
 {
   "name": "@vertz-examples/task-manager",
-  "version": "0.2.69",
+  "version": "0.2.70",
   "private": true,
   "type": "module",
   "scripts": {
