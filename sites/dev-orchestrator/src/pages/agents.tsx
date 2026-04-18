@@ -4,14 +4,23 @@ import { useRouter } from '@vertz/ui/router';
 import { sdk } from '../lib/sdk';
 
 const s = css({
-  page: ['flex', 'flex-col', 'gap:6', { '&': { 'max-width': '960px' } }],
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[6],
+    '&': { maxWidth: '960px' },
+  },
   heading: {
     fontSize: token.font.size['2xl'],
     fontWeight: token.font.weight.bold,
     color: token.color.foreground,
     margin: token.spacing[0],
   },
-  subtitle: ['text:sm', 'text:muted-foreground', { '&': { margin: '4px 0 0' } }],
+  subtitle: {
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    '&': { margin: '4px 0 0' },
+  },
   grid: { display: 'grid', gap: token.spacing[3], gridTemplateColumns: 'repeat(2, 1fr)' },
   card: {
     padding: token.spacing[4],
@@ -25,20 +34,20 @@ const s = css({
     cursor: 'pointer',
     transition: 'border-color 0.15s',
   },
-  cardHeader: ['flex', 'items:center', { '&': { 'justify-content': 'space-between' } }],
+  cardHeader: { display: 'flex', alignItems: 'center', '&': { justifyContent: 'space-between' } },
   cardTitle: {
     fontSize: token.font.size.sm,
     fontWeight: token.font.weight.medium,
     color: token.color.foreground,
   },
   cardDesc: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
-  badge: [
-    'text:xs',
-    'rounded:full',
-    'bg:secondary',
-    'font:medium',
-    { '&': { padding: '2px 8px', color: 'var(--color-secondary-foreground)' } },
-  ],
+  badge: {
+    fontSize: token.font.size.xs,
+    borderRadius: token.radius.full,
+    backgroundColor: token.color.secondary,
+    fontWeight: token.font.weight.medium,
+    '&': { padding: '2px 8px', color: 'var(--color-secondary-foreground)' },
+  },
   toolCount: { fontSize: token.font.size.xs, color: token.color['muted-foreground'] },
   loading: { color: token.color['muted-foreground'], fontSize: token.font.size.sm },
   error: { color: token.color.destructive, fontSize: token.font.size.sm },

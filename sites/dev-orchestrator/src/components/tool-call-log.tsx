@@ -24,35 +24,37 @@ const s = css({
     backgroundColor: token.color.secondary,
     cursor: 'pointer',
   },
-  duration: ['text:xs', 'text:muted-foreground', { '&': { 'margin-left': 'auto' } }],
-  details: [
-    'py:2',
-    'px:3',
-    'text:xs',
-    'text:foreground',
-    'border-t:1',
-    'border:border',
-    {
-      '&': {
-        'font-family': 'monospace',
-        'white-space': 'pre-wrap',
-        'word-break': 'break-word',
-        'line-height': '1.4',
-      },
+  duration: {
+    fontSize: token.font.size.xs,
+    color: token.color['muted-foreground'],
+    '&': { marginLeft: 'auto' },
+  },
+  details: {
+    paddingBlock: token.spacing[2],
+    paddingInline: token.spacing[3],
+    fontSize: token.font.size.xs,
+    color: token.color.foreground,
+    borderTopWidth: '1px',
+    borderColor: token.color.border,
+    '&': {
+      fontFamily: 'monospace',
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word',
+      lineHeight: '1.4',
     },
-  ],
-  label: [
-    'text:muted-foreground',
-    'font:semibold',
-    'uppercase',
-    { '&': { 'font-size': '10px', 'margin-bottom': '4px' } },
-  ],
-  labelSpaced: [
-    'text:muted-foreground',
-    'font:semibold',
-    'uppercase',
-    { '&': { 'font-size': '10px', 'margin-bottom': '4px', 'margin-top': '8px' } },
-  ],
+  },
+  label: {
+    color: token.color['muted-foreground'],
+    fontWeight: token.font.weight.semibold,
+    textTransform: 'uppercase',
+    '&': { fontSize: '10px', marginBottom: '4px' },
+  },
+  labelSpaced: {
+    color: token.color['muted-foreground'],
+    fontWeight: token.font.weight.semibold,
+    textTransform: 'uppercase',
+    '&': { fontSize: '10px', marginBottom: '4px', marginTop: '8px' },
+  },
   empty: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
 });
 

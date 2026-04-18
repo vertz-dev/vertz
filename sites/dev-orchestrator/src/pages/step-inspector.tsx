@@ -12,55 +12,64 @@ import {
 } from './step-inspector-utils';
 
 const s = css({
-  page: ['flex', 'flex-col', 'gap:5', { '&': { 'max-width': '960px' } }],
-  backBtn: [
-    'inline-flex',
-    'items:center',
-    'gap:1',
-    'text:sm',
-    'text:muted-foreground',
-    'cursor:pointer',
-    { '&': { background: 'none', border: 'none', padding: '4px 0' } },
-  ],
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[5],
+    '&': { maxWidth: '960px' },
+  },
+  backBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: token.spacing[1],
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    cursor: 'pointer',
+    '&': { background: 'none', border: 'none', padding: '4px 0' },
+  },
   section: { display: 'flex', flexDirection: 'column', gap: token.spacing[2] },
-  sectionTitle: ['font:semibold', 'text:foreground', { '&': { 'font-size': '14px' } }],
-  response: [
-    'text:sm',
-    'text:foreground',
-    'bg:secondary',
-    'rounded:lg',
-    { '&': { padding: '12px 16px', 'line-height': '1.6', 'white-space': 'pre-wrap' } },
-  ],
+  sectionTitle: {
+    fontWeight: token.font.weight.semibold,
+    color: token.color.foreground,
+    '&': { fontSize: '14px' },
+  },
+  response: {
+    fontSize: token.font.size.sm,
+    color: token.color.foreground,
+    backgroundColor: token.color.secondary,
+    borderRadius: token.radius.lg,
+    '&': { padding: '12px 16px', lineHeight: '1.6', whiteSpace: 'pre-wrap' },
+  },
   loading: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
-  errorBanner: [
-    'flex',
-    'flex-col',
-    'gap:2',
-    'rounded:lg',
-    {
-      '&': {
-        padding: '12px 16px',
-        background: 'hsl(0, 84%, 60%, 0.1)',
-        border: '1px solid hsl(0, 84%, 60%, 0.3)',
-      },
+  errorBanner: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[2],
+    borderRadius: token.radius.lg,
+    '&': {
+      padding: '12px 16px',
+      background: 'hsl(0, 84%, 60%, 0.1)',
+      border: '1px solid hsl(0, 84%, 60%, 0.3)',
     },
-  ],
+  },
   errorRow: { display: 'flex', alignItems: 'center', gap: token.spacing[2] },
-  errorMessage: ['text:sm', 'font:medium', { '&': { color: 'hsl(0, 84%, 60%)' } }],
-  errorDetail: ['text:muted-foreground', { '&': { 'font-size': '12px' } }],
-  reasonBadge: [
-    'rounded:full',
-    'font:medium',
-    {
-      '&': {
-        display: 'inline-block',
-        'font-size': '11px',
-        padding: '2px 8px',
-        background: 'hsl(0, 84%, 60%, 0.15)',
-        color: 'hsl(0, 84%, 60%)',
-      },
+  errorMessage: {
+    fontSize: token.font.size.sm,
+    fontWeight: token.font.weight.medium,
+    '&': { color: 'hsl(0, 84%, 60%)' },
+  },
+  errorDetail: { color: token.color['muted-foreground'], '&': { fontSize: '12px' } },
+  reasonBadge: {
+    borderRadius: token.radius.full,
+    fontWeight: token.font.weight.medium,
+    '&': {
+      display: 'inline-block',
+      fontSize: '11px',
+      padding: '2px 8px',
+      background: 'hsl(0, 84%, 60%, 0.15)',
+      color: 'hsl(0, 84%, 60%)',
     },
-  ],
+  },
 });
 
 export default function StepInspectorPage() {

@@ -6,16 +6,16 @@ export type { StepCardProps } from './step-card-types';
 export { badgeLabel, formatDuration } from './step-card-utils';
 
 const s = css({
-  card: [
-    'flex',
-    'items:center',
-    'gap:3',
-    'py:3',
-    'px:4',
-    'cursor:pointer',
-    'transition:background 0.15s',
-    { '&': { 'border-left': '3px solid var(--color-border)' } },
-  ],
+  card: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[3],
+    paddingBlock: token.spacing[3],
+    paddingInline: token.spacing[4],
+    cursor: 'pointer',
+    transition: 'background 0.15s',
+    '&': { borderLeft: '3px solid var(--color-border)' },
+  },
   content: { flex: '1 1 0%' },
   name: {
     fontSize: token.font.size.sm,
@@ -24,7 +24,13 @@ const s = css({
     flex: '1 1 0%',
   },
   agent: { fontSize: token.font.size.xs, color: token.color['muted-foreground'] },
-  badge: ['text:xs', 'px:2', 'rounded:full', 'font:medium', { '&': { padding: '2px 8px' } }],
+  badge: {
+    fontSize: token.font.size.xs,
+    paddingInline: token.spacing[2],
+    borderRadius: token.radius.full,
+    fontWeight: token.font.weight.medium,
+    '&': { padding: '2px 8px' },
+  },
   meta: {
     fontSize: token.font.size.xs,
     color: token.color['muted-foreground'],

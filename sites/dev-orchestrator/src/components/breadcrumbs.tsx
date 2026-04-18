@@ -11,12 +11,12 @@ const s = css({
     fontSize: token.font.size.sm,
     color: token.color['muted-foreground'],
   },
-  link: [
-    'text:muted-foreground',
-    'text:sm',
-    'cursor:pointer',
-    { '&': { background: 'none', border: 'none', padding: '0', 'text-decoration': 'none' } },
-  ],
+  link: {
+    color: token.color['muted-foreground'],
+    fontSize: token.font.size.sm,
+    cursor: 'pointer',
+    '&': { background: 'none', border: 'none', padding: '0', textDecoration: 'none' },
+  },
   current: {
     color: token.color.foreground,
     fontSize: token.font.size.sm,

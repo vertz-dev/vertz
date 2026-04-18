@@ -9,30 +9,37 @@ import { createWorkflowStream } from '../ui/lib/sse-client';
 import { WORKFLOW_STEPS, stepStatus } from './workflow-detail-utils';
 
 const s = css({
-  page: ['flex', 'flex-col', 'gap:6', { '&': { 'max-width': '960px' } }],
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[6],
+    '&': { maxWidth: '960px' },
+  },
   heading: {
     fontSize: token.font.size['2xl'],
     fontWeight: token.font.weight.bold,
     color: token.color.foreground,
     margin: token.spacing[0],
   },
-  meta: ['text:sm', 'text:muted-foreground', { '&': { margin: '4px 0 0' } }],
-  timeline: ['flex', 'flex-col', { '&': { gap: '0px' } }],
-  btn: [
-    'text:sm',
-    'font:medium',
-    'rounded:md',
-    'bg:primary',
-    'cursor:pointer',
-    {
-      '&': {
-        height: '32px',
-        padding: '0 14px',
-        border: 'none',
-        color: 'var(--color-primary-foreground)',
-      },
+  meta: {
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    '&': { margin: '4px 0 0' },
+  },
+  timeline: { display: 'flex', flexDirection: 'column', '&': { gap: '0px' } },
+  btn: {
+    fontSize: token.font.size.sm,
+    fontWeight: token.font.weight.medium,
+    borderRadius: token.radius.md,
+    backgroundColor: token.color.primary,
+    cursor: 'pointer',
+    '&': {
+      height: '32px',
+      padding: '0 14px',
+      border: 'none',
+      color: 'var(--color-primary-foreground)',
     },
-  ],
+  },
   approveRow: {
     display: 'flex',
     alignItems: 'center',
@@ -43,36 +50,32 @@ const s = css({
   loading: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
   error: { fontSize: token.font.size.sm, color: token.color.destructive },
   actions: { display: 'flex', gap: token.spacing[2], alignItems: 'center' },
-  cancelBtn: [
-    'text:sm',
-    'rounded:md',
-    'cursor:pointer',
-    'font:medium',
-    {
-      '&': {
-        height: '32px',
-        padding: '0 14px',
-        border: '1px solid hsl(0, 84%, 60%)',
-        background: 'transparent',
-        color: 'hsl(0, 84%, 60%)',
-      },
+  cancelBtn: {
+    fontSize: token.font.size.sm,
+    borderRadius: token.radius.md,
+    cursor: 'pointer',
+    fontWeight: token.font.weight.medium,
+    '&': {
+      height: '32px',
+      padding: '0 14px',
+      border: '1px solid hsl(0, 84%, 60%)',
+      background: 'transparent',
+      color: 'hsl(0, 84%, 60%)',
     },
-  ],
-  retryBtn: [
-    'text:sm',
-    'rounded:md',
-    'cursor:pointer',
-    'font:medium',
-    {
-      '&': {
-        height: '32px',
-        padding: '0 14px',
-        border: '1px solid var(--color-primary)',
-        background: 'transparent',
-        color: 'var(--color-primary)',
-      },
+  },
+  retryBtn: {
+    fontSize: token.font.size.sm,
+    borderRadius: token.radius.md,
+    cursor: 'pointer',
+    fontWeight: token.font.weight.medium,
+    '&': {
+      height: '32px',
+      padding: '0 14px',
+      border: '1px solid var(--color-primary)',
+      background: 'transparent',
+      color: 'var(--color-primary)',
     },
-  ],
+  },
 });
 
 export default function WorkflowDetailPage() {

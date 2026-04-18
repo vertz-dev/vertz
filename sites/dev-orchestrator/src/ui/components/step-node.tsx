@@ -6,47 +6,39 @@ import { stepNodeBackground, stepNodeBorderColor } from './step-node-utils';
 export type { StepNodeProps } from './step-node-utils';
 
 const s = css({
-  node: [
-    'flex',
-    'items:center',
-    'gap:2',
-    'rounded:lg',
-    'relative',
-    'cursor:pointer',
-    'transition:border-color 0.15s, background 0.15s',
-    {
-      '&': {
-        padding: '10px 14px',
-        border: '2px solid',
-        'min-width': '140px',
-      },
-    },
-  ],
+  node: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[2],
+    borderRadius: token.radius.lg,
+    position: 'relative',
+    cursor: 'pointer',
+    transition: 'border-color 0.15s, background 0.15s',
+    '&': { padding: '10px 14px', border: '2px solid', minWidth: '140px' },
+  },
   name: {
     fontSize: token.font.size.sm,
     fontWeight: token.font.weight.semibold,
     color: token.color.foreground,
   },
   agent: { fontSize: token.font.size.xs, color: token.color['muted-foreground'] },
-  icon: ['text:center', { '&': { 'font-size': '16px', width: '20px' } }],
-  badge: [
-    'absolute',
-    'flex',
-    'items:center',
-    'font:bold',
-    {
-      '&': {
-        top: '-6px',
-        right: '-6px',
-        width: '18px',
-        height: '18px',
-        'border-radius': '50%',
-        'justify-content': 'center',
-        'font-size': '11px',
-        color: 'white',
-      },
+  icon: { textAlign: 'center', '&': { fontSize: '16px', width: '20px' } },
+  badge: {
+    position: 'absolute',
+    display: 'flex',
+    alignItems: 'center',
+    fontWeight: token.font.weight.bold,
+    '&': {
+      top: '-6px',
+      right: '-6px',
+      width: '18px',
+      height: '18px',
+      borderRadius: '50%',
+      justifyContent: 'center',
+      fontSize: '11px',
+      color: 'white',
     },
-  ],
+  },
 });
 
 export default function StepNode({ name, type, agent, selected, status, onClick }: StepNodeProps) {

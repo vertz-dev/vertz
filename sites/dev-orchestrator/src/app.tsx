@@ -23,12 +23,12 @@ const appGlobals = globalCss({
 });
 
 const s = css({
-  shell: [
-    'flex',
-    'min-h:screen',
-    { '&': { background: 'var(--color-background)', color: 'var(--color-foreground)' } },
-  ],
-  content: ['flex', 'flex-col', 'flex-1', { '&': { 'min-width': '0' } }],
+  shell: {
+    display: 'flex',
+    minHeight: '100vh',
+    '&': { background: 'var(--color-background)', color: 'var(--color-foreground)' },
+  },
+  content: { display: 'flex', flexDirection: 'column', flex: '1 1 0%', '&': { minWidth: '0' } },
   main: { flex: '1 1 0%', padding: token.spacing[6], overflow: 'auto' },
 });
 
