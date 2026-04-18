@@ -10,7 +10,7 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2022",
-    "types": ["bun-types"]
+    "types": ["bun-types", "vertz/client"]
   },
   "include": ["src"]
 }

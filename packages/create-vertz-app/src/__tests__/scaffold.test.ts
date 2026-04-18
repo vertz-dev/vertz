@@ -150,7 +150,7 @@ describe('scaffold', () => {
       expect(tsconfig.compilerOptions.jsx).toBe('react-jsx');
       expect(tsconfig.compilerOptions.jsxImportSource).toBe('@vertz/ui');
       expect(tsconfig.compilerOptions.strict).toBe(true);
-      expect(tsconfig.compilerOptions.types).toEqual(['vertz/env']);
+      expect(tsconfig.compilerOptions.types).toEqual(['vertz/client']);
     });
 
     it('vertz.config.ts includes codegen config', async () => {
@@ -291,7 +291,7 @@ describe('scaffold', () => {
 
       const content = await fs.readFile(projectPath('src', 'entry-client.ts'), 'utf-8');
       expect(content).toContain('mount');
-      expect(content).toContain('import.meta.hot.accept()');
+      expect(content).toContain('import.meta.hot?.accept()');
     });
 
     it('generates src/styles/theme.ts with configureTheme and registerTheme', async () => {

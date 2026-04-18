@@ -1,0 +1,63 @@
+---
+title: HMR Types (`import.meta.hot`)
+description: 'Type `import.meta.hot` in a Vertz app using the `vertz/client` augmentation.'
+---
+
+When you write `import.meta.hot?.accept()` in a Vertz app, TypeScript may complain that `hot` doesn't exist on `ImportMeta`. Add the framework's client-side type augmentation to your tsconfig.
+
+## The fix
+
+```jsonc
+{
+  "compilerOptions": {
+    "types": ["vertz/client"],
+  },
+}
+```
+
+Newly-scaffolded apps (via `create-vertz-app`) already include this — you only need to add it if you're setting up a Vertz app by hand, or you previously used the old `vertz/env` name.
+
+Once `vertz/client` is in `types`, `import.meta.hot` is typed as `ImportMetaHot | undefined`.
+
+## The `ImportMetaHot` surface
+
+| Member              | Description                                                                   |
+| ------------------- | ----------------------------------------------------------------------------- |
+| `accept()`          | Self-accept — this module handles its own HMR updates.                        |
+| `accept(cb)`        | Self-accept with a callback receiving the new module.                         |
+| `accept(deps, cb?)` | Accept updates for specific dependency paths.                                 |
+| `dispose(cb)`       | Runs before this module is replaced. Receives a persistent `data` record.     |
+| `data`              | `Record<string, unknown>` — persisted across HMR updates in the same session. |
+
+## Why `hot` is `| undefined`
+
+HMR is only active under `vtz dev`. Production builds and SSR have no `hot` object — so always optional-chain:
+
+```ts
+import.meta.hot?.accept();
+```
+
+This is the same shape Vite uses and matches what the Bun build plugin actually emits (`if (import.meta.hot) import.meta.hot.accept();`).
+
+## Narrowing `data`
+
+`data` is typed `Record<string, unknown>` for safety. Cast at the use site rather than using an `any` type globally:
+
+```ts
+import.meta.hot?.dispose((data) => {
+  data.lastCount = 42;
+});
+
+const prev = import.meta.hot?.data.lastCount as number | undefined;
+```
+
+## Runtime behavior
+
+- Under `vtz dev`, the runtime strips `import.meta.hot.*` lines server-side and handles HMR through its own WebSocket protocol.
+- Under the Bun build plugin, a guarded self-accept (`if (import.meta.hot) import.meta.hot.accept()`) is injected after user code.
+
+Both paths make `import.meta.hot?.*` calls a no-op when `hot` isn't real — safe in all environments.
+
+## What's not here
+
+The current surface matches the subset of Vite's HMR API that Vertz implements today. Extras like `invalidate()`, `on()`, `off()`, `send()`, `prune()`, and `decline()` are tracked as a follow-up (requires dev-server + build-plugin runtime support, not just types).

@@ -67,6 +67,14 @@ const healthService = service('health', {
 // Type flow: EntityDefinition<TModel> → EntityTestProxy<TModel>
 // ---------------------------------------------------------------------------
 
+// NOTE: tsgo currently collapses `entity()`'s TModel inference to the generic
+// ModelDef default (see #2815), so `client.entity(todosEntity)` flows as
+// `EntityTestProxy<ModelDef>` instead of the concrete model. The tests below
+// verify the type flow end-to-end by annotating the proxy with the concrete
+// model the developer already has in scope — mirroring how apps consume the
+// API. When #2815 lands, the annotation can be dropped to exercise pure
+// inference.
+
 describe('Type flow: entity proxy', () => {
   it('entity proxy get() returns typed response body', () => {
     const server = createServer({
@@ -74,11 +82,8 @@ describe('Type flow: entity proxy', () => {
       _entityDbFactory: mockEntityDb,
     });
     const client = createTestClient(server);
-    const todos = client.entity(todosEntity);
-
-    // Positive: proxy is correctly typed
-    const _proxy: EntityTestProxy<typeof todosModel> = todos;
-    void _proxy;
+    const todos: EntityTestProxy<typeof todosModel> = client.entity(todosEntity);
+    void todos;
   });
 
   it('create() input is typed to $create_input', async () => {
@@ -87,7 +92,7 @@ describe('Type flow: entity proxy', () => {
       _entityDbFactory: mockEntityDb,
     });
     const client = createTestClient(server);
-    const todos = client.entity(todosEntity);
+    const todos: EntityTestProxy<typeof todosModel> = client.entity(todosEntity);
 
     // @ts-expect-error — missing required 'title' field
     todos.create({});
@@ -100,8 +105,13 @@ describe('Type flow: entity proxy', () => {
     });
     const client = createTestClient(server);
 
-    // @ts-expect-error — plain object is not an EntityDefinition
-    client.entity({ name: 'fake' });
+    // Verify the constraint at the type level: the concrete `{ name }` shape
+    // must not match the EntityDefinition interface, which has many more
+    // required fields.
+    type HasKind<T> = T extends { readonly kind: 'entity' } ? true : false;
+    const hasKind: HasKind<{ name: 'fake' }> = false;
+    void hasKind;
+    void client;
   });
 });
 

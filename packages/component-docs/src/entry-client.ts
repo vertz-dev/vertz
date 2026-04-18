@@ -3,7 +3,7 @@ import { App, getInitialTheme, styles } from './app';
 import { initHighlighter } from './lib/highlighter';
 import { docsTheme } from './styles/theme';
 
-import.meta.hot.accept();
+import.meta.hot?.accept();
 
 document.documentElement.dataset.theme = getInitialTheme();
 
