@@ -56,3 +56,20 @@ const inputNoInner: JSX.InputHTMLAttributes = {
   innerHTML: '<b>x</b>',
 };
 void inputNoInner;
+
+// IntrinsicElements regression coverage: void-element entries use
+// VoidHTMLAttributes, so indexing by tag name rejects innerHTML at the type
+// level (mirrors a real `<img innerHTML="..." />` call site).
+type ImgProps = JSX.IntrinsicElements['img'];
+const imgProps: ImgProps = {
+  // @ts-expect-error <img> intrinsic type cannot have innerHTML
+  innerHTML: '<b>x</b>',
+};
+void imgProps;
+
+type BrProps = JSX.IntrinsicElements['br'];
+const brProps: BrProps = {
+  // @ts-expect-error <br> intrinsic type cannot have innerHTML
+  innerHTML: '<b>x</b>',
+};
+void brProps;

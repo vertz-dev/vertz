@@ -54,6 +54,23 @@ describe('jsx innerHTML prop (test/dev runtime)', () => {
     expect(el.innerHTML).toBe('<b>x</b>');
   });
 
+  it('throws when children is 0 (numeric zero is still a child)', () => {
+    expect(() => jsx('pre', { innerHTML: '<b>x</b>', children: 0 })).toThrow(
+      /innerHTML.+children/i,
+    );
+  });
+
+  it('throws when children is the empty string', () => {
+    expect(() => jsx('pre', { innerHTML: '<b>x</b>', children: '' })).toThrow(
+      /innerHTML.+children/i,
+    );
+  });
+
+  it('does not throw when called imperatively on a void element (types block at callsite)', () => {
+    const el = jsx('input', { innerHTML: '<b>x</b>' } as never) as HTMLInputElement;
+    expect(el.tagName).toBe('INPUT');
+  });
+
   it('supports ref callback alongside innerHTML', () => {
     let captured: Element | null = null;
     const el = jsx('pre', {

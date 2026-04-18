@@ -10,7 +10,9 @@ import type { DisposeFn } from '../runtime/signal-types';
  * cursor walk. Nullish values render as the empty string.
  *
  * @security The string is inserted WITHOUT escaping — callers are
- *   responsible for ensuring the value is trusted markup.
+ *   responsible for ensuring the value is trusted markup. For
+ *   user-controlled input, sanitize first (e.g. DOMPurify) and wrap
+ *   the result with `trusted()` from `@vertz/ui`.
  */
 export function __html(el: Element, fn: () => string | null | undefined): DisposeFn {
   return deferredDomEffect(() => {
