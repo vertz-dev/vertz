@@ -4742,5 +4742,40 @@ export function App() {
         );
         assert!(result.contains("__on(__el0, \"click\""), "click: {result}");
         assert!(result.contains("__html(__el0, () => x)"), "html: {result}");
+
+        // Ordering: the class setAttribute and onClick listener must appear
+        // BEFORE the __html(…) call, so that children-replacing innerHTML runs
+        // after other attribute setters. Phase plan Task 2.1 criterion #3.
+        let class_offset = result.find("setAttribute(\"class\"").unwrap();
+        let click_offset = result.find("__on(__el0, \"click\"").unwrap();
+        let html_offset = result.find("__html(__el0, () => x)").unwrap();
+        assert!(class_offset < html_offset, "class before html: {result}");
+        assert!(click_offset < html_offset, "click before html: {result}");
+    }
+
+    /// `<pre innerHTML />` (no value) is not reachable from TypeScript — the
+    /// `innerHTML?: string` typing rejects a bare boolean — but the compiler
+    /// must not panic or emit garbage if it slips through. Current behavior:
+    /// silently drop the attribute. Pin it with a test so a future refactor
+    /// can't flip to `__html(_el0, () => true)` or similar.
+    #[test]
+    fn inner_html_boolean_shorthand_is_dropped_silently() {
+        let result = transform(
+            r#"export function App() {
+    return <pre innerHTML />;
+}"#,
+        );
+        assert!(
+            !result.contains("__html("),
+            "boolean shorthand must not emit __html: {result}"
+        );
+        assert!(
+            !result.contains(".innerHTML"),
+            "boolean shorthand must not emit direct assignment: {result}"
+        );
+        assert!(
+            !result.contains("setAttribute(\"innerHTML\""),
+            "boolean shorthand must not emit setAttribute: {result}"
+        );
     }
 }

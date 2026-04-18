@@ -1,7 +1,6 @@
 use oxc_ast::ast::*;
 use oxc_ast_visit::Visit;
 
-use crate::component_analyzer::ComponentInfo;
 use crate::utils::offset_to_line_column;
 
 /// SVG tags that must use real child elements — `innerHTML` is unsupported.
@@ -56,13 +55,12 @@ fn is_svg_tag(tag: &str) -> bool {
 /// - **E0762** — `dangerouslySetInnerHTML` attribute (React-only; rejected).
 /// - **E0764** — `innerHTML` on an SVG element.
 /// - **W0763** — `ref={(el) => { el.innerHTML = … }}` pattern (SSR-silent).
-pub fn analyze_innerhtml(
-    program: &Program,
-    comp: &ComponentInfo,
-    source: &str,
-) -> Vec<crate::Diagnostic> {
+///
+/// Runs against the whole program — not scoped to a `ComponentInfo` — so
+/// that inline route components (`defineRoutes({'/': {component: () => <…/>}})`)
+/// are also validated.
+pub fn analyze_innerhtml(program: &Program, source: &str) -> Vec<crate::Diagnostic> {
     let mut visitor = InnerHtmlVisitor {
-        comp,
         source,
         diagnostics: Vec::new(),
     };
@@ -71,16 +69,11 @@ pub fn analyze_innerhtml(
 }
 
 struct InnerHtmlVisitor<'a> {
-    comp: &'a ComponentInfo,
     source: &'a str,
     diagnostics: Vec<crate::Diagnostic>,
 }
 
 impl<'a> InnerHtmlVisitor<'a> {
-    fn in_component(&self, start: u32, end: u32) -> bool {
-        start >= self.comp.body_start && end <= self.comp.body_end
-    }
-
     fn emit(&mut self, message: String, offset: u32) {
         let (line, column) = offset_to_line_column(self.source, offset as usize);
         self.diagnostics.push(crate::Diagnostic {
@@ -94,11 +87,6 @@ impl<'a> InnerHtmlVisitor<'a> {
 impl<'a, 'b> Visit<'b> for InnerHtmlVisitor<'a> {
     fn visit_jsx_element(&mut self, elem: &JSXElement<'b>) {
         let opening = &elem.opening_element;
-        if !self.in_component(opening.span.start, opening.span.end) {
-            oxc_ast_visit::walk::walk_jsx_element(self, elem);
-            return;
-        }
-
         let tag_name = jsx_element_tag(&opening.name);
 
         let mut has_inner_html = false;
@@ -120,8 +108,7 @@ impl<'a, 'b> Visit<'b> for InnerHtmlVisitor<'a> {
                         if is_svg_tag(tag) {
                             self.emit(
                                 format!(
-                                    "error[E0764]: 'innerHTML' is not supported on SVG elements (<{tag}>). \
-                                     Use JSX children instead."
+                                    "error[E0764]: 'innerHTML' is not supported on SVG elements (<{tag}>); use JSX children instead."
                                 ),
                                 named.span.start,
                             );
@@ -130,9 +117,7 @@ impl<'a, 'b> Visit<'b> for InnerHtmlVisitor<'a> {
                 }
                 "dangerouslySetInnerHTML" => {
                     self.emit(
-                        "error[E0762]: 'dangerouslySetInnerHTML' is a React prop. \
-                         Vertz uses 'innerHTML={string}' directly. \
-                         Pass the string value, not `{ __html: ... }`."
+                        "error[E0762]: 'dangerouslySetInnerHTML' is a React prop. Vertz uses 'innerHTML={string}' directly. Pass the string value, not { __html: … }."
                             .to_string(),
                         named.span.start,
                     );
@@ -142,9 +127,7 @@ impl<'a, 'b> Visit<'b> for InnerHtmlVisitor<'a> {
                         if let Some(expr) = container.expression.as_expression() {
                             if ref_body_starts_with_inner_html(expr) {
                                 self.emit(
-                                    "warning[W0763]: Setting .innerHTML inside a ref callback doesn't \
-                                     render during SSR and isn't reactive. \
-                                     Use 'innerHTML={…}' instead."
+                                    "warning[W0763]: Setting .innerHTML inside a ref callback does not render during SSR and isn't reactive. Use 'innerHTML={…}' instead."
                                         .to_string(),
                                     named.span.start,
                                 );
@@ -160,9 +143,7 @@ impl<'a, 'b> Visit<'b> for InnerHtmlVisitor<'a> {
             let tag_label = tag_name.as_deref().unwrap_or("element");
             self.emit(
                 format!(
-                    "error[E0761]: <{tag_label}> has both 'innerHTML={{…}}' and JSX children. \
-                     innerHTML replaces all children — delete the children, or delete innerHTML \
-                     and use JSX instead."
+                    "error[E0761]: <{tag_label}> has both 'innerHTML={{…}}' and JSX children. innerHTML replaces all children — delete the children, or delete innerHTML and use JSX instead."
                 ),
                 inner_html_span,
             );
@@ -427,5 +408,87 @@ mod tests {
 }"#,
         );
         assert!(!has_code(&msgs, "W0763"), "{:?}", msgs);
+    }
+
+    // ── Module-level JSX (inline route components) ─────────────────
+    // Regression: diagnostics must run outside named component bodies too.
+
+    #[test]
+    fn e0761_fires_on_module_level_jsx() {
+        let msgs = diag_codes(
+            r#"defineRoutes({ '/': { component: () => <pre innerHTML={x}>y</pre> } });"#,
+        );
+        assert!(has_code(&msgs, "E0761"), "{:?}", msgs);
+    }
+
+    #[test]
+    fn e0762_fires_on_module_level_jsx() {
+        let msgs = diag_codes(
+            r#"defineRoutes({ '/': { component: () => <pre dangerouslySetInnerHTML={{__html:x}} /> } });"#,
+        );
+        assert!(has_code(&msgs, "E0762"), "{:?}", msgs);
+    }
+
+    #[test]
+    fn e0764_fires_on_module_level_jsx() {
+        let msgs =
+            diag_codes(r#"defineRoutes({ '/': { component: () => <svg innerHTML={x} /> } });"#);
+        assert!(has_code(&msgs, "E0764"), "{:?}", msgs);
+    }
+
+    // ── Exact-message pins (one per diagnostic code) ───────────────
+    // Pin the canonical wording to catch accidental drift from the
+    // design-doc spec (plans/2761-raw-html-injection.md §Diagnostics).
+
+    #[test]
+    fn e0761_message_text() {
+        let msgs = diag_codes(
+            r#"export function App() {
+    return <pre innerHTML={x}>y</pre>;
+}"#,
+        );
+        let found = msgs.iter().any(|m| {
+            m == "error[E0761]: <pre> has both 'innerHTML={…}' and JSX children. innerHTML replaces all children — delete the children, or delete innerHTML and use JSX instead."
+        });
+        assert!(found, "{:?}", msgs);
+    }
+
+    #[test]
+    fn e0762_message_text() {
+        let msgs = diag_codes(
+            r#"export function App() {
+    return <pre dangerouslySetInnerHTML={{ __html: x }} />;
+}"#,
+        );
+        let found = msgs.iter().any(|m| {
+            m == "error[E0762]: 'dangerouslySetInnerHTML' is a React prop. Vertz uses 'innerHTML={string}' directly. Pass the string value, not { __html: … }."
+        });
+        assert!(found, "{:?}", msgs);
+    }
+
+    #[test]
+    fn e0764_message_text() {
+        let msgs = diag_codes(
+            r#"export function App() {
+    return <svg innerHTML={x} />;
+}"#,
+        );
+        let found = msgs.iter().any(|m| {
+            m == "error[E0764]: 'innerHTML' is not supported on SVG elements (<svg>); use JSX children instead."
+        });
+        assert!(found, "{:?}", msgs);
+    }
+
+    #[test]
+    fn w0763_message_text() {
+        let msgs = diag_codes(
+            r#"export function App() {
+    return <pre ref={(el) => { el.innerHTML = x; }} />;
+}"#,
+        );
+        let found = msgs.iter().any(|m| {
+            m == "warning[W0763]: Setting .innerHTML inside a ref callback does not render during SSR and isn't reactive. Use 'innerHTML={…}' instead."
+        });
+        assert!(found, "{:?}", msgs);
     }
 }
