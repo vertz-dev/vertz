@@ -48,6 +48,7 @@ export { type ColorPalette, palettes } from './palettes';
 export { InlineStyleError, s } from './s';
 export type { ParsedShorthand } from './shorthand-parser';
 export { parseShorthand, ShorthandParseError } from './shorthand-parser';
+export type { SelectorKey, StyleBlock, StyleDeclarations } from './style-block';
 export type {
   ColorTokens,
   CompiledTheme,

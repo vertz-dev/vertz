@@ -259,6 +259,9 @@ export type CSSPropertyName =
   | 'overscroll-behavior'
   | 'overscroll-behavior-x'
   | 'overscroll-behavior-y'
+  | 'scrollbar-width'
+  | 'scrollbar-color'
+  | 'scrollbar-gutter'
 
   // Lists & Tables
   | 'list-style'
