@@ -289,6 +289,43 @@ describe('Feature: form() FormData coercion', () => {
         }
       });
     });
+
+    describe('When a number field on the refined schema fails validation and is later fixed', () => {
+      it('then blur revalidation also unwraps the refine and clears the error', async () => {
+        const bodySchema = s
+          .object({ priority: s.number() })
+          .refine((d) => d.priority > 0);
+        const sdk = mockSdkWithMeta({
+          url: '/x',
+          method: 'POST',
+          handler: async () => ({ id: 1 }),
+          bodySchema,
+        });
+
+        const { el } = createMockFormElement();
+        const f = form(sdk);
+        f.__bindElement(el);
+
+        const fd = new FormData();
+        fd.append('priority', '');
+        await f.submit(fd);
+        expect(f.priority.error.peek()).toBeDefined();
+
+        const inputEvent = new Event('input', { bubbles: true });
+        Object.defineProperty(inputEvent, 'target', {
+          value: { name: 'priority', value: '42' },
+        });
+        el.dispatchEvent(inputEvent);
+
+        const focusoutEvent = new Event('focusout', { bubbles: true });
+        Object.defineProperty(focusoutEvent, 'target', {
+          value: { name: 'priority' },
+        });
+        el.dispatchEvent(focusoutEvent);
+
+        expect(f.priority.error.peek()).toBeUndefined();
+      });
+    });
   });
 
   describe('Given a custom schema adapter without _schemaType (no .shape)', () => {

@@ -70,16 +70,35 @@ function isSchemaLike(value: unknown): value is { parse(data: unknown): unknown 
   );
 }
 
+function unwrapToShape(value: unknown): unknown {
+  let current = value;
+  let unwrapCount = 0;
+  while (
+    current &&
+    typeof current === 'object' &&
+    'unwrap' in current &&
+    typeof (current as Record<string, unknown>).unwrap === 'function' &&
+    !(current as Record<string, unknown>).shape &&
+    unwrapCount < 10
+  ) {
+    current = (current as { unwrap(): unknown }).unwrap();
+    unwrapCount++;
+  }
+  return current;
+}
+
 /**
  * Try to resolve a single-field schema by traversing `.shape` and unwrapping
- * OptionalSchema/DefaultSchema/NullableSchema (via `.unwrap()`) at each level.
+ * OptionalSchema/DefaultSchema/NullableSchema/RefinedSchema/SuperRefinedSchema
+ * (via `.unwrap()`) at the top level and at each intermediate path segment.
  * Returns the field schema if found, or undefined if traversal fails.
  */
 export function resolveFieldSchema(
   schema: FormSchema<unknown>,
   fieldPath: string,
 ): { parse(data: unknown): unknown } | undefined {
-  const shape = (schema as unknown as Record<string, unknown>).shape;
+  const unwrapped = unwrapToShape(schema);
+  const shape = (unwrapped as Record<string, unknown> | undefined)?.shape;
   if (!shape || typeof shape !== 'object') return undefined;
 
   const segments = fieldPath.split('.');
@@ -93,19 +112,7 @@ export function resolveFieldSchema(
 
     // If this is NOT the last segment, we need to descend into the next level's .shape
     if (i < segments.length - 1) {
-      // Unwrap OptionalSchema/DefaultSchema/NullableSchema via .unwrap()
-      let unwrapCount = 0;
-      while (
-        fieldSchema &&
-        typeof fieldSchema === 'object' &&
-        'unwrap' in fieldSchema &&
-        typeof (fieldSchema as Record<string, unknown>).unwrap === 'function' &&
-        !(fieldSchema as Record<string, unknown>).shape &&
-        unwrapCount < 10
-      ) {
-        fieldSchema = (fieldSchema as { unwrap(): unknown }).unwrap();
-        unwrapCount++;
-      }
+      fieldSchema = unwrapToShape(fieldSchema);
 
       // Get .shape for the next level
       if (

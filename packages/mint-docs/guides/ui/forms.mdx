@@ -128,6 +128,8 @@ The same coercion runs on blur/change re-validation, so live field errors and su
 
 <Note>
   Coercion only applies to leaves where the schema declares a primitive type. Arrays of objects fall back to FormData's dotted-index parsing without per-leaf coercion — file uploads via `s.instanceof(File)` are unchanged.
+
+  Top-level `.refine()` and `.superRefine()` are walked through automatically. Other top-level wrappers (`.transform()`, `.pipe()`, `.catch()`, `.brand()`, `.readonly()`) currently disable coercion — wrap your `s.object(...)` with these only at the field level for now.
 </Note>
 
 ## Form-level state
