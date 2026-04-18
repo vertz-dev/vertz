@@ -77,4 +77,16 @@ describe('generateStyleBlock — edge cases', () => {
   it('handles decimal spacing keys', () => {
     expect(generateStyleBlock(['mt:0.5'])).toBe("{ marginTop: token.spacing['0.5'] }");
   });
+
+  it('dedupes base entries with the same cssKey (last-wins)', () => {
+    expect(generateStyleBlock(['bg:primary', 'bg:white'])).toBe(
+      "{ backgroundColor: 'white' }",
+    );
+  });
+
+  it('dedupes pseudo entries with the same cssKey (last-wins)', () => {
+    expect(generateStyleBlock(['focus:outline-none', 'focus:ring:2'])).toBe(
+      "{ '&:focus': { outline: '2px solid var(--color-ring)' } }",
+    );
+  });
 });

@@ -326,6 +326,59 @@ describe('mapShorthand — content', () => {
   });
 });
 
+describe('mapShorthand — color opacity modifier', () => {
+  it('maps bg:primary/90 to color-mix literal', () => {
+    expect(mapShorthand('bg:primary/90')).toEqual({
+      entries: [
+        {
+          cssKey: 'backgroundColor',
+          valueExpr: "'color-mix(in oklch, var(--color-primary) 90%, transparent)'",
+        },
+      ],
+      pseudo: null,
+    });
+  });
+
+  it('maps hover:bg:primary.700/50 with pseudo', () => {
+    expect(mapShorthand('hover:bg:primary.700/50')).toEqual({
+      entries: [
+        {
+          cssKey: 'backgroundColor',
+          valueExpr: "'color-mix(in oklch, var(--color-primary-700) 50%, transparent)'",
+        },
+      ],
+      pseudo: '&:hover',
+    });
+  });
+
+  it('throws on out-of-range opacity', () => {
+    expect(() => mapShorthand('bg:primary/150')).toThrow(/opacity/i);
+  });
+});
+
+describe('mapShorthand — ring', () => {
+  it('maps ring:2 to outline with var(--color-ring)', () => {
+    expect(mapShorthand('ring:2')).toEqual({
+      entries: [{ cssKey: 'outline', valueExpr: "'2px solid var(--color-ring)'" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps ring:ring to outlineColor + token', () => {
+    expect(mapShorthand('ring:ring')).toEqual({
+      entries: [{ cssKey: 'outlineColor', valueExpr: 'token.color.ring' }],
+      pseudo: null,
+    });
+  });
+
+  it('maps focus:ring:2 with pseudo', () => {
+    expect(mapShorthand('focus:ring:2')).toEqual({
+      entries: [{ cssKey: 'outline', valueExpr: "'2px solid var(--color-ring)'" }],
+      pseudo: '&:focus',
+    });
+  });
+});
+
 describe('mapShorthand — errors', () => {
   it('throws on unknown shorthand', () => {
     expect(() => mapShorthand('bogus:whatever')).toThrow(/unknown/i);

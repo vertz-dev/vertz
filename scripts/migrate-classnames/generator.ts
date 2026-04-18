@@ -32,13 +32,19 @@ export function generateStyleBlock(shorthands: readonly string[]): string {
   }
 
   const parts: string[] = [];
-  for (const entry of baseEntries) parts.push(formatEntry(entry));
+  for (const entry of dedupeLastWins(baseEntries)) parts.push(formatEntry(entry));
   for (const [selector, entries] of pseudoGroups) {
-    const inner = entries.map(formatEntry).join(', ');
+    const inner = dedupeLastWins(entries).map(formatEntry).join(', ');
     parts.push(`'${selector}': { ${inner} }`);
   }
 
   return `{ ${parts.join(', ')} }`;
+}
+
+function dedupeLastWins(entries: readonly MappedEntry[]): MappedEntry[] {
+  const byKey = new Map<string, MappedEntry>();
+  for (const entry of entries) byKey.set(entry.cssKey, entry);
+  return [...byKey.values()];
 }
 
 function formatEntry(entry: MappedEntry): string {

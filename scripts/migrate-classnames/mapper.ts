@@ -108,6 +108,7 @@ export function mapShorthand(input: string): MappedShorthand {
   if (property === 'text') return { entries: mapText(value), pseudo };
   if (property === 'font') return { entries: mapFont(value), pseudo };
   if (property === 'border') return { entries: mapBorder(value), pseudo };
+  if (property === 'ring') return { entries: mapRing(value), pseudo };
 
   const valueExpr = mapValueForType(value, mapping.valueType, property);
   const entries = mapping.properties.map((cssProp) => ({
@@ -183,8 +184,24 @@ function spacingAccess(key: string): string {
   return /^\d+$/.test(key) ? `token.spacing[${key}]` : `token.spacing['${key}']`;
 }
 
+const OPACITY_PATTERN = /^(.+)\/(\d+)$/;
+
 function mapColor(value: string, property: string): string {
   if (CSS_COLOR_KEYWORDS.has(value)) return quote(value);
+
+  const opacityMatch = OPACITY_PATTERN.exec(value);
+  if (opacityMatch) {
+    const colorPart = opacityMatch[1]!;
+    const opacityStr = opacityMatch[2]!;
+    const opacity = Number(opacityStr);
+    if (opacity < 0 || opacity > 100) {
+      throw new TypeError(
+        `Invalid opacity '${opacityStr}' in '${value}' for '${property}': must be 0-100`,
+      );
+    }
+    const cssVar = colorToCssVar(colorPart, property);
+    return quote(`color-mix(in oklch, ${cssVar} ${opacity}%, transparent)`);
+  }
 
   const dotIndex = value.indexOf('.');
   if (dotIndex !== -1) {
@@ -194,6 +211,18 @@ function mapColor(value: string, property: string): string {
   }
   if (COLOR_NAMESPACES.has(value)) return `token.color${accessKey(value)}`;
   throw new TypeError(`Invalid color value '${value}' for '${property}'`);
+}
+
+function colorToCssVar(color: string, property: string): string {
+  const dotIndex = color.indexOf('.');
+  if (dotIndex !== -1) {
+    const namespace = color.substring(0, dotIndex);
+    const shade = color.substring(dotIndex + 1);
+    if (COLOR_NAMESPACES.has(namespace)) return `var(--color-${namespace}-${shade})`;
+    throw new TypeError(`Invalid color namespace '${namespace}' for '${property}'`);
+  }
+  if (COLOR_NAMESPACES.has(color)) return `var(--color-${color})`;
+  throw new TypeError(`Invalid color value '${color}' for '${property}'`);
 }
 
 const IDENT_RE = /^[A-Za-z_$][\w$]*$/;
@@ -297,6 +326,14 @@ function mapBorder(value: string): MappedEntry[] {
     return [{ cssKey: 'borderWidth', valueExpr: quote(`${num}px`) }];
   }
   return [{ cssKey: 'borderColor', valueExpr: mapColor(value, 'border') }];
+}
+
+function mapRing(value: string): MappedEntry[] {
+  const num = Number(value);
+  if (!Number.isNaN(num) && num >= 0) {
+    return [{ cssKey: 'outline', valueExpr: quote(`${num}px solid var(--color-ring)`) }];
+  }
+  return [{ cssKey: 'outlineColor', valueExpr: mapColor(value, 'ring') }];
 }
 
 function toCamel(kebab: string): string {
