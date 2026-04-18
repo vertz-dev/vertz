@@ -12,6 +12,7 @@
     "**/.tmp-*/**",
     "**/cli/my-app/**",
     "**/coverage/**",
-    "**/dist/**"
+    "**/dist/**",
+    "scripts/migrate-classnames/__fixtures__/**"
   ]
 }
