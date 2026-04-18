@@ -1,5 +1,5 @@
 import type { CSSOutput, GlobalCSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css, globalCss, injectCSS } from '@vertz/ui';
+import { css, globalCss, injectCSS, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type DialogBlocks = {
@@ -108,7 +108,7 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
         },
       },
     ],
-    dialogDescription: ['text:sm', 'text:muted-foreground'],
+    dialogDescription: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
     dialogClose: [
       'absolute',
       'rounded:xs',

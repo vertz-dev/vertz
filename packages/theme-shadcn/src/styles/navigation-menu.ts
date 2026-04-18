@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { animationDecl, bgOpacity } from './_helpers';
 
 type NavigationMenuBlocks = {
@@ -14,8 +14,8 @@ type NavigationMenuBlocks = {
 /** Create navigation menu css() styles. */
 export function createNavigationMenuStyles(): CSSOutput<NavigationMenuBlocks> {
   const s = css({
-    navRoot: ['relative', 'z:10'],
-    navList: ['flex', 'items:center', 'gap:1'],
+    navRoot: { position: 'relative', zIndex: '10' },
+    navList: { display: 'flex', alignItems: 'center', gap: token.spacing[1] },
     navTrigger: [
       'inline-flex',
       'items:center',
@@ -27,7 +27,9 @@ export function createNavigationMenuStyles(): CSSOutput<NavigationMenuBlocks> {
       'font:medium',
       'cursor:pointer',
       'transition:colors',
-      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
+      {
+        '&:hover': { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
+      },
       { '&[data-state="open"]': [bgOpacity('accent', 50)] },
     ],
     navContent: [
@@ -62,7 +64,9 @@ export function createNavigationMenuStyles(): CSSOutput<NavigationMenuBlocks> {
       {
         '&': { 'text-decoration-line': 'none' },
       },
-      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
+      {
+        '&:hover': { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
+      },
     ],
     navViewport: [
       'absolute',

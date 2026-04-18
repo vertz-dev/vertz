@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { bgOpacity, DARK } from './_helpers';
 
 type CheckboxBlocks = {
@@ -40,14 +40,18 @@ export function createCheckboxStyles(): CSSOutput<CheckboxBlocks> {
       },
       { [DARK]: [bgOpacity('input', 30)] },
       focusRing,
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+      { '&:disabled': { pointerEvents: 'none', opacity: '0.5' } },
       {
-        '&[data-state="checked"]': ['bg:primary', 'text:primary-foreground', 'border:primary'],
-        '&[data-state="indeterminate"]': [
-          'bg:primary',
-          'text:primary-foreground',
-          'border:primary',
-        ],
+        '&[data-state="checked"]': {
+          backgroundColor: token.color.primary,
+          color: token.color['primary-foreground'],
+          borderColor: token.color.primary,
+        },
+        '&[data-state="indeterminate"]': {
+          backgroundColor: token.color.primary,
+          color: token.color['primary-foreground'],
+          borderColor: token.color.primary,
+        },
       },
     ],
     checkboxIndicator: [

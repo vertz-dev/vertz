@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { bgOpacity } from './_helpers';
 
 type TableBlocks = {
@@ -26,14 +26,14 @@ export function createTableStyles(): CSSOutput<TableBlocks> {
         },
       },
     ],
-    tableHeader: [{ '& tr': ['border-b:1', 'border:border'] }],
+    tableHeader: [{ '& tr': { borderBottomWidth: '1', borderColor: token.color.border } }],
     tableBody: [{ '& tr:last-child': { 'border-bottom': '0' } }],
     tableRow: [
       'border-b:1',
       'border:border',
       'transition:colors',
       { '&:hover': [bgOpacity('muted', 50)] },
-      { '&[data-state="selected"]': ['bg:muted'] },
+      { '&[data-state="selected"]': { backgroundColor: token.color.muted } },
     ],
     tableHead: [
       'px:2',
@@ -49,7 +49,11 @@ export function createTableStyles(): CSSOutput<TableBlocks> {
       },
     ],
     tableCell: ['p:2', 'whitespace-nowrap', { '&': { 'vertical-align': 'middle' } }],
-    tableCaption: ['mt:4', 'text:sm', 'text:muted-foreground'],
+    tableCaption: {
+      marginTop: token.spacing[4],
+      fontSize: token.font.size.sm,
+      color: token.color['muted-foreground'],
+    },
     tableFooter: [
       'border-t:1',
       'border:border',

@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { animationDecl, bgOpacity, DARK } from './_helpers';
 
 type SelectBlocks = {
@@ -50,8 +50,8 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
         },
       },
       focusRing,
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
-      { '&[data-state="open"]': ['border:ring'] },
+      { '&:disabled': { pointerEvents: 'none', opacity: '0.5' } },
+      { '&[data-state="open"]': { borderColor: token.color.ring } },
       { [DARK]: [bgOpacity('input', 30)] },
       // Chevron icon — muted, no-shrink
       {
@@ -114,9 +114,19 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
           'padding-left': '0.5rem',
         },
       },
-      { '&:hover:not([aria-selected="true"])': ['bg:accent', 'text:accent-foreground'] },
-      { '&:focus:not([aria-selected="true"])': ['bg:accent', 'text:accent-foreground'] },
-      { '&[data-disabled]': ['pointer-events-none', 'opacity:0.5'] },
+      {
+        '&:hover:not([aria-selected="true"])': {
+          backgroundColor: token.color.accent,
+          color: token.color['accent-foreground'],
+        },
+      },
+      {
+        '&:focus:not([aria-selected="true"])': {
+          backgroundColor: token.color.accent,
+          color: token.color['accent-foreground'],
+        },
+      },
+      { '&[data-disabled]': { pointerEvents: 'none', opacity: '0.5' } },
     ],
     // Check indicator — absolutely positioned on the right side of the item
     selectItemIndicator: [
@@ -137,9 +147,15 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
       },
     ],
     // Nova: scroll-my-1 p-1
-    selectGroup: ['p:1'],
+    selectGroup: { padding: token.spacing[1] },
     // Nova: px-1.5 py-1 text-xs
-    selectLabel: ['px:1.5', 'py:1', 'text:xs', 'font:semibold', 'text:muted-foreground'],
+    selectLabel: {
+      paddingInline: token.spacing['1.5'],
+      paddingBlock: token.spacing[1],
+      fontSize: token.font.size.xs,
+      fontWeight: token.font.weight.semibold,
+      color: token.color['muted-foreground'],
+    },
     // Nova: bg-border -mx-1 my-1 h-px
     selectSeparator: [
       'my:1',
@@ -152,7 +168,13 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
         },
       },
     ],
-    selectScrollButton: ['flex', 'items:center', 'justify:center', 'py:1', 'cursor:default'],
+    selectScrollButton: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingBlock: token.spacing[1],
+      cursor: 'default',
+    },
   });
   return {
     trigger: s.selectTrigger,

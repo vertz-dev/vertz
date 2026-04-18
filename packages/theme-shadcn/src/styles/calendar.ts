@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type CalendarBlocks = {
   root: StyleEntry[];
@@ -101,7 +101,7 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
       'bg:transparent',
       'cursor:pointer',
       'transition:all',
-      { '&:hover': ['bg:muted', 'text:foreground'] },
+      { '&:hover': { backgroundColor: token.color.muted, color: token.color.foreground } },
       focusRing,
       {
         '&': {
@@ -117,7 +117,7 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
           height: '1rem',
         },
       },
-      { '&[aria-disabled="true"]': ['opacity:0.5'] },
+      { '&[aria-disabled="true"]': { opacity: '0.5' } },
     ],
     /* table: w-full border-collapse */
     calendarGrid: [
@@ -171,27 +171,47 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
           padding: '0',
         },
       },
-      { '&:hover': ['bg:muted', 'text:foreground'] },
+      { '&:hover': { backgroundColor: token.color.muted, color: token.color.foreground } },
       /* selected single: bg-primary text-primary-foreground */
-      { '&[aria-selected="true"]': ['bg:primary', 'text:primary-foreground'] },
+      {
+        '&[aria-selected="true"]': {
+          backgroundColor: token.color.primary,
+          color: token.color['primary-foreground'],
+        },
+      },
       /* today: bg-muted text-foreground (not selected) */
       {
-        '&[data-today="true"]': ['bg:muted', 'text:foreground'],
+        '&[data-today="true"]': {
+          backgroundColor: token.color.muted,
+          color: token.color.foreground,
+        },
       },
       /* today + selected: primary wins */
       {
-        '&[data-today="true"][aria-selected="true"]': ['bg:primary', 'text:primary-foreground'],
+        '&[data-today="true"][aria-selected="true"]': {
+          backgroundColor: token.color.primary,
+          color: token.color['primary-foreground'],
+        },
       },
       /* disabled: text-muted-foreground opacity-50 */
       {
-        '&[aria-disabled="true"]': ['text:muted-foreground', 'opacity:0.5', 'pointer-events-none'],
+        '&[aria-disabled="true"]': {
+          color: token.color['muted-foreground'],
+          opacity: '0.5',
+          pointerEvents: 'none',
+        },
       },
       /* outside: text-muted-foreground */
       {
-        '&[data-outside-month="true"]': ['text:muted-foreground'],
+        '&[data-outside-month="true"]': { color: token.color['muted-foreground'] },
       },
       /* range middle: bg-muted text-foreground rounded-none */
-      { '&[data-in-range="true"]': ['bg:muted', 'text:foreground'] },
+      {
+        '&[data-in-range="true"]': {
+          backgroundColor: token.color.muted,
+          color: token.color.foreground,
+        },
+      },
     ],
     /* month/year dropdown selects */
     calendarMonthSelect: [

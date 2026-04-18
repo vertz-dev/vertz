@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type CarouselBlocks = {
   root: StyleEntry[];
@@ -12,8 +12,8 @@ type CarouselBlocks = {
 /** Create carousel css() styles following shadcn conventions. */
 export function createCarouselStyles(): CSSOutput<CarouselBlocks> {
   const s = css({
-    carouselRoot: ['relative'],
-    carouselViewport: ['overflow-hidden'],
+    carouselRoot: { position: 'relative' },
+    carouselViewport: { overflow: 'hidden' },
     carouselSlide: [{ '&[data-state="inactive"]': [{ display: 'none' }] }],
     carouselPrevButton: [
       'absolute',
@@ -35,8 +35,10 @@ export function createCarouselStyles(): CSSOutput<CarouselBlocks> {
           transform: 'translateY(-50%)',
         },
       },
-      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+      {
+        '&:hover': { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
+      },
+      { '&:disabled': { pointerEvents: 'none', opacity: '0.5' } },
     ],
     carouselNextButton: [
       'absolute',
@@ -58,8 +60,10 @@ export function createCarouselStyles(): CSSOutput<CarouselBlocks> {
           transform: 'translateY(-50%)',
         },
       },
-      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+      {
+        '&:hover': { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
+      },
+      { '&:disabled': { pointerEvents: 'none', opacity: '0.5' } },
     ],
   });
   return {

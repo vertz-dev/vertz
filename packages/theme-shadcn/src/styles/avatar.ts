@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type AvatarBlocks = {
   root: StyleEntry[];
@@ -16,7 +16,15 @@ type AvatarBlocks = {
 /** Create avatar css() styles. */
 export function createAvatarStyles(): CSSOutput<AvatarBlocks> {
   const s = css({
-    avatarRoot: ['relative', 'flex', 'h:8', 'w:8', 'shrink-0', 'overflow-hidden', 'rounded:full'],
+    avatarRoot: {
+      position: 'relative',
+      display: 'flex',
+      height: token.spacing[8],
+      width: token.spacing[8],
+      flexShrink: '0',
+      overflow: 'hidden',
+      borderRadius: token.radius.full,
+    },
     avatarImage: [
       'h:full',
       'w:full',
@@ -27,24 +35,24 @@ export function createAvatarStyles(): CSSOutput<AvatarBlocks> {
         },
       },
     ],
-    avatarFallback: [
-      'flex',
-      'h:full',
-      'w:full',
-      'items:center',
-      'justify:center',
-      'rounded:full',
-      'bg:muted',
-      'text:muted-foreground',
-      'text:xs',
-      'font:medium',
-    ],
-    avatarRootSm: ['h:6', 'w:6'],
-    avatarRootLg: ['h:10', 'w:10'],
-    avatarRootXl: ['h:12', 'w:12'],
+    avatarFallback: {
+      display: 'flex',
+      height: '100%',
+      width: '100%',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: token.radius.full,
+      backgroundColor: token.color.muted,
+      color: token.color['muted-foreground'],
+      fontSize: token.font.size.xs,
+      fontWeight: token.font.weight.medium,
+    },
+    avatarRootSm: { height: token.spacing[6], width: token.spacing[6] },
+    avatarRootLg: { height: token.spacing[10], width: token.spacing[10] },
+    avatarRootXl: { height: token.spacing[12], width: token.spacing[12] },
     avatarFallbackSm: [{ '&': { 'font-size': '0.625rem' } }],
-    avatarFallbackLg: ['text:sm'],
-    avatarFallbackXl: ['text:base'],
+    avatarFallbackLg: { fontSize: token.font.size.sm },
+    avatarFallbackXl: { fontSize: token.font.size.base },
   });
   return {
     root: s.avatarRoot,

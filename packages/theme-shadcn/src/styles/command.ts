@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type CommandBlocks = {
   root: StyleEntry[];
@@ -25,16 +25,16 @@ const focusRing: Record<string, StyleValue[]> = {
 /** Create command css() styles. */
 export function createCommandStyles(): CSSOutput<CommandBlocks> {
   const s = css({
-    commandRoot: [
-      'flex',
-      'flex-col',
-      'overflow-hidden',
-      'rounded:lg',
-      'border:1',
-      'border:border',
-      'bg:popover',
-      'text:popover-foreground',
-    ],
+    commandRoot: {
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      borderRadius: token.radius.lg,
+      borderWidth: '1px',
+      borderColor: token.color.border,
+      backgroundColor: token.color.popover,
+      color: token.color['popover-foreground'],
+    },
     commandInput: [
       'flex',
       'w:full',
@@ -44,7 +44,7 @@ export function createCommandStyles(): CSSOutput<CommandBlocks> {
       'py:2',
       'text:sm',
       'outline-none',
-      { '&::placeholder': ['text:muted-foreground'] },
+      { '&::placeholder': { color: token.color['muted-foreground'] } },
       {
         '&': {
           height: '2.5rem',
@@ -78,9 +78,14 @@ export function createCommandStyles(): CSSOutput<CommandBlocks> {
           'padding-bottom': '0.375rem',
         },
       },
-      { '&[aria-selected="true"]': ['bg:accent', 'text:accent-foreground'] },
+      {
+        '&[aria-selected="true"]': {
+          backgroundColor: token.color.accent,
+          color: token.color['accent-foreground'],
+        },
+      },
     ],
-    commandGroup: ['overflow-hidden'],
+    commandGroup: { overflow: 'hidden' },
     commandGroupHeading: [
       'px:2',
       'text:xs',
@@ -104,7 +109,12 @@ export function createCommandStyles(): CSSOutput<CommandBlocks> {
         },
       },
     ],
-    commandEmpty: ['py:6', 'text:center', 'text:sm', 'text:muted-foreground'],
+    commandEmpty: {
+      paddingBlock: token.spacing[6],
+      textAlign: 'center',
+      fontSize: token.font.size.sm,
+      color: token.color['muted-foreground'],
+    },
   });
   return {
     root: s.commandRoot,

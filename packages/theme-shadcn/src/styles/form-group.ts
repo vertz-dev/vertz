@@ -1,13 +1,13 @@
 import type { CSSOutput } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type FormGroupBlocks = { base: string[]; error: string[] };
 
 /** Create formGroup css() styles. */
 export function createFormGroup(): CSSOutput<FormGroupBlocks> {
   const s = css({
-    formGroupBase: ['flex', 'flex-col', 'gap:2'],
-    formGroupError: ['text:sm', 'text:destructive'],
+    formGroupBase: { display: 'flex', flexDirection: 'column', gap: token.spacing[2] },
+    formGroupError: { fontSize: token.font.size.sm, color: token.color.destructive },
   });
   return {
     base: s.formGroupBase,

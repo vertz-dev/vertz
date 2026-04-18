@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type DatePickerBlocks = {
   trigger: StyleEntry[];
@@ -40,8 +40,10 @@ export function createDatePickerStyles(): CSSOutput<DatePickerBlocks> {
           padding: '0.5rem 0.75rem',
         },
       },
-      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
-      { '&[data-placeholder="true"]': ['text:muted-foreground'] },
+      {
+        '&:hover': { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
+      },
+      { '&[data-placeholder="true"]': { color: token.color['muted-foreground'] } },
     ],
     datePickerContent: [
       'bg:popover',

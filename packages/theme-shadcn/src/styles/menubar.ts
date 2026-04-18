@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type MenubarBlocks = {
@@ -36,10 +36,17 @@ export function createMenubarStyles(): CSSOutput<MenubarBlocks> {
       'font:medium',
       'cursor:pointer',
       'outline-none',
-      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
-      { '&:focus': ['bg:accent', 'text:accent-foreground'] },
       {
-        '&[data-state="open"]': ['bg:accent', 'text:accent-foreground'],
+        '&:hover': { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
+      },
+      {
+        '&:focus': { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
+      },
+      {
+        '&[data-state="open"]': {
+          backgroundColor: token.color.accent,
+          color: token.color['accent-foreground'],
+        },
       },
     ],
     mbContent: [
@@ -68,12 +75,22 @@ export function createMenubarStyles(): CSSOutput<MenubarBlocks> {
       'text:sm',
       'cursor:pointer',
       'outline-none',
-      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
-      { '&:focus': ['bg:accent', 'text:accent-foreground'] },
-      { '&[data-disabled]': ['pointer-events-none', 'opacity:0.5'] },
+      {
+        '&:hover': { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
+      },
+      {
+        '&:focus': { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
+      },
+      { '&[data-disabled]': { pointerEvents: 'none', opacity: '0.5' } },
     ],
     mbSeparator: ['mx:1', 'my:1', 'border-t:1', 'border:muted', { '&': { height: '1px' } }],
-    mbLabel: ['px:2', 'py:1.5', 'text:xs', 'font:semibold', 'text:muted-foreground'],
+    mbLabel: {
+      paddingInline: token.spacing[2],
+      paddingBlock: token.spacing['1.5'],
+      fontSize: token.font.size.xs,
+      fontWeight: token.font.weight.semibold,
+      color: token.color['muted-foreground'],
+    },
   });
   return {
     root: s.mbRoot,

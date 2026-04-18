@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type SheetBlocks = {
@@ -191,8 +191,12 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
         '&[data-state="closed"]': [animationDecl('vz-slide-out-to-bottom 300ms ease-out forwards')],
       },
     ],
-    sheetTitle: ['text:base', 'font:medium', 'text:foreground'],
-    sheetDescription: ['text:sm', 'text:muted-foreground'],
+    sheetTitle: {
+      fontSize: token.font.size.base,
+      fontWeight: token.font.weight.medium,
+      color: token.color.foreground,
+    },
+    sheetDescription: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
     sheetClose: [
       'absolute',
       'rounded:xs',
@@ -214,7 +218,7 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
           padding: '0',
         },
       },
-      { '&:hover': ['opacity:1'] },
+      { '&:hover': { opacity: '1' } },
       focusRing,
     ],
   });

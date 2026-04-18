@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { bgOpacity, DARK, textOpacity } from './_helpers';
 
 type TabsBlocks = {
@@ -49,15 +49,26 @@ export function createTabsStyles(): CSSOutput<TabsBlocks> {
         '&[data-state="inactive"]:hover': [textOpacity('foreground', 80)],
       },
       {
-        '&[data-state="active"]': ['bg:background', 'text:foreground', 'shadow:sm'],
+        '&[data-state="active"]': {
+          backgroundColor: token.color.background,
+          color: token.color.foreground,
+          boxShadow: token.shadow.sm,
+        },
       },
       {
         [`${DARK} &[data-state="active"]`]: [bgOpacity('input', 30)],
       },
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+      { '&:disabled': { pointerEvents: 'none', opacity: '0.5' } },
     ],
-    tabsPanel: ['text:sm', 'mt:2'],
-    tabsListLine: ['inline-flex', 'h:9', 'items:end', 'gap:4', 'border-b:1', 'border:border'],
+    tabsPanel: { fontSize: token.font.size.sm, marginTop: token.spacing[2] },
+    tabsListLine: {
+      display: 'inline-flex',
+      height: token.spacing[9],
+      alignItems: 'flex-end',
+      gap: token.spacing[4],
+      borderBottomWidth: '1',
+      borderColor: token.color.border,
+    },
     tabsTriggerLine: [
       'inline-flex',
       'items:center',
@@ -86,7 +97,7 @@ export function createTabsStyles(): CSSOutput<TabsBlocks> {
           },
         ],
       },
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+      { '&:disabled': { pointerEvents: 'none', opacity: '0.5' } },
     ],
   });
   return {

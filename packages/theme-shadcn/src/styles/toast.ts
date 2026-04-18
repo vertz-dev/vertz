@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type ToastBlocks = {
@@ -64,8 +64,8 @@ export function createToastStyles(): CSSOutput<ToastBlocks> {
         '&[data-state="closed"]': [animationDecl('vz-fade-out 150ms ease-out forwards')],
       },
     ],
-    toastTitle: ['text:sm', 'font:semibold'],
-    toastDescription: ['text:sm', 'text:muted-foreground'],
+    toastTitle: { fontSize: token.font.size.sm, fontWeight: token.font.weight.semibold },
+    toastDescription: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
     toastAction: [
       'inline-flex',
       'items:center',
@@ -79,7 +79,7 @@ export function createToastStyles(): CSSOutput<ToastBlocks> {
       'transition:colors',
       'shrink-0',
       { '&': { height: '2rem' } },
-      { '&:hover': ['bg:secondary'] },
+      { '&:hover': { backgroundColor: token.color.secondary } },
       focusRing,
     ],
     toastClose: [
@@ -88,7 +88,7 @@ export function createToastStyles(): CSSOutput<ToastBlocks> {
       'opacity:0.7',
       'cursor:pointer',
       'transition:colors',
-      { '&:hover': ['opacity:1'] },
+      { '&:hover': { opacity: '1' } },
       focusRing,
     ],
   });

@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type SeparatorBlocks = {
   base: StyleEntry[];
@@ -10,7 +10,7 @@ type SeparatorBlocks = {
 /** Create separator css() styles. */
 export function createSeparator(): CSSOutput<SeparatorBlocks> {
   const s = css({
-    separatorBase: ['bg:border', 'shrink-0'],
+    separatorBase: { backgroundColor: token.color.border, flexShrink: '0' },
     separatorHorizontal: ['w:full', { '&': { height: '1px' } }],
     separatorVertical: [
       {

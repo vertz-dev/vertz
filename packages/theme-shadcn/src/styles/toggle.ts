@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type ToggleBlocks = {
   root: StyleEntry[];
@@ -31,10 +31,13 @@ export function createToggleStyles(): CSSOutput<ToggleBlocks> {
       'px:3',
       'h:9',
       focusRing,
-      { '&:hover': ['bg:muted', 'text:muted-foreground'] },
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+      { '&:hover': { backgroundColor: token.color.muted, color: token.color['muted-foreground'] } },
+      { '&:disabled': { pointerEvents: 'none', opacity: '0.5' } },
       {
-        '&[data-state="on"]': ['bg:accent', 'text:accent-foreground'],
+        '&[data-state="on"]': {
+          backgroundColor: token.color.accent,
+          color: token.color['accent-foreground'],
+        },
       },
     ],
   });

@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { bgOpacity, DARK } from './_helpers';
 
 type SwitchBlocks = {
@@ -36,10 +36,10 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
       'w:8',
       { [DARK]: [bgOpacity('input', 80)] },
       focusRing,
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+      { '&:disabled': { pointerEvents: 'none', opacity: '0.5' } },
       {
-        '&[data-state="checked"]': ['bg:primary'],
-        '&[data-state="unchecked"]': ['bg:input'],
+        '&[data-state="checked"]': { backgroundColor: token.color.primary },
+        '&[data-state="unchecked"]': { backgroundColor: token.color.input },
       },
     ],
     switchThumb: [
@@ -85,10 +85,10 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
       'w:6',
       { [DARK]: [bgOpacity('input', 80)] },
       focusRing,
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+      { '&:disabled': { pointerEvents: 'none', opacity: '0.5' } },
       {
-        '&[data-state="checked"]': ['bg:primary'],
-        '&[data-state="unchecked"]': ['bg:input'],
+        '&[data-state="checked"]': { backgroundColor: token.color.primary },
+        '&[data-state="unchecked"]': { backgroundColor: token.color.input },
       },
     ],
     switchThumbSm: [

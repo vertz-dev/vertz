@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type SliderBlocks = {
   root: StyleEntry[];
@@ -41,7 +41,7 @@ export function createSliderStyles(): CSSOutput<SliderBlocks> {
         },
       },
     ],
-    sliderRange: ['bg:primary'],
+    sliderRange: { backgroundColor: token.color.primary },
     sliderThumb: [
       'block',
       'h:3',
@@ -73,7 +73,7 @@ export function createSliderStyles(): CSSOutput<SliderBlocks> {
       {
         '&:active': [ringStyle],
       },
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+      { '&:disabled': { pointerEvents: 'none', opacity: '0.5' } },
     ],
   });
   return {

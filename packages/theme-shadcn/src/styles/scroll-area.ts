@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type ScrollAreaBlocks = {
   root: StyleEntry[];
@@ -11,7 +11,7 @@ type ScrollAreaBlocks = {
 /** Create scroll-area css() styles following shadcn conventions. */
 export function createScrollAreaStyles(): CSSOutput<ScrollAreaBlocks> {
   const s = css({
-    scrollAreaRoot: ['relative', 'overflow-hidden'],
+    scrollAreaRoot: { position: 'relative', overflow: 'hidden' },
     scrollAreaViewport: ['h:full', 'w:full', { '&': { 'border-radius': 'inherit' } }],
     scrollAreaScrollbar: [
       'flex',
@@ -24,15 +24,20 @@ export function createScrollAreaStyles(): CSSOutput<ScrollAreaBlocks> {
       },
       'transition:colors',
       {
-        '&[data-orientation="vertical"]': ['h:full', 'w:2.5', 'border-l:1', 'border:transparent'],
+        '&[data-orientation="vertical"]': {
+          height: '100%',
+          width: token.spacing['2.5'],
+          borderLeftWidth: '1',
+          borderColor: 'transparent',
+        },
       },
       {
-        '&[data-orientation="horizontal"]': [
-          'h:2.5',
-          'flex-col',
-          'border-t:1',
-          'border:transparent',
-        ],
+        '&[data-orientation="horizontal"]': {
+          height: token.spacing['2.5'],
+          flexDirection: 'column',
+          borderTopWidth: '1',
+          borderColor: 'transparent',
+        },
       },
     ],
     scrollAreaThumb: [

@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type ToggleGroupBlocks = {
   root: StyleEntry[];
@@ -19,7 +19,12 @@ const focusRing: Record<string, StyleValue[]> = {
 /** Create toggle group css() styles. */
 export function createToggleGroupStyles(): CSSOutput<ToggleGroupBlocks> {
   const s = css({
-    toggleGroupRoot: ['inline-flex', 'items:center', 'gap:1', 'rounded:md'],
+    toggleGroupRoot: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: token.spacing[1],
+      borderRadius: token.radius.md,
+    },
     toggleGroupItem: [
       'inline-flex',
       'items:center',
@@ -33,10 +38,13 @@ export function createToggleGroupStyles(): CSSOutput<ToggleGroupBlocks> {
       'cursor:pointer',
       'transition:colors',
       focusRing,
-      { '&:hover': ['bg:muted', 'text:muted-foreground'] },
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+      { '&:hover': { backgroundColor: token.color.muted, color: token.color['muted-foreground'] } },
+      { '&:disabled': { pointerEvents: 'none', opacity: '0.5' } },
       {
-        '&[data-state="on"]': ['bg:accent', 'text:accent-foreground'],
+        '&[data-state="on"]': {
+          backgroundColor: token.color.accent,
+          color: token.color['accent-foreground'],
+        },
       },
     ],
   });

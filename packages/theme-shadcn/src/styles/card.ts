@@ -1,5 +1,5 @@
 import type { CSSOutput } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type CardBlocks = {
   root: string[];
@@ -30,7 +30,12 @@ export function createCard(): CSSOutput<CardBlocks> {
         },
       },
     ],
-    cardHeader: ['flex', 'flex-col', 'gap:1', 'px:4'],
+    cardHeader: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: token.spacing[1],
+      paddingInline: token.spacing[4],
+    },
     cardTitle: [
       'font:medium',
       {
@@ -40,8 +45,8 @@ export function createCard(): CSSOutput<CardBlocks> {
         },
       },
     ],
-    cardDescription: ['text:sm', 'text:muted-foreground'],
-    cardContent: ['px:4'],
+    cardDescription: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
+    cardContent: { paddingInline: token.spacing[4] },
     cardFooter: [
       'flex',
       'items:center',
@@ -57,7 +62,7 @@ export function createCard(): CSSOutput<CardBlocks> {
         },
       },
     ],
-    cardAction: ['ml:auto'],
+    cardAction: { marginLeft: 'auto' },
   });
   return {
     root: s.cardRoot,

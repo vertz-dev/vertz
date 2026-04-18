@@ -23,7 +23,7 @@ const skeletonBase = [
 export function createSkeletonStyles(): CSSOutput<SkeletonBlocks> {
   return css({
     root: [...skeletonBase],
-    textRoot: ['flex', 'flex-col'],
+    textRoot: { display: 'flex', flexDirection: 'column' },
     textLine: [...skeletonBase, 'h:4'],
     circleRoot: [...skeletonBase, { '&': { borderRadius: '50%' } }],
   });

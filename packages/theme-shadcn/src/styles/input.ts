@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { bgOpacity, DARK } from './_helpers';
 
 type InputBlocks = { base: StyleEntry[] };
@@ -37,16 +37,16 @@ export function createInput(): CSSOutput<InputBlocks> {
       'text:foreground',
       'transition:colors',
       focusRing,
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+      { '&:disabled': { pointerEvents: 'none', opacity: '0.5' } },
       { [DARK]: [bgOpacity('input', 30)] },
       {
-        '&::file-selector-button': [
-          'border:0',
-          'bg:transparent',
-          'text:sm',
-          'font:medium',
-          'text:foreground',
-        ],
+        '&::file-selector-button': {
+          borderWidth: '0px',
+          backgroundColor: 'transparent',
+          fontSize: token.font.size.sm,
+          fontWeight: token.font.weight.medium,
+          color: token.color.foreground,
+        },
       },
     ],
   });

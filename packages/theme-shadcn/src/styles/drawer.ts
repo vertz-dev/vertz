@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type DrawerBlocks = {
@@ -182,9 +182,14 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
         '&[data-state="closed"]': [animationDecl('vz-slide-out-to-bottom 300ms ease-out forwards')],
       },
     ],
-    drawerHeader: ['flex', 'flex-col', 'gap:1.5'],
-    drawerTitle: ['text:lg', 'font:semibold', 'leading:none', 'tracking:tight'],
-    drawerDescription: ['text:sm', 'text:muted-foreground'],
+    drawerHeader: { display: 'flex', flexDirection: 'column', gap: token.spacing['1.5'] },
+    drawerTitle: {
+      fontSize: token.font.size.lg,
+      fontWeight: token.font.weight.semibold,
+      lineHeight: token.font.lineHeight.none,
+      letterSpacing: 'tight',
+    },
+    drawerDescription: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
     drawerFooter: [
       'flex',
       'gap:2',
@@ -217,7 +222,7 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
       'opacity:0.7',
       'cursor:pointer',
       'transition:colors',
-      { '&:hover': ['opacity:1'] },
+      { '&:hover': { opacity: '1' } },
       focusRing,
     ],
   });

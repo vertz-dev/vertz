@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@vertz/test';
-import { variants } from '@vertz/ui';
+import { token, variants } from '@vertz/ui';
 import { createAlertStyles } from '../styles/alert';
 import { badgeConfig, createBadge } from '../styles/badge';
 import { buttonConfig, createButton } from '../styles/button';
@@ -58,7 +58,11 @@ describe('button', () => {
         ...buttonConfig.variants,
         intent: {
           ...buttonConfig.variants.intent,
-          brand: ['bg:primary', 'text:primary-foreground', 'rounded:full'],
+          brand: {
+            backgroundColor: token.color.primary,
+            color: token.color['primary-foreground'],
+            borderRadius: token.radius.full,
+          },
         },
       },
     });
@@ -98,7 +102,7 @@ describe('badge', () => {
         ...badgeConfig.variants,
         color: {
           ...badgeConfig.variants.color,
-          purple: ['bg:accent', 'text:accent-foreground'],
+          purple: { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
         },
       },
     });

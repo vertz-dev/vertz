@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type DropdownMenuBlocks = {
@@ -47,13 +47,23 @@ export function createDropdownMenuStyles(): CSSOutput<DropdownMenuBlocks> {
       'cursor:pointer',
       'rounded:md',
       'outline-none',
-      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
-      { '&:focus': ['bg:accent', 'text:accent-foreground'] },
-      { '&[data-disabled]': ['pointer-events-none', 'opacity:0.5'] },
+      {
+        '&:hover': { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
+      },
+      {
+        '&:focus': { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
+      },
+      { '&[data-disabled]': { pointerEvents: 'none', opacity: '0.5' } },
     ],
-    dmGroup: ['py:1'],
+    dmGroup: { paddingBlock: token.spacing[1] },
     // Nova: px-1.5 py-1 text-xs font-medium
-    dmLabel: ['px:1.5', 'py:1', 'text:xs', 'font:medium', 'text:muted-foreground'],
+    dmLabel: {
+      paddingInline: token.spacing['1.5'],
+      paddingBlock: token.spacing[1],
+      fontSize: token.font.size.xs,
+      fontWeight: token.font.weight.medium,
+      color: token.color['muted-foreground'],
+    },
     // Nova: bg-border -mx-1 my-1 h-px
     dmSeparator: [
       'my:1',

@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type ContextMenuBlocks = {
@@ -45,12 +45,22 @@ export function createContextMenuStyles(): CSSOutput<ContextMenuBlocks> {
       'cursor:pointer',
       'rounded:md',
       'outline-none',
-      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
-      { '&:focus': ['bg:accent', 'text:accent-foreground'] },
-      { '&[data-disabled]': ['pointer-events-none', 'opacity:0.5'] },
+      {
+        '&:hover': { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
+      },
+      {
+        '&:focus': { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
+      },
+      { '&[data-disabled]': { pointerEvents: 'none', opacity: '0.5' } },
     ],
-    cmGroup: ['py:1'],
-    cmLabel: ['px:1.5', 'py:1', 'text:xs', 'font:medium', 'text:muted-foreground'],
+    cmGroup: { paddingBlock: token.spacing[1] },
+    cmLabel: {
+      paddingInline: token.spacing['1.5'],
+      paddingBlock: token.spacing[1],
+      fontSize: token.font.size.xs,
+      fontWeight: token.font.weight.medium,
+      color: token.color['muted-foreground'],
+    },
     cmSeparator: [
       'my:1',
       'bg:border',

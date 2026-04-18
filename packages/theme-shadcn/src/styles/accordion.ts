@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css, keyframes } from '@vertz/ui';
+import { css, keyframes, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type AccordionBlocks = {
@@ -21,7 +21,7 @@ const accordionUp = keyframes('vz-accordion-up', {
 /** Create accordion css() styles. */
 export function createAccordionStyles(): CSSOutput<AccordionBlocks> {
   const s = css({
-    accordionItem: ['border-b:1', 'border:border'],
+    accordionItem: { borderBottomWidth: '1', borderColor: token.color.border },
     accordionTrigger: [
       'flex',
       'w:full',

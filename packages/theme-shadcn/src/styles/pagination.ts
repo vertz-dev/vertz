@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type PaginationBlocks = {
   nav: StyleEntry[];
@@ -70,8 +70,8 @@ export function createPaginationStyles(): CSSOutput<PaginationBlocks> {
           'white-space': 'nowrap',
         },
       },
-      { '&:hover': ['bg:muted', 'text:foreground'] },
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+      { '&:hover': { backgroundColor: token.color.muted, color: token.color.foreground } },
+      { '&:disabled': { pointerEvents: 'none', opacity: '0.5' } },
     ],
     /* PaginationLink isActive: outline variant, size=icon (size-8 = 2rem) */
     paginationLinkActive: [
@@ -93,7 +93,7 @@ export function createPaginationStyles(): CSSOutput<PaginationBlocks> {
           width: '2rem',
         },
       },
-      { '&:hover': ['bg:muted', 'text:foreground'] },
+      { '&:hover': { backgroundColor: token.color.muted, color: token.color.foreground } },
     ],
     /* PaginationPrevious/Next: ghost variant, size=default (h-8 px-2.5 gap-1.5) with pl-1.5!/pr-1.5! */
     paginationNavButton: [
@@ -117,8 +117,8 @@ export function createPaginationStyles(): CSSOutput<PaginationBlocks> {
           'padding-right': '0.625rem',
         },
       },
-      { '&:hover': ['bg:muted', 'text:foreground'] },
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+      { '&:hover': { backgroundColor: token.color.muted, color: token.color.foreground } },
+      { '&:disabled': { pointerEvents: 'none', opacity: '0.5' } },
     ],
     /* PaginationEllipsis: size-8 = 2rem */
     paginationEllipsis: [

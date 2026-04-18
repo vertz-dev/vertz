@@ -38,7 +38,7 @@ export function createTextarea(): CSSOutput<TextareaBlocks> {
       'text:foreground',
       'transition:colors',
       focusRing,
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+      { '&:disabled': { pointerEvents: 'none', opacity: '0.5' } },
       { [DARK]: [bgOpacity('input', 30)] },
     ],
   });

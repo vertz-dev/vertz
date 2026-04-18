@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type ResizablePanelBlocks = {
   root: StyleEntry[];
@@ -20,7 +20,7 @@ const focusRing: Record<string, StyleValue[]> = {
 /** Create resizable panel css() styles following shadcn conventions. */
 export function createResizablePanelStyles(): CSSOutput<ResizablePanelBlocks> {
   const s = css({
-    resizableRoot: ['flex', 'h:full', 'w:full'],
+    resizableRoot: { display: 'flex', height: '100%', width: '100%' },
     resizablePanel: ['overflow-hidden', { '&': [{ 'white-space': 'nowrap' }] }],
     resizableHandle: [
       'relative',
@@ -30,7 +30,7 @@ export function createResizablePanelStyles(): CSSOutput<ResizablePanelBlocks> {
       'bg:border',
       focusRing,
       {
-        '&:hover': ['bg:muted-foreground'],
+        '&:hover': { backgroundColor: token.color['muted-foreground'] },
       },
       {
         '&[data-orientation="horizontal"]': {
@@ -45,7 +45,7 @@ export function createResizablePanelStyles(): CSSOutput<ResizablePanelBlocks> {
         },
       },
       {
-        '&[data-state="dragging"]': ['bg:primary'],
+        '&[data-state="dragging"]': { backgroundColor: token.color.primary },
       },
     ],
   });

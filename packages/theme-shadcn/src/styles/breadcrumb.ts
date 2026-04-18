@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type BreadcrumbBlocks = {
   nav: StyleEntry[];
@@ -35,8 +35,12 @@ export function createBreadcrumbStyles(): CSSOutput<BreadcrumbBlocks> {
       'gap:1.5',
       { '&:first-child > [role="presentation"]': { display: 'none' } },
     ],
-    breadcrumbLink: ['transition:colors', 'text:foreground', { '&:hover': ['text:foreground'] }],
-    breadcrumbPage: ['font:normal', 'text:foreground'],
+    breadcrumbLink: [
+      'transition:colors',
+      'text:foreground',
+      { '&:hover': { color: token.color.foreground } },
+    ],
+    breadcrumbPage: { fontWeight: token.font.weight.normal, color: token.color.foreground },
     breadcrumbSeparator: [],
   });
   return {
