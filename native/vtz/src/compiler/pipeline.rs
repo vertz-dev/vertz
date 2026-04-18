@@ -7,7 +7,7 @@ use crate::compiler::cache::{CachedModule, CompilationCache};
 use crate::compiler::css_transform::CssTransform;
 use crate::compiler::env_replacer;
 use crate::compiler::import_rewriter;
-use crate::plugin::{CompileContext, FrameworkPlugin};
+use crate::plugin::{CompileContext, VtzPlugin};
 use crate::tsconfig::TsconfigPaths;
 
 /// A structured compilation error with source location.
@@ -42,7 +42,7 @@ pub type CssStore = Arc<RwLock<HashMap<String, String>>>;
 
 /// The browser compilation pipeline.
 ///
-/// Compiles .ts/.tsx files via a [`FrameworkPlugin`], rewrites import specifiers
+/// Compiles .ts/.tsx files via a [`VtzPlugin`], rewrites import specifiers
 /// for browser consumption, caches results, and extracts CSS into a shared store.
 #[derive(Clone)]
 pub struct CompilationPipeline {
@@ -50,7 +50,7 @@ pub struct CompilationPipeline {
     css_store: CssStore,
     root_dir: PathBuf,
     src_dir: PathBuf,
-    plugin: Arc<dyn FrameworkPlugin>,
+    plugin: Arc<dyn VtzPlugin>,
     tsconfig_paths: Option<TsconfigPaths>,
     /// Public env vars for `import.meta.env` compile-time replacement.
     env: HashMap<String, String>,
@@ -59,7 +59,7 @@ pub struct CompilationPipeline {
 }
 
 impl CompilationPipeline {
-    pub fn new(root_dir: PathBuf, src_dir: PathBuf, plugin: Arc<dyn FrameworkPlugin>) -> Self {
+    pub fn new(root_dir: PathBuf, src_dir: PathBuf, plugin: Arc<dyn VtzPlugin>) -> Self {
         Self {
             cache: CompilationCache::new(),
             css_store: Arc::new(RwLock::new(HashMap::new())),
@@ -1457,7 +1457,7 @@ fn simple_hash(s: &str) -> u64 {
 mod tests {
     use super::*;
 
-    fn test_plugin() -> Arc<dyn crate::plugin::FrameworkPlugin> {
+    fn test_plugin() -> Arc<dyn crate::plugin::VtzPlugin> {
         Arc::new(crate::plugin::vertz::VertzPlugin)
     }
 

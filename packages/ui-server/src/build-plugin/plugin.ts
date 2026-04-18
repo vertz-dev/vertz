@@ -1,5 +1,5 @@
 /**
- * Unified Bun plugin for Vertz UI compilation with optional HMR and Fast Refresh.
+ * Unified production-build plugin for Vertz UI compilation with optional HMR and Fast Refresh.
  *
  * Pipeline:
  * 1. Image transform (detects <Image>, processes images, replaces with <picture>)
@@ -45,8 +45,8 @@ import type {
   CSSSidecarMap,
   FileExtractionsMap,
   ManifestUpdateResult,
-  VertzBunPluginOptions,
-  VertzBunPluginResult,
+  VertzBuildPluginOptions,
+  VertzBuildPluginResult,
 } from './types';
 
 /**
@@ -127,12 +127,17 @@ function convertManifestsToEntries(
 }
 
 /**
- * Create a Vertz Bun plugin with CSS sidecar support and optional Fast Refresh.
+ * Create the Vertz production-build plugin with CSS sidecar support and optional Fast Refresh.
+ *
+ * Why "Build" and not "Bun": the factory returns a `BunPlugin`-shaped object for
+ * structural compatibility with the production build toolchain, but its purpose
+ * (production build integration) — not its runtime — drives the name. Dev is
+ * vtz (Rust + V8); only the production build pipeline consumes this factory.
  *
  * Returns the plugin along with maps for CSS extractions and sidecar paths,
  * which build scripts need for dead CSS elimination.
  */
-export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunPluginResult {
+export function createVertzBuildPlugin(options?: VertzBuildPluginOptions): VertzBuildPluginResult {
   const filter = options?.filter ?? /\.tsx$/;
   const hmr = options?.hmr ?? true;
   const fastRefresh = options?.fastRefresh ?? hmr;
@@ -237,7 +242,7 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
   mkdirSync(cssOutDir, { recursive: true });
 
   const plugin: BunPlugin = {
-    name: 'vertz-bun-plugin',
+    name: 'vertz-build-plugin',
     setup(build) {
       build.onLoad({ filter }, async (args) => {
         try {
@@ -506,7 +511,7 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           const relPath = relative(projectRoot, args.path);
-          console.error(`[vertz-bun-plugin] Failed to process ${relPath}:`, message);
+          console.error(`[vertz-build-plugin] Failed to process ${relPath}:`, message);
           throw err;
         }
       });

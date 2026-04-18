@@ -70,7 +70,7 @@ pub fn load_test_config(root_dir: &Path) -> Result<TestConfig, AnyError> {
         .unwrap_or("");
 
     let compiled = if ext == "ts" || ext == "tsx" {
-        let plugin: std::sync::Arc<dyn crate::plugin::FrameworkPlugin> =
+        let plugin: std::sync::Arc<dyn crate::plugin::VtzPlugin> =
             std::sync::Arc::new(crate::plugin::vertz::VertzPlugin);
         let src_dir = root_dir.join("src");
         let ctx = crate::plugin::CompileContext {

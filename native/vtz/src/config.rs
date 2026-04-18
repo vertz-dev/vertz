@@ -1,15 +1,5 @@
 use std::path::{Path, PathBuf};
 
-/// Which framework plugin to use for the dev server.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum PluginChoice {
-    /// The Vertz framework plugin (default).
-    #[default]
-    Vertz,
-    /// The React framework plugin.
-    React,
-}
-
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
     pub port: u16,
@@ -45,8 +35,6 @@ pub struct ServerConfig {
     /// Additional directories to watch for dependency changes.
     /// Relative to root_dir. From .vertzrc "extraWatchPaths" field.
     pub extra_watch_paths: Vec<String>,
-    /// Which framework plugin to use.
-    pub plugin: PluginChoice,
     /// Custom proxy subdomain name override (from `--name` flag).
     pub proxy_name: Option<String>,
     /// Port for the HTTP-to-WebSocket LLM bridge server.
@@ -122,82 +110,6 @@ pub fn resolve_auto_install(
     true
 }
 
-impl PluginChoice {
-    /// Parse a plugin name string into a `PluginChoice`.
-    ///
-    /// Accepted values: "vertz", "react" (case-insensitive).
-    /// Returns `None` for unrecognized strings.
-    pub fn parse_name(s: &str) -> Option<Self> {
-        match s.to_lowercase().as_str() {
-            "vertz" => Some(Self::Vertz),
-            "react" => Some(Self::React),
-            _ => None,
-        }
-    }
-}
-
-/// Resolve the plugin choice from multiple sources.
-///
-/// Precedence: CLI flag > `.vertzrc` "plugin" field > auto-detect from `package.json` > default (Vertz).
-///
-/// The `vertzrc_plugin` parameter should come from a pre-loaded `VertzConfig.plugin` field
-/// to avoid redundant `.vertzrc` reads (the caller already loads it for other fields).
-pub fn resolve_plugin_choice(
-    cli_plugin: Option<&str>,
-    vertzrc_plugin: Option<&str>,
-    root_dir: &Path,
-) -> PluginChoice {
-    // 1. CLI flag takes highest priority
-    if let Some(name) = cli_plugin {
-        return PluginChoice::parse_name(name).unwrap_or_else(|| {
-            eprintln!(
-                "[config] Warning: unknown plugin '{}', falling back to vertz",
-                name
-            );
-            PluginChoice::Vertz
-        });
-    }
-
-    // 2. .vertzrc "plugin" field (already loaded by caller)
-    if let Some(val) = vertzrc_plugin {
-        if let Some(choice) = PluginChoice::parse_name(val) {
-            return choice;
-        }
-        eprintln!(
-            "[config] Warning: unknown plugin '{}' in .vertzrc, falling back to auto-detect",
-            val
-        );
-    }
-
-    // 3. Auto-detect from package.json dependencies/devDependencies
-    // Note: peerDependencies are intentionally excluded — they indicate what the
-    // consumer should provide, not what this project uses directly.
-    if let Ok(pkg_json) = std::fs::read_to_string(root_dir.join("package.json")) {
-        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&pkg_json) {
-            let has_dep = |name: &str| {
-                parsed
-                    .get("dependencies")
-                    .and_then(|d| d.get(name))
-                    .is_some()
-                    || parsed
-                        .get("devDependencies")
-                        .and_then(|d| d.get(name))
-                        .is_some()
-            };
-
-            // React takes precedence over Vertz in auto-detect because a project
-            // with both react and @vertz/* is likely a React project using Vertz's
-            // runtime tooling.
-            if has_dep("react") {
-                return PluginChoice::React;
-            }
-        }
-    }
-
-    // 4. Default
-    PluginChoice::Vertz
-}
-
 impl ServerConfig {
     pub fn new(port: u16, host: String, public_dir: PathBuf) -> Self {
         let root_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -222,7 +134,6 @@ impl ServerConfig {
             auto_install: true,
             watch_deps: true,
             extra_watch_paths: Vec::new(),
-            plugin: PluginChoice::default(),
             proxy_name: None,
             bridge_port: None,
             ssr_pool_size: None,
@@ -261,7 +172,6 @@ impl ServerConfig {
             auto_install: true,
             watch_deps: true,
             extra_watch_paths: Vec::new(),
-            plugin: PluginChoice::default(),
             proxy_name: None,
             bridge_port: None,
             ssr_pool_size: None,
@@ -644,134 +554,6 @@ mod tests {
         assert!(config.extra_watch_paths.is_empty());
     }
 
-    // --- PluginChoice tests ---
-
-    #[test]
-    fn test_plugin_choice_default_is_vertz() {
-        assert_eq!(PluginChoice::default(), PluginChoice::Vertz);
-    }
-
-    #[test]
-    fn test_plugin_choice_from_str_vertz() {
-        assert_eq!(PluginChoice::parse_name("vertz"), Some(PluginChoice::Vertz));
-    }
-
-    #[test]
-    fn test_plugin_choice_from_str_react() {
-        assert_eq!(PluginChoice::parse_name("react"), Some(PluginChoice::React));
-    }
-
-    #[test]
-    fn test_plugin_choice_from_str_case_insensitive() {
-        assert_eq!(PluginChoice::parse_name("React"), Some(PluginChoice::React));
-        assert_eq!(PluginChoice::parse_name("VERTZ"), Some(PluginChoice::Vertz));
-    }
-
-    #[test]
-    fn test_plugin_choice_from_str_unknown() {
-        assert_eq!(PluginChoice::parse_name("vue"), None);
-    }
-
-    #[test]
-    fn test_server_config_default_plugin_is_vertz() {
-        let config = ServerConfig::new(3000, "localhost".to_string(), PathBuf::from("public"));
-        assert_eq!(config.plugin, PluginChoice::Vertz);
-    }
-
-    // --- resolve_plugin_choice tests ---
-
-    #[test]
-    fn test_resolve_plugin_cli_flag_react() {
-        let dir = tempfile::tempdir().unwrap();
-        let result = resolve_plugin_choice(Some("react"), None, dir.path());
-        assert_eq!(result, PluginChoice::React);
-    }
-
-    #[test]
-    fn test_resolve_plugin_cli_flag_vertz() {
-        let dir = tempfile::tempdir().unwrap();
-        let result = resolve_plugin_choice(Some("vertz"), None, dir.path());
-        assert_eq!(result, PluginChoice::Vertz);
-    }
-
-    #[test]
-    fn test_resolve_plugin_cli_flag_unknown_falls_back_to_vertz() {
-        let dir = tempfile::tempdir().unwrap();
-        let result = resolve_plugin_choice(Some("vue"), None, dir.path());
-        assert_eq!(result, PluginChoice::Vertz);
-    }
-
-    #[test]
-    fn test_resolve_plugin_vertzrc_react() {
-        let dir = tempfile::tempdir().unwrap();
-        let result = resolve_plugin_choice(None, Some("react"), dir.path());
-        assert_eq!(result, PluginChoice::React);
-    }
-
-    #[test]
-    fn test_resolve_plugin_cli_overrides_vertzrc() {
-        let dir = tempfile::tempdir().unwrap();
-        let result = resolve_plugin_choice(Some("vertz"), Some("react"), dir.path());
-        assert_eq!(result, PluginChoice::Vertz);
-    }
-
-    #[test]
-    fn test_resolve_plugin_auto_detect_react_from_package_json() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(
-            dir.path().join("package.json"),
-            r#"{"dependencies": {"react": "^18.0.0", "react-dom": "^18.0.0"}}"#,
-        )
-        .unwrap();
-        let result = resolve_plugin_choice(None, None, dir.path());
-        assert_eq!(result, PluginChoice::React);
-    }
-
-    #[test]
-    fn test_resolve_plugin_auto_detect_react_from_dev_deps() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(
-            dir.path().join("package.json"),
-            r#"{"devDependencies": {"react": "^18.0.0"}}"#,
-        )
-        .unwrap();
-        let result = resolve_plugin_choice(None, None, dir.path());
-        assert_eq!(result, PluginChoice::React);
-    }
-
-    #[test]
-    fn test_resolve_plugin_default_is_vertz() {
-        let dir = tempfile::tempdir().unwrap();
-        let result = resolve_plugin_choice(None, None, dir.path());
-        assert_eq!(result, PluginChoice::Vertz);
-    }
-
-    #[test]
-    fn test_resolve_plugin_vertzrc_overrides_auto_detect() {
-        let dir = tempfile::tempdir().unwrap();
-        // package.json has react, but .vertzrc says vertz
-        std::fs::write(
-            dir.path().join("package.json"),
-            r#"{"dependencies": {"react": "^18.0.0"}}"#,
-        )
-        .unwrap();
-        let result = resolve_plugin_choice(None, Some("vertz"), dir.path());
-        assert_eq!(result, PluginChoice::Vertz);
-    }
-
-    #[test]
-    fn test_resolve_plugin_vertzrc_unknown_falls_through_to_auto_detect() {
-        let dir = tempfile::tempdir().unwrap();
-        // .vertzrc has unknown plugin, package.json has react
-        std::fs::write(
-            dir.path().join("package.json"),
-            r#"{"dependencies": {"react": "^18.0.0"}}"#,
-        )
-        .unwrap();
-        let result = resolve_plugin_choice(None, Some("vue"), dir.path());
-        assert_eq!(result, PluginChoice::React);
-    }
-
     // --- detect_ssr_entry tests ---
 
     #[test]
@@ -822,18 +604,5 @@ mod tests {
         );
         assert_eq!(config.ssr_entry, src.join("app.tsx"));
         assert_eq!(config.entry_file, src.join("entry-client.ts"));
-    }
-
-    #[test]
-    fn test_resolve_plugin_auto_detect_ignores_peer_deps() {
-        let dir = tempfile::tempdir().unwrap();
-        // react only in peerDependencies — should NOT auto-detect as React
-        std::fs::write(
-            dir.path().join("package.json"),
-            r#"{"peerDependencies": {"react": "^18.0.0"}}"#,
-        )
-        .unwrap();
-        let result = resolve_plugin_choice(None, None, dir.path());
-        assert_eq!(result, PluginChoice::Vertz);
     }
 }

@@ -125,15 +125,6 @@
       } catch (err) {
         console.error('[vertz-hmr] Fast Refresh failed for', moduleId, err);
       }
-      return;
-    }
-    // React Refresh fallback (React framework plugin)
-    if (typeof globalThis.__vtz_react_refresh_perform === 'function') {
-      try {
-        globalThis.__vtz_react_refresh_perform();
-      } catch (err) {
-        console.error('[vertz-hmr] React Refresh failed:', err);
-      }
     }
   }
 

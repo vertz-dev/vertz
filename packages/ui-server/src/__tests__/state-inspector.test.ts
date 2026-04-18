@@ -10,13 +10,13 @@ afterAll(() => {
 
 import { signal } from '@vertz/ui';
 import { startSignalCollection, stopSignalCollection } from '@vertz/ui/internals';
-import { __$refreshReg, __$refreshTrack } from '../bun-plugin/fast-refresh-runtime';
+import { __$refreshReg, __$refreshTrack } from '../build-plugin/fast-refresh-runtime';
 import {
   collectStateSnapshot,
   handleInspectMessage,
   safeSerialize,
   setupStateInspector,
-} from '../bun-plugin/state-inspector';
+} from '../build-plugin/state-inspector';
 
 // ── Registry Cleanup ──────────────────────────────────────────────
 

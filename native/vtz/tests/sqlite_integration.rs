@@ -108,7 +108,7 @@ fn test_sqlite_module_resolution() {
     use vertz_runtime::runtime::module_loader::VertzModuleLoader;
 
     let tmp = tempfile::tempdir().unwrap();
-    let plugin: std::sync::Arc<dyn vertz_runtime::plugin::FrameworkPlugin> =
+    let plugin: std::sync::Arc<dyn vertz_runtime::plugin::VtzPlugin> =
         std::sync::Arc::new(vertz_runtime::plugin::vertz::VertzPlugin);
     let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), plugin);
 

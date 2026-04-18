@@ -4,7 +4,7 @@
  * Unified `vertz dev` command that orchestrates:
  * 1. Analyze - runs @vertz/compiler to produce AppIR
  * 2. Generate - runs @vertz/codegen to emit types, route map, DB client
- * 3. Build UI - UI compiler validation via @vertz/ui-server/bun-plugin
+ * 3. Build UI - UI compiler validation via @vertz/ui-server/build-plugin
  * 4. Serve - dev server with HMR
  */
 
@@ -12,7 +12,7 @@ import type { CodegenConfig, GenerateResult } from '@vertz/codegen';
 import { createCodegenPipeline, generate } from '@vertz/codegen';
 import type { AppIR } from '@vertz/compiler';
 import { type Compiler, createCompiler, OpenAPIGenerator } from '@vertz/compiler';
-import type { VertzBunPluginOptions } from '@vertz/ui-server/bun-plugin';
+import type { VertzBuildPluginOptions } from '@vertz/ui-server/build-plugin';
 import type { PipelineStage } from './types';
 
 /**
@@ -353,7 +353,7 @@ export class PipelineOrchestrator {
    * Run the UI build stage.
    *
    * In dev mode this validates that the UI compiler contract
-   * (`createVertzBunPlugin` from `@vertz/ui-server/bun-plugin`) is available
+   * (`createVertzBuildPlugin` from `@vertz/ui-server/build-plugin`) is available
    * and can initialize (manifest generation, framework manifest loading).
    * The actual per-file compilation happens on-demand in the dev server's
    * bun plugin `onLoad` hook.
@@ -375,12 +375,12 @@ export class PipelineOrchestrator {
       // Validate that the UI compiler contract is importable and can initialize.
       // The plugin instance is not shared with the dev server — the cost of a
       // duplicate `generateAllManifests()` pass is acceptable at startup.
-      const { createVertzBunPlugin } = await import('@vertz/ui-server/bun-plugin');
-      const pluginOptions: VertzBunPluginOptions = {
+      const { createVertzBuildPlugin } = await import('@vertz/ui-server/build-plugin');
+      const pluginOptions: VertzBuildPluginOptions = {
         hmr: false,
         fastRefresh: false,
       };
-      createVertzBunPlugin(pluginOptions);
+      createVertzBuildPlugin(pluginOptions);
 
       return {
         stage: 'build-ui',

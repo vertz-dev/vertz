@@ -1,7 +1,7 @@
 /**
  * UI Build Pipeline — Production build for UI apps
  *
- * Handles the full production build using Bun.build() + createVertzBunPlugin:
+ * Handles the full production build using Bun.build() + createVertzBuildPlugin:
  * 1. Client build → browser target, minified, split, hashed assets
  * 2. CSS extraction → vertz.css from component css() calls
  * 3. HTML generation → programmatic HTML shell with built assets
@@ -159,13 +159,13 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
     mkdirSync(resolve(distClient, 'assets'), { recursive: true });
     mkdirSync(distServer, { recursive: true });
 
-    // Import createVertzBunPlugin dynamically to avoid hard dep at module level
-    const { createVertzBunPlugin } = await import('@vertz/ui-server/bun-plugin');
+    // Import createVertzBuildPlugin dynamically to avoid hard dep at module level
+    const { createVertzBuildPlugin } = await import('@vertz/ui-server/build-plugin');
 
     // ── 1. Client build ───────────────────────────────────────────
     console.log('📦 Building client...');
 
-    const { plugin: clientPlugin, fileExtractions } = createVertzBunPlugin({
+    const { plugin: clientPlugin, fileExtractions } = createVertzBuildPlugin({
       hmr: false,
       fastRefresh: false,
       routeSplitting: true,
@@ -372,7 +372,7 @@ ${modulepreloadLinks}
       },
     };
 
-    const { plugin: serverPlugin } = createVertzBunPlugin({
+    const { plugin: serverPlugin } = createVertzBuildPlugin({
       hmr: false,
       fastRefresh: false,
     });

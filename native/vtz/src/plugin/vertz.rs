@@ -1,6 +1,6 @@
 use crate::plugin::{
-    ClientScript, CompileContext, CompileDiagnostic, CompileOutput, FrameworkPlugin, PluginContext,
-    PluginMcpTool,
+    ClientScript, CompileContext, CompileDiagnostic, CompileOutput, PluginContext, PluginMcpTool,
+    VtzPlugin,
 };
 
 /// Classic JSX pragma info extracted from leading comments.
@@ -173,7 +173,7 @@ const FAST_REFRESH_HELPERS_JS: &str = include_str!("../assets/fast-refresh-helpe
 /// Fast Refresh HMR, and MCP tools (API spec, route map).
 pub struct VertzPlugin;
 
-impl FrameworkPlugin for VertzPlugin {
+impl VtzPlugin for VertzPlugin {
     fn name(&self) -> &str {
         "vertz"
     }

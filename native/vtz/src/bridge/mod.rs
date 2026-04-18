@@ -99,8 +99,7 @@ pub(crate) mod tests {
         std::fs::create_dir_all(tmp.path().join("src")).unwrap();
         std::fs::create_dir_all(tmp.path().join("public")).unwrap();
 
-        let plugin: Arc<dyn crate::plugin::FrameworkPlugin> =
-            Arc::new(crate::plugin::vertz::VertzPlugin);
+        let plugin: Arc<dyn crate::plugin::VtzPlugin> = Arc::new(crate::plugin::vertz::VertzPlugin);
 
         let pipeline = CompilationPipeline::new(
             tmp.path().to_path_buf(),

@@ -1,5 +1,5 @@
 /**
- * Bun test preload — mocks unavailable modules so tests don't crash
+ * Test preload — mocks unavailable modules so tests don't crash
  * on CI or local environments missing platform binaries / workspace deps.
  *
  * 1. Native compiler: mocked when the platform binary isn't available.
@@ -8,7 +8,7 @@
  * 2. @vertz/ui-auth: mocked when the package can't be resolved (circular
  *    workspace dep — ui-auth depends on ui-server, so it's not in devDeps).
  *
- * Added to bunfig.toml [test].preload.
+ * Wired via `test.preload` in `packages/ui-server/vertz.config.ts`.
  */
 import { mock } from '@vertz/test';
 

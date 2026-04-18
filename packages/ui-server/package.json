@@ -31,17 +31,17 @@
       "import": "./dist/jsx-runtime/index.js",
       "types": "./dist/jsx-runtime/index.d.ts"
     },
-    "./bun-plugin": {
-      "import": "./dist/bun-plugin/index.js",
-      "types": "./dist/bun-plugin/index.d.ts"
+    "./build-plugin": {
+      "import": "./dist/build-plugin/index.js",
+      "types": "./dist/build-plugin/index.d.ts"
     },
     "./fast-refresh-runtime": {
-      "import": "./dist/bun-plugin/fast-refresh-runtime.js",
-      "types": "./dist/bun-plugin/fast-refresh-runtime.d.ts"
+      "import": "./dist/build-plugin/fast-refresh-runtime.js",
+      "types": "./dist/build-plugin/fast-refresh-runtime.d.ts"
     },
     "./state-inspector": {
-      "import": "./dist/bun-plugin/state-inspector.js",
-      "types": "./dist/bun-plugin/state-inspector.d.ts"
+      "import": "./dist/build-plugin/state-inspector.js",
+      "types": "./dist/build-plugin/state-inspector.d.ts"
     },
     "./fetch-scope": {
       "import": "./dist/fetch-scope.js",
@@ -59,7 +59,7 @@
   "scripts": {
     "build": "vtzx vertz-build",
     "test": "vtz test --timeout 60000 src/",
-    "test:integration": "bun test 'src/bun-plugin/__tests__/image-processor.local.ts'",
+    "test:integration": "bun test 'src/build-plugin/__tests__/image-processor.local.ts'",
     "test:e2e": "vtzx playwright test",
     "typecheck": "tsgo --noEmit"
   },

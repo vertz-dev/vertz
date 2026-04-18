@@ -10,7 +10,7 @@
 /// - Source map resolution
 use std::path::PathBuf;
 
-fn test_plugin() -> std::sync::Arc<dyn vertz_runtime::plugin::FrameworkPlugin> {
+fn test_plugin() -> std::sync::Arc<dyn vertz_runtime::plugin::VtzPlugin> {
     std::sync::Arc::new(vertz_runtime::plugin::vertz::VertzPlugin)
 }
 

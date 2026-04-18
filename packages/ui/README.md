@@ -25,9 +25,9 @@ That's it. `count` is reactive. The compiler transforms your code into efficient
 npm install @vertz/ui @vertz/ui-compiler
 ```
 
-### Bun Setup
+### Build Setup
 
-The `@vertz/ui-server/bun-plugin` handles compiler transforms, CSS extraction, and Fast Refresh automatically when using `Bun.serve()` with HTML imports or `vertz dev`.
+The `@vertz/ui-server/build-plugin` handles compiler transforms, CSS extraction, and Fast Refresh automatically during `vertz build`. Dev uses `vtz dev`, which runs the same transforms via the Rust+V8 runtime.
 
 ---
 

@@ -20,15 +20,15 @@ vi.mock('../route-chunk-manifest', () => ({
   generateRouteChunkManifest: (...args: unknown[]) => mockGenerateRouteChunkManifest(...args),
 }));
 
-const mockCreateVertzBunPlugin = mock(() => {
+const mockCreateVertzBuildPlugin = mock(() => {
   const fileExtractions = new Map();
   fileExtractions.set('test.tsx', { css: '.test { color: red; }' });
-  const plugin = { name: 'vertz-bun-plugin-mock', setup() {} };
+  const plugin = { name: 'vertz-build-plugin-mock', setup() {} };
   return { plugin, fileExtractions, cssSidecarMap: new Map() };
 });
 
-vi.mock('@vertz/ui-server/bun-plugin', () => ({
-  createVertzBunPlugin: (...args: unknown[]) => mockCreateVertzBunPlugin(...args),
+vi.mock('@vertz/ui-server/build-plugin', () => ({
+  createVertzBuildPlugin: (...args: unknown[]) => mockCreateVertzBuildPlugin(...args),
 }));
 
 const mockGenerateAotBuildManifest = mock(() => ({
@@ -131,10 +131,10 @@ describe('buildUI', () => {
 
     // Reset all mock implementations to defaults
     mockBunBuild.mockImplementation(defaultBunBuildImpl);
-    mockCreateVertzBunPlugin.mockImplementation(() => {
+    mockCreateVertzBuildPlugin.mockImplementation(() => {
       const fileExtractions = new Map();
       fileExtractions.set('test.tsx', { css: '.test { color: red; }' });
-      const plugin = { name: 'vertz-bun-plugin-mock', setup() {} };
+      const plugin = { name: 'vertz-build-plugin-mock', setup() {} };
       return { plugin, fileExtractions, cssSidecarMap: new Map() };
     });
     mockGenerateAotBuildManifest.mockReturnValue({
@@ -503,7 +503,7 @@ describe('buildUI', () => {
   // ── Top-level error handling ──────────────────────────────────────
 
   it('should handle top-level exception gracefully', async () => {
-    mockCreateVertzBunPlugin.mockImplementation(() => {
+    mockCreateVertzBuildPlugin.mockImplementation(() => {
       throw new Error('Plugin init failed');
     });
 
@@ -515,7 +515,7 @@ describe('buildUI', () => {
   });
 
   it('should handle non-Error exceptions in top-level catch', async () => {
-    mockCreateVertzBunPlugin.mockImplementation(() => {
+    mockCreateVertzBuildPlugin.mockImplementation(() => {
       throw 'string error';
     });
 

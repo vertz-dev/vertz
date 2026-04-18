@@ -63,11 +63,6 @@ fn build_dev_config(args: &cli::DevArgs) -> ServerConfig {
     config.watch_deps = !args.no_watch_deps;
 
     let vertzrc = vertz_runtime::pm::vertzrc::load_vertzrc(&config.root_dir).unwrap_or_default();
-    config.plugin = vertz_runtime::config::resolve_plugin_choice(
-        args.plugin.as_deref(),
-        vertzrc.plugin.as_deref(),
-        &config.root_dir,
-    );
     config.extra_watch_paths = vertzrc.extra_watch_paths;
     config.proxy_name = args.name.clone();
     config.bridge_port = args.bridge_port;
@@ -1735,7 +1730,7 @@ async fn run_internal_exec(file: &str, extra_args: &[String]) -> Result<i32, Str
         .or_else(|| std::env::current_dir().ok())
         .unwrap_or_else(|| std::path::PathBuf::from("."));
 
-    let plugin: Arc<dyn vertz_runtime::plugin::FrameworkPlugin> =
+    let plugin: Arc<dyn vertz_runtime::plugin::VtzPlugin> =
         Arc::new(vertz_runtime::plugin::vertz::VertzPlugin);
 
     let mut runtime = VertzJsRuntime::new(VertzRuntimeOptions {

@@ -1,7 +1,7 @@
 /**
- * Tests for the bun-plugin onLoad handler.
+ * Tests for the build-plugin onLoad handler.
  *
- * Captures the onLoad handler registered by createVertzBunPlugin()
+ * Captures the onLoad handler registered by createVertzBuildPlugin()
  * and invokes it directly with temp files to exercise code paths
  * not covered by manifest HMR tests.
  */
@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createVertzBunPlugin } from '../bun-plugin/plugin';
+import { createVertzBuildPlugin } from '../build-plugin/plugin';
 import type { DebugLogger } from '../debug-logger';
 import { DiagnosticsCollector } from '../diagnostics-collector';
 
@@ -82,7 +82,7 @@ const hasNativeCompiler = !!(globalThis as Record<string, unknown>).__NATIVE_COM
 
 // ── Tests ────────────────────────────────────────────────────────
 
-describe('bun-plugin onLoad handler', () => {
+describe('build-plugin onLoad handler', () => {
   let project: ReturnType<typeof createTempProject>;
 
   beforeEach(() => {
@@ -111,7 +111,7 @@ export function UserList() {
 `,
       );
 
-      const { plugin } = createVertzBunPlugin({
+      const { plugin } = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         cssOutDir: project.cssDir,
@@ -147,7 +147,7 @@ export function TaskList() {
 `,
       );
 
-      const { plugin } = createVertzBunPlugin({
+      const { plugin } = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         cssOutDir: project.cssDir,
@@ -182,7 +182,7 @@ export function Styled() {
 `,
       );
 
-      const { plugin, cssSidecarMap, fileExtractions } = createVertzBunPlugin({
+      const { plugin, cssSidecarMap, fileExtractions } = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         cssOutDir: project.cssDir,
@@ -219,7 +219,7 @@ export function Simple() {
 `,
       );
 
-      const { plugin } = createVertzBunPlugin({
+      const { plugin } = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         cssOutDir: project.cssDir,
@@ -259,7 +259,7 @@ export function WithCSS() {
 `,
         );
 
-        const { plugin } = createVertzBunPlugin({
+        const { plugin } = createVertzBuildPlugin({
           projectRoot: project.dir,
           srcDir: project.srcDir,
           cssOutDir: project.cssDir,
@@ -292,7 +292,7 @@ export function Refreshable() {
 `,
       );
 
-      const { plugin } = createVertzBunPlugin({
+      const { plugin } = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         cssOutDir: project.cssDir,
@@ -321,7 +321,7 @@ export function Refreshable() {
       // Overwrite the file with null bytes to break Bun.file().text() or MagicString
       writeFileSync(filePath, '');
 
-      const { plugin } = createVertzBunPlugin({
+      const { plugin } = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         cssOutDir: project.cssDir,
@@ -344,7 +344,7 @@ export function Refreshable() {
         // The plugin should have logged to console.error and re-thrown
         expect(consoleSpy).toHaveBeenCalled();
         const loggedArgs = consoleSpy.mock.calls[0]!;
-        expect(loggedArgs[0]).toContain('[vertz-bun-plugin]');
+        expect(loggedArgs[0]).toContain('[vertz-build-plugin]');
         expect(loggedArgs[0]).toContain('nonexistent.tsx');
       } finally {
         console.error = originalError;
@@ -382,7 +382,7 @@ export function UserList() {
 
       const diagnostics = new DiagnosticsCollector();
 
-      const { plugin } = createVertzBunPlugin({
+      const { plugin } = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         cssOutDir: project.cssDir,
@@ -415,7 +415,7 @@ export function CSSComponent() {
 `,
       );
 
-      const { plugin } = createVertzBunPlugin({
+      const { plugin } = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         cssOutDir: project.cssDir,
@@ -451,7 +451,7 @@ export function CSSComponent() {
 
       project.write('app.tsx', 'export function App() { return <div />; }');
 
-      const { reloadEntitySchema } = createVertzBunPlugin({
+      const { reloadEntitySchema } = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         cssOutDir: project.cssDir,
@@ -497,7 +497,7 @@ export function CSSComponent() {
 
       project.write('app.tsx', 'export function App() { return <div />; }');
 
-      const { reloadEntitySchema } = createVertzBunPlugin({
+      const { reloadEntitySchema } = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         cssOutDir: project.cssDir,
@@ -530,7 +530,7 @@ export function CSSComponent() {
 
       project.write('app.tsx', 'export function App() { return <div />; }');
 
-      const { reloadEntitySchema } = createVertzBunPlugin({
+      const { reloadEntitySchema } = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         cssOutDir: project.cssDir,
@@ -577,7 +577,7 @@ export function CSSComponent() {
 
       project.write('app.tsx', 'export function App() { return <div />; }');
 
-      createVertzBunPlugin({
+      createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         cssOutDir: project.cssDir,
@@ -613,7 +613,7 @@ export const routes = defineRoutes({
       project.write('pages/home.tsx', 'export function HomePage() { return <div>Home</div>; }');
       project.write('pages/about.tsx', 'export function AboutPage() { return <div>About</div>; }');
 
-      const { plugin } = createVertzBunPlugin({
+      const { plugin } = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         cssOutDir: project.cssDir,
@@ -632,7 +632,7 @@ export const routes = defineRoutes({
     it('only registers one onLoad handler (native compiler handles .ts route splitting)', () => {
       project.write('app.tsx', 'export function App() { return <div />; }');
 
-      const { plugin } = createVertzBunPlugin({
+      const { plugin } = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         cssOutDir: project.cssDir,
@@ -677,7 +677,7 @@ export function Gallery() {
 `,
       );
 
-      const { plugin } = createVertzBunPlugin({
+      const { plugin } = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         cssOutDir: project.cssDir,
@@ -720,7 +720,7 @@ export function MissingImg() {
 `,
       );
 
-      const { plugin } = createVertzBunPlugin({
+      const { plugin } = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         cssOutDir: project.cssDir,
@@ -759,7 +759,7 @@ export function useB() { return 'b'; }
 `,
       );
 
-      const { updateManifest } = createVertzBunPlugin({
+      const { updateManifest } = createVertzBuildPlugin({
         projectRoot: project.dir,
         srcDir: project.srcDir,
         cssOutDir: project.cssDir,

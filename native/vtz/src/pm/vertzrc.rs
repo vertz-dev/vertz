@@ -30,11 +30,6 @@ pub struct VertzConfig {
     #[serde(rename = "extraWatchPaths", default)]
     pub extra_watch_paths: Vec<String>,
 
-    /// Framework plugin to use (e.g., "vertz", "react").
-    /// When set, overrides auto-detection from package.json.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub plugin: Option<String>,
-
     /// Dev server proxy configuration.
     /// Maps path prefixes to proxy targets for API forwarding.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -59,7 +54,6 @@ impl Default for VertzConfig {
             trust_scripts: Vec::new(),
             auto_install: true,
             extra_watch_paths: Vec::new(),
-            plugin: None,
             proxy: None,
             desktop: None,
             extra: serde_json::Map::new(),

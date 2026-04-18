@@ -23,7 +23,7 @@ import {
   __$refreshPerform,
   __$refreshReg,
   __$refreshTrack,
-} from '../bun-plugin/fast-refresh-runtime';
+} from '../build-plugin/fast-refresh-runtime';
 
 // ── Registry Cleanup ──────────────────────────────────────────────
 // The runtime stores its registry on globalThis via Symbol.for keys.

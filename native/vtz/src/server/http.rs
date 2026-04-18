@@ -109,7 +109,7 @@ pub async fn try_bind(config: &ServerConfig) -> io::Result<BindResult> {
 /// 8. Fallback → HTML shell for SPA routing (page routes)
 pub fn build_router(
     config: &ServerConfig,
-    plugin: Arc<dyn crate::plugin::FrameworkPlugin>,
+    plugin: Arc<dyn crate::plugin::VtzPlugin>,
 ) -> (Router, Arc<DevServerState>, Option<InspectorSessionRx>) {
     // Parse tsconfig.json path aliases for import resolution
     let tsconfig_path = config
@@ -1434,13 +1434,7 @@ pub async fn start_server_with_lifecycle(
         eprintln!();
     }
 
-    // Select plugin based on config (CLI flag > .vertzrc > auto-detect > default)
-    let plugin: Arc<dyn crate::plugin::FrameworkPlugin> = match config.plugin {
-        crate::config::PluginChoice::React => {
-            Arc::new(crate::plugin::react::ReactPlugin::default())
-        }
-        crate::config::PluginChoice::Vertz => Arc::new(crate::plugin::vertz::VertzPlugin),
-    };
+    let plugin: Arc<dyn crate::plugin::VtzPlugin> = Arc::new(crate::plugin::vertz::VertzPlugin);
 
     let (router, state, inspector_session_rx) = build_router(&config, plugin);
 
@@ -2083,8 +2077,7 @@ mod tests {
             tmp.path().to_path_buf(),
         );
         config.enable_ssr = false;
-        let plugin: Arc<dyn crate::plugin::FrameworkPlugin> =
-            Arc::new(crate::plugin::vertz::VertzPlugin);
+        let plugin: Arc<dyn crate::plugin::VtzPlugin> = Arc::new(crate::plugin::vertz::VertzPlugin);
         let (router, state, _inspector_rx) = build_router(&config, plugin);
         (router, state, tmp)
     }
@@ -2161,7 +2154,7 @@ mod tests {
 
     // ─── build_router ────────────────────────────────────────────────
 
-    fn test_plugin() -> Arc<dyn crate::plugin::FrameworkPlugin> {
+    fn test_plugin() -> Arc<dyn crate::plugin::VtzPlugin> {
         Arc::new(crate::plugin::vertz::VertzPlugin)
     }
 

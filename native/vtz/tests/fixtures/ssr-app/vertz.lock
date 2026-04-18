@@ -1,4 +1,4 @@
-# vertz.lock v1 (custom format) — DO NOT EDIT
+# vertz.lock v2 (custom format) — DO NOT EDIT
 # Run "vertz install" to regenerate
 
 @ampproject/remapping@^2.3.0:
