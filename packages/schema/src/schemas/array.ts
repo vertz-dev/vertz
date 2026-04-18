@@ -68,8 +68,8 @@ export class ArraySchema<T> extends Schema<T[]> {
     return clone;
   }
 
-  get element(): Schema<unknown> {
-    return this._element as Schema<unknown>;
+  get element(): Schema<T> {
+    return this._element;
   }
 
   _schemaType(): SchemaType {
