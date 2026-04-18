@@ -6,7 +6,7 @@ use tokio::time::timeout;
 use vertz_runtime::compiler::cache::CompilationCache;
 use vertz_runtime::hmr::protocol::HmrMessage;
 use vertz_runtime::plugin::vertz::VertzPlugin;
-use vertz_runtime::plugin::{hmr_action_to_message, FrameworkPlugin, HmrAction};
+use vertz_runtime::plugin::{hmr_action_to_message, HmrAction, VtzPlugin};
 use vertz_runtime::watcher::file_watcher::{
     FileChange, FileChangeKind, FileWatcher, FileWatcherConfig,
 };
