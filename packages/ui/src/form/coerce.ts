@@ -107,7 +107,7 @@ export function coerceLeaf(value: unknown, leafSchema: unknown): unknown {
 
 function readLeafFromFormData(formData: FormData, path: string): unknown {
   const value = formData.get(path);
-  if (value === null) return undefined;
+  if (typeof value !== 'string') return undefined;
   return value;
 }
 

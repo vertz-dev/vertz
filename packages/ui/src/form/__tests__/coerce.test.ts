@@ -421,6 +421,28 @@ describe('Feature: coerceFormDataToSchema — non-Vertz adapter fallback', () =>
   });
 });
 
+describe('Feature: coerceFormDataToSchema — File entries on non-File fields', () => {
+  describe('Given a Boolean field whose FormData entry is a File', () => {
+    it('then treats it as absent (false), not Boolean(File)=true', () => {
+      const schema = s.object({ active: s.boolean() });
+      const fd = new FormData();
+      const file = new File(['hi'], 'hi.txt', { type: 'text/plain' });
+      fd.append('active', file);
+      expect(coerceFormDataToSchema(fd, schema)).toEqual({ active: false });
+    });
+  });
+
+  describe('Given a Number field whose FormData entry is a File', () => {
+    it('then drops the key (treated as absent)', () => {
+      const schema = s.object({ priority: s.number().optional() });
+      const fd = new FormData();
+      const file = new File(['1'], 'one.txt', { type: 'text/plain' });
+      fd.append('priority', file);
+      expect(coerceFormDataToSchema(fd, schema)).toEqual({});
+    });
+  });
+});
+
 describe('Feature: coerceFormDataToSchema — mutation safety', () => {
   describe('Given a FormData passed through coercion', () => {
     it('then leaves the original FormData entries intact', () => {
