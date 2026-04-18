@@ -205,3 +205,105 @@ describe('Full pipeline integration', () => {
     ]);
   });
 });
+
+describe('Feature: codegen pipeline emits typed service SDKs', () => {
+  let outputDir: string;
+
+  beforeEach(() => {
+    outputDir = mkdtempSync(join(tmpdir(), 'vertz-codegen-service-'));
+  });
+
+  afterEach(() => {
+    rmSync(outputDir, { recursive: true, force: true });
+  });
+
+  function makeServiceAppIR(): AppIR {
+    const appIR = createEmptyAppIR();
+    appIR.services = [
+      {
+        name: 'ai',
+        inject: [],
+        access: { parse: 'function' },
+        actions: [
+          {
+            name: 'parse',
+            method: 'POST',
+            path: '/ai/parse',
+            body: {
+              kind: 'inline',
+              sourceFile: 'ai.ts',
+              resolvedFields: [{ name: 'message', tsType: 'string', optional: false }],
+            },
+            response: {
+              kind: 'inline',
+              sourceFile: 'ai.ts',
+              resolvedFields: [{ name: 'id', tsType: 'string', optional: false }],
+            },
+          },
+        ],
+        sourceFile: 'ai.ts',
+        sourceLine: 1,
+        sourceColumn: 1,
+      },
+    ];
+    return appIR;
+  }
+
+  describe('Given an AppIR with a service that defines body + response schemas', () => {
+    describe('When generate() runs', () => {
+      it('Then output includes types/services/{name}.ts', async () => {
+        const config = resolveCodegenConfig({
+          outputDir,
+          generators: ['typescript'],
+          format: false,
+        });
+        await generate(makeServiceAppIR(), config);
+        expect(existsSync(join(outputDir, 'types/services/ai.ts'))).toBe(true);
+        const content = readFileSync(join(outputDir, 'types/services/ai.ts'), 'utf-8');
+        expect(content).toContain('export interface ParseAiInput');
+        expect(content).toContain('export interface ParseAiOutput');
+      });
+
+      it('Then output includes services/{name}.ts importing from ../types/services/{name}', async () => {
+        const config = resolveCodegenConfig({
+          outputDir,
+          generators: ['typescript'],
+          format: false,
+        });
+        await generate(makeServiceAppIR(), config);
+        const sdk = readFileSync(join(outputDir, 'services/ai.ts'), 'utf-8');
+        expect(sdk).toContain(
+          "import type { ParseAiInput, ParseAiOutput } from '../types/services/ai';",
+        );
+        expect(sdk).toContain('body: ParseAiInput');
+        expect(sdk).toContain('client.post<ParseAiOutput>');
+      });
+
+      it('Then output includes client.ts', async () => {
+        const config = resolveCodegenConfig({
+          outputDir,
+          generators: ['typescript'],
+          format: false,
+        });
+        await generate(makeServiceAppIR(), config);
+        expect(existsSync(join(outputDir, 'client.ts'))).toBe(true);
+      });
+    });
+  });
+
+  describe('Given an AppIR with zero services', () => {
+    it('Then no services/ or types/services/ files are emitted', async () => {
+      const emptyAppIR = createEmptyAppIR();
+      emptyAppIR.entities = [];
+      emptyAppIR.services = [];
+      const config = resolveCodegenConfig({
+        outputDir,
+        generators: ['typescript'],
+        format: false,
+      });
+      await generate(emptyAppIR, config);
+      expect(existsSync(join(outputDir, 'services'))).toBe(false);
+      expect(existsSync(join(outputDir, 'types/services'))).toBe(false);
+    });
+  });
+});

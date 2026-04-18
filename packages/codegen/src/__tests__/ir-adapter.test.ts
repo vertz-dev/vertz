@@ -385,7 +385,7 @@ describe('adaptIR', () => {
       expect(result.services[0].actions[0].path).toBe('/notifications/status/:messageId');
     });
 
-    it('includes actions with access: none', () => {
+    it('excludes actions with access: none (deny-by-default)', () => {
       const appIR = makeAppIR({
         services: [
           {
@@ -398,7 +398,205 @@ describe('adaptIR', () => {
         ],
       });
       const result = adaptIR(appIR);
-      expect(result.services[0].actions).toHaveLength(1);
+      expect(result.services[0].actions).toHaveLength(0);
+    });
+  });
+
+  describe('Feature: ir-adapter maps services with schemas', () => {
+    describe('Given a service with an action containing body + response schemas', () => {
+      it('Then CodegenServiceAction.inputSchema is `${ActionPascal}${ServicePascal}Input`', () => {
+        const appIR = makeAppIR({
+          services: [
+            {
+              name: 'notifications',
+              ...loc,
+              inject: [],
+              actions: [
+                {
+                  name: 'send',
+                  method: 'POST',
+                  body: {
+                    kind: 'inline',
+                    sourceFile: 'test.ts',
+                    resolvedFields: [{ name: 'to', tsType: 'string', optional: false }],
+                  },
+                  response: {
+                    kind: 'inline',
+                    sourceFile: 'test.ts',
+                    resolvedFields: [{ name: 'ok', tsType: 'boolean', optional: false }],
+                  },
+                },
+              ],
+              access: { send: 'function' },
+            },
+          ],
+        });
+        const result = adaptIR(appIR);
+        expect(result.services[0].actions[0].inputSchema).toBe('SendNotificationsInput');
+      });
+
+      it('Then CodegenServiceAction.outputSchema is `${ActionPascal}${ServicePascal}Output`', () => {
+        const appIR = makeAppIR({
+          services: [
+            {
+              name: 'notifications',
+              ...loc,
+              inject: [],
+              actions: [
+                {
+                  name: 'send',
+                  method: 'POST',
+                  body: {
+                    kind: 'inline',
+                    sourceFile: 'test.ts',
+                    resolvedFields: [{ name: 'to', tsType: 'string', optional: false }],
+                  },
+                  response: {
+                    kind: 'inline',
+                    sourceFile: 'test.ts',
+                    resolvedFields: [{ name: 'ok', tsType: 'boolean', optional: false }],
+                  },
+                },
+              ],
+              access: { send: 'function' },
+            },
+          ],
+        });
+        const result = adaptIR(appIR);
+        expect(result.services[0].actions[0].outputSchema).toBe('SendNotificationsOutput');
+      });
+
+      it('Then resolvedInputFields mirror body.resolvedFields', () => {
+        const appIR = makeAppIR({
+          services: [
+            {
+              name: 'notifications',
+              ...loc,
+              inject: [],
+              actions: [
+                {
+                  name: 'send',
+                  method: 'POST',
+                  body: {
+                    kind: 'inline',
+                    sourceFile: 'test.ts',
+                    resolvedFields: [
+                      { name: 'to', tsType: 'string', optional: false },
+                      { name: 'subject', tsType: 'string', optional: true },
+                    ],
+                  },
+                },
+              ],
+              access: { send: 'function' },
+            },
+          ],
+        });
+        const result = adaptIR(appIR);
+        expect(result.services[0].actions[0].resolvedInputFields).toEqual([
+          { name: 'to', tsType: 'string', optional: false },
+          { name: 'subject', tsType: 'string', optional: true },
+        ]);
+      });
+
+      it('Then resolvedOutputFields mirror response.resolvedFields', () => {
+        const appIR = makeAppIR({
+          services: [
+            {
+              name: 'notifications',
+              ...loc,
+              inject: [],
+              actions: [
+                {
+                  name: 'send',
+                  method: 'POST',
+                  response: {
+                    kind: 'inline',
+                    sourceFile: 'test.ts',
+                    resolvedFields: [{ name: 'ok', tsType: 'boolean', optional: false }],
+                  },
+                },
+              ],
+              access: { send: 'function' },
+            },
+          ],
+        });
+        const result = adaptIR(appIR);
+        expect(result.services[0].actions[0].resolvedOutputFields).toEqual([
+          { name: 'ok', tsType: 'boolean', optional: false },
+        ]);
+      });
+    });
+
+    describe('Given a service action whose path has :messageId and :userId params', () => {
+      it('Then pathParams is ["userId", "messageId"] in source order', () => {
+        const appIR = makeAppIR({
+          services: [
+            {
+              name: 'notifications',
+              ...loc,
+              inject: [],
+              actions: [
+                {
+                  name: 'ack',
+                  method: 'POST',
+                  path: '/users/:userId/messages/:messageId/ack',
+                },
+              ],
+              access: { ack: 'function' },
+            },
+          ],
+        });
+        const result = adaptIR(appIR);
+        expect(result.services[0].actions[0].pathParams).toEqual(['userId', 'messageId']);
+      });
+    });
+
+    describe('Given a service action without a custom path', () => {
+      it('Then pathParams is undefined', () => {
+        const appIR = makeAppIR({
+          services: [
+            {
+              name: 'notifications',
+              ...loc,
+              inject: [],
+              actions: [{ name: 'send', method: 'POST' }],
+              access: { send: 'function' },
+            },
+          ],
+        });
+        const result = adaptIR(appIR);
+        expect(result.services[0].actions[0].pathParams).toBeUndefined();
+      });
+    });
+
+    describe('Given a service action with body but no response', () => {
+      it('Then inputSchema is set and outputSchema is undefined', () => {
+        const appIR = makeAppIR({
+          services: [
+            {
+              name: 'notifications',
+              ...loc,
+              inject: [],
+              actions: [
+                {
+                  name: 'send',
+                  method: 'POST',
+                  body: {
+                    kind: 'inline',
+                    sourceFile: 'test.ts',
+                    resolvedFields: [{ name: 'to', tsType: 'string', optional: false }],
+                  },
+                },
+              ],
+              access: { send: 'function' },
+            },
+          ],
+        });
+        const result = adaptIR(appIR);
+        const action = result.services[0].actions[0];
+        expect(action.inputSchema).toBe('SendNotificationsInput');
+        expect(action.outputSchema).toBeUndefined();
+      });
     });
   });
 });

@@ -228,6 +228,11 @@ export interface CodegenServiceAction {
   method: HttpMethod;
   path: string;
   operationId: string;
+  inputSchema?: string;
+  outputSchema?: string;
+  pathParams?: string[];
+  resolvedInputFields?: CodegenResolvedField[];
+  resolvedOutputFields?: CodegenResolvedField[];
 }
 
 // ── Generator ───────────────────────────────────────────────────

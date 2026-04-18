@@ -565,4 +565,181 @@ describe('ServiceSdkGenerator', () => {
     expect(content).toContain("path: '/teams/{teamId}/members/{memberId}'");
     expect(content).toContain('params: { teamId, memberId }');
   });
+
+  // ── Typed SDK signatures (Phase C) ──────────────────────────────
+
+  describe('Feature: typed ServiceSdkGenerator', () => {
+    describe('Given an action with inputSchema + outputSchema', () => {
+      const content = getSdkContent(
+        [
+          {
+            serviceName: 'ai',
+            actions: [
+              {
+                name: 'parse',
+                method: 'POST',
+                path: '/ai/parse',
+                operationId: 'parseAi',
+                inputSchema: 'ParseAiInput',
+                outputSchema: 'ParseAiOutput',
+                resolvedInputFields: [{ name: 'message', tsType: 'string', optional: false }],
+                resolvedOutputFields: [{ name: 'id', tsType: 'string', optional: false }],
+              },
+            ],
+          },
+        ],
+        'ai',
+      );
+
+      it('emits typed import from ../types/services/{serviceName}', () => {
+        expect(content).toContain(
+          "import type { ParseAiInput, ParseAiOutput } from '../types/services/ai';",
+        );
+      });
+
+      it('function signature uses InputType for body', () => {
+        expect(content).toContain('body: ParseAiInput');
+        expect(content).not.toContain('body: unknown');
+      });
+
+      it('client call is typed with OutputType', () => {
+        expect(content).toContain('client.post<ParseAiOutput>');
+        expect(content).not.toContain('client.post<unknown>');
+      });
+    });
+
+    describe('Given a GET action with outputSchema but no inputSchema and no path params', () => {
+      const content = getSdkContent(
+        [
+          {
+            serviceName: 'status',
+            actions: [
+              {
+                name: 'check',
+                method: 'GET',
+                path: '/status/check',
+                operationId: 'checkStatus',
+                outputSchema: 'CheckStatusOutput',
+                resolvedOutputFields: [{ name: 'healthy', tsType: 'boolean', optional: false }],
+              },
+            ],
+          },
+        ],
+        'status',
+      );
+
+      it('imports only the output type', () => {
+        expect(content).toContain(
+          "import type { CheckStatusOutput } from '../types/services/status';",
+        );
+        expect(content).not.toContain('CheckStatusInput');
+      });
+
+      it('client call is typed with OutputType', () => {
+        expect(content).toContain('client.get<CheckStatusOutput>');
+      });
+    });
+
+    describe('Given a GET action with outputSchema and one path param', () => {
+      const content = getSdkContent(
+        [
+          {
+            serviceName: 'tasks',
+            actions: [
+              {
+                name: 'get_one',
+                method: 'GET',
+                path: '/tasks/:id',
+                operationId: 'getOneTasks',
+                outputSchema: 'GetOneTasksOutput',
+                resolvedOutputFields: [{ name: 'id', tsType: 'string', optional: false }],
+              },
+            ],
+          },
+        ],
+        'tasks',
+      );
+
+      it('path param keeps string typing', () => {
+        expect(content).toContain('id: string');
+      });
+
+      it('path uses template literal interpolation', () => {
+        expect(content).toContain('`/tasks/${id}`');
+      });
+
+      it('client call is typed with OutputType', () => {
+        expect(content).toContain('client.get<GetOneTasksOutput>');
+      });
+    });
+
+    describe('Given an action without inputSchema or outputSchema', () => {
+      const content = getSdkContent(
+        [
+          {
+            serviceName: 'legacy',
+            actions: [
+              {
+                name: 'ping',
+                method: 'POST',
+                path: '/legacy/ping',
+                operationId: 'pingLegacy',
+              },
+            ],
+          },
+        ],
+        'legacy',
+      );
+
+      it('emits no typed import', () => {
+        expect(content).not.toContain('../types/services/legacy');
+      });
+
+      it('falls back to body: unknown / client.post<unknown>', () => {
+        expect(content).toContain('body: unknown');
+        expect(content).toContain('client.post<unknown>');
+      });
+    });
+
+    describe('Given a service with multiple typed actions', () => {
+      const content = getSdkContent(
+        [
+          {
+            serviceName: 'ai',
+            actions: [
+              {
+                name: 'parse',
+                method: 'POST',
+                path: '/ai/parse',
+                operationId: 'parseAi',
+                inputSchema: 'ParseAiInput',
+                outputSchema: 'ParseAiOutput',
+                resolvedInputFields: [{ name: 'message', tsType: 'string', optional: false }],
+                resolvedOutputFields: [{ name: 'id', tsType: 'string', optional: false }],
+              },
+              {
+                name: 'summarize',
+                method: 'POST',
+                path: '/ai/summarize',
+                operationId: 'summarizeAi',
+                inputSchema: 'SummarizeAiInput',
+                outputSchema: 'SummarizeAiOutput',
+                resolvedInputFields: [{ name: 'text', tsType: 'string', optional: false }],
+                resolvedOutputFields: [{ name: 'summary', tsType: 'string', optional: false }],
+              },
+            ],
+          },
+        ],
+        'ai',
+      );
+
+      it('emits a single import line listing all types for this service', () => {
+        const importMatches = content.match(/from '\.\.\/types\/services\/ai'/g) ?? [];
+        expect(importMatches.length).toBe(1);
+        expect(content).toContain(
+          "import type { ParseAiInput, ParseAiOutput, SummarizeAiInput, SummarizeAiOutput } from '../types/services/ai';",
+        );
+      });
+    });
+  });
 });

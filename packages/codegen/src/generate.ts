@@ -12,6 +12,7 @@ import { EntitySdkGenerator } from './generators/entity-sdk-generator';
 import { EntityTypesGenerator } from './generators/entity-types-generator';
 import { RlsPolicyGenerator } from './generators/rls-policy-generator';
 import { ServiceSdkGenerator } from './generators/service-sdk-generator';
+import { ServiceTypesGenerator } from './generators/service-types-generator';
 import { RouterAugmentationGenerator } from './generators/router-augmentation-generator';
 import type { IncrementalResult } from './incremental';
 import { writeIncremental } from './incremental';
@@ -50,6 +51,11 @@ function runTypescriptGenerator(ir: CodegenIR, _config: ResolvedCodegenConfig): 
   // Entity SDK files (entities/tasks.ts, entities/index.ts)
   const entitySdkGen = new EntitySdkGenerator();
   files.push(...entitySdkGen.generate(ir, generatorConfig));
+
+  // Service types (types/services/notifications.ts) — must run before ServiceSdkGenerator
+  // so that SDK imports resolve at type-check time.
+  const serviceTypesGen = new ServiceTypesGenerator();
+  files.push(...serviceTypesGen.generate(ir, generatorConfig));
 
   // Service SDK files (services/notifications.ts, services/index.ts)
   const serviceSdkGen = new ServiceSdkGenerator();

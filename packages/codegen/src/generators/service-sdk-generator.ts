@@ -1,5 +1,6 @@
 import type {
   CodegenIR,
+  CodegenServiceAction,
   CodegenServiceModule,
   GeneratedFile,
   Generator,
@@ -23,9 +24,18 @@ function mutationKind(method: string): 'create' | 'update' | 'delete' {
   return 'update';
 }
 
-/** Convert `:param` path syntax to `{param}` for queryKey() */
 function toQueryKeyPath(path: string): string {
   return path.replace(PATH_PARAM_RE, '{$1}');
+}
+
+function extractPathParams(path: string): string[] {
+  const params: string[] = [];
+  let match: RegExpExecArray | null;
+  const re = new RegExp(PATH_PARAM_RE.source, 'g');
+  while ((match = re.exec(path)) !== null) {
+    if (match[1]) params.push(match[1]);
+  }
+  return params;
 }
 
 export class ServiceSdkGenerator implements Generator {
@@ -53,7 +63,24 @@ export class ServiceSdkGenerator implements Generator {
     const hasQuery = svc.actions.some((a) => !isMutation(a.method));
     const hasMutation = svc.actions.some((a) => isMutation(a.method));
 
-    // Build import parts
+    // Collect typed imports (only for actions with resolved schemas)
+    const typeImports = new Set<string>();
+    for (const action of svc.actions) {
+      if (action.inputSchema && action.resolvedInputFields?.length) {
+        typeImports.add(action.inputSchema);
+      }
+      if (action.outputSchema && action.resolvedOutputFields?.length) {
+        typeImports.add(action.outputSchema);
+      }
+    }
+
+    if (typeImports.size > 0) {
+      lines.push(
+        `import type { ${[...typeImports].join(', ')} } from '../types/services/${svc.serviceName}';`,
+      );
+    }
+
+    // Build @vertz/fetch import
     const importParts: string[] = ['type FetchClient'];
     if (hasQuery) importParts.push('createDescriptor');
     if (hasMutation) importParts.push('createMutationDescriptor');
@@ -65,77 +92,7 @@ export class ServiceSdkGenerator implements Generator {
     lines.push('  return {');
 
     for (const action of svc.actions) {
-      const method = action.method;
-      const methodLower = method.toLowerCase();
-      const hasBody = method === 'POST' || method === 'PUT' || method === 'PATCH';
-      const isMut = isMutation(method);
-
-      // Extract path parameters (e.g., :messageId -> messageId)
-      const pathParams: string[] = [];
-      let match: RegExpExecArray | null = null;
-      PATH_PARAM_RE.lastIndex = 0;
-      while ((match = PATH_PARAM_RE.exec(action.path)) !== null) {
-        pathParams.push(match[1]);
-      }
-
-      const hasPathParams = pathParams.length > 0;
-      const pathExpr = hasPathParams
-        ? `\`${action.path.replace(PATH_PARAM_RE, '${$1}')}\``
-        : `'${action.path}'`;
-
-      // Build method parameters
-      const params: string[] = [];
-      for (const p of pathParams) {
-        params.push(`${p}: string`);
-      }
-      if (hasBody) params.push('body: unknown');
-      const paramStr = params.join(', ');
-
-      const clientArgs = hasBody ? `${pathExpr}, body` : pathExpr;
-      const clientCall = `client.${methodLower}<unknown>(${clientArgs})`;
-
-      // Build queryKey parameters (same as path params, but all optional)
-      const queryKeyParamStr = pathParams.map((p) => `${p}?: string`).join(', ');
-      const queryKeyPath = toQueryKeyPath(action.path);
-      let queryKeyExpr: string;
-      if (hasPathParams) {
-        const paramsObj = pathParams.join(', ');
-        queryKeyExpr = `(${queryKeyParamStr}) => queryKey({ path: '${queryKeyPath}', params: { ${paramsObj} } })`;
-      } else {
-        queryKeyExpr = `() => queryKey({ path: '${queryKeyPath}' })`;
-      }
-
-      lines.push(`    ${action.name}: Object.assign(`);
-
-      if (isMut) {
-        // Build MutationMeta
-        const metaParts: string[] = [
-          `entityType: '${svc.serviceName}'`,
-          `kind: '${mutationKind(method)}' as const`,
-        ];
-        // First path param is treated as id
-        if (pathParams.length > 0) {
-          metaParts.push(`id: ${pathParams[0]}`);
-        }
-        if (hasBody) {
-          metaParts.push('body');
-        }
-
-        lines.push(
-          `      (${paramStr}) => createMutationDescriptor('${method}', ${pathExpr}, () => ${clientCall}, { ${metaParts.join(', ')} }),`,
-        );
-      } else {
-        lines.push(
-          `      (${paramStr}) => createDescriptor('${method}', ${pathExpr}, () => ${clientCall}),`,
-        );
-      }
-
-      lines.push(`      {`);
-      lines.push(`        url: '${action.path}',`);
-      lines.push(`        method: '${method}' as const,`);
-      lines.push(`        queryKey: ${queryKeyExpr},`);
-      lines.push(`      },`);
-      lines.push('    ),');
+      lines.push(...this.emitAction(svc, action));
     }
 
     lines.push('  };');
@@ -145,6 +102,76 @@ export class ServiceSdkGenerator implements Generator {
       path: `services/${svc.serviceName}.ts`,
       content: lines.join('\n'),
     };
+  }
+
+  private emitAction(svc: CodegenServiceModule, action: CodegenServiceAction): string[] {
+    const method = action.method;
+    const methodLower = method.toLowerCase();
+    const hasBody = method === 'POST' || method === 'PUT' || method === 'PATCH';
+    const isMut = isMutation(method);
+
+    const pathParams = extractPathParams(action.path);
+    const hasPathParams = pathParams.length > 0;
+    const pathExpr = hasPathParams
+      ? `\`${action.path.replace(PATH_PARAM_RE, '${$1}')}\``
+      : `'${action.path}'`;
+
+    const inputTyped = !!action.inputSchema && !!action.resolvedInputFields?.length;
+    const outputTyped = !!action.outputSchema && !!action.resolvedOutputFields?.length;
+    const bodyType = inputTyped ? action.inputSchema! : 'unknown';
+    const outputType = outputTyped ? action.outputSchema! : 'unknown';
+
+    const params: string[] = [];
+    for (const p of pathParams) {
+      params.push(`${p}: string`);
+    }
+    if (hasBody) params.push(`body: ${bodyType}`);
+    const paramStr = params.join(', ');
+
+    const clientArgs = hasBody ? `${pathExpr}, body` : pathExpr;
+    const clientCall = `client.${methodLower}<${outputType}>(${clientArgs})`;
+
+    const queryKeyParamStr = pathParams.map((p) => `${p}?: string`).join(', ');
+    const queryKeyPath = toQueryKeyPath(action.path);
+    let queryKeyExpr: string;
+    if (hasPathParams) {
+      const paramsObj = pathParams.join(', ');
+      queryKeyExpr = `(${queryKeyParamStr}) => queryKey({ path: '${queryKeyPath}', params: { ${paramsObj} } })`;
+    } else {
+      queryKeyExpr = `() => queryKey({ path: '${queryKeyPath}' })`;
+    }
+
+    const out: string[] = [];
+    out.push(`    ${action.name}: Object.assign(`);
+
+    if (isMut) {
+      const metaParts: string[] = [
+        `entityType: '${svc.serviceName}'`,
+        `kind: '${mutationKind(method)}' as const`,
+      ];
+      if (pathParams.length > 0) {
+        metaParts.push(`id: ${pathParams[0]}`);
+      }
+      if (hasBody) {
+        metaParts.push('body');
+      }
+
+      out.push(
+        `      (${paramStr}) => createMutationDescriptor('${method}', ${pathExpr}, () => ${clientCall}, { ${metaParts.join(', ')} }),`,
+      );
+    } else {
+      out.push(
+        `      (${paramStr}) => createDescriptor('${method}', ${pathExpr}, () => ${clientCall}),`,
+      );
+    }
+
+    out.push(`      {`);
+    out.push(`        url: '${action.path}',`);
+    out.push(`        method: '${method}' as const,`);
+    out.push(`        queryKey: ${queryKeyExpr},`);
+    out.push(`      },`);
+    out.push('    ),');
+    return out;
   }
 
   private generateIndex(services: CodegenServiceModule[]): GeneratedFile {
