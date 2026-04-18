@@ -10,8 +10,8 @@ When you write `import.meta.hot?.accept()` in a Vertz app, TypeScript may compla
 ```jsonc
 {
   "compilerOptions": {
-    "types": ["vertz/client"]
-  }
+    "types": ["vertz/client"],
+  },
 }
 ```
 
@@ -21,13 +21,13 @@ Once `vertz/client` is in `types`, `import.meta.hot` is typed as `ImportMetaHot 
 
 ## The `ImportMetaHot` surface
 
-| Member | Description |
-|---|---|
-| `accept()` | Self-accept — this module handles its own HMR updates. |
-| `accept(cb)` | Self-accept with a callback receiving the new module. |
-| `accept(deps, cb?)` | Accept updates for specific dependency paths. |
-| `dispose(cb)` | Runs before this module is replaced. Receives a persistent `data` record. |
-| `data` | `Record<string, unknown>` — persisted across HMR updates in the same session. |
+| Member              | Description                                                                   |
+| ------------------- | ----------------------------------------------------------------------------- |
+| `accept()`          | Self-accept — this module handles its own HMR updates.                        |
+| `accept(cb)`        | Self-accept with a callback receiving the new module.                         |
+| `accept(deps, cb?)` | Accept updates for specific dependency paths.                                 |
+| `dispose(cb)`       | Runs before this module is replaced. Receives a persistent `data` record.     |
+| `data`              | `Record<string, unknown>` — persisted across HMR updates in the same session. |
 
 ## Why `hot` is `| undefined`
 
