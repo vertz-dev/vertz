@@ -201,6 +201,27 @@ describe('dialog global styles', () => {
     // Dialog wrapper uses margin: auto for native <dialog> centering
     expect(css).toMatch(/dialog\[data-dialog-wrapper\]\s*\{[^}]*margin:\s*auto/);
   });
+
+  it('dialog panel sets explicit foreground color for top-layer rendering', () => {
+    // <dialog> elements in the top-layer may not inherit body color.
+    // The stack-wrapped panel must set color explicitly so confirm() title,
+    // description, and any user-rendered body content are readable in dark mode.
+    const css = createDialogGlobalStyles().css;
+    const panelRules = css
+      .split('}')
+      .filter((rule) => rule.includes('dialog[data-dialog-wrapper] > [data-part="panel"]'));
+    const panelCSS = panelRules.join('}');
+    expect(panelCSS).toMatch(/\bcolor:\s*var\(--color-foreground\)/);
+  });
+
+  it('dialog title sets explicit foreground color', () => {
+    const css = createDialogGlobalStyles().css;
+    const titleRules = css
+      .split('}')
+      .filter((rule) => rule.includes('dialog[data-dialog-wrapper] [data-part="title"]'));
+    const titleCSS = titleRules.join('}');
+    expect(titleCSS).toMatch(/\bcolor:\s*var\(--color-foreground\)/);
+  });
 });
 
 describe('alert', () => {
