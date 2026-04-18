@@ -159,7 +159,7 @@ let x: 'a' | 'b' = ((sideEffect(), 'a')) as 'a' | 'b';
 
 The outer parens look awkward but the alternative (breaking the code) is worse. A stylistic follow-up rule could clean them up; not in scope here.
 
-**`as const` de-duplication.** If the initializer is already `TSAsExpression` with `TSConstType` (`'code' as const`), the autofix replaces the `const` cast with the union cast (`'code' as 'code' | 'spec'`) rather than producing `'code' as const as 'code' | 'spec'`. Other `TSAsExpression` initializers (e.g., `someValue as SomeType`) are left alone and the widening cast is appended, producing a double-cast — this is rare in practice and will trip the existing `no-double-cast` rule, prompting the user to investigate.
+**`as const` de-duplication.** If the initializer is already `TSAsExpression` with `TSConstType` (`'code' as const`), the autofix replaces the `const` cast with the union cast (`'code' as 'code' | 'spec'`) rather than producing `'code' as const as 'code' | 'spec'`. Other `TSAsExpression` initializers (e.g., `someValue as SomeType`) are left alone and the widening cast is appended, producing `someValue as SomeType as T`. The existing `no-double-cast` rule matches only `as unknown as T`, so these chained casts do NOT trip it; they compile cleanly and narrowing is resolved.
 
 **Multi-declarator declarations.** For `let a: T1 = x, b: T2 = y;`, the rule fires once per `VariableDeclarator` and replaces the declarator nodes individually. Result: `let a: T1 = x as T1, b: T2 = y as T2;`. Each declarator is a separate report, each with its own autofix.
 
@@ -301,7 +301,7 @@ Also: **audit existing `let x: T = v` examples in `reactivity.mdx`** that the ru
    - **Resolved.** Phase 1 explicitly includes building a `lintFixtureWithFix` helper (spawn `oxlint --fix` on a temp file, read content back) and a small `tscFixture` helper (spawn `tsc --noEmit` with an in-memory tsconfig). Both mirror the existing `lintFixture` pattern.
 
 5. **Interaction with `no-double-cast`.**
-   - **Resolved.** No conflict. `no-double-cast` flags `as unknown as T`; the autofix emits single-cast `as T`. A `let x: T = v as OtherT;` initializer already containing a cast would produce `v as OtherT as T` after autofix, which would trip `no-double-cast` — that's a useful signal to the user that their initial cast was load-bearing in a way the rule can't reason about. Acceptable.
+   - **Resolved.** No conflict. `no-double-cast` flags ONLY `as unknown as T` (double cast via `unknown`). The autofix emits single-cast `as T` for most cases; for a `let x: T = v as OtherT;` initializer, it produces `v as OtherT as T`, which does NOT match the `as unknown as T` pattern and therefore does not trip `no-double-cast`. Both rules coexist cleanly.
 
 6. **`context.filename` on Windows.**
    - **Resolved.** Use `path.extname(context.filename).toLowerCase() === '.tsx'` rather than `endsWith('.tsx')`.
@@ -610,5 +610,5 @@ Per `.claude/rules/phase-implementation-plans.md`, each task gets a self-contain
 
 Two tests added on top of the E2E block above to close the remaining Rev 2 review nits:
 
-- **`let x: T = v as OtherT` initializer (double-cast signal):** assert the autofix produces `v as OtherT as T`, and that the subsequent `no-double-cast` warning fires as a useful signal to the user.
+- **`let x: T = v as OtherT` initializer:** assert the autofix produces `v as OtherT as T`. `no-double-cast` only matches `as unknown as T`, so this chained cast compiles cleanly without additional warnings.
 - **`tscFixture` on the autofix output (not only on the hand-written form):** run the rule + autofix first, feed the fixed text into `tscFixture`, assert no TS2367. This closes the loop: "the autofix actually solves the original user's typecheck problem."

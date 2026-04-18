@@ -627,4 +627,161 @@ describe('no-narrowing-let', () => {
     const hasTS2367 = diagnostics.some((d) => d.code === 2367);
     expect(hasTS2367).toBe(false);
   });
+
+  it('fires on narrower-union cast that still narrows (BLOCKER 1 regression)', async () => {
+    const output = await lintFixture(
+      `export function Panel() {
+        let mode: 'a' | 'b' | 'c' = foo() as 'a' | 'b';
+        return <div>{mode}</div>;
+      }`,
+      rules,
+      'fixture.tsx',
+    );
+    expect(output).toContain('narrows to its initializer');
+  });
+
+  it('autofix wraps narrower-union cast in chained cast to the declared type', async () => {
+    const { fixed } = await lintFixtureWithFix(
+      `export function Panel() {
+        let mode: 'a' | 'b' | 'c' = foo() as 'a' | 'b';
+        return <div>{mode}</div>;
+      }`,
+      rules,
+      'fixture.tsx',
+    );
+    expect(fixed).toContain(`mode: 'a' | 'b' | 'c' = foo() as 'a' | 'b' as 'a' | 'b' | 'c'`);
+  });
+
+  it('fires on aliased union type (BLOCKER 2: the state-machine pattern)', async () => {
+    const output = await lintFixture(
+      `type Status = 'idle' | 'loading' | 'error';
+      export function Panel() {
+        let s: Status = 'idle';
+        return <div>{s}</div>;
+      }`,
+      rules,
+      'fixture.tsx',
+    );
+    expect(output).toContain('narrows to its initializer');
+  });
+
+  it('autofixes aliased union to `let x: Alias = v as Alias`', async () => {
+    const { fixed } = await lintFixtureWithFix(
+      `type Status = 'idle' | 'loading' | 'error';
+      export function Panel() {
+        let s: Status = 'idle';
+        return <div>{s}</div>;
+      }`,
+      rules,
+      'fixture.tsx',
+    );
+    expect(fixed).toContain(`let s: Status = 'idle' as Status`);
+  });
+
+  it('aliased-union autofix clears TS2367 (baseline + after)', async () => {
+    const src = `type Status = 'idle' | 'loading' | 'error';
+      export function Panel() {
+        let s: Status = 'idle';
+        const isLoading = s === 'loading';
+        setTimeout(() => { s = 'loading'; }, 0);
+        return isLoading;
+      }`;
+    const before = tscFixture(src);
+    expect(before.some((d) => d.code === 2367)).toBe(true);
+    const { fixed } = await lintFixtureWithFix(src, rules, 'fixture.tsx');
+    const after = tscFixture(fixed);
+    expect(after.some((d) => d.code === 2367)).toBe(false);
+  });
+
+  it('does NOT fire on aliased non-union type reference', async () => {
+    const output = await lintFixture(
+      `type Count = number;
+      export function Panel() {
+        let c: Count = 0;
+        return <div>{c}</div>;
+      }`,
+      rules,
+      'fixture.tsx',
+    );
+    expect(output).not.toContain('narrows to its initializer');
+  });
+
+  it('does NOT fire on unresolved type reference (alias not in file)', async () => {
+    const output = await lintFixture(
+      `import type { Status } from './types';
+      export function Panel() {
+        let s: Status = 'idle';
+        return <div>{s}</div>;
+      }`,
+      rules,
+      'fixture.tsx',
+    );
+    expect(output).not.toContain('narrows to its initializer');
+  });
+
+  it('does NOT fire on `T | null = null` (SHOULD-FIX 5: TS does not narrow)', async () => {
+    const output = await lintFixture(
+      `export function Panel() {
+        let selectedId: string | null = null;
+        return <div>{selectedId}</div>;
+      }`,
+      rules,
+      'fixture.tsx',
+    );
+    expect(output).not.toContain('narrows to its initializer');
+  });
+
+  it('does NOT fire on `T | undefined = undefined` (SHOULD-FIX 5: TS does not narrow)', async () => {
+    const output = await lintFixture(
+      `export function Panel() {
+        let editedPrompt: string | undefined = undefined;
+        return <div>{editedPrompt}</div>;
+      }`,
+      rules,
+      'fixture.tsx',
+    );
+    expect(output).not.toContain('narrows to its initializer');
+  });
+
+  it('STILL fires on `T | null = <non-null>` (narrowing happens when init is not null)', async () => {
+    const output = await lintFixture(
+      `export function Panel() {
+        let mode: 'a' | 'b' | null = 'a';
+        return <div>{mode}</div>;
+      }`,
+      rules,
+      'fixture.tsx',
+    );
+    expect(output).toContain('narrows to its initializer');
+  });
+
+  it('autofix for `v as OtherT` produces `v as OtherT as T`', async () => {
+    const { fixed } = await lintFixtureWithFix(
+      `export function Panel() {
+        let panel: 'code' | 'spec' = getValue() as string;
+        return <div>{panel}</div>;
+      }`,
+      rules,
+      'fixture.tsx',
+    );
+    expect(fixed).toContain(
+      `let panel: 'code' | 'spec' = getValue() as string as 'code' | 'spec'`,
+    );
+  });
+
+  it('lint message contains the fix example and docs URL (LLM-friendly)', async () => {
+    const output = await lintFixture(
+      `export function Panel() {
+        let panel: 'code' | 'spec' = 'code';
+        return <div>{panel}</div>;
+      }`,
+      rules,
+      'fixture.tsx',
+    );
+    // oxlint reformats the message across multiple lines in its report; assert
+    // the distinctive fragments are present.
+    expect(output).toContain('let panel');
+    expect(output).toContain("'code' as 'code' | 'spec'");
+    expect(output).toContain('vertz.dev/guides/ui/reactivity');
+  });
 });

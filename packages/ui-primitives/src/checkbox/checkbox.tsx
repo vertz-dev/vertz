@@ -29,7 +29,7 @@ function ariaCheckedFor(checked: CheckedState): string {
 function CheckboxRoot(options: CheckboxOptions = {}) {
   const { defaultChecked = false, disabled = false, onCheckedChange, ...attrs } = options;
 
-  let checked: CheckedState = defaultChecked;
+  let checked: CheckedState = defaultChecked as CheckedState;
 
   function toggle() {
     if (disabled) return;
