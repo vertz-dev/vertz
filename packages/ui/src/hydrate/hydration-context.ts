@@ -317,6 +317,21 @@ export function exitChildren(): void {
 }
 
 /**
+ * Mark every descendant of `el` as claimed. Used by APIs that adopt an SSR
+ * subtree wholesale (e.g. `__html` replaces all children after hydration)
+ * so the unclaimed-node diagnostic doesn't flag them.
+ */
+export function markSubtreeClaimed(el: Element): void {
+  if (!claimedNodes) return;
+  let child = el.firstChild;
+  while (child) {
+    claimedNodes.add(child);
+    if (child.nodeType === Node.ELEMENT_NODE) markSubtreeClaimed(child as Element);
+    child = child.nextSibling;
+  }
+}
+
+/**
  * Walk the DOM tree under `root` and collect nodes not present in `claimed`.
  * Skips custom elements (tag contains `-`) and CSR-managed content between
  * claimed `<!--child-->` anchor comments and their end markers.

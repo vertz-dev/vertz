@@ -1,3 +1,4 @@
+import { markSubtreeClaimed } from '../hydrate/hydration-context';
 import { deferredDomEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
 
@@ -15,6 +16,7 @@ import type { DisposeFn } from '../runtime/signal-types';
  *   the result with `trusted()` from `@vertz/ui`.
  */
 export function __html(el: Element, fn: () => string | null | undefined): DisposeFn {
+  markSubtreeClaimed(el);
   return deferredDomEffect(() => {
     const value = fn();
     el.innerHTML = value == null ? '' : value;
