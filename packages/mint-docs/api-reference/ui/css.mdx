@@ -10,15 +10,24 @@ Vertz provides scoped, utility-driven styling with `css()` for component styles,
 Define scoped style blocks. Returns an object with class name strings keyed by block name.
 
 ```tsx
-import { css } from '@vertz/ui/css';
+import { css, token } from '@vertz/ui/css';
 
 const styles = css({
-  card: ['bg:white', 'rounded:lg', 'shadow:md', 'p:6'],
-  title: ['font:xl', 'font:bold', 'text:gray.900'],
+  card: {
+    backgroundColor: token.color.background,
+    borderRadius: token.radius.lg,
+    boxShadow: token.shadow.md,
+    padding: token.spacing[6],
+  },
+  title: {
+    fontSize: token.font.size.xl,
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+  },
 });
 
-// styles.card → 'card_a1b2c3' (scoped class name)
-// styles.title → 'title_a1b2c3'
+// styles.card → '_a1b2c3' (scoped class name)
+// styles.title → '_d4e5f6'
 // styles.css → compiled CSS string (non-enumerable)
 
 function TaskCard() {
@@ -38,128 +47,74 @@ function css<T extends CSSInput>(input: T, filePath?: string): CSSOutput<T>;
 
 ### Parameters
 
-| Parameter  | Type       | Description                                           |
-| ---------- | ---------- | ----------------------------------------------------- |
-| `input`    | `CSSInput` | Object mapping block names to arrays of style entries |
-| `filePath` | `string`   | Used internally by the compiler for scoping           |
+| Parameter  | Type       | Description                                        |
+| ---------- | ---------- | -------------------------------------------------- |
+| `input`    | `CSSInput` | Object mapping block names to `StyleBlock` objects |
+| `filePath` | `string`   | Used internally by the compiler for scoping        |
 
 ### Returns
 
 `CSSOutput<T>` — object with each block name mapped to its scoped class name string, plus a non-enumerable `css` property containing the compiled CSS.
 
-### Style entries
+### Style blocks
 
-Each style entry in the array can be:
+Each block value is a `StyleBlock` — an object of camelCase CSS properties. Numeric values get `px` auto-appended for length properties, or pass through raw for unitless properties (`lineHeight`, `opacity`, `zIndex`, etc.).
 
-| Type             | Example                           | Description                                     |
-| ---------------- | --------------------------------- | ----------------------------------------------- |
-| Shorthand string | `'bg:white'`                      | Utility shorthand expanded to CSS               |
-| Nested selector  | `{ '&:hover': ['bg:gray.100'] }`  | Pseudo-classes, media queries, child selectors  |
-| CSS declaration  | `{ 'grid-template': '1fr auto' }` | Plain CSS property-value pair for arbitrary CSS |
+Nested selectors use `&` for pseudo-classes / child combinators and `@` for at-rules:
 
 ```tsx
 const styles = css({
-  button: [
-    'bg:primary.600',
-    'text:white',
-    'rounded:md',
-    'px:4',
-    'py:2',
-    { '&:hover': ['bg:primary.700'] },
-    { '&:disabled': ['opacity:50', 'cursor:not-allowed'] },
-  ],
+  button: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: token.spacing[2],
+    backgroundColor: token.color.primary,
+    color: token.color['primary-foreground'],
+    '&:hover': {
+      backgroundColor: token.color['primary-700'],
+    },
+    '&:disabled': {
+      opacity: 0.5,
+      cursor: 'not-allowed',
+    },
+    '@media (min-width: 640px)': {
+      padding: token.spacing[4],
+    },
+  },
 });
 ```
 
-### Type-safe utility strings
+### Design tokens
 
-Style entry strings are type-checked against the `UtilityClass` union type. Invalid utility class names produce TypeScript errors and editors provide autocomplete for valid options.
+Use `token.*` for theme-aware values (colors, spacing, radius, shadow, font). Tokens compile to CSS custom properties backed by your theme.
 
 ```tsx
-// ✅ Valid — full autocomplete
-const styles = css({
-  card: ['p:4', 'bg:primary', 'rounded:lg'],
-});
+import { token } from '@vertz/ui/css';
 
-// ❌ Type error — 'bgg' is not a valid property
-const bad = css({
-  card: ['bgg:primary'], // Error!
+const styles = css({
+  hero: {
+    backgroundColor: token.color.background,
+    color: token.color.foreground,
+    padding: token.spacing[8],
+    borderRadius: token.radius.xl,
+    fontSize: token.font.size['2xl'],
+    fontWeight: token.font.weight.semibold,
+  },
 });
 ```
 
-**Property groups with validated values:** spacing (`p`, `m`, `gap`, etc.), color (`bg`), radius (`rounded`), shadow, alignment (`items`, `justify`), font weight (`weight`), line height (`leading`), content.
+### Type safety
 
-**Multi-mode properties:** `text` (font-size, text-align, or color), `font` (size or weight), `border` (width or color), `ring` (width or color), `list` (style or position).
-
-**Position offsets:** `top`, `right`, `bottom`, `left` (spacing scale or raw CSS), `inset` (all four).
-
-**Object fit & aspect ratio:** `object` (cover, contain, fill, none, scale-down), `aspect` (auto, square, video, photo, or raw ratio).
-
-**Raw properties (any value accepted):** `cursor`, `transition`, `resize`, `opacity`, `z`, `tracking`, `decoration`, `grid-cols`, `border-r/l/t/b`, `vt-name`, `view-transition-name`, `overflow`, `overflow-x`, `overflow-y`.
-
-**Pseudo-prefixed:** Validates the prefix (`hover`, `focus`, `active`, etc.) and property name. Example: `'hover:bg:primary.700'`.
-
-### Color opacity modifier
-
-Append `/<opacity>` (0–100) to any color token to apply alpha transparency using `color-mix()`:
+CSS property names are validated against the full CSS property set. Typos produce TypeScript errors:
 
 ```tsx
-const styles = css({
-  overlay: ['bg:primary/50'], // 50% opacity
-  subtle: ['text:muted/80'], // 80% opacity
-  faded: ['border:ring/30'], // 30% opacity
-  shade: ['bg:primary.700/50'], // works with shaded tokens too
+// ❌ Type error — 'bacgroundColor' is not a valid CSS property
+css({
+  card: { bacgroundColor: 'red' },
 });
 ```
 
-Output: `background-color: color-mix(in oklch, var(--color-primary) 50%, transparent)`
-
-Works with all color properties (`bg`, `text`, `border`) and multi-mode resolvers. Requires theme variables to be valid CSS color values (oklch, hsl, hex, etc.).
-
-### Fraction dimensions
-
-Use `N/M` syntax for percentage-based sizing:
-
-```tsx
-const styles = css({
-  sidebar: ['w:1/4'], // width: 25%
-  main: ['w:3/4'], // width: 75%
-  half: ['w:1/2'], // width: 50%
-  third: ['h:1/3'], // height: 33.333333%
-});
-```
-
-Works with all size properties (`w`, `h`, `min-w`, `max-w`, `min-h`, `max-h`). Fractions greater than 1 (e.g. `w:3/2` → `150%`) are allowed.
-
-### Transform scale keywords
-
-Preset scale transform values:
-
-```tsx
-const styles = css({
-  shrink: ['scale-90'], // transform: scale(0.9)
-  grow: ['scale-110'], // transform: scale(1.1)
-  hide: ['scale-0'], // transform: scale(0)
-});
-```
-
-Available: `scale-0`, `scale-75`, `scale-90`, `scale-95`, `scale-100`, `scale-105`, `scale-110`, `scale-125`, `scale-150`.
-
-### Overflow variants
-
-Axis-specific overflow control:
-
-```tsx
-const styles = css({
-  scrollX: ['overflow-x:auto'],
-  scrollY: ['overflow-y:scroll'],
-  clip: ['overflow:hidden'],
-});
-```
-
-The `overflow-hidden` keyword also remains available for backward compatibility.
-
-The `UtilityClass` type is exported from `@vertz/ui/css` for use in custom type definitions.
+Validation runs in both top-level and nested selector blocks.
 
 ---
 
@@ -168,27 +123,41 @@ The `UtilityClass` type is exported from `@vertz/ui/css` for use in custom type 
 Create a typed variant function for component styling with multiple visual states.
 
 ```tsx
-import { variants } from '@vertz/ui/css';
+import { variants, token } from '@vertz/ui/css';
 
 const button = variants({
-  base: ['inline-flex', 'items:center', 'rounded:md', 'font:medium'],
+  base: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    borderRadius: token.radius.md,
+    fontWeight: token.font.weight.medium,
+  },
   variants: {
     intent: {
-      primary: ['bg:primary.600', 'text:white'],
-      danger: ['bg:danger.500', 'text:white'],
-      ghost: ['bg:transparent', 'text:gray.700'],
+      primary: {
+        backgroundColor: token.color.primary,
+        color: token.color['primary-foreground'],
+      },
+      danger: {
+        backgroundColor: token.color.destructive,
+        color: token.color['destructive-foreground'],
+      },
+      ghost: {
+        backgroundColor: 'transparent',
+        color: token.color.foreground,
+      },
     },
     size: {
-      sm: ['text:xs', 'px:3', 'py:1.5'],
-      md: ['text:sm', 'px:4', 'py:2'],
-      lg: ['text:base', 'px:6', 'py:3'],
+      sm: { fontSize: token.font.size.xs, paddingInline: token.spacing[3] },
+      md: { fontSize: token.font.size.sm, paddingInline: token.spacing[4] },
+      lg: { fontSize: token.font.size.base, paddingInline: token.spacing[6] },
     },
   },
   defaultVariants: { intent: 'primary', size: 'md' },
 });
 
-// button() → 'btn_a1b2c3 primary_a1b2c3 md_a1b2c3'
-// button({ intent: 'danger', size: 'sm' }) → 'btn_a1b2c3 danger_a1b2c3 sm_a1b2c3'
+// button() → '_base _primary _md'
+// button({ intent: 'danger', size: 'sm' }) → '_base _danger _sm'
 
 function SubmitButton() {
   return <button className={button({ intent: 'primary', size: 'lg' })}>Save</button>;
@@ -203,12 +172,12 @@ function variants<V extends VariantDefinitions>(config: VariantsConfig<V>): Vari
 
 ### VariantsConfig
 
-| Property           | Type                   | Description                                                                       |
-| ------------------ | ---------------------- | --------------------------------------------------------------------------------- |
-| `base`             | `StyleEntry[]`         | Base styles applied to all variants                                               |
-| `variants`         | `V`                    | Object mapping variant names to their options (each option maps to style entries) |
-| `defaultVariants`  | `Partial<V>`           | Default variant selections when not specified                                     |
-| `compoundVariants` | `CompoundVariant<V>[]` | Styles applied when specific variant combinations are active                      |
+| Property           | Type                   | Description                                                  |
+| ------------------ | ---------------------- | ------------------------------------------------------------ |
+| `base`             | `StyleBlock`           | Base styles applied to all variants                          |
+| `variants`         | `V`                    | Object mapping variant names to option → `StyleBlock` maps   |
+| `defaultVariants`  | `Partial<V>`           | Default variant selections when not specified                |
+| `compoundVariants` | `CompoundVariant<V>[]` | Styles applied when specific variant combinations are active |
 
 ### Returns
 
@@ -218,20 +187,32 @@ function variants<V extends VariantDefinitions>(config: VariantsConfig<V>): Vari
 
 ```tsx
 const badge = variants({
-  base: ['rounded:full', 'px:2', 'py:0.5', 'font:xs'],
+  base: {
+    borderRadius: token.radius.full,
+    paddingInline: token.spacing[2],
+    fontSize: token.font.size.xs,
+  },
   variants: {
     color: {
-      blue: ['bg:blue.100', 'text:blue.800'],
-      red: ['bg:red.100', 'text:red.800'],
+      blue: { backgroundColor: token.color['blue-100'], color: token.color['blue-800'] },
+      red: { backgroundColor: token.color['red-100'], color: token.color['red-800'] },
     },
     outlined: {
-      true: ['bg:transparent', 'border:1'],
-      false: [],
+      true: { backgroundColor: 'transparent', borderWidth: '1px' },
+      false: {},
     },
   },
   compoundVariants: [
-    { color: 'blue', outlined: true, css: ['border:blue.300', 'text:blue.700'] },
-    { color: 'red', outlined: true, css: ['border:red.300', 'text:red.700'] },
+    {
+      color: 'blue',
+      outlined: true,
+      styles: { borderColor: token.color['blue-300'], color: token.color['blue-700'] },
+    },
+    {
+      color: 'red',
+      outlined: true,
+      styles: { borderColor: token.color['red-300'], color: token.color['red-700'] },
+    },
   ],
   defaultVariants: { color: 'blue', outlined: false },
 });
@@ -341,14 +322,15 @@ const compiled = compileFonts({ sans, mono });
 ## Types
 
 ```ts
-type CSSInput = Record<string, StyleEntry[]>;
+type CSSInput = Record<string, StyleBlock>;
 
 type CSSOutput<T extends CSSInput> = {
   readonly [K in keyof T & string]: string;
 } & { readonly css: string };
 
-type StyleEntry = string | Record<string, StyleValue[] | Record<string, string>>;
-type StyleValue = string | Record<string, string>;
+type StyleBlock = {
+  [property: string]: string | number | StyleBlock;
+};
 
 type GlobalCSSInput = Record<string, Record<string, string>>;
 interface GlobalCSSOutput {
@@ -356,7 +338,7 @@ interface GlobalCSSOutput {
 }
 
 interface VariantsConfig<V extends VariantDefinitions> {
-  base: StyleEntry[];
+  base: StyleBlock;
   variants: V;
   defaultVariants?: { [K in keyof V]?: keyof V[K] };
   compoundVariants?: CompoundVariant<V>[];

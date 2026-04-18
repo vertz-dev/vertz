@@ -1,25 +1,22 @@
-import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 
 type CommandBlocks = {
-  root: StyleEntry[];
-  input: StyleEntry[];
-  list: StyleEntry[];
-  item: StyleEntry[];
-  group: StyleEntry[];
-  groupHeading: StyleEntry[];
-  separator: StyleEntry[];
-  empty: StyleEntry[];
+  root: StyleBlock;
+  input: StyleBlock;
+  list: StyleBlock;
+  item: StyleBlock;
+  group: StyleBlock;
+  groupHeading: StyleBlock;
+  separator: StyleBlock;
+  empty: StyleBlock;
 };
 
-const focusRing: Record<string, StyleValue[]> = {
-  '&:focus-visible': [
-    'outline-none',
-    {
-      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
-    },
-    { 'outline-offset': '2px' },
-  ],
+const focusRing: StyleBlock = {
+  '&:focus-visible': {
+    outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+    outlineOffset: '2px',
+  },
 };
 
 /** Create command css() styles. */
@@ -75,17 +72,15 @@ export function createCommandStyles(): CSSOutput<CommandBlocks> {
       color: token.color['muted-foreground'],
       '&': { paddingTop: '0.375rem', paddingBottom: '0.375rem' },
     },
-    commandSeparator: [
-      {
-        '&': {
-          'margin-left': '-0.25rem',
-          'margin-right': '-0.25rem',
-          height: '1px',
-          'background-color': 'var(--color-border)',
-          border: 'none',
-        },
+    commandSeparator: {
+      '&': {
+        marginLeft: '-0.25rem',
+        marginRight: '-0.25rem',
+        height: '1px',
+        backgroundColor: 'var(--color-border)',
+        border: 'none',
       },
-    ],
+    },
     commandEmpty: {
       paddingBlock: token.spacing[6],
       textAlign: 'center',

@@ -1,13 +1,13 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 import { bgOpacity, DARK, textOpacity } from './_helpers';
 
 type TabsBlocks = {
-  list: StyleEntry[];
-  trigger: StyleEntry[];
-  panel: StyleEntry[];
-  listLine: StyleEntry[];
-  triggerLine: StyleEntry[];
+  list: StyleBlock;
+  trigger: StyleBlock;
+  panel: StyleBlock;
+  listLine: StyleBlock;
+  triggerLine: StyleBlock;
 };
 
 /** Create tabs css() styles. */

@@ -1,19 +1,19 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 
 type BreadcrumbBlocks = {
-  nav: StyleEntry[];
-  list: StyleEntry[];
-  item: StyleEntry[];
-  link: StyleEntry[];
-  page: StyleEntry[];
-  separator: StyleEntry[];
+  nav: StyleBlock;
+  list: StyleBlock;
+  item: StyleBlock;
+  link: StyleBlock;
+  page: StyleBlock;
+  separator: StyleBlock;
 };
 
 /** Create breadcrumb css() styles. */
 export function createBreadcrumbStyles(): CSSOutput<BreadcrumbBlocks> {
   const s = css({
-    breadcrumbNav: [],
+    breadcrumbNav: {},
     breadcrumbList: {
       display: 'flex',
       flexWrap: 'wrap',
@@ -36,7 +36,7 @@ export function createBreadcrumbStyles(): CSSOutput<BreadcrumbBlocks> {
       '&:hover': { color: token.color.foreground },
     },
     breadcrumbPage: { fontWeight: token.font.weight.normal, color: token.color.foreground },
-    breadcrumbSeparator: [],
+    breadcrumbSeparator: {},
   });
   return {
     nav: s.breadcrumbNav,

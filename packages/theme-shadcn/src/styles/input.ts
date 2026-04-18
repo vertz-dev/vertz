@@ -1,8 +1,8 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 import { bgOpacity, DARK } from './_helpers';
 
-type InputBlocks = { base: StyleEntry[] };
+type InputBlocks = { base: StyleBlock };
 
 /** Create input css() styles. */
 export function createInput(): CSSOutput<InputBlocks> {

@@ -1,16 +1,16 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 
 type AvatarBlocks = {
-  root: StyleEntry[];
-  image: StyleEntry[];
-  fallback: StyleEntry[];
-  rootSm: StyleEntry[];
-  rootLg: StyleEntry[];
-  rootXl: StyleEntry[];
-  fallbackSm: StyleEntry[];
-  fallbackLg: StyleEntry[];
-  fallbackXl: StyleEntry[];
+  root: StyleBlock;
+  image: StyleBlock;
+  fallback: StyleBlock;
+  rootSm: StyleBlock;
+  rootLg: StyleBlock;
+  rootXl: StyleBlock;
+  fallbackSm: StyleBlock;
+  fallbackLg: StyleBlock;
+  fallbackXl: StyleBlock;
 };
 
 /** Create avatar css() styles. */
@@ -45,7 +45,7 @@ export function createAvatarStyles(): CSSOutput<AvatarBlocks> {
     avatarRootSm: { height: token.spacing[6], width: token.spacing[6] },
     avatarRootLg: { height: token.spacing[10], width: token.spacing[10] },
     avatarRootXl: { height: token.spacing[12], width: token.spacing[12] },
-    avatarFallbackSm: [{ '&': { 'font-size': '0.625rem' } }],
+    avatarFallbackSm: { fontSize: '0.625rem' },
     avatarFallbackLg: { fontSize: token.font.size.sm },
     avatarFallbackXl: { fontSize: token.font.size.base },
   });

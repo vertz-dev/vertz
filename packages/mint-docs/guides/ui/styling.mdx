@@ -7,15 +7,28 @@ Vertz provides a built-in styling system based on design tokens. No CSS files, n
 
 ## `css()` -- scoped styles
 
-Create a group of scoped styles with `css()`:
+Create a group of scoped styles with `css()` and the `token` helper:
 
 ```tsx
-import { css } from 'vertz/ui';
+import { css, token } from '@vertz/ui';
 
 const styles = css({
-  card: ['bg:card', 'rounded:lg', 'p:4', 'border:1', 'border:border'],
-  title: ['font:lg', 'font:bold', 'text:foreground'],
-  meta: ['text:sm', 'text:muted-foreground'],
+  card: {
+    backgroundColor: token.color.card,
+    borderRadius: token.radius.lg,
+    padding: token.spacing[4],
+    borderWidth: '1px',
+    borderColor: token.color.border,
+  },
+  title: {
+    fontSize: token.font.size.lg,
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+  },
+  meta: {
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+  },
 });
 
 export function TaskCard({ task }: TaskCardProps) {
@@ -28,60 +41,78 @@ export function TaskCard({ task }: TaskCardProps) {
 }
 ```
 
-Each key in the object becomes a scoped class name. The token syntax (`bg:card`, `font:lg`, `rounded:lg`) maps to design tokens from your theme.
+Each key in the object becomes a scoped class name. CSS property names use camelCase (`backgroundColor`, `borderRadius`). The `token` helper resolves to CSS custom properties from your theme.
 
-### Token syntax
+### Token helper
 
-Tokens follow the pattern `property:value`:
+The `token` namespace is typed against your active theme. Use dot notation for camelCase token names and bracket notation for any token name that contains a hyphen or a shade number.
 
-| Token             | CSS output                            |
-| ----------------- | ------------------------------------- |
-| `bg:card`         | `background-color: var(--color-card)` |
-| `text:foreground` | `color: var(--color-foreground)`      |
-| `font:lg`         | `font-size: 1.125rem`                 |
-| `font:bold`       | `font-weight: 700`                    |
-| `rounded:lg`      | `border-radius: 0.5rem`               |
-| `p:4`             | `padding: 1rem`                       |
-| `px:4`            | `padding-inline: 1rem`                |
-| `flex`            | `display: flex`                       |
-| `items:center`    | `align-items: center`                 |
-| `gap:2`           | `gap: 0.5rem`                         |
-| `top:0`           | `top: 0`                              |
-| `left:4`          | `left: 1rem`                          |
-| `object:cover`    | `object-fit: cover`                   |
-| `aspect:video`    | `aspect-ratio: 16 / 9`                |
+| Expression                        | CSS output                      |
+| --------------------------------- | ------------------------------- |
+| `token.color.card`                | `var(--color-card)`             |
+| `token.color.foreground`          | `var(--color-foreground)`       |
+| `token.color['muted-foreground']` | `var(--color-muted-foreground)` |
+| `token.color.primary[600]`        | `var(--color-primary-600)`      |
+| `token.spacing[4]`                | `var(--spacing-4)`              |
+| `token.font.size.lg`              | `var(--font-size-lg)`           |
+| `token.font.weight.bold`          | `var(--font-weight-bold)`       |
+| `token.radius.lg`                 | `var(--radius-lg)`              |
+
+Raw CSS keywords like `'flex'`, `'center'`, `'100%'`, `'inherit'`, or `'transparent'` are passed through literally.
+
+```tsx
+const styles = css({
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[2],
+  },
+});
+```
 
 The full token set comes from your theme (`@vertz/theme-shadcn` or a custom theme defined with `defineTheme()`).
 
 ### Shade color tokens
 
-Color properties (`bg`, `text`, `border`) support shade tokens using dot notation: `namespace.shade`. This gives you access to a full color scale beyond the semantic tokens.
+Color palettes support a full shade scale beyond the semantic tokens. Use bracket notation for the numeric shade:
 
 ```tsx
 const styles = css({
-  heading: ['text:gray.900'],
-  subtitle: ['text:zinc.500'],
-  card: ['bg:gray.50', 'border:1', 'border:gray.200'],
-  accent: ['bg:blue.600', 'text:white'],
-  warning: ['bg:amber.100', 'text:amber.800', 'border:1', 'border:amber.300'],
+  heading: { color: token.color.gray[900] },
+  subtitle: { color: token.color.zinc[500] },
+  card: {
+    backgroundColor: token.color.gray[50],
+    borderWidth: '1px',
+    borderColor: token.color.gray[200],
+  },
+  accent: {
+    backgroundColor: token.color.blue[600],
+    color: 'white',
+  },
+  warning: {
+    backgroundColor: token.color.amber[100],
+    color: token.color.amber[800],
+    borderWidth: '1px',
+    borderColor: token.color.amber[300],
+  },
 });
 ```
 
 **Available namespaces** -- these are the color namespaces that support shade notation:
 
-| Namespace     | Example              | CSS output                                       |
-| ------------- | -------------------- | ------------------------------------------------ |
-| `primary`     | `bg:primary.600`     | `background-color: var(--color-primary-600)`     |
-| `secondary`   | `text:secondary.400` | `color: var(--color-secondary-400)`              |
-| `accent`      | `bg:accent.100`      | `background-color: var(--color-accent-100)`      |
-| `gray`        | `text:gray.500`      | `color: var(--color-gray-500)`                   |
-| `destructive` | `bg:destructive.600` | `background-color: var(--color-destructive-600)` |
-| `danger`      | `text:danger.500`    | `color: var(--color-danger-500)`                 |
-| `success`     | `bg:success.100`     | `background-color: var(--color-success-100)`     |
-| `warning`     | `border:warning.300` | `border-color: var(--color-warning-300)`         |
-| `info`        | `bg:info.50`         | `background-color: var(--color-info-50)`         |
-| `muted`       | `text:muted.600`     | `color: var(--color-muted-600)`                  |
-| `surface`     | `bg:surface.100`     | `background-color: var(--color-surface-100)`     |
+| Namespace     | Example                        | CSS output                                       |
+| ------------- | ------------------------------ | ------------------------------------------------ |
+| `primary`     | `token.color.primary[600]`     | `background-color: var(--color-primary-600)`     |
+| `secondary`   | `token.color.secondary[400]`   | `color: var(--color-secondary-400)`              |
+| `accent`      | `token.color.accent[100]`      | `background-color: var(--color-accent-100)`      |
+| `gray`        | `token.color.gray[500]`        | `color: var(--color-gray-500)`                   |
+| `destructive` | `token.color.destructive[600]` | `background-color: var(--color-destructive-600)` |
+| `danger`      | `token.color.danger[500]`      | `color: var(--color-danger-500)`                 |
+| `success`     | `token.color.success[100]`     | `background-color: var(--color-success-100)`     |
+| `warning`     | `token.color.warning[300]`     | `border-color: var(--color-warning-300)`         |
+| `info`        | `token.color.info[50]`         | `background-color: var(--color-info-50)`         |
+| `muted`       | `token.color.muted[600]`       | `color: var(--color-muted-600)`                  |
+| `surface`     | `token.color.surface[100]`     | `background-color: var(--color-surface-100)`     |
 
 **Shade scale** -- each namespace supports shades from `50` (lightest) to `950` (darkest):
 
@@ -92,7 +123,7 @@ The actual color values are defined by your theme. When using palettes from `@ve
 **Using palettes in your theme:**
 
 ```tsx
-import { defineTheme } from 'vertz/ui';
+import { defineTheme } from '@vertz/ui';
 import { palettes } from '@vertz/ui/css';
 
 const theme = defineTheme({
@@ -105,26 +136,35 @@ const theme = defineTheme({
 });
 ```
 
-### Pseudo-state tokens
+### Pseudo-state selectors
 
-Use nested selector objects to apply styles on pseudo-states:
+Use nested `&:` selectors to apply styles on pseudo-states:
 
 ```tsx
 const styles = css({
-  link: [
-    'text:primary',
-    'decoration:none',
-    { '&:hover': ['text:primary.700', 'decoration:underline'] },
-  ],
-  input: [
-    'border:1',
-    'border:border',
-    'rounded:md',
-    'px:3',
-    'py:2',
-    { '&:focus': ['border:primary', 'ring:2'] },
-    { '&:disabled': ['opacity:50', 'cursor:not-allowed'] },
-  ],
+  link: {
+    color: token.color.primary,
+    textDecoration: 'none',
+    '&:hover': {
+      color: token.color.primary[700],
+      textDecoration: 'underline',
+    },
+  },
+  input: {
+    borderWidth: '1px',
+    borderColor: token.color.border,
+    borderRadius: token.radius.md,
+    paddingInline: token.spacing[3],
+    paddingBlock: token.spacing[2],
+    '&:focus': {
+      borderColor: token.color.primary,
+      boxShadow: '0 0 0 2px var(--color-ring)',
+    },
+    '&:disabled': {
+      opacity: 0.5,
+      cursor: 'not-allowed',
+    },
+  },
 });
 ```
 
@@ -133,21 +173,51 @@ const styles = css({
 Use `variants()` for components with multiple visual states:
 
 ```tsx
-import { variants } from 'vertz/ui';
+import { variants, token } from '@vertz/ui';
 
 const button = variants({
-  base: ['inline-flex', 'items:center', 'rounded:md', 'font:medium', 'transition'],
+  base: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    borderRadius: token.radius.md,
+    fontWeight: token.font.weight.medium,
+    transition: 'all 150ms ease',
+  },
   variants: {
     intent: {
-      primary: ['bg:primary', 'text:primary-foreground'],
-      secondary: ['bg:secondary', 'text:secondary-foreground'],
-      ghost: ['bg:transparent', 'text:foreground'],
-      danger: ['bg:destructive', 'text:white'],
+      primary: {
+        backgroundColor: token.color.primary,
+        color: token.color['primary-foreground'],
+      },
+      secondary: {
+        backgroundColor: token.color.secondary,
+        color: token.color['secondary-foreground'],
+      },
+      ghost: {
+        backgroundColor: 'transparent',
+        color: token.color.foreground,
+      },
+      danger: {
+        backgroundColor: token.color.destructive,
+        color: 'white',
+      },
     },
     size: {
-      sm: ['text:xs', 'px:3', 'py:1'],
-      md: ['text:sm', 'px:4', 'py:2'],
-      lg: ['text:base', 'px:6', 'py:3'],
+      sm: {
+        fontSize: token.font.size.xs,
+        paddingInline: token.spacing[3],
+        paddingBlock: token.spacing[1],
+      },
+      md: {
+        fontSize: token.font.size.sm,
+        paddingInline: token.spacing[4],
+        paddingBlock: token.spacing[2],
+      },
+      lg: {
+        fontSize: token.font.size.base,
+        paddingInline: token.spacing[6],
+        paddingBlock: token.spacing[3],
+      },
     },
   },
   defaultVariants: { intent: 'primary', size: 'md' },
@@ -194,13 +264,13 @@ return (
 
 **Use `css()` for:**
 
-- Layout and spacing (`flex`, `grid`, `p:4`, `gap:2`)
-- Sizing (`w:full`, `h:screen`, `max-w:lg`) and aspect ratios (`aspect:video`, `aspect:square`)
-- Positioning (`absolute`, `top:0`, `left:4`, `right:0`, `bottom:0`, `inset:0`)
-- Images (`object:cover`, `object:contain`)
-- Typography scales (`font:lg`, `font:semibold`, `text:sm`)
-- Borders and radius (`border:1`, `border:border`, `rounded:lg`)
-- Colors from the theme/shade system (`bg:primary.600`, `text:gray.500`)
+- Layout and spacing (`display: 'flex'`, `padding: token.spacing[4]`, `gap: token.spacing[2]`)
+- Sizing (`width: '100%'`, `height: '100vh'`) and aspect ratios (`aspectRatio: '16 / 9'`)
+- Positioning (`position: 'absolute'`, `top: 0`, `left: token.spacing[4]`, `inset: 0`)
+- Images (`objectFit: 'cover'`, `objectFit: 'contain'`)
+- Typography scales (`fontSize: token.font.size.lg`, `fontWeight: token.font.weight.semibold`)
+- Borders and radius (`borderWidth: '1px'`, `borderColor: token.color.border`, `borderRadius: token.radius.lg`)
+- Colors from the theme/shade system (`backgroundColor: token.color.primary[600]`, `color: token.color.gray[500]`)
 - Pseudo-states (`&:hover`, `&:focus`, `&:disabled`)
 
 **Use inline `style` for:**
@@ -216,19 +286,28 @@ return (
   /* css() -- theme-aware, scoped, pseudo-state support */
 }
 const styles = css({
-  card: ['bg:card', 'rounded:lg', 'p:6', 'shadow:md'],
-  title: ['font:xl', 'font:bold', 'text:foreground'],
+  card: {
+    backgroundColor: token.color.card,
+    borderRadius: token.radius.lg,
+    padding: token.spacing[6],
+    boxShadow: 'var(--shadow-md)',
+  },
+  title: {
+    fontSize: token.font.size.xl,
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+  },
 });
 
 {
   /* inline style -- dynamic runtime value */
 }
-<div style={`transform: translateX(${offset}px)`}>Sliding content</div>;
+<div style={{ transform: `translateX(${offset}px)` }}>Sliding content</div>;
 
 {
   /* inline style -- complex CSS without token equivalent */
 }
-<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
+<div style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
   Gradient background
 </div>;
 ```
@@ -238,7 +317,7 @@ const styles = css({
 Vertz uses CSS custom properties for theming. The `@vertz/theme-shadcn` package provides a shadcn/ui-inspired token set with light and dark mode support.
 
 ```tsx
-import { defineTheme, ThemeProvider } from 'vertz/ui';
+import { defineTheme, ThemeProvider } from '@vertz/ui';
 import { shadcnTheme } from '@vertz/theme-shadcn';
 
 // Use the built-in theme
@@ -250,7 +329,7 @@ ThemeProvider({ theme: shadcnTheme }, () => <App />);
 Define your own theme with `defineTheme()`:
 
 ```tsx
-import { defineTheme } from 'vertz/ui';
+import { defineTheme } from '@vertz/ui';
 
 const myTheme = defineTheme({
   colors: {
@@ -272,11 +351,19 @@ const myTheme = defineTheme({
 For reset styles or global base rules, use `globalCss()`:
 
 ```tsx
-import { globalCss } from 'vertz/ui';
+import { globalCss, token } from '@vertz/ui';
 
 globalCss({
-  '*': ['box-sizing:border-box', 'm:0', 'p:0'],
-  body: ['bg:background', 'text:foreground', 'font:sans'],
+  '*': {
+    boxSizing: 'border-box',
+    margin: 0,
+    padding: 0,
+  },
+  body: {
+    backgroundColor: token.color.background,
+    color: token.color.foreground,
+    fontFamily: 'var(--font-sans)',
+  },
 });
 ```
 
@@ -314,7 +401,7 @@ Reference the generated CSS vars in components:
 ```tsx
 function CodeBlock({ code }: { code: string }) {
   return (
-    <pre style="font-family: var(--font-mono)">
+    <pre style={{ fontFamily: 'var(--font-mono)' }}>
       <code>{code}</code>
     </pre>
   );

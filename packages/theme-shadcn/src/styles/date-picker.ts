@@ -1,19 +1,16 @@
-import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 
 type DatePickerBlocks = {
-  trigger: StyleEntry[];
-  content: StyleEntry[];
+  trigger: StyleBlock;
+  content: StyleBlock;
 };
 
-const focusRing: Record<string, StyleValue[]> = {
-  '&:focus-visible': [
-    'outline-none',
-    {
-      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
-    },
-    { 'outline-offset': '2px' },
-  ],
+const focusRing: StyleBlock = {
+  '&:focus-visible': {
+    outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+    outlineOffset: '2px',
+  },
 };
 
 /** Create date-picker css() styles. */

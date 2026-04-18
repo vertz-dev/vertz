@@ -1,10 +1,10 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 import { bgOpacity, DARK } from './_helpers';
 
 type CheckboxBlocks = {
-  root: StyleEntry[];
-  indicator: StyleEntry[];
+  root: StyleBlock;
+  indicator: StyleBlock;
 };
 
 const focusRing = {

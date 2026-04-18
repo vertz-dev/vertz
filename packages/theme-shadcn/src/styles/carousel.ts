@@ -1,12 +1,12 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 
 type CarouselBlocks = {
-  root: StyleEntry[];
-  viewport: StyleEntry[];
-  slide: StyleEntry[];
-  prevButton: StyleEntry[];
-  nextButton: StyleEntry[];
+  root: StyleBlock;
+  viewport: StyleBlock;
+  slide: StyleBlock;
+  prevButton: StyleBlock;
+  nextButton: StyleBlock;
 };
 
 /** Create carousel css() styles following shadcn conventions. */
@@ -14,7 +14,7 @@ export function createCarouselStyles(): CSSOutput<CarouselBlocks> {
   const s = css({
     carouselRoot: { position: 'relative' },
     carouselViewport: { overflow: 'hidden' },
-    carouselSlide: [{ '&[data-state="inactive"]': { display: 'none' } }],
+    carouselSlide: { '&[data-state="inactive"]': { display: 'none' } },
     carouselPrevButton: {
       position: 'absolute',
       height: token.spacing[8],

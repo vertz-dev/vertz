@@ -1,28 +1,25 @@
-import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 
 type CalendarBlocks = {
-  root: StyleEntry[];
-  rootNoBorder: StyleEntry[];
-  header: StyleEntry[];
-  title: StyleEntry[];
-  navButton: StyleEntry[];
-  grid: StyleEntry[];
-  headCell: StyleEntry[];
-  cell: StyleEntry[];
-  dayButton: StyleEntry[];
-  monthSelect: StyleEntry[];
-  yearSelect: StyleEntry[];
+  root: StyleBlock;
+  rootNoBorder: StyleBlock;
+  header: StyleBlock;
+  title: StyleBlock;
+  navButton: StyleBlock;
+  grid: StyleBlock;
+  headCell: StyleBlock;
+  cell: StyleBlock;
+  dayButton: StyleBlock;
+  monthSelect: StyleBlock;
+  yearSelect: StyleBlock;
 };
 
-const focusRing: Record<string, StyleValue[]> = {
-  '&:focus-visible': [
-    'outline-none',
-    {
-      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
-    },
-    { 'outline-offset': '2px' },
-  ],
+const focusRing: StyleBlock = {
+  '&:focus-visible': {
+    outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+    outlineOffset: '2px',
+  },
 };
 
 /** Create calendar css() styles. */
@@ -92,14 +89,7 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
       '&[aria-disabled="true"]': { opacity: '0.5' },
     },
     /* table: w-full border-collapse */
-    calendarGrid: [
-      {
-        '&': {
-          width: '100%',
-          'border-collapse': 'collapse',
-        },
-      },
-    ],
+    calendarGrid: { '&': { width: '100%', borderCollapse: 'collapse' } },
     /* weekday: text-[0.8rem] font-normal text-muted-foreground select-none */
     calendarHeadCell: {
       color: token.color['muted-foreground'],
@@ -107,15 +97,7 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
       '&': { width: '1.75rem', textAlign: 'center', fontSize: '0.8rem', userSelect: 'none' },
     },
     /* day: aspect-square p-0 text-center select-none */
-    calendarCell: [
-      {
-        '&': {
-          'text-align': 'center',
-          padding: '0',
-          'user-select': 'none',
-        },
-      },
-    ],
+    calendarCell: { '&': { textAlign: 'center', padding: '0', userSelect: 'none' } },
     /* DayButton: ghost variant, size=icon (size-8 = 2rem), font-normal, border-0 */
     calendarDayButton: {
       display: 'inline-flex',

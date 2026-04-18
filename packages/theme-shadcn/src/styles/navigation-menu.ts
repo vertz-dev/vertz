@@ -1,14 +1,14 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 import { animationDecl, bgOpacity } from './_helpers';
 
 type NavigationMenuBlocks = {
-  root: StyleEntry[];
-  list: StyleEntry[];
-  trigger: StyleEntry[];
-  content: StyleEntry[];
-  link: StyleEntry[];
-  viewport: StyleEntry[];
+  root: StyleBlock;
+  list: StyleBlock;
+  trigger: StyleBlock;
+  content: StyleBlock;
+  link: StyleBlock;
+  viewport: StyleBlock;
 };
 
 /** Create navigation menu css() styles. */

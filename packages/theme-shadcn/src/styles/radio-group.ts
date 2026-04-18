@@ -1,12 +1,12 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 import { bgOpacity, DARK } from './_helpers';
 
 type RadioGroupBlocks = {
-  root: StyleEntry[];
-  item: StyleEntry[];
-  indicator: StyleEntry[];
-  indicatorIcon: StyleEntry[];
+  root: StyleBlock;
+  item: StyleBlock;
+  indicator: StyleBlock;
+  indicatorIcon: StyleBlock;
 };
 
 const focusRing = {

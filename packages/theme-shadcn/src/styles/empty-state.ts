@@ -1,17 +1,17 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 
 type EmptyStateBlocks = {
-  root: StyleEntry[];
-  icon: StyleEntry[];
-  title: StyleEntry[];
-  description: StyleEntry[];
-  action: StyleEntry[];
+  root: StyleBlock;
+  icon: StyleBlock;
+  title: StyleBlock;
+  description: StyleBlock;
+  action: StyleBlock;
 };
 
 /** Create empty state css() styles. */
 export function createEmptyStateStyles(): CSSOutput<EmptyStateBlocks> {
-  return css({
+  const s = css({
     root: {
       display: 'flex',
       flexDirection: 'column',
@@ -35,4 +35,12 @@ export function createEmptyStateStyles(): CSSOutput<EmptyStateBlocks> {
     },
     action: { marginTop: token.spacing[2] },
   });
+  return {
+    root: s.root,
+    icon: s.icon,
+    title: s.title,
+    description: s.description,
+    action: s.action,
+    css: s.css,
+  } as CSSOutput<EmptyStateBlocks>;
 }

@@ -75,11 +75,20 @@ document.body.appendChild(root);
 
 ```tsx
 import { Button } from '@vertz/primitives';
-import { css } from '@vertz/ui/css';
+import { css, token } from '@vertz/ui';
 
 const styles = css({
-  btn: ['px:4', 'py:2', 'bg:blue.600', 'text:white', 'rounded:md'],
-  disabled: ['opacity:50', 'cursor:not-allowed'],
+  btn: {
+    paddingInline: token.spacing[4],
+    paddingBlock: token.spacing[2],
+    backgroundColor: token.color.blue[600],
+    color: 'white',
+    borderRadius: token.radius.md,
+  },
+  disabled: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
+  },
 });
 
 function MyButton() {
@@ -457,7 +466,7 @@ Primitives provide **zero styles**. You can style them with:
 
 - **CSS classes** — `root.classList.add('my-button')`
 - **Inline styles** — `root.style.padding = '8px'`
-- **@vertz/ui/css** — `root.classList.add(css({ btn: [...] }).btn)`
+- **@vertz/ui `css()`** — `root.classList.add(css({ btn: { padding: token.spacing[2] } }).btn)`
 - **Tailwind/UnoCSS** — `root.className = 'px-4 py-2 bg-blue-500'`
 
 **Data attributes for styling:**

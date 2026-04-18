@@ -70,12 +70,22 @@ import { GithubIcon, ExternalLinkIcon } from '@vertz/icons';
 Since icons use `currentColor`, they automatically match the text color set by `css()` tokens:
 
 ```tsx
-import { css } from 'vertz/ui';
+import { css, token } from '@vertz/ui';
 import { AlertCircleIcon, CheckCircleIcon } from '@vertz/icons';
 
 const styles = css({
-  error: ['text:danger.500', 'flex', 'items:center', 'gap:2'],
-  success: ['text:success.600', 'flex', 'items:center', 'gap:2'],
+  error: {
+    color: token.color.danger[500],
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[2],
+  },
+  success: {
+    color: token.color.success[600],
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[2],
+  },
 });
 
 function StatusMessage({ type, message }: StatusMessageProps) {

@@ -136,25 +136,40 @@ If you can't express something declaratively, that's a framework gap — not a r
 ### `css()` for scoped styles
 
 ```tsx
+import { css, token } from '@vertz/ui';
+
 const styles = css({
-  card: ['bg:card', 'rounded:lg', 'p:4'],
-  title: ['font:lg', 'font:bold'],
+  card: {
+    backgroundColor: token.color.card,
+    borderRadius: token.radius.lg,
+    padding: token.spacing[4],
+  },
+  title: {
+    fontSize: token.font.size.lg,
+    fontWeight: token.font.weight.bold,
+  },
 });
 ```
 
 ### `variants()` for parameterized styles
 
 ```tsx
+import { variants, token } from '@vertz/ui';
+
 const button = variants({
-  base: ['inline-flex', 'rounded:md', 'font:medium'],
+  base: {
+    display: 'inline-flex',
+    borderRadius: token.radius.md,
+    fontWeight: token.font.weight.medium,
+  },
   variants: {
     intent: {
-      primary: ['bg:primary', 'text:white'],
-      ghost: ['bg:transparent', 'text:foreground'],
+      primary: { backgroundColor: token.color.primary, color: 'white' },
+      ghost: { backgroundColor: 'transparent', color: token.color.foreground },
     },
     size: {
-      sm: ['text:xs', 'px:3'],
-      md: ['text:sm', 'px:4'],
+      sm: { fontSize: token.font.size.xs, paddingInline: token.spacing[3] },
+      md: { fontSize: token.font.size.sm, paddingInline: token.spacing[4] },
     },
   },
   defaultVariants: { intent: 'primary', size: 'md' },
@@ -168,11 +183,15 @@ Use `css()` tokens for anything theme-related. Reserve inline styles for one-off
 ```tsx
 // Theme values — use css() tokens
 const styles = css({
-  panel: ['bg:card', 'rounded:lg', 'p:6'],
+  panel: {
+    backgroundColor: token.color.card,
+    borderRadius: token.radius.lg,
+    padding: token.spacing[6],
+  },
 });
 
 // Dynamic one-off layout — inline style is fine
-<div className={styles.panel} style={`margin-top: ${offset}px`}>
+<div className={styles.panel} style={{ marginTop: `${offset}px` }}>
   {content}
 </div>;
 ```

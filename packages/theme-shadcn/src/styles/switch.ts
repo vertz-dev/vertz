@@ -1,12 +1,12 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 import { bgOpacity, DARK } from './_helpers';
 
 type SwitchBlocks = {
-  root: StyleEntry[];
-  thumb: StyleEntry[];
-  rootSm: StyleEntry[];
-  thumbSm: StyleEntry[];
+  root: StyleBlock;
+  thumb: StyleBlock;
+  rootSm: StyleBlock;
+  thumbSm: StyleBlock;
 };
 
 const focusRing = {

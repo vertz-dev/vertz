@@ -1,11 +1,11 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 
 type SliderBlocks = {
-  root: StyleEntry[];
-  track: StyleEntry[];
-  range: StyleEntry[];
-  thumb: StyleEntry[];
+  root: StyleBlock;
+  track: StyleBlock;
+  range: StyleBlock;
+  thumb: StyleBlock;
 };
 
 const ringStyle = {

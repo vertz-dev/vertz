@@ -7,8 +7,6 @@ pub mod body_jsx_diagnostics;
 pub mod component_analyzer;
 pub mod computed_transformer;
 pub mod context_stable_ids;
-pub mod css_diagnostics;
-pub mod css_token_tables;
 pub mod css_transform;
 pub mod css_unitless;
 pub mod fast_refresh;
@@ -485,17 +483,6 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
     // (e.g., arrow callbacks in defineRoutes(), module-level expressions).
     jsx_transformer::transform_module_level_jsx(&mut ms, &parser_ret.program, &components);
 
-    // Module-level CSS diagnostics
-    all_diagnostics.extend(
-        css_diagnostics::analyze_css(&parser_ret.program, source)
-            .into_iter()
-            .map(|d| Diagnostic {
-                message: d.message,
-                line: d.line,
-                column: d.column,
-            }),
-    );
-
     // Context stable ID injection (module-level, only in dev/fastRefresh mode)
     if fast_refresh_enabled {
         context_stable_ids::inject_context_stable_ids(&mut ms, &parser_ret.program, filename);
@@ -941,7 +928,7 @@ function App() {
 
     #[test]
     fn skip_css_transform_preserves_css_call() {
-        let source = r#"const styles = css({ root: ['flex', 'p:4'] });"#;
+        let source = r#"const styles = css({ root: { display: 'flex', padding: 16 } });"#;
         let result = compile(
             source,
             CompileOptions {
@@ -965,7 +952,7 @@ function App() {
 
     #[test]
     fn skip_css_transform_false_still_extracts() {
-        let source = r#"const styles = css({ root: ['flex', 'p:4'] });"#;
+        let source = r#"const styles = css({ root: { display: 'flex', padding: 16 } });"#;
         let result = compile(
             source,
             CompileOptions {
@@ -985,7 +972,7 @@ function App() {
 
     #[test]
     fn skip_css_transform_default_none_extracts() {
-        let source = r#"const styles = css({ root: ['flex', 'p:4'] });"#;
+        let source = r#"const styles = css({ root: { display: 'flex', padding: 16 } });"#;
         let result = compile(source, default_opts());
         // Default behavior: CSS transform is active
         assert!(

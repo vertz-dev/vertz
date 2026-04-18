@@ -126,18 +126,4 @@ describe('css() — object form (StyleBlock input)', () => {
       });
     });
   });
-
-  describe('Given mixed array and object blocks in one call', () => {
-    describe('When some blocks are arrays and others are objects', () => {
-      it('Then both shapes work (transient back-compat)', () => {
-        const styles = css({
-          withArray: ['p:4'],
-          withObject: { padding: 16 },
-        });
-        expect(styles.css).toContain('padding: 16px');
-        expect(typeof styles.withArray).toBe('string');
-        expect(typeof styles.withObject).toBe('string');
-      });
-    });
-  });
 });

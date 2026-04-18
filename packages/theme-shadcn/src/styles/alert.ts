@@ -1,11 +1,11 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 
 type AlertBlocks = {
-  root: StyleEntry[];
-  destructive: StyleEntry[];
-  title: StyleEntry[];
-  description: StyleEntry[];
+  root: StyleBlock;
+  destructive: StyleBlock;
+  title: StyleBlock;
+  description: StyleBlock;
 };
 
 /** Create alert css() styles. */

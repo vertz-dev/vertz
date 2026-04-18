@@ -1,13 +1,13 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type ContextMenuBlocks = {
-  content: StyleEntry[];
-  item: StyleEntry[];
-  group: StyleEntry[];
-  label: StyleEntry[];
-  separator: StyleEntry[];
+  content: StyleBlock;
+  item: StyleBlock;
+  group: StyleBlock;
+  label: StyleBlock;
+  separator: StyleBlock;
 };
 
 /** Create context-menu css() styles. */

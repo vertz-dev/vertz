@@ -170,21 +170,6 @@ describe('compileTheme()', () => {
     );
   });
 
-  it('throws on namespace+shade collision with compound namespace', () => {
-    const theme = defineTheme({
-      colors: {
-        primary: {
-          500: '#3b82f6',
-          foreground: '#ffffff',
-        },
-      },
-    });
-    expect(() => compileTheme(theme)).toThrow(
-      "Token collision: 'primary.foreground' produces CSS variable '--color-primary-foreground' " +
-        "which conflicts with semantic token 'primary-foreground'.",
-    );
-  });
-
   it('does not throw when shade does not collide with compound namespace', () => {
     const theme = defineTheme({
       colors: {
@@ -192,6 +177,16 @@ describe('compileTheme()', () => {
       },
     });
     expect(() => compileTheme(theme)).not.toThrow();
+  });
+
+  it('throws when a shade produces a CSS var that collides with another namespace DEFAULT', () => {
+    const theme = defineTheme({
+      colors: {
+        primary: { foreground: '#fff' },
+        'primary-foreground': { DEFAULT: '#eee' },
+      },
+    });
+    expect(() => compileTheme(theme)).toThrow(/Color token collision.*--color-primary-foreground/);
   });
 
   it('accepts kebab-case color token keys', () => {

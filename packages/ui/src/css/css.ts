@@ -1,70 +1,58 @@
 /**
  * css() — Compile-time style block API.
  *
- * Accepts named style blocks with array shorthand syntax.
- * At compile time, the compiler extracts these into static CSS
- * and replaces the call with class name references.
+ * Accepts named style blocks as object literals using camelCase property
+ * names, nested `&`/`@` selectors, and `token.*` values. At compile time,
+ * the compiler extracts these into static CSS and replaces the call with
+ * class name references.
  *
  * Usage:
  * ```ts
  * const styles = css({
- *   card: ['p:4', 'bg:background', 'rounded:lg'],
- *   title: ['font:xl', 'weight:bold', 'text:foreground'],
+ *   card: {
+ *     padding: token.spacing[4],
+ *     backgroundColor: token.color.background,
+ *     borderRadius: token.radius.lg,
+ *   },
+ *   title: {
+ *     fontSize: token.font.size.xl,
+ *     fontWeight: token.font.weight.bold,
+ *   },
  * });
  *
- * // With pseudo-states:
+ * // With pseudo-states and nested selectors:
  * const button = css({
- *   root: ['p:4', 'bg:primary', 'hover:bg:primary.700'],
- * });
- *
- * // With object form for complex selectors:
- * const fancy = css({
- *   card: [
- *     'p:4', 'bg:background',
- *     { '&::after': ['content:empty', 'block'] },
- *   ],
+ *   root: {
+ *     padding: token.spacing[4],
+ *     backgroundColor: token.color.primary,
+ *     '&:hover': { backgroundColor: token.color['primary-foreground'] },
+ *     '@media (min-width: 768px)': { padding: token.spacing[6] },
+ *   },
  * });
  * ```
  */
 
 import { getSSRContext } from '../ssr/ssr-render-context';
 import { generateClassName } from './class-generator';
-import { parseShorthand } from './shorthand-parser';
-import type { CSSDeclaration } from './token-resolver';
-import { resolveToken } from './token-resolver';
-import type { CSSDeclarations } from './css-properties';
 import type { StrictBlockValue, StyleBlock } from './style-block';
 import { isToken } from './token';
 import { UNITLESS_PROPERTIES } from './unitless-properties';
-import type { UtilityClass } from './utility-types';
 
-/**
- * A value within a nested selector array: utility class string or CSS declarations map.
- *
- * Use a utility string for design token shorthands: 'p:4', 'bg:primary'
- * Use CSSDeclarations for raw CSS: { 'flex-direction': 'row' }
- */
-export type StyleValue = UtilityClass | CSSDeclarations;
+/** A single CSS property/value pair emitted by the renderer. */
+interface CSSDeclaration {
+  property: string;
+  value: string;
+}
 
-/**
- * A style entry: utility class string or nested selectors map.
- *
- * Nested selector values can be:
- * - Array form: ['text:foreground', { 'background-color': 'red' }]
- * - Direct object: { 'flex-direction': 'row', 'align-items': 'center' }
- */
-export type StyleEntry = UtilityClass | Record<string, StyleValue[] | CSSDeclarations>;
-
-/** Input to css(): a record of named style blocks. Each block is either a
- * token-string array (legacy form) or a `StyleBlock` object (preferred form). */
-export type CSSInput = Record<string, StyleEntry[] | StyleBlock>;
+/** Input to css(): a record of named style blocks (object form only). */
+export type CSSInput = Record<string, StyleBlock>;
 
 /**
  * Output of css(): block names as top-level properties, plus non-enumerable `css`.
  *
  * Generic constraint is intentionally loose (`Record<string, unknown>`) because
  * CSSOutput only uses `keyof T` to map names to class strings — it never inspects
- * the block values themselves. This accepts both array-form and object-form inputs.
+ * the block values themselves.
  */
 export type CSSOutput<T extends Record<string, unknown> = CSSInput> = {
   readonly [K in keyof T & string]: string;
@@ -177,82 +165,10 @@ export function css<const T extends CSSInput>(
   const useFingerprint = filePath === DEFAULT_FILE_PATH;
 
   for (const [blockName, blockValue] of Object.entries(input as CSSInput)) {
-    if (!Array.isArray(blockValue)) {
-      const styleFingerprint = useFingerprint ? serializeBlock(blockValue) : '';
-      const className = generateClassName(filePath, blockName, styleFingerprint);
-      classNames[blockName] = className;
-      cssRules.push(...renderStyleBlock(blockValue, `.${className}`));
-      continue;
-    }
-
-    const entries = blockValue;
-    const styleFingerprint = useFingerprint ? serializeEntries(entries) : '';
+    const styleFingerprint = useFingerprint ? serializeBlock(blockValue) : '';
     const className = generateClassName(filePath, blockName, styleFingerprint);
     classNames[blockName] = className;
-
-    const baseDeclarations: CSSDeclaration[] = [];
-    const pseudoDeclarations: Map<string, CSSDeclaration[]> = new Map();
-    const nestedRules: string[] = [];
-
-    for (const entry of entries) {
-      if (typeof entry === 'string') {
-        const parsed = parseShorthand(entry);
-        const resolved = resolveToken(parsed);
-
-        if (resolved.pseudo) {
-          const existing = pseudoDeclarations.get(resolved.pseudo) ?? [];
-          existing.push(...resolved.declarations);
-          pseudoDeclarations.set(resolved.pseudo, existing);
-        } else {
-          baseDeclarations.push(...resolved.declarations);
-        }
-      } else {
-        // Object form: nested selectors with array or direct object values
-        for (const [selector, nestedValue] of Object.entries(entry)) {
-          const nestedDecls: CSSDeclaration[] = [];
-          if (Array.isArray(nestedValue)) {
-            // Array form: ['text:foreground', { 'background-color': 'red' }]
-            for (const nestedEntry of nestedValue) {
-              if (typeof nestedEntry === 'string') {
-                const parsed = parseShorthand(nestedEntry);
-                const resolved = resolveToken(parsed);
-                nestedDecls.push(...resolved.declarations);
-              } else {
-                // CSS declarations map: { 'background-color': 'red', ... }
-                for (const [prop, val] of Object.entries(nestedEntry) as [string, string][]) {
-                  nestedDecls.push({ property: prop, value: val });
-                }
-              }
-            }
-          } else {
-            // Direct object form: { 'flex-direction': 'row', 'align-items': 'center' }
-            for (const [prop, val] of Object.entries(nestedValue) as [string, string][]) {
-              nestedDecls.push({ property: prop, value: val });
-            }
-          }
-          if (selector.startsWith('@')) {
-            // At-rules (@media, @container, etc.) wrap the class selector inside
-            nestedRules.push(formatAtRule(selector, `.${className}`, nestedDecls));
-          } else {
-            const resolvedSelector = selector.replaceAll('&', `.${className}`);
-            nestedRules.push(formatRule(resolvedSelector, nestedDecls));
-          }
-        }
-      }
-    }
-
-    // Base rule
-    if (baseDeclarations.length > 0) {
-      cssRules.push(formatRule(`.${className}`, baseDeclarations));
-    }
-
-    // Pseudo rules
-    for (const [pseudo, declarations] of pseudoDeclarations) {
-      cssRules.push(formatRule(`.${className}${pseudo}`, declarations));
-    }
-
-    // Nested rules
-    cssRules.push(...nestedRules);
+    cssRules.push(...renderStyleBlock(blockValue, `.${className}`));
   }
 
   const cssText = cssRules.join('\n');
@@ -269,44 +185,6 @@ export function css<const T extends CSSInput>(
     writable: false,
   });
   return result as CSSOutput<T>;
-}
-
-/**
- * Serialize style entries into a stable string for fingerprinting.
- * Used to disambiguate blocks with the same name but different styles.
- */
-function serializeEntries(entries: StyleEntry[]): string {
-  return entries
-    .map((entry) => {
-      if (typeof entry === 'string') return entry;
-      // Object form: serialize selector + values
-      return Object.entries(entry)
-        .map(([sel, val]) => {
-          if (Array.isArray(val)) {
-            const serialized = val
-              .map((v) => {
-                if (typeof v === 'string') return v;
-                // Sort keys for deterministic fingerprinting
-                const obj = v as Record<string, string>;
-                return Object.keys(obj)
-                  .sort()
-                  .map((k) => `${k}=${obj[k]}`)
-                  .join(',');
-              })
-              .join(',');
-            return `${sel}:{${serialized}}`;
-          }
-          // Direct object form: sort keys for deterministic fingerprinting
-          const obj = val as Record<string, string>;
-          const serialized = Object.keys(obj)
-            .sort()
-            .map((k) => `${k}=${obj[k]}`)
-            .join(',');
-          return `${sel}:{${serialized}}`;
-        })
-        .join(';');
-    })
-    .join('|');
 }
 
 function isStyleBlock(value: unknown): value is StyleBlock {
@@ -387,14 +265,4 @@ function serializeBlock(block: StyleBlock): string {
 function formatRule(selector: string, declarations: CSSDeclaration[]): string {
   const props = declarations.map((d) => `  ${d.property}: ${d.value};`).join('\n');
   return `${selector} {\n${props}\n}`;
-}
-
-/** Format an at-rule (@media, @container) wrapping a class selector. */
-function formatAtRule(
-  atRule: string,
-  classSelector: string,
-  declarations: CSSDeclaration[],
-): string {
-  const props = declarations.map((d) => `    ${d.property}: ${d.value};`).join('\n');
-  return `${atRule} {\n  ${classSelector} {\n${props}\n  }\n}`;
 }

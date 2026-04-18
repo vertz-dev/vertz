@@ -130,17 +130,27 @@ Components run once to create the DOM. No re-renders, no hooks, no dependency ar
 Use `css()` for scoped styles with design tokens and `variants()` for parameterized styles:
 
 ```ts
-import { css, variants } from 'vertz/ui';
+import { css, variants, token } from 'vertz/ui';
 
 const styles = css({
-  card: ['bg:card', 'rounded:lg', 'p:4'],
+  card: {
+    backgroundColor: token.color.card,
+    borderRadius: token.radius.lg,
+    padding: token.spacing[4],
+  },
 });
 
 const button = variants({
-  base: ['inline-flex', 'rounded:md'],
+  base: { display: 'inline-flex', borderRadius: token.radius.md },
   variants: {
-    intent: { primary: ['bg:primary', 'text:white'], ghost: ['bg:transparent'] },
-    size: { sm: ['text:xs', 'px:3'], md: ['text:sm', 'px:4'] },
+    intent: {
+      primary: { backgroundColor: token.color.primary, color: 'white' },
+      ghost: { backgroundColor: 'transparent' },
+    },
+    size: {
+      sm: { fontSize: token.font.size.xs, paddingInline: token.spacing[3] },
+      md: { fontSize: token.font.size.sm, paddingInline: token.spacing[4] },
+    },
   },
   defaultVariants: { intent: 'primary', size: 'md' },
 });

@@ -1,14 +1,14 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type MenubarBlocks = {
-  root: StyleEntry[];
-  trigger: StyleEntry[];
-  content: StyleEntry[];
-  item: StyleEntry[];
-  separator: StyleEntry[];
-  label: StyleEntry[];
+  root: StyleBlock;
+  trigger: StyleBlock;
+  content: StyleBlock;
+  item: StyleBlock;
+  separator: StyleBlock;
+  label: StyleBlock;
 };
 
 /** Create menubar css() styles. */

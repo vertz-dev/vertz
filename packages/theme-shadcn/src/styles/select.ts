@@ -1,26 +1,23 @@
-import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 import { animationDecl, bgOpacity, DARK } from './_helpers';
 
 type SelectBlocks = {
-  trigger: StyleEntry[];
-  content: StyleEntry[];
-  item: StyleEntry[];
-  itemIndicator: StyleEntry[];
-  group: StyleEntry[];
-  label: StyleEntry[];
-  separator: StyleEntry[];
-  scrollButton: StyleEntry[];
+  trigger: StyleBlock;
+  content: StyleBlock;
+  item: StyleBlock;
+  itemIndicator: StyleBlock;
+  group: StyleBlock;
+  label: StyleBlock;
+  separator: StyleBlock;
+  scrollButton: StyleBlock;
 };
 
-const focusRing: Record<string, StyleValue[]> = {
-  '&:focus-visible': [
-    'outline-none',
-    {
-      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
-    },
-    { 'outline-offset': '2px' },
-  ],
+const focusRing: StyleBlock = {
+  '&:focus-visible': {
+    outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+    outlineOffset: '2px',
+  },
 };
 
 /** Create select css() styles. */

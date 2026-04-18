@@ -1,19 +1,19 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type DrawerBlocks = {
-  overlay: StyleEntry[];
-  panelLeft: StyleEntry[];
-  panelRight: StyleEntry[];
-  panelTop: StyleEntry[];
-  panelBottom: StyleEntry[];
-  header: StyleEntry[];
-  title: StyleEntry[];
-  description: StyleEntry[];
-  footer: StyleEntry[];
-  handle: StyleEntry[];
-  close: StyleEntry[];
+  overlay: StyleBlock;
+  panelLeft: StyleBlock;
+  panelRight: StyleBlock;
+  panelTop: StyleBlock;
+  panelBottom: StyleBlock;
+  header: StyleBlock;
+  title: StyleBlock;
+  description: StyleBlock;
+  footer: StyleBlock;
+  handle: StyleBlock;
+  close: StyleBlock;
 };
 
 const focusRing = {
