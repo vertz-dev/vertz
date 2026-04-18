@@ -6,6 +6,7 @@ export { createDOMAdapter } from './dom-adapter';
 export { __child, __element, __text } from './element';
 export { __on } from './events';
 export { __html } from './html';
+export { __ref } from './ref';
 export { clearChildren, insertBefore, removeNode } from './insert';
 export { __list } from './list';
 export { __spread } from './spread';

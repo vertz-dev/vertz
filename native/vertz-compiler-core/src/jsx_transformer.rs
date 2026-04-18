@@ -1557,9 +1557,13 @@ fn process_attr(
             let expr_text = ms.get_transformed_slice(*expr_start, *expr_end);
             let use_property = is_idl_property(tag_name, attr_name);
 
-            // Ref
+            // Ref — routed through `__ref(el, value)` so the runtime can
+            // distinguish callback refs from object refs (see issue #2788).
+            // Direct `.current =` emission is invalid for callback refs like
+            // `(el) => { ... }` because a member expression can't follow an
+            // arrow function with a block body.
             if attr_name == "ref" {
-                return Some(format!("{}.current = {}", expr_text, el_var));
+                return Some(format!("__ref({}, {})", el_var, expr_text));
             }
 
             // Form onChange → __formOnChange(el, handler) instead of __on(el, "change", handler)
@@ -2900,7 +2904,44 @@ export function App() {
     return <div ref={myRef}>text</div>;
 }"#,
         );
-        assert!(result.contains(".current = __el0"), "result: {result}");
+        assert!(result.contains("__ref(__el0, myRef)"), "result: {result}");
+    }
+
+    #[test]
+    fn ref_callback_attribute() {
+        // Issue #2788: callback ref must be routed through __ref() so the
+        // compiler doesn't emit invalid code like `(el) => {...}.current = __el0`.
+        let result = transform(
+            r#"export function App() {
+    return <div ref={(el) => { captured = el; }}>text</div>;
+}"#,
+        );
+        assert!(
+            result.contains("__ref(__el0, (el) => { captured = el; })"),
+            "result: {result}"
+        );
+        // Negative: must NOT emit the broken `.current = ` form for callbacks.
+        assert!(
+            !result.contains("}.current = __el0"),
+            "invalid `.current` on arrow body: {result}"
+        );
+    }
+
+    #[test]
+    fn ref_callback_with_inner_html() {
+        // Issue #2788 original repro: ref + innerHTML on the same host
+        // element must produce parseable output.
+        let result = transform(
+            r#"export function App({ html }) {
+    return <div className="foo" innerHTML={html} ref={(el) => { /* noop */ }} />;
+}"#,
+        );
+        assert!(result.contains("__ref(__el0,"), "result: {result}");
+        assert!(result.contains("__html(__el0,"), "result: {result}");
+        assert!(
+            !result.contains("}.current = __el0"),
+            "invalid `.current` on arrow body: {result}"
+        );
     }
 
     // ========== Spread attributes ==========
@@ -3979,7 +4020,7 @@ export function App() {
     return <div ref={myRef}>text</div>;
 }"#,
         );
-        assert!(result.contains(".current ="), "result: {result}");
+        assert!(result.contains("__ref(__el0, myRef)"), "result: {result}");
     }
 
     // ========== Conditional rendering ==========
