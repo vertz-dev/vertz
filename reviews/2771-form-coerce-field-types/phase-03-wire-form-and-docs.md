@@ -123,3 +123,45 @@ Resolved in commit `bd22ccee1` (review-driven follow-up).
 - **N1, N2, N3:** Acknowledged but not addressed — N1 is defensive symmetry; N2 is a micro-optimization not yet justified; N3 is a one-word changeset wording detail (changeset now mentions both new accessors).
 
 Quality gates after fix: schema (477 tests pass) + ui form (178 tests pass), typecheck clean on both packages, lint warnings only.
+
+## Re-review (post-fix)
+
+- **Date:** 2026-04-18
+- **Reviewer:** Claude Opus 4.7
+- **Commits reviewed:** bd22ccee1, 3cb503a11
+
+### Verdict
+CHANGES STILL REQUESTED
+
+### Per-finding status
+- B1: PARTIAL — `unwrap()` added to `RefinedSchema` and `SuperRefinedSchema` only. `coerce.test.ts` (top-level refined / superRefined) and `form-coercion.test.ts` (refined SUBMIT) tests pass. But (a) the original B1 listed 7 wrappers — `transform()`, `pipe()`, `catch()`, `brand()`, `readonly()` are still silently disabling coercion at the top level, with no docs note; and (b) the `resolveFieldSchema` blur path was NOT updated, so for `s.object({...}).refine(...)` SUBMIT coerces but BLUR revalidation does not — this contradicts the design's "submit and blur agree" contract (see N1 below).
+- S1: FIXED — `forms.mdx` and `api-reference/ui/form.mdx` now say "field is treated as missing (lets `optional()` validate)". The changeset (line 12) still says "let `optional()`/`default()` apply" — minor inconsistency, not blocking.
+- S2: PARTIAL (acceptable) — `createMockFormElement()` helper extracted; the inline duplicate is gone. The `as unknown as HTMLFormElement` cast remains in the helper itself (1 lint warning, same pattern as `form.test.ts`). Acceptable.
+- S3: FIXED — `form-coercion.test.ts:294` adds the "custom adapter without `_schemaType` (no `.shape`)" regression test. Confirms `submitPipeline` falls back to `formDataToObject` with raw `'on'`.
+- S4: PARTIALLY OBSOLETE — for `.refine()`/`.superRefine()` the docs note is no longer needed. But the same gap remains for `.transform()`/`.pipe()`/`.catch()`/`.brand()`/`.readonly()` and the `<Note>` doesn't mention them.
+
+### New issues (if any)
+- **N1 (NEW BLOCKER):** Blur/change revalidation does NOT coerce for top-level refined/superRefined schemas. `revalidateFieldIfNeeded` calls `resolveFieldSchema(refinedSchema, 'priority')` which reads `schema.shape` directly (validation.ts:82) — `RefinedSchema` doesn't expose `.shape`, so the function returns `undefined` and `coerced = raw` (the string `"42"`). The fallback then runs `validate(refinedSchema, formData)` against raw string values, which would fail with a number-expected error on a previously-validated checkbox/number field. This is exactly the "submit and blur agree" promise the phase made. No test covers this — the new `form-coercion.test.ts:270` only exercises the submit path. Fix: `resolveFieldSchema` should also walk through top-level wrapper schemas via `unwrap()` before reading `.shape`, mirroring `unwrapToConcrete` in `coerce.ts`.
+- **N2:** Other top-level wrappers (`.transform()`, `.pipe()`, `.catch()`, `.brand()`, `.readonly()`) still silently disable coercion, and the docs/changeset don't warn about it. Less common than `.refine()` but still a footgun. Either add `unwrap()` to those classes too (they all hold an `_inner`, same one-line addition), or add a note to `forms.mdx`.
+
+### Notes
+The fix correctly addresses the most common case (top-level `.refine()` for cross-field validation). The `unwrap()` addition is safe — the `unwrapToConcrete` loop has an identity-cycle break, and `resolveFieldSchema` has a 10-iteration cap; neither path can loop unboundedly with the new methods. Schema tests (477) and ui form tests (178) all pass. However, the partial fix creates an asymmetry: `s.object({...}).refine(...)` now coerces on submit (good) but produces stale errors on blur (broken), which is worse than the pre-fix state where neither path coerced. The blur case must be fixed before this can be approved.
+
+## Re-review #2 (post-blur-fix)
+
+- **Date:** 2026-04-18
+- **Reviewer:** Claude Opus 4.7
+- **Commit reviewed:** 581710f79
+
+### Verdict
+APPROVED
+
+### Per-finding status
+- B1 (blur unwrap): RESOLVED — `unwrapToShape` helper applied to top-level schema and reused in intermediate-segment loop; new BDD test exercises blur path on `s.object({...}).refine(...)` and goes from error -> undefined.
+- N2 (docs note for remaining wrappers): RESOLVED — `<Note>` in `forms.mdx` explicitly calls out `.transform/.pipe/.catch/.brand/.readonly` as wrappers that disable top-level coercion.
+
+### New issues
+None
+
+### Notes
+All 12 form-coercion tests and the full 179-test form suite pass; the 10-iteration safeguard is preserved (helper reused verbatim, no recursion).
