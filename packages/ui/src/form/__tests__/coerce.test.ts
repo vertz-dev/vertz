@@ -413,11 +413,9 @@ describe('Feature: coerceFormDataToSchema — wrapper schemas', () => {
 
   describe('Given a top-level superRefined object schema', () => {
     it('then unwraps the superRefine and coerces inner fields', () => {
-      const schema = s
-        .object({ active: s.boolean() })
-        .superRefine((d, ctx) => {
-          if (!d.active) ctx.addIssue({ code: 'custom', message: 'must be active' });
-        });
+      const schema = s.object({ active: s.boolean() }).superRefine((d, ctx) => {
+        if (!d.active) ctx.addIssue({ code: 'custom', message: 'must be active' });
+      });
       const fd = new FormData();
       fd.append('active', 'on');
       expect(coerceFormDataToSchema(fd, schema)).toEqual({ active: true });

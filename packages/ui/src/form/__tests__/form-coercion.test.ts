@@ -292,9 +292,7 @@ describe('Feature: form() FormData coercion', () => {
 
     describe('When a number field on the refined schema fails validation and is later fixed', () => {
       it('then blur revalidation also unwraps the refine and clears the error', async () => {
-        const bodySchema = s
-          .object({ priority: s.number() })
-          .refine((d) => d.priority > 0);
+        const bodySchema = s.object({ priority: s.number() }).refine((d) => d.priority > 0);
         const sdk = mockSdkWithMeta({
           url: '/x',
           method: 'POST',

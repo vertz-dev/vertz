@@ -112,24 +112,25 @@ const taskSchema = s.object({
 const taskForm = form(api.tasks.create, { schema: taskSchema });
 ```
 
-| Schema leaf       | FormData input                                              | Coerced value                                                  |
-| ----------------- | ----------------------------------------------------------- | -------------------------------------------------------------- |
-| `s.boolean()`     | checkbox checked (any non-empty string)                     | `true`                                                         |
-| `s.boolean()`     | checkbox absent (unchecked)                                 | `false`                                                        |
-| `s.boolean()`     | explicit `"false"`, `"0"`, `"off"`                          | `false`                                                        |
-| `s.number()`      | `"42"`                                                      | `42`                                                           |
-| `s.number()`      | `""` (empty)                                                | dropped — field is treated as missing (lets `optional()` validate)|
-| `s.bigint()`      | `"9007199254740993"`                                        | `9007199254740993n`                                            |
-| `s.date()`        | `"2026-04-18"`                                              | `new Date("2026-04-18")`                                       |
-| `s.string()`      | `"42"`                                                      | `"42"` (never coerced)                                         |
-| `s.array(s.string())` | repeated `name="tags"` checkboxes                       | `string[]` from all selected values                            |
+| Schema leaf           | FormData input                          | Coerced value                                                      |
+| --------------------- | --------------------------------------- | ------------------------------------------------------------------ |
+| `s.boolean()`         | checkbox checked (any non-empty string) | `true`                                                             |
+| `s.boolean()`         | checkbox absent (unchecked)             | `false`                                                            |
+| `s.boolean()`         | explicit `"false"`, `"0"`, `"off"`      | `false`                                                            |
+| `s.number()`          | `"42"`                                  | `42`                                                               |
+| `s.number()`          | `""` (empty)                            | dropped — field is treated as missing (lets `optional()` validate) |
+| `s.bigint()`          | `"9007199254740993"`                    | `9007199254740993n`                                                |
+| `s.date()`            | `"2026-04-18"`                          | `new Date("2026-04-18")`                                           |
+| `s.string()`          | `"42"`                                  | `"42"` (never coerced)                                             |
+| `s.array(s.string())` | repeated `name="tags"` checkboxes       | `string[]` from all selected values                                |
 
 The same coercion runs on blur/change re-validation, so live field errors and submit errors agree.
 
 <Note>
   Coercion only applies to leaves where the schema declares a primitive type. Arrays of objects fall back to FormData's dotted-index parsing without per-leaf coercion — file uploads via `s.instanceof(File)` are unchanged.
 
-  Top-level `.refine()` and `.superRefine()` are walked through automatically. Other top-level wrappers (`.transform()`, `.pipe()`, `.catch()`, `.brand()`, `.readonly()`) currently disable coercion — wrap your `s.object(...)` with these only at the field level for now.
+Top-level `.refine()` and `.superRefine()` are walked through automatically. Other top-level wrappers (`.transform()`, `.pipe()`, `.catch()`, `.brand()`, `.readonly()`) currently disable coercion — wrap your `s.object(...)` with these only at the field level for now.
+
 </Note>
 
 ## Form-level state
