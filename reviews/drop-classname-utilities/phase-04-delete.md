@@ -146,4 +146,28 @@ Three blockers. Do not merge Phase 4 until B1 (fix/delete the native-compiler te
 
 ## Resolution
 
-Pending — author to address Blockers above and re-run the review.
+All blockers and should-fix items resolved in follow-up commit:
+
+- **B1** — Deleted `native/vertz-compiler/__tests__/css-transform.test.ts` and
+  `css-diagnostics.test.ts`. These tests exercised the removed shorthand parser
+  and removed diagnostics; their behavioural coverage is already handled by
+  in-crate Rust tests (`vertz-compiler-core/src/css_transform.rs`) using
+  object-form inputs.
+- **B2** — Deleted the two transient back-compat tests
+  (`css-object-form.test.ts` line 130, `variants-object-form.test.ts` line 51)
+  that passed invalid array-form inputs and only checked `typeof === 'string'`.
+- **B3** — Migrated all 12 user-facing docs and READMEs to object-form + token.*:
+  mint-docs styling/conventions/llm-quick-reference/icons, site mirror, ui README,
+  ui-primitives README, AUDIT-ARCHITECTURE.md, landing generate-highlights.ts.
+  Verified with grep: zero array-form examples remain.
+- **S1** — `packages/ui/AUDIT-ARCHITECTURE.md` rewritten to describe current CSS
+  architecture (object-form `css()` + `StyleBlock` type + `token.*` helper).
+- **S2** — `packages/ui-primitives/README.md` Button example migrated to object form.
+- **S3** — Restored collision detection in `compileTheme()` using a simpler
+  Map-based check that does not depend on `COLOR_NAMESPACES`. Added
+  `theme.test.ts` test covering the `primary.foreground` vs `primary-foreground`
+  collision case.
+
+Quality gates all green after fixes: Rust (tests + clippy + fmt), TS
+(`@vertz/ui` 2315 tests, `@vertz/theme-shadcn` 136, `@vertz/ui-auth` 70),
+TS typecheck clean, oxlint 0 errors.
