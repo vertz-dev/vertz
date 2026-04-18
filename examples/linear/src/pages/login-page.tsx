@@ -5,14 +5,31 @@
  * from useAuth().providers — no hardcoded URLs.
  */
 
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { OAuthButton } from '@vertz/ui-auth';
 import { cardStyles } from '../styles/components';
 
 const styles = css({
-  container: ['flex', 'items:center', 'justify:center', 'min-h:screen', 'bg:background'],
-  title: ['text:2xl', 'font:bold', 'text:foreground', 'mb:2', 'text:center'],
-  subtitle: ['text:sm', 'text:muted-foreground', 'mb:6', 'text:center'],
+  container: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '100vh',
+    backgroundColor: token.color.background,
+  },
+  title: {
+    fontSize: token.font.size['2xl'],
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+    marginBottom: token.spacing[2],
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    marginBottom: token.spacing[6],
+    textAlign: 'center',
+  },
 });
 
 export function LoginPage() {

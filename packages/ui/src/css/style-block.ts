@@ -6,7 +6,7 @@ export type StyleDeclarations = {
   [K in `-${string}` | `Webkit${string}` | `Moz${string}` | `Ms${string}`]?: string | number;
 };
 
-export type SelectorKey = `&${string}` | `@${string}`;
+export type SelectorKey = `&${string}` | `@${string}` | `${string} &` | `${string} &${string}`;
 
 export type StyleBlock = StyleDeclarations & {
   [K in SelectorKey]?: StyleBlock;
@@ -23,7 +23,7 @@ export type StyleBlock = StyleDeclarations & {
  * bypassed.
  */
 export type StrictStyleBlock<T> = {
-  [K in keyof T]?: K extends `&${string}` | `@${string}`
+  [K in keyof T]?: K extends `&${string}` | `@${string}` | `${string} &` | `${string} &${string}`
     ? StrictStyleBlock<T[K]>
     : K extends
           | CamelCSSPropertyName

@@ -34,7 +34,7 @@ describe.skipIf(!hasNativeCompiler)('native-compiler wrapper', () => {
     it('extracts CSS from css() calls', () => {
       const source = `
         import { css } from '@vertz/ui';
-        const styles = css({ root: ['bg:red'] });
+        const styles = css({ root: { backgroundColor: 'red' } });
         function App() { return <div class={styles.root}>Hello</div>; }
       `;
       const result = compile(source, { filename: 'test.tsx', target: 'dom' });

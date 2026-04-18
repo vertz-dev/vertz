@@ -1,4 +1,4 @@
-import { css, query, useParams } from '@vertz/ui';
+import { css, query, token, useParams } from '@vertz/ui';
 import { api } from '../api/client';
 import { CommentSection } from '../components/comment-section';
 import { IssueDetailSkeleton } from '../components/loading-skeleton';
@@ -7,27 +7,52 @@ import { StatusSelect } from '../components/status-select';
 import type { IssuePriority, IssueStatus } from '../lib/types';
 
 const styles = css({
-  container: ['p:6'],
-  error: ['text:sm', 'text:destructive', 'py:8'],
-  layout: ['flex', 'gap:8'],
-  main: ['flex-1'],
-  identifier: ['text:sm', 'text:muted-foreground', 'mb:2'],
-  title: ['font:xl', 'font:bold', 'text:foreground', 'mb:4'],
-  description: ['text:sm', 'text:foreground', 'leading:relaxed'],
-  noDescription: ['text:sm', 'text:muted-foreground', 'italic'],
-  sidebar: [
-    'w:56',
-    'shrink-0',
-    'flex',
-    'flex-col',
-    'gap:4',
-    'bg:card',
-    'rounded:lg',
-    'border:1',
-    'border:border',
-    'p:4',
-  ],
-  meta: ['text:xs', 'text:muted-foreground', 'mt:6'],
+  container: { padding: token.spacing[6] },
+  error: {
+    fontSize: token.font.size.sm,
+    color: token.color.destructive,
+    paddingBlock: token.spacing[8],
+  },
+  layout: { display: 'flex', gap: token.spacing[8] },
+  main: { flex: '1 1 0%' },
+  identifier: {
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    marginBottom: token.spacing[2],
+  },
+  title: {
+    fontSize: token.font.size.xl,
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+    marginBottom: token.spacing[4],
+  },
+  description: {
+    fontSize: token.font.size.sm,
+    color: token.color.foreground,
+    lineHeight: token.font.lineHeight.relaxed,
+  },
+  noDescription: {
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    fontStyle: 'italic',
+  },
+  sidebar: {
+    width: token.spacing[56],
+    flexShrink: '0',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[4],
+    backgroundColor: token.color.card,
+    borderRadius: token.radius.lg,
+    borderWidth: '1px',
+    borderColor: token.color.border,
+    padding: token.spacing[4],
+  },
+  meta: {
+    fontSize: token.font.size.xs,
+    color: token.color['muted-foreground'],
+    marginTop: token.spacing[6],
+  },
 });
 
 export function IssueDetailPage() {

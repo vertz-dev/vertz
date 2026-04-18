@@ -1,28 +1,34 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { Link } from '@vertz/ui/router';
 import { VertzLogo } from './vertz-logo';
 
 const s = css({
-  nav: [
-    'fixed',
-    'z:50',
-    'flex',
-    'items:center',
-    'justify:between',
-    'px:4',
-    'py:4',
-    { '@media (min-width: 640px)': { 'padding-left': '1.5rem', 'padding-right': '1.5rem' } },
-  ],
-  logoWrapper: ['flex', 'items:center', 'gap:2'],
-  links: ['flex', 'items:center', 'gap:3', { '@media (min-width: 640px)': { gap: '1.5rem' } }],
-  link: [
-    'font:xs',
-    'uppercase',
-    'tracking:wider',
-    'cursor:pointer',
-    'transition:colors',
-    'text:gray.500',
-  ],
+  nav: {
+    position: 'fixed',
+    zIndex: '50',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingInline: token.spacing[4],
+    paddingBlock: token.spacing[4],
+    '@media (min-width: 640px)': { paddingLeft: '1.5rem', paddingRight: '1.5rem' },
+  },
+  logoWrapper: { display: 'flex', alignItems: 'center', gap: token.spacing[2] },
+  links: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[3],
+    '@media (min-width: 640px)': { gap: '1.5rem' },
+  },
+  link: {
+    fontSize: token.font.size.xs,
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    cursor: 'pointer',
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+    color: token.color.gray[500],
+  },
 });
 
 export function Nav() {

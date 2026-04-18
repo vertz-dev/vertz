@@ -1,7 +1,7 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 const s = css({
-  logo: ['h:7'],
+  logo: { height: token.spacing[7] },
 });
 
 export function VertzLogo() {

@@ -1,10 +1,10 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { STATUSES } from '../lib/issue-config';
 import type { IssueStatus } from '../lib/types';
 import { formStyles, labelStyles } from '../styles/components';
 
 const styles = css({
-  container: ['flex', 'flex-col', 'gap:1'],
+  container: { display: 'flex', flexDirection: 'column', gap: token.spacing[1] },
 });
 
 interface StatusSelectProps {

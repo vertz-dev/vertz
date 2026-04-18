@@ -8,7 +8,7 @@
  * - Plain <ul>/<li> for todo list (List component context bug with reactive .map())
  */
 
-import { css, query } from '@vertz/ui';
+import { css, query, token } from '@vertz/ui';
 import type { TodosResponse } from '../api/client';
 import { api } from '../api/client';
 import { TodoForm } from '../components/todo-form';
@@ -16,16 +16,22 @@ import { TodoItem } from '../components/todo-item';
 import { emptyStateStyles } from '../styles/components';
 
 const pageStyles = css({
-  container: ['py:2', 'w:full'],
-  listContainer: ['flex', 'flex-col', 'gap:2', 'mt:6', 'w:full'],
-  todoList: [
-    'flex',
-    'flex-col',
-    'gap:2',
-    { '&': { 'list-style': 'none', margin: '0', padding: '0' } },
-  ],
-  loading: ['text:muted-foreground'],
-  error: ['text:destructive'],
+  container: { paddingBlock: token.spacing[2], width: '100%' },
+  listContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[2],
+    marginTop: token.spacing[6],
+    width: '100%',
+  },
+  todoList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[2],
+    '&': { listStyle: 'none', margin: '0', padding: '0' },
+  },
+  loading: { color: token.color['muted-foreground'] },
+  error: { color: token.color.destructive },
 });
 
 export function TodoListPage() {

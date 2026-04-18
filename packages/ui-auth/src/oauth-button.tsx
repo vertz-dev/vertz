@@ -1,6 +1,6 @@
 import type { IconProps } from '@vertz/icons';
 import { AppleIcon, GithubIcon, TwitterIcon } from '@vertz/icons';
-import { variants } from '@vertz/ui';
+import { token, variants } from '@vertz/ui';
 import type { OAuthProviderInfo } from '@vertz/ui/auth';
 import { getProviderIcon, useAuth } from '@vertz/ui/auth';
 import type { JSX } from '@vertz/ui/jsx-runtime';
@@ -51,33 +51,62 @@ function renderProviderIcon(providerId: string, size: number) {
 }
 
 const button = variants({
-  base: [
-    'flex',
-    'items:center',
-    'justify:center',
-    'gap:3',
-    'py:2.5',
-    'rounded:lg',
-    'text:sm',
-    'font:medium',
-    'cursor:pointer',
-    'border:1',
-    'w:full',
-    'transition:colors',
-  ],
+  base: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: token.spacing[3],
+    paddingBlock: token.spacing['2.5'],
+    borderRadius: token.radius.lg,
+    fontSize: token.font.size.sm,
+    fontWeight: token.font.weight.medium,
+    cursor: 'pointer',
+    borderWidth: '1px',
+    width: '100%',
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+  },
   variants: {
     provider: {
-      github: ['bg:foreground', 'text:background', 'border:foreground'],
-      google: ['bg:background', 'text:foreground', 'border:border'],
-      discord: ['bg:primary.600', 'text:white', 'border:primary.600'],
-      apple: ['bg:foreground', 'text:background', 'border:foreground'],
-      microsoft: ['bg:foreground', 'text:background', 'border:foreground'],
-      twitter: ['bg:foreground', 'text:background', 'border:foreground'],
-      default: ['bg:foreground', 'text:background', 'border:foreground'],
+      github: {
+        backgroundColor: token.color.foreground,
+        color: token.color.background,
+        borderColor: token.color.foreground,
+      },
+      google: {
+        backgroundColor: token.color.background,
+        color: token.color.foreground,
+        borderColor: token.color.border,
+      },
+      discord: {
+        backgroundColor: token.color.primary[600],
+        color: 'white',
+        borderColor: token.color.primary[600],
+      },
+      apple: {
+        backgroundColor: token.color.foreground,
+        color: token.color.background,
+        borderColor: token.color.foreground,
+      },
+      microsoft: {
+        backgroundColor: token.color.foreground,
+        color: token.color.background,
+        borderColor: token.color.foreground,
+      },
+      twitter: {
+        backgroundColor: token.color.foreground,
+        color: token.color.background,
+        borderColor: token.color.foreground,
+      },
+      default: {
+        backgroundColor: token.color.foreground,
+        color: token.color.background,
+        borderColor: token.color.foreground,
+      },
     },
     mode: {
-      full: ['px:5'],
-      iconOnly: ['px:2.5'],
+      full: { paddingInline: token.spacing[5] },
+      iconOnly: { paddingInline: token.spacing['2.5'] },
     },
   },
   defaultVariants: { provider: 'default', mode: 'full' },

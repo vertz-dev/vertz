@@ -1,41 +1,60 @@
 import { TwitterIcon } from '@vertz/icons';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 const s = css({
-  section: ['py:24', 'px:6'],
-  container: ['max-w:4xl', 'mx:auto'],
-  intro: [
-    'font:lg',
-    'leading:relaxed',
-    'max-w:2xl',
-    'mx:auto',
-    'mb:12',
-    'text:center',
-    'text:gray.300',
-  ],
-  grid: [
-    'grid',
-    'gap:12',
-    'max-w:xl',
-    'mx:auto',
-    { '@media (min-width: 640px)': { 'grid-template-columns': '1fr 1fr' } },
-  ],
-  card: ['text:center'],
-  imgWrap: ['mx:auto', 'mb:4', 'w:20', 'h:20'],
-  name: ['weight:semibold', 'font:lg'],
-  role: ['font:xs', 'uppercase', 'tracking:wider', 'mt:1', 'text:gray.500'],
-  bio: ['font:xs', 'mt:2', 'leading:relaxed', 'max-w:80', 'mx:auto', 'text:gray.400'],
-  socialLink: [
-    'inline-flex',
-    'items:center',
-    'gap:1.5',
-    'mt:3',
-    'font:xs',
-    'uppercase',
-    'tracking:wider',
-    'transition:colors',
-    'text:gray.500',
-  ],
+  section: { paddingBlock: token.spacing[24], paddingInline: token.spacing[6] },
+  container: { maxWidth: '56rem', marginInline: 'auto' },
+  intro: {
+    fontSize: token.font.size.lg,
+    lineHeight: token.font.lineHeight.relaxed,
+    maxWidth: '42rem',
+    marginInline: 'auto',
+    marginBottom: token.spacing[12],
+    textAlign: 'center',
+    color: token.color.gray[300],
+  },
+  grid: {
+    display: 'grid',
+    gap: token.spacing[12],
+    maxWidth: '36rem',
+    marginInline: 'auto',
+    '@media (min-width: 640px)': { gridTemplateColumns: '1fr 1fr' },
+  },
+  card: { textAlign: 'center' },
+  imgWrap: {
+    marginInline: 'auto',
+    marginBottom: token.spacing[4],
+    width: token.spacing[20],
+    height: token.spacing[20],
+  },
+  name: { fontWeight: token.font.weight.semibold, fontSize: token.font.size.lg },
+  role: {
+    fontSize: token.font.size.xs,
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    marginTop: token.spacing[1],
+    color: token.color.gray[500],
+  },
+  bio: {
+    fontSize: token.font.size.xs,
+    marginTop: token.spacing[2],
+    lineHeight: token.font.lineHeight.relaxed,
+    maxWidth: token.spacing[80],
+    marginInline: 'auto',
+    color: token.color.gray[400],
+  },
+  socialLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: token.spacing['1.5'],
+    marginTop: token.spacing[3],
+    fontSize: token.font.size.xs,
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+    color: token.color.gray[500],
+  },
 });
 
 interface Founder {

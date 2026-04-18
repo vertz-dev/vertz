@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css, keyframes } from '@vertz/ui';
+import { css, keyframes, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type AccordionBlocks = {
@@ -21,47 +21,36 @@ const accordionUp = keyframes('vz-accordion-up', {
 /** Create accordion css() styles. */
 export function createAccordionStyles(): CSSOutput<AccordionBlocks> {
   const s = css({
-    accordionItem: ['border-b:1', 'border:border'],
-    accordionTrigger: [
-      'flex',
-      'w:full',
-      'items:center',
-      'justify:between',
-      'px:2',
-      'text:sm',
-      'font:medium',
-      'text:foreground',
-      'cursor:pointer',
-      'bg:transparent',
-      {
-        '&': {
-          border: 'none',
-          'border-radius': 'calc(var(--radius) * 1.33)',
-          'padding-top': '0.625rem',
-          'padding-bottom': '0.625rem',
-        },
-        '&:hover': { 'text-decoration': 'underline' },
+    accordionItem: { borderBottomWidth: '1px', borderColor: token.color.border },
+    accordionTrigger: {
+      display: 'flex',
+      width: '100%',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingInline: token.spacing[2],
+      fontSize: token.font.size.sm,
+      fontWeight: token.font.weight.medium,
+      color: token.color.foreground,
+      cursor: 'pointer',
+      backgroundColor: 'transparent',
+      '&': {
+        border: 'none',
+        borderRadius: 'calc(var(--radius) * 1.33)',
+        paddingTop: '0.625rem',
+        paddingBottom: '0.625rem',
       },
-    ],
-    accordionContent: [
-      'overflow-hidden',
-      'text:sm',
-      'text:muted-foreground',
-      {
-        '&[data-state="open"]:not([data-initial])': [
-          animationDecl(`${accordionDown} 200ms ease-out forwards`),
-        ],
-      },
-      {
-        '&[data-state="closed"]': [animationDecl(`${accordionUp} 200ms ease-out forwards`)],
-      },
-      {
-        '& [data-part="content-inner"]': {
-          'padding-bottom': '1rem',
-          'padding-top': '0',
-        },
-      },
-    ],
+      '&:hover': { textDecoration: 'underline' },
+    },
+    accordionContent: {
+      overflow: 'hidden',
+      fontSize: token.font.size.sm,
+      color: token.color['muted-foreground'],
+      '&[data-state="open"]:not([data-initial])': animationDecl(
+        `${accordionDown} 200ms ease-out forwards`,
+      ),
+      '&[data-state="closed"]': animationDecl(`${accordionUp} 200ms ease-out forwards`),
+      '& [data-part="content-inner"]': { paddingBottom: '1rem', paddingTop: '0' },
+    },
   });
   return {
     item: s.accordionItem,

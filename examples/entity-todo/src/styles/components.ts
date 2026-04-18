@@ -6,7 +6,7 @@
  * items, empty state) are defined here using shadcn tokens.
  */
 
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { themeStyles } from './theme';
 
 // ── Re-export theme styles for easy consumption ─────────────
@@ -19,56 +19,97 @@ export const formGroupStyles = themeStyles.formGroup;
 // ── Layout styles (app-specific) ────────────────────────────
 
 export const layoutStyles = css({
-  shell: ['flex', 'flex-col', 'min-h:screen', 'bg:background'],
-  header: [
-    'flex',
-    'justify:between',
-    'items:center',
-    'px:6',
-    'py:3',
-    'bg:card',
-    'border-b:1',
-    'border:border',
-  ],
-  main: ['flex-1', 'max-w:2xl', 'mx:auto', 'w:full', 'p:6'],
+  shell: {
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: '100vh',
+    backgroundColor: token.color.background,
+  },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingInline: token.spacing[6],
+    paddingBlock: token.spacing[3],
+    backgroundColor: token.color.card,
+    borderBottomWidth: '1px',
+    borderColor: token.color.border,
+  },
+  main: {
+    flex: '1 1 0%',
+    maxWidth: '42rem',
+    marginInline: 'auto',
+    width: '100%',
+    padding: token.spacing[6],
+  },
 });
 
 // ── Form styles (app-specific extensions) ───────────────────
 
 export const formStyles = css({
-  error: ['text:xs', 'text:destructive', 'mt:1'],
+  error: {
+    fontSize: token.font.size.xs,
+    color: token.color.destructive,
+    marginTop: token.spacing[1],
+  },
 });
 
 // ── Todo item styles ─────────────────────────────────────────
 
 export const todoItemStyles = css({
-  item: [
-    'flex',
-    'items:center',
-    'gap:3',
-    'p:3',
-    'w:full',
-    'bg:card',
-    'rounded:md',
-    'border:1',
-    'border:border',
-  ],
-  checkbox: ['w:5', 'h:5', 'cursor:pointer'],
-  label: ['flex-1', 'text:xs', 'font:normal', 'text:foreground'],
-  labelCompleted: [
-    'flex-1',
-    'text:xs',
-    'font:normal',
-    'text:muted-foreground',
-    'decoration:line-through',
-  ],
-  deleteBtn: ['text:xs', 'text:muted-foreground', 'hover:text:destructive', 'cursor:pointer'],
+  item: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[3],
+    padding: token.spacing[3],
+    width: '100%',
+    backgroundColor: token.color.card,
+    borderRadius: token.radius.md,
+    borderWidth: '1px',
+    borderColor: token.color.border,
+  },
+  checkbox: { width: token.spacing[5], height: token.spacing[5], cursor: 'pointer' },
+  label: {
+    flex: '1 1 0%',
+    fontSize: token.font.size.xs,
+    fontWeight: token.font.weight.normal,
+    color: token.color.foreground,
+  },
+  labelCompleted: {
+    flex: '1 1 0%',
+    fontSize: token.font.size.xs,
+    fontWeight: token.font.weight.normal,
+    color: token.color['muted-foreground'],
+    textDecoration: 'line-through',
+  },
+  deleteBtn: {
+    fontSize: token.font.size.xs,
+    color: token.color['muted-foreground'],
+    cursor: 'pointer',
+    '&:hover': { color: token.color.destructive },
+  },
 });
 
 // ── Empty state ─────────────────────────────────────────────
 
 export const emptyStateStyles = css({
-  container: ['flex', 'flex-col', 'items:center', 'justify:center', 'py:12', 'text:center'],
-  heading: ['font:lg', 'font:semibold', 'text:foreground', 'mb:1'],
-  description: ['text:sm', 'text:muted-foreground', 'mb:4'],
+  container: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBlock: token.spacing[12],
+    textAlign: 'center',
+  },
+  heading: {
+    fontSize: token.font.size.lg,
+    fontWeight: token.font.weight.semibold,
+    color: token.color.foreground,
+    marginBottom: token.spacing[1],
+  },
+  description: {
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    marginBottom: token.spacing[4],
+  },
 });

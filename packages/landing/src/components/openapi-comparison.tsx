@@ -1,4 +1,4 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 // ── Token color shorthand ───────────────────────────────────
 
@@ -82,35 +82,48 @@ const AFTER: Line[] = [
 // ── Styles ──────────────────────────────────────────────────
 
 const s = css({
-  section: ['py:24', 'px:6'],
-  container: ['max-w:5xl', 'mx:auto'],
-  label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:4', 'text:center'],
-  heading: [
-    'font:2xl',
-    'mb:4',
-    'text:center',
-    { '@media (min-width: 768px)': { 'font-size': '2.25rem' } },
-  ],
-  subtitle: [
-    'text:center',
-    'mb:12',
-    'max-w:2xl',
-    'mx:auto',
-    'font:sm',
-    { '@media (min-width: 768px)': { 'font-size': '1rem' } },
-  ],
-  grid: ['grid', 'gap:6', { '@media (min-width: 768px)': { 'grid-template-columns': '1fr 1fr' } }],
-  codeBlock: [
-    'p:5',
-    'border:1',
-    'font:xs',
-    'leading:relaxed',
-    {
-      '&': { 'overflow-x': 'auto' },
-      '@media (min-width: 768px)': { padding: '1.5rem', 'font-size': '0.875rem' },
-    },
-  ],
-  columnLabel: ['font:xs', 'tracking:widest', 'uppercase', 'mb:3'],
+  section: { paddingBlock: token.spacing[24], paddingInline: token.spacing[6] },
+  container: { maxWidth: '64rem', marginInline: 'auto' },
+  label: {
+    fontSize: token.font.size.xs,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    marginBottom: token.spacing[4],
+    textAlign: 'center',
+  },
+  heading: {
+    fontSize: token.font.size['2xl'],
+    marginBottom: token.spacing[4],
+    textAlign: 'center',
+    '@media (min-width: 768px)': { fontSize: '2.25rem' },
+  },
+  subtitle: {
+    textAlign: 'center',
+    marginBottom: token.spacing[12],
+    maxWidth: '42rem',
+    marginInline: 'auto',
+    fontSize: token.font.size.sm,
+    '@media (min-width: 768px)': { fontSize: '1rem' },
+  },
+  grid: {
+    display: 'grid',
+    gap: token.spacing[6],
+    '@media (min-width: 768px)': { gridTemplateColumns: '1fr 1fr' },
+  },
+  codeBlock: {
+    padding: token.spacing[5],
+    borderWidth: '1px',
+    fontSize: token.font.size.xs,
+    lineHeight: token.font.lineHeight.relaxed,
+    '&': { overflowX: 'auto' },
+    '@media (min-width: 768px)': { padding: '1.5rem', fontSize: '0.875rem' },
+  },
+  columnLabel: {
+    fontSize: token.font.size.xs,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    marginBottom: token.spacing[3],
+  },
 });
 
 // ── Code block renderer ─────────────────────────────────────

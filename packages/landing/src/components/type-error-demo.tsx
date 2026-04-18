@@ -1,25 +1,59 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { TOKENS_DIFF_SCHEMA, TOKENS_ERROR_API, TOKENS_ERROR_UI_RENDER } from './highlighted-code';
 
 const s = css({
-  section: ['py:24', 'px:6'],
-  wrapper: ['max-w:4xl', 'mx:auto'],
-  sectionLabel: ['font:xs', 'tracking:widest', 'uppercase', 'mb:4', 'text:center', 'text:gray.500'],
-  heading: ['font:4xl', 'mb:4', 'text:center'],
-  subtitle: ['text:center', 'mb:12', 'max-w:xl', 'mx:auto', 'text:gray.400'],
-  grid: ['grid', 'gap:8', { '@media (min-width: 768px)': { 'grid-template-columns': '1fr 1fr' } }],
-  columnLabel: ['font:xs', 'uppercase', 'tracking:wider', 'mb:3'],
-  codeBlock: [
-    'border:1',
-    'rounded:lg',
-    'p:6',
-    'font:sm',
-    'bg:gray.950',
-    { '&': { 'overflow-x': 'auto' } },
-  ],
-  errorHint: ['font:xs', 'pl:4', 'text:gray.500'],
-  errorSpacer: ['mt:4', 'mb:1', 'text:gray.500'],
-  errorLabel: ['mb:1', 'text:gray.500'],
+  section: { paddingBlock: token.spacing[24], paddingInline: token.spacing[6] },
+  wrapper: { maxWidth: '56rem', marginInline: 'auto' },
+  sectionLabel: {
+    fontSize: token.font.size.xs,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    marginBottom: token.spacing[4],
+    textAlign: 'center',
+    color: token.color.gray[500],
+  },
+  heading: {
+    fontSize: token.font.size['4xl'],
+    marginBottom: token.spacing[4],
+    textAlign: 'center',
+  },
+  subtitle: {
+    textAlign: 'center',
+    marginBottom: token.spacing[12],
+    maxWidth: '36rem',
+    marginInline: 'auto',
+    color: token.color.gray[400],
+  },
+  grid: {
+    display: 'grid',
+    gap: token.spacing[8],
+    '@media (min-width: 768px)': { gridTemplateColumns: '1fr 1fr' },
+  },
+  columnLabel: {
+    fontSize: token.font.size.xs,
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    marginBottom: token.spacing[3],
+  },
+  codeBlock: {
+    borderWidth: '1px',
+    borderRadius: token.radius.lg,
+    padding: token.spacing[6],
+    fontSize: token.font.size.sm,
+    backgroundColor: token.color.gray[950],
+    '&': { overflowX: 'auto' },
+  },
+  errorHint: {
+    fontSize: token.font.size.xs,
+    paddingLeft: token.spacing[4],
+    color: token.color.gray[500],
+  },
+  errorSpacer: {
+    marginTop: token.spacing[4],
+    marginBottom: token.spacing[1],
+    color: token.color.gray[500],
+  },
+  errorLabel: { marginBottom: token.spacing[1], color: token.color.gray[500] },
 });
 
 // Diff metadata: which lines in TOKENS_DIFF_SCHEMA get diff treatment

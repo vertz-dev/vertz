@@ -1,30 +1,38 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { Link } from '@vertz/ui/router';
 
 const s = css({
-  footer: ['py:12', 'px:6', 'border-t:1'],
-  container: [
-    'max-w:4xl',
-    'mx:auto',
-    'flex',
-    'flex-col',
-    'items:center',
-    'gap:4',
-    'flex-wrap',
-    'font:xs',
-    'uppercase',
-    'tracking:wider',
-    'text:gray.500',
-    {
-      '@media (min-width: 640px)': {
-        'flex-direction': 'row',
-        'justify-content': 'space-between',
-      },
-    },
-  ],
-  linkGroup: ['flex', 'items:center', 'gap:4', 'flex-wrap', 'justify:center'],
-  link: ['transition:colors'],
-  separator: ['text:gray.700'],
+  footer: {
+    paddingBlock: token.spacing[12],
+    paddingInline: token.spacing[6],
+    borderTopWidth: '1px',
+  },
+  container: {
+    maxWidth: '56rem',
+    marginInline: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: token.spacing[4],
+    flexWrap: 'wrap',
+    fontSize: token.font.size.xs,
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    color: token.color.gray[500],
+    '@media (min-width: 640px)': { flexDirection: 'row', justifyContent: 'space-between' },
+  },
+  linkGroup: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[4],
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  link: {
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+  },
+  separator: { color: token.color.gray[700] },
 });
 
 export function Footer() {

@@ -190,6 +190,122 @@ describe('rewriteSource — changed flag', () => {
   });
 });
 
+describe('rewriteSource — mixed arrays (strings + object literals)', () => {
+  it('rewrites a mixed array with trailing nested selector object', () => {
+    const input = [
+      "import { css } from '@vertz/ui';",
+      '',
+      "const styles = css({ alertDescription: ['text:muted-foreground', 'text:sm', { '&': { 'line-height': '1.625' } }] });",
+    ].join('\n');
+
+    const output = run(input);
+    expect(output).toContain(
+      "alertDescription: { color: token.color['muted-foreground'], fontSize: token.font.size.sm, '&': { lineHeight: '1.625' } }",
+    );
+  });
+
+  it('converts nested shorthand arrays inside selector values', () => {
+    const input = [
+      "import { css } from '@vertz/ui';",
+      '',
+      "const styles = css({ card: ['p:4', { '&:hover': ['bg:primary', 'text:white'] }] });",
+    ].join('\n');
+
+    const output = run(input);
+    expect(output).toContain(
+      "card: { padding: token.spacing[4], '&:hover': { backgroundColor: token.color.primary, color: 'white' } }",
+    );
+  });
+
+  it('preserves unquoted CSS property keys in camelCase', () => {
+    const input = [
+      "import { css } from '@vertz/ui';",
+      '',
+      "const styles = css({ root: ['p:4', { '&': { padding: '0', margin: '0' } }] });",
+    ].join('\n');
+
+    const output = run(input);
+    expect(output).toContain(
+      "root: { padding: token.spacing[4], '&': { padding: '0', margin: '0' } }",
+    );
+  });
+});
+
+describe('rewriteSource — mixed arrays with spreadable expressions', () => {
+  it('emits ...spread for identifier references alongside shorthands', () => {
+    const input = [
+      "import { css } from '@vertz/ui';",
+      '',
+      "const focusRing = { '&:focus-visible': { outline: 'none' } };",
+      "const styles = css({ root: ['p:4', focusRing] });",
+    ].join('\n');
+
+    const output = run(input);
+    expect(output).toContain('root: { padding: token.spacing[4], ...focusRing }');
+  });
+
+  it('emits ...spread for call expressions alongside shorthands', () => {
+    const input = [
+      "import { css } from '@vertz/ui';",
+      '',
+      "const styles = css({ root: ['p:4', bgOpacity('input', 30)] });",
+    ].join('\n');
+
+    const output = run(input);
+    expect(output).toContain("root: { padding: token.spacing[4], ...bgOpacity('input', 30) }");
+  });
+
+  it('emits ...spread for computed-key objects referenced as identifiers', () => {
+    const input = [
+      "import { css } from '@vertz/ui';",
+      '',
+      "const dark = { [DARK]: ['bg:primary'] };",
+      "const styles = css({ root: ['p:4', dark] });",
+    ].join('\n');
+
+    const output = run(input);
+    expect(output).toContain('root: { padding: token.spacing[4], ...dark }');
+  });
+});
+
+describe('rewriteSource — SpreadElement in mixed arrays', () => {
+  it('preserves explicit spread syntax alongside shorthands', () => {
+    const input = [
+      "import { css } from '@vertz/ui';",
+      '',
+      "const base = { padding: token.spacing[2] };",
+      "const styles = css({ root: [...base, 'h:4'] });",
+    ].join('\n');
+
+    const output = run(input);
+    expect(output).toContain('root: { height: token.spacing[4], ...base }');
+  });
+});
+
+describe('rewriteSource — single-element wrapper arrays', () => {
+  it('unwraps a selector value of [callExpression] to just the call', () => {
+    const input = [
+      "import { css } from '@vertz/ui';",
+      '',
+      "const styles = css({ root: { padding: token.spacing[4], '&[data-state]': [animationDecl('x')] } });",
+    ].join('\n');
+
+    const output = run(input);
+    expect(output).toContain("'&[data-state]': animationDecl('x')");
+  });
+
+  it('unwraps a selector value of [{ ...objLiteral }] to just the object', () => {
+    const input = [
+      "import { css } from '@vertz/ui';",
+      '',
+      "const styles = css({ root: { padding: token.spacing[4], '&:hover': [{ color: 'red' }] } });",
+    ].join('\n');
+
+    const output = run(input);
+    expect(output).toContain("'&:hover': { color: 'red' }");
+  });
+});
+
 describe('rewriteSource — errors', () => {
   it('throws when an unknown shorthand is encountered', () => {
     const input = "const s = css({ p: ['bogus:whatever'] });";

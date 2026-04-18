@@ -1,3 +1,6 @@
+// REMOVED-IN-PHASE-4: the string / array variants of `StyleEntry`, `StyleValue`,
+// and `CSSInput` are removed in Phase 4. Most assertions here test the
+// shorthand-string type surface and will be deleted with the source changes.
 /**
  * Type-level tests for css() and its related types.
  *

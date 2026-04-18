@@ -1,8 +1,8 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import type { TokenLine } from './highlighted-code';
 
 const s = css({
-  pre: ['m:0'],
+  pre: { margin: token.spacing[0] },
 });
 
 export function TokenLines({ lines }: { lines: TokenLine[] }) {

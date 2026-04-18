@@ -15,7 +15,14 @@ import { button, dialogStyles as themeDialogStyles } from '../styles/components'
 const dialogStyles = {
   overlay: themeDialogStyles.overlay,
   wrapper: css({
-    wrapper: ['fixed', 'inset:0', 'flex', 'items:center', 'justify:center', 'z:50'],
+    wrapper: {
+      position: 'fixed',
+      inset: '0',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: '50',
+    },
   }).wrapper,
   panel: themeDialogStyles.panel,
   title: themeDialogStyles.title,

@@ -1,33 +1,33 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { STATUSES } from '../lib/issue-config';
 
 const styles = css({
-  container: ['flex', 'gap:1', 'mb:4'],
-  button: [
-    'px:3',
-    'py:1',
-    'text:xs',
-    'rounded:full',
-    'border:1',
-    'border:border',
-    'cursor:pointer',
-    'bg:transparent',
-    'text:muted-foreground',
-    'transition:colors',
-    'hover:bg:accent',
-    'hover:text:foreground',
-  ],
-  active: [
-    'px:3',
-    'py:1',
-    'text:xs',
-    'rounded:full',
-    'border:1',
-    'border:primary',
-    'cursor:pointer',
-    'bg:primary',
-    'text:primary-foreground',
-  ],
+  container: { display: 'flex', gap: token.spacing[1], marginBottom: token.spacing[4] },
+  button: {
+    paddingInline: token.spacing[3],
+    paddingBlock: token.spacing[1],
+    fontSize: token.font.size.xs,
+    borderRadius: token.radius.full,
+    borderWidth: '1px',
+    borderColor: token.color.border,
+    cursor: 'pointer',
+    backgroundColor: 'transparent',
+    color: token.color['muted-foreground'],
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+    '&:hover': { backgroundColor: token.color.accent, color: token.color.foreground },
+  },
+  active: {
+    paddingInline: token.spacing[3],
+    paddingBlock: token.spacing[1],
+    fontSize: token.font.size.xs,
+    borderRadius: token.radius.full,
+    borderWidth: '1px',
+    borderColor: token.color.primary,
+    cursor: 'pointer',
+    backgroundColor: token.color.primary,
+    color: token.color['primary-foreground'],
+  },
 });
 
 const filterStatuses = [{ value: 'all', label: 'All' }, ...STATUSES];

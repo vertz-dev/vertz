@@ -1,67 +1,88 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { query } from '@vertz/ui/query';
 import { useParams, useRouter } from '@vertz/ui/router';
 import ArtifactViewer from '../components/artifact-viewer';
 import StepCard from '../components/step-card';
 import ToolCallLog from '../components/tool-call-log';
 import { sdk } from '../lib/sdk';
-import { errorReasonLabel, filterArtifactsByStep, stepStatusFromDetail } from './step-inspector-utils';
+import {
+  errorReasonLabel,
+  filterArtifactsByStep,
+  stepStatusFromDetail,
+} from './step-inspector-utils';
 
 const s = css({
-  page: ['flex', 'flex-col', 'gap:5', { '&': { 'max-width': '960px' } }],
-  backBtn: [
-    'inline-flex',
-    'items:center',
-    'gap:1',
-    'text:sm',
-    'text:muted-foreground',
-    'cursor:pointer',
-    { '&': { background: 'none', border: 'none', padding: '4px 0' } },
-  ],
-  section: ['flex', 'flex-col', 'gap:2'],
-  sectionTitle: ['font:semibold', 'text:foreground', { '&': { 'font-size': '14px' } }],
-  response: [
-    'text:sm',
-    'text:foreground',
-    'bg:secondary',
-    'rounded:lg',
-    { '&': { padding: '12px 16px', 'line-height': '1.6', 'white-space': 'pre-wrap' } },
-  ],
-  loading: ['text:sm', 'text:muted-foreground'],
-  errorBanner: [
-    'flex',
-    'flex-col',
-    'gap:2',
-    'rounded:lg',
-    { '&': { padding: '12px 16px', background: 'hsl(0, 84%, 60%, 0.1)', border: '1px solid hsl(0, 84%, 60%, 0.3)' } },
-  ],
-  errorRow: ['flex', 'items:center', 'gap:2'],
-  errorMessage: [
-    'text:sm',
-    'font:medium',
-    { '&': { color: 'hsl(0, 84%, 60%)' } },
-  ],
-  errorDetail: ['text:muted-foreground', { '&': { 'font-size': '12px' } }],
-  reasonBadge: [
-    'rounded:full',
-    'font:medium',
-    { '&': { display: 'inline-block', 'font-size': '11px', padding: '2px 8px', background: 'hsl(0, 84%, 60%, 0.15)', color: 'hsl(0, 84%, 60%)' } },
-  ],
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[5],
+    '&': { maxWidth: '960px' },
+  },
+  backBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: token.spacing[1],
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    cursor: 'pointer',
+    '&': { background: 'none', border: 'none', padding: '4px 0' },
+  },
+  section: { display: 'flex', flexDirection: 'column', gap: token.spacing[2] },
+  sectionTitle: {
+    fontWeight: token.font.weight.semibold,
+    color: token.color.foreground,
+    '&': { fontSize: '14px' },
+  },
+  response: {
+    fontSize: token.font.size.sm,
+    color: token.color.foreground,
+    backgroundColor: token.color.secondary,
+    borderRadius: token.radius.lg,
+    '&': { padding: '12px 16px', lineHeight: '1.6', whiteSpace: 'pre-wrap' },
+  },
+  loading: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
+  errorBanner: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[2],
+    borderRadius: token.radius.lg,
+    '&': {
+      padding: '12px 16px',
+      background: 'hsl(0, 84%, 60%, 0.1)',
+      border: '1px solid hsl(0, 84%, 60%, 0.3)',
+    },
+  },
+  errorRow: { display: 'flex', alignItems: 'center', gap: token.spacing[2] },
+  errorMessage: {
+    fontSize: token.font.size.sm,
+    fontWeight: token.font.weight.medium,
+    '&': { color: 'hsl(0, 84%, 60%)' },
+  },
+  errorDetail: { color: token.color['muted-foreground'], '&': { fontSize: '12px' } },
+  reasonBadge: {
+    borderRadius: token.radius.full,
+    fontWeight: token.font.weight.medium,
+    '&': {
+      display: 'inline-block',
+      fontSize: '11px',
+      padding: '2px 8px',
+      background: 'hsl(0, 84%, 60%, 0.15)',
+      color: 'hsl(0, 84%, 60%)',
+    },
+  },
 });
 
 export default function StepInspectorPage() {
   const { id, step } = useParams<'/workflows/:id/steps/:step'>();
   const { navigate } = useRouter();
 
-  const detailQuery = query(
-    () => sdk.workflows.stepDetail({ runId: id, step }),
-    { key: `step-detail-${id}-${step}` },
-  );
+  const detailQuery = query(() => sdk.workflows.stepDetail({ runId: id, step }), {
+    key: `step-detail-${id}-${step}`,
+  });
 
-  const artifactsQuery = query(
-    () => sdk.workflows.artifacts({ runId: id }),
-    { key: `artifacts-${id}` },
-  );
+  const artifactsQuery = query(() => sdk.workflows.artifacts({ runId: id }), {
+    key: `artifacts-${id}`,
+  });
 
   const detail = () => detailQuery.data;
   const stepArtifacts = () => {
@@ -80,11 +101,7 @@ export default function StepInspectorPage() {
 
       {detail() && (
         <>
-          <StepCard
-            name={step}
-            status={stepStatusFromDetail(detail()!)}
-            detail={detail()!}
-          />
+          <StepCard name={step} status={stepStatusFromDetail(detail()!)} detail={detail()!} />
 
           {detail()!.errorMessage && (
             <div className={s.errorBanner}>

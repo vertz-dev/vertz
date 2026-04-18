@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type CommandBlocks = {
   root: StyleEntry[];
@@ -25,74 +25,56 @@ const focusRing: Record<string, StyleValue[]> = {
 /** Create command css() styles. */
 export function createCommandStyles(): CSSOutput<CommandBlocks> {
   const s = css({
-    commandRoot: [
-      'flex',
-      'flex-col',
-      'overflow-hidden',
-      'rounded:lg',
-      'border:1',
-      'border:border',
-      'bg:popover',
-      'text:popover-foreground',
-    ],
-    commandInput: [
-      'flex',
-      'w:full',
-      'rounded:md',
-      'bg:transparent',
-      'px:3',
-      'py:2',
-      'text:sm',
-      'outline-none',
-      { '&::placeholder': ['text:muted-foreground'] },
-      {
-        '&': {
-          height: '2.5rem',
-          'border-bottom': '1px solid var(--color-border)',
-        },
+    commandRoot: {
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      borderRadius: token.radius.lg,
+      borderWidth: '1px',
+      borderColor: token.color.border,
+      backgroundColor: token.color.popover,
+      color: token.color['popover-foreground'],
+    },
+    commandInput: {
+      display: 'flex',
+      width: '100%',
+      borderRadius: token.radius.md,
+      backgroundColor: 'transparent',
+      paddingInline: token.spacing[3],
+      paddingBlock: token.spacing[2],
+      fontSize: token.font.size.sm,
+      outline: 'none',
+      '&::placeholder': { color: token.color['muted-foreground'] },
+      '&': { height: '2.5rem', borderBottom: '1px solid var(--color-border)' },
+      ...focusRing,
+    },
+    commandList: {
+      paddingInline: token.spacing[1],
+      paddingBottom: token.spacing[1],
+      paddingTop: token.spacing[2],
+      '&': { maxHeight: '300px', overflowY: 'auto', overflowX: 'hidden' },
+    },
+    commandItem: {
+      display: 'flex',
+      alignItems: 'center',
+      borderRadius: token.radius.sm,
+      paddingInline: token.spacing[2],
+      fontSize: token.font.size.sm,
+      cursor: 'pointer',
+      '&': { paddingTop: '0.375rem', paddingBottom: '0.375rem' },
+      '&[aria-selected="true"]': {
+        backgroundColor: token.color.accent,
+        color: token.color['accent-foreground'],
       },
-      focusRing,
-    ],
-    commandList: [
-      'px:1',
-      'pb:1',
-      'pt:2',
-      {
-        '&': {
-          'max-height': '300px',
-          'overflow-y': 'auto',
-          'overflow-x': 'hidden',
-        },
-      },
-    ],
-    commandItem: [
-      'flex',
-      'items:center',
-      'rounded:sm',
-      'px:2',
-      'text:sm',
-      'cursor:pointer',
-      {
-        '&': {
-          'padding-top': '0.375rem',
-          'padding-bottom': '0.375rem',
-        },
-      },
-      { '&[aria-selected="true"]': ['bg:accent', 'text:accent-foreground'] },
-    ],
-    commandGroup: ['overflow-hidden'],
-    commandGroupHeading: [
-      'px:2',
-      'text:xs',
-      'font:medium',
-      'text:muted-foreground',
-      {
-        '&': {
-          'padding-top': '0.375rem',
-          'padding-bottom': '0.375rem',
-        },
-      },
-    ],
+    },
+    commandGroup: { overflow: 'hidden' },
+    commandGroupHeading: {
+      paddingInline: token.spacing[2],
+      fontSize: token.font.size.xs,
+      fontWeight: token.font.weight.medium,
+      color: token.color['muted-foreground'],
+      '&': { paddingTop: '0.375rem', paddingBottom: '0.375rem' },
+    },
     commandSeparator: [
       {
         '&': {
@@ -104,7 +86,12 @@ export function createCommandStyles(): CSSOutput<CommandBlocks> {
         },
       },
     ],
-    commandEmpty: ['py:6', 'text:center', 'text:sm', 'text:muted-foreground'],
+    commandEmpty: {
+      paddingBlock: token.spacing[6],
+      textAlign: 'center',
+      fontSize: token.font.size.sm,
+      color: token.color['muted-foreground'],
+    },
   });
   return {
     root: s.commandRoot,

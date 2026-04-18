@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { bgOpacity, DARK, textOpacity } from './_helpers';
 
 type TabsBlocks = {
@@ -13,81 +13,74 @@ type TabsBlocks = {
 /** Create tabs css() styles. */
 export function createTabsStyles(): CSSOutput<TabsBlocks> {
   const s = css({
-    tabsList: [
-      'inline-flex',
-      'items:center',
-      'justify:center',
-      'rounded:lg',
-      'bg:muted',
-      'text:muted-foreground',
-      {
-        '&': {
-          padding: '3px',
-          height: '2rem',
-        },
+    tabsList: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: token.radius.lg,
+      backgroundColor: token.color.muted,
+      color: token.color['muted-foreground'],
+      '&': { padding: '3px', height: '2rem' },
+    },
+    tabsTrigger: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      whiteSpace: 'nowrap',
+      borderRadius: token.radius.md,
+      fontSize: token.font.size.sm,
+      fontWeight: token.font.weight.medium,
+      cursor: 'pointer',
+      transition:
+        'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+      '&': {
+        background: 'transparent',
+        padding: '0.125rem 0.375rem',
+        border: '1px solid transparent',
       },
-    ],
-    tabsTrigger: [
-      'inline-flex',
-      'items:center',
-      'justify:center',
-      'whitespace-nowrap',
-      'rounded:md',
-      'text:sm',
-      'font:medium',
-      'cursor:pointer',
-      'transition:colors',
-      {
-        '&': {
-          background: 'transparent',
-          padding: '0.125rem 0.375rem',
-          border: '1px solid transparent',
-        },
+      '&[data-state="inactive"]': textOpacity('foreground', 60),
+      '&[data-state="inactive"]:hover': textOpacity('foreground', 80),
+      '&[data-state="active"]': {
+        backgroundColor: token.color.background,
+        color: token.color.foreground,
+        boxShadow: token.shadow.sm,
       },
-      { '&[data-state="inactive"]': [textOpacity('foreground', 60)] },
-      {
-        '&[data-state="inactive"]:hover': [textOpacity('foreground', 80)],
+      [`${DARK} &[data-state="active"]`]: bgOpacity('input', 30),
+      '&:disabled': { pointerEvents: 'none', opacity: '0.5' },
+    },
+    tabsPanel: { fontSize: token.font.size.sm, marginTop: token.spacing[2] },
+    tabsListLine: {
+      display: 'inline-flex',
+      height: token.spacing[9],
+      alignItems: 'flex-end',
+      gap: token.spacing[4],
+      borderBottomWidth: '1px',
+      borderColor: token.color.border,
+    },
+    tabsTriggerLine: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      whiteSpace: 'nowrap',
+      paddingInline: token.spacing[1],
+      paddingBottom: token.spacing[2],
+      fontSize: token.font.size.sm,
+      fontWeight: token.font.weight.medium,
+      cursor: 'pointer',
+      borderWidth: '0px',
+      '&': {
+        background: 'transparent',
+        marginBottom: '-1px',
+        transition: 'color 150ms, box-shadow 150ms',
       },
-      {
-        '&[data-state="active"]': ['bg:background', 'text:foreground', 'shadow:sm'],
+      '&[data-state="inactive"]': textOpacity('foreground', 60),
+      '&[data-state="inactive"]:hover': textOpacity('foreground', 80),
+      '&[data-state="active"]': {
+        color: token.color.foreground,
+        boxShadow: 'inset 0 -2px 0 0 currentColor',
       },
-      {
-        [`${DARK} &[data-state="active"]`]: [bgOpacity('input', 30)],
-      },
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
-    ],
-    tabsPanel: ['text:sm', 'mt:2'],
-    tabsListLine: ['inline-flex', 'h:9', 'items:end', 'gap:4', 'border-b:1', 'border:border'],
-    tabsTriggerLine: [
-      'inline-flex',
-      'items:center',
-      'justify:center',
-      'whitespace-nowrap',
-      'px:1',
-      'pb:2',
-      'text:sm',
-      'font:medium',
-      'cursor:pointer',
-      'border:0',
-      {
-        '&': {
-          background: 'transparent',
-          'margin-bottom': '-1px',
-          transition: 'color 150ms, box-shadow 150ms',
-        },
-      },
-      { '&[data-state="inactive"]': [textOpacity('foreground', 60)] },
-      { '&[data-state="inactive"]:hover': [textOpacity('foreground', 80)] },
-      {
-        '&[data-state="active"]': [
-          'text:foreground',
-          {
-            'box-shadow': 'inset 0 -2px 0 0 currentColor',
-          },
-        ],
-      },
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
-    ],
+      '&:disabled': { pointerEvents: 'none', opacity: '0.5' },
+    },
   });
   return {
     list: s.tabsList,

@@ -1,4 +1,4 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { statusBadge, statusBadgeColor } from './live-overlay-utils';
 import type { StepNodeProps } from './step-node-utils';
 import { stepNodeBackground, stepNodeBorderColor } from './step-node-utils';
@@ -6,43 +6,39 @@ import { stepNodeBackground, stepNodeBorderColor } from './step-node-utils';
 export type { StepNodeProps } from './step-node-utils';
 
 const s = css({
-  node: [
-    'flex',
-    'items:center',
-    'gap:2',
-    'rounded:lg',
-    'relative',
-    'cursor:pointer',
-    'transition:border-color 0.15s, background 0.15s',
-    {
-      '&': {
-        padding: '10px 14px',
-        border: '2px solid',
-        'min-width': '140px',
-      },
+  node: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[2],
+    borderRadius: token.radius.lg,
+    position: 'relative',
+    cursor: 'pointer',
+    transition: 'border-color 0.15s, background 0.15s',
+    '&': { padding: '10px 14px', border: '2px solid', minWidth: '140px' },
+  },
+  name: {
+    fontSize: token.font.size.sm,
+    fontWeight: token.font.weight.semibold,
+    color: token.color.foreground,
+  },
+  agent: { fontSize: token.font.size.xs, color: token.color['muted-foreground'] },
+  icon: { textAlign: 'center', '&': { fontSize: '16px', width: '20px' } },
+  badge: {
+    position: 'absolute',
+    display: 'flex',
+    alignItems: 'center',
+    fontWeight: token.font.weight.bold,
+    '&': {
+      top: '-6px',
+      right: '-6px',
+      width: '18px',
+      height: '18px',
+      borderRadius: '50%',
+      justifyContent: 'center',
+      fontSize: '11px',
+      color: 'white',
     },
-  ],
-  name: ['text:sm', 'font:semibold', 'text:foreground'],
-  agent: ['text:xs', 'text:muted-foreground'],
-  icon: ['text:center', { '&': { 'font-size': '16px', width: '20px' } }],
-  badge: [
-    'absolute',
-    'flex',
-    'items:center',
-    'font:bold',
-    {
-      '&': {
-        top: '-6px',
-        right: '-6px',
-        width: '18px',
-        height: '18px',
-        'border-radius': '50%',
-        'justify-content': 'center',
-        'font-size': '11px',
-        color: 'white',
-      },
-    },
-  ],
+  },
 });
 
 export default function StepNode({ name, type, agent, selected, status, onClick }: StepNodeProps) {
@@ -61,7 +57,12 @@ export default function StepNode({ name, type, agent, selected, status, onClick 
       className={s.node}
       style={dynamicStyle}
       onClick={onClick}
-      onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
+      onKeyDown={(e: KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick?.();
+        }
+      }}
       role="button"
       tabIndex={0}
     >
@@ -71,7 +72,9 @@ export default function StepNode({ name, type, agent, selected, status, onClick 
         {agent && <div className={s.agent}>{agent}</div>}
       </div>
       {badge && (
-        <span className={s.badge} style={{ background: badgeColor }}>{badge}</span>
+        <span className={s.badge} style={{ background: badgeColor }}>
+          {badge}
+        </span>
       )}
     </div>
   );

@@ -1,18 +1,23 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 const styles = css({
-  badge: [
-    'inline-flex',
-    'items:center',
-    'gap:1',
-    'px:1.5',
-    'py:0.5',
-    'rounded:full',
-    'text:xs',
-    'bg:muted',
-    'text:foreground',
-  ],
-  dot: ['w:2', 'h:2', 'rounded:full', 'shrink-0'],
+  badge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: token.spacing[1],
+    paddingInline: token.spacing['1.5'],
+    paddingBlock: token.spacing['0.5'],
+    borderRadius: token.radius.full,
+    fontSize: token.font.size.xs,
+    backgroundColor: token.color.muted,
+    color: token.color.foreground,
+  },
+  dot: {
+    width: token.spacing[2],
+    height: token.spacing[2],
+    borderRadius: token.radius.full,
+    flexShrink: '0',
+  },
 });
 
 interface LabelBadgeProps {

@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type CarouselBlocks = {
   root: StyleEntry[];
@@ -12,55 +12,43 @@ type CarouselBlocks = {
 /** Create carousel css() styles following shadcn conventions. */
 export function createCarouselStyles(): CSSOutput<CarouselBlocks> {
   const s = css({
-    carouselRoot: ['relative'],
-    carouselViewport: ['overflow-hidden'],
-    carouselSlide: [{ '&[data-state="inactive"]': [{ display: 'none' }] }],
-    carouselPrevButton: [
-      'absolute',
-      'h:8',
-      'w:8',
-      'rounded:full',
-      'border:1',
-      'border:border',
-      'bg:background',
-      'text:foreground',
-      'inline-flex',
-      'items:center',
-      'justify:center',
-      'cursor:pointer',
-      {
-        '&': {
-          left: '0.5rem',
-          top: '50%',
-          transform: 'translateY(-50%)',
-        },
-      },
-      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
-    ],
-    carouselNextButton: [
-      'absolute',
-      'h:8',
-      'w:8',
-      'rounded:full',
-      'border:1',
-      'border:border',
-      'bg:background',
-      'text:foreground',
-      'inline-flex',
-      'items:center',
-      'justify:center',
-      'cursor:pointer',
-      {
-        '&': {
-          right: '0.5rem',
-          top: '50%',
-          transform: 'translateY(-50%)',
-        },
-      },
-      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
-    ],
+    carouselRoot: { position: 'relative' },
+    carouselViewport: { overflow: 'hidden' },
+    carouselSlide: [{ '&[data-state="inactive"]': { display: 'none' } }],
+    carouselPrevButton: {
+      position: 'absolute',
+      height: token.spacing[8],
+      width: token.spacing[8],
+      borderRadius: token.radius.full,
+      borderWidth: '1px',
+      borderColor: token.color.border,
+      backgroundColor: token.color.background,
+      color: token.color.foreground,
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      cursor: 'pointer',
+      '&': { left: '0.5rem', top: '50%', transform: 'translateY(-50%)' },
+      '&:hover': { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
+      '&:disabled': { pointerEvents: 'none', opacity: '0.5' },
+    },
+    carouselNextButton: {
+      position: 'absolute',
+      height: token.spacing[8],
+      width: token.spacing[8],
+      borderRadius: token.radius.full,
+      borderWidth: '1px',
+      borderColor: token.color.border,
+      backgroundColor: token.color.background,
+      color: token.color.foreground,
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      cursor: 'pointer',
+      '&': { right: '0.5rem', top: '50%', transform: 'translateY(-50%)' },
+      '&:hover': { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
+      '&:disabled': { pointerEvents: 'none', opacity: '0.5' },
+    },
   });
   return {
     root: s.carouselRoot,

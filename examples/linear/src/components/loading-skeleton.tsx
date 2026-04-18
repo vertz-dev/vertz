@@ -1,12 +1,25 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { skeletonAnimation, skeletonStyles } from '../styles/components';
 
 // ── Board skeleton ──────────────────────────────────────────
 
 const boardStyles = css({
-  container: ['flex', 'gap:4'],
-  column: ['flex', 'flex-col', 'min-w:64', 'w:64', 'shrink-0'],
-  header: ['flex', 'items:center', 'gap:2', 'px:2', 'py:2', 'mb:2'],
+  container: { display: 'flex', gap: token.spacing[4] },
+  column: {
+    display: 'flex',
+    flexDirection: 'column',
+    minWidth: token.spacing[64],
+    width: token.spacing[64],
+    flexShrink: '0',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[2],
+    paddingInline: token.spacing[2],
+    paddingBlock: token.spacing[2],
+    marginBottom: token.spacing[2],
+  },
 });
 
 export function BoardSkeleton() {
@@ -32,8 +45,13 @@ export function BoardSkeleton() {
 // ── Issue list skeleton ─────────────────────────────────────
 
 const listStyles = css({
-  container: ['border:1', 'border:border', 'rounded:lg', 'overflow-hidden'],
-  row: ['p:3', 'border-b:1', 'border:border'],
+  container: {
+    borderWidth: '1px',
+    borderColor: token.color.border,
+    borderRadius: token.radius.lg,
+    overflow: 'hidden',
+  },
+  row: { padding: token.spacing[3], borderBottomWidth: '1px', borderColor: token.color.border },
 });
 
 export function IssueListSkeleton() {
@@ -52,7 +70,11 @@ export function IssueListSkeleton() {
 // ── Project grid skeleton ───────────────────────────────────
 
 const gridStyles = css({
-  container: ['grid', 'grid-cols:1', 'gap:3'],
+  container: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(1, minmax(0, 1fr))',
+    gap: token.spacing[3],
+  },
 });
 
 export function ProjectGridSkeleton() {
@@ -72,15 +94,15 @@ export function ProjectGridSkeleton() {
 // ── Issue detail skeleton ───────────────────────────────────
 
 const detailStyles = css({
-  layout: ['flex', 'gap:8'],
-  main: ['flex-1'],
-  sidebar: ['w:56', 'shrink-0'],
+  layout: { display: 'flex', gap: token.spacing[8] },
+  main: { flex: '1 1 0%' },
+  sidebar: { width: token.spacing[56], flexShrink: '0' },
 });
 
 // ── Auth loading skeleton (ProtectedRoute fallback) ─────
 
 const authStyles = css({
-  container: ['flex', 'items:center', 'justify:center', 'h:screen'],
+  container: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' },
 });
 
 export function AuthLoadingSkeleton() {

@@ -1,66 +1,75 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { useRouter } from '@vertz/ui/router';
 import type { CommandItem } from './command-palette-utils';
 import { STATIC_COMMANDS, filterCommands, nextIndex, prevIndex } from './command-palette-utils';
 
 const s = css({
-  overlay: [
-    'fixed',
-    'flex',
-    'inset:0',
-    'z:100',
-    { '&': { 'justify-content': 'center', 'padding-top': '120px', background: 'rgba(0, 0, 0, 0.5)' } },
-  ],
-  dialog: [
-    'flex',
-    'flex-col',
-    'rounded:xl',
-    'overflow:hidden',
-    { '&': { width: '480px', 'max-height': '400px', background: 'var(--color-card)', border: '1px solid var(--color-border)', 'box-shadow': '0 16px 48px rgba(0, 0, 0, 0.2)' } },
-  ],
-  input: [
-    'text:sm',
-    'text:foreground',
-    'w:full',
-    { '&': { height: '48px', padding: '0 16px', border: 'none', 'border-bottom': '1px solid var(--color-border)', background: 'transparent', outline: 'none' } },
-  ],
-  list: [
-    'p:2',
-    'overflow-y:auto',
-    { '&': { flex: '1' } },
-  ],
-  category: [
-    'font:medium',
-    'text:muted-foreground',
-    'uppercase',
-    'tracking:0.05em',
-    { '&': { 'font-size': '11px', padding: '8px 8px 4px' } },
-  ],
-  item: [
-    'rounded:md',
-    'text:sm',
-    'text:foreground',
-    'w:full',
-    'cursor:pointer',
-    'text:left',
-    { '&': { padding: '8px 12px', display: 'block', border: 'none', background: 'transparent' } },
-  ],
-  itemActive: [
-    'rounded:md',
-    'text:sm',
-    'text:foreground',
-    'bg:secondary',
-    'w:full',
-    'cursor:pointer',
-    'text:left',
-    { '&': { padding: '8px 12px', display: 'block', border: 'none' } },
-  ],
-  empty: [
-    'p:4',
-    'text:sm',
-    'text:muted-foreground',
-    'text:center',
-  ],
+  overlay: {
+    position: 'fixed',
+    display: 'flex',
+    inset: '0',
+    zIndex: '100',
+    '&': { justifyContent: 'center', paddingTop: '120px', background: 'rgba(0, 0, 0, 0.5)' },
+  },
+  dialog: {
+    display: 'flex',
+    flexDirection: 'column',
+    borderRadius: token.radius.xl,
+    overflow: 'hidden',
+    '&': {
+      width: '480px',
+      maxHeight: '400px',
+      background: 'var(--color-card)',
+      border: '1px solid var(--color-border)',
+      boxShadow: '0 16px 48px rgba(0, 0, 0, 0.2)',
+    },
+  },
+  input: {
+    fontSize: token.font.size.sm,
+    color: token.color.foreground,
+    width: '100%',
+    '&': {
+      height: '48px',
+      padding: '0 16px',
+      border: 'none',
+      borderBottom: '1px solid var(--color-border)',
+      background: 'transparent',
+      outline: 'none',
+    },
+  },
+  list: { padding: token.spacing[2], overflowY: 'auto', '&': { flex: '1' } },
+  category: {
+    fontWeight: token.font.weight.medium,
+    color: token.color['muted-foreground'],
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    '&': { fontSize: '11px', padding: '8px 8px 4px' },
+  },
+  item: {
+    borderRadius: token.radius.md,
+    fontSize: token.font.size.sm,
+    color: token.color.foreground,
+    width: '100%',
+    cursor: 'pointer',
+    textAlign: 'left',
+    '&': { padding: '8px 12px', display: 'block', border: 'none', background: 'transparent' },
+  },
+  itemActive: {
+    borderRadius: token.radius.md,
+    fontSize: token.font.size.sm,
+    color: token.color.foreground,
+    backgroundColor: token.color.secondary,
+    width: '100%',
+    cursor: 'pointer',
+    textAlign: 'left',
+    '&': { padding: '8px 12px', display: 'block', border: 'none' },
+  },
+  empty: {
+    padding: token.spacing[4],
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    textAlign: 'center',
+  },
 });
 
 interface CommandPaletteProps {
@@ -114,9 +123,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
           autofocus
         />
         <div className={s.list}>
-          {filtered.length === 0 && (
-            <div className={s.empty}>No results found</div>
-          )}
+          {filtered.length === 0 && <div className={s.empty}>No results found</div>}
           {filtered.map((item: CommandItem, i: number) => (
             <button
               key={item.href}

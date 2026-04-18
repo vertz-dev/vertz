@@ -140,6 +140,34 @@ describe('mapShorthand — radius / shadow / font', () => {
     });
   });
 
+  it('maps font:2xl using bracket notation (key starts with digit)', () => {
+    expect(mapShorthand('font:2xl')).toEqual({
+      entries: [{ cssKey: 'fontSize', valueExpr: "token.font.size['2xl']" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps text:3xl using bracket notation (key starts with digit)', () => {
+    expect(mapShorthand('text:3xl')).toEqual({
+      entries: [{ cssKey: 'fontSize', valueExpr: "token.font.size['3xl']" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps rounded:2xl using bracket notation (key starts with digit)', () => {
+    expect(mapShorthand('rounded:2xl')).toEqual({
+      entries: [{ cssKey: 'borderRadius', valueExpr: "token.radius['2xl']" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps shadow:2xl using bracket notation (key starts with digit)', () => {
+    expect(mapShorthand('shadow:2xl')).toEqual({
+      entries: [{ cssKey: 'boxShadow', valueExpr: "token.shadow['2xl']" }],
+      pseudo: null,
+    });
+  });
+
   it('maps font:bold (weight keyword) to fontWeight', () => {
     expect(mapShorthand('font:bold')).toEqual({
       entries: [{ cssKey: 'fontWeight', valueExpr: 'token.font.weight.bold' }],
@@ -207,11 +235,78 @@ describe('mapShorthand — size / border', () => {
     });
   });
 
+  it('maps border-r:1 to borderRightWidth with px suffix', () => {
+    expect(mapShorthand('border-r:1')).toEqual({
+      entries: [{ cssKey: 'borderRightWidth', valueExpr: "'1px'" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps border-t:2 to borderTopWidth with px suffix', () => {
+    expect(mapShorthand('border-t:2')).toEqual({
+      entries: [{ cssKey: 'borderTopWidth', valueExpr: "'2px'" }],
+      pseudo: null,
+    });
+  });
+
   it('maps border:primary.500 to borderColor (color mode)', () => {
     expect(mapShorthand('border:primary.500')).toEqual({
       entries: [{ cssKey: 'borderColor', valueExpr: 'token.color.primary[500]' }],
       pseudo: null,
     });
+  });
+
+  it('maps text:muted-foreground using bracket notation for hyphenated key', () => {
+    expect(mapShorthand('text:muted-foreground')).toEqual({
+      entries: [{ cssKey: 'color', valueExpr: "token.color['muted-foreground']" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps bg:primary.50 with numeric shade as bracket number', () => {
+    expect(mapShorthand('bg:primary.50')).toEqual({
+      entries: [{ cssKey: 'backgroundColor', valueExpr: 'token.color.primary[50]' }],
+      pseudo: null,
+    });
+  });
+
+  it('maps w:screen to 100vw (width axis)', () => {
+    expect(mapShorthand('w:screen')).toEqual({
+      entries: [{ cssKey: 'width', valueExpr: "'100vw'" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps h:screen to 100vh (height axis)', () => {
+    expect(mapShorthand('h:screen')).toEqual({
+      entries: [{ cssKey: 'height', valueExpr: "'100vh'" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps min-h:screen to 100vh (height axis)', () => {
+    expect(mapShorthand('min-h:screen')).toEqual({
+      entries: [{ cssKey: 'minHeight', valueExpr: "'100vh'" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps w:1/2 to 50%', () => {
+    expect(mapShorthand('w:1/2')).toEqual({
+      entries: [{ cssKey: 'width', valueExpr: "'50%'" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps w:2/3 to 66.666667%', () => {
+    expect(mapShorthand('w:2/3')).toEqual({
+      entries: [{ cssKey: 'width', valueExpr: "'66.666667%'" }],
+      pseudo: null,
+    });
+  });
+
+  it('throws on fraction with zero denominator', () => {
+    expect(() => mapShorthand('w:1/0')).toThrow(/denominator/);
   });
 });
 
@@ -228,6 +323,143 @@ describe('mapShorthand — content', () => {
 
   it('throws on invalid content value', () => {
     expect(() => mapShorthand('content:bogus')).toThrow(/content/i);
+  });
+});
+
+describe('mapShorthand — color opacity modifier', () => {
+  it('maps bg:primary/90 to color-mix literal', () => {
+    expect(mapShorthand('bg:primary/90')).toEqual({
+      entries: [
+        {
+          cssKey: 'backgroundColor',
+          valueExpr: "'color-mix(in oklch, var(--color-primary) 90%, transparent)'",
+        },
+      ],
+      pseudo: null,
+    });
+  });
+
+  it('maps hover:bg:primary.700/50 with pseudo', () => {
+    expect(mapShorthand('hover:bg:primary.700/50')).toEqual({
+      entries: [
+        {
+          cssKey: 'backgroundColor',
+          valueExpr: "'color-mix(in oklch, var(--color-primary-700) 50%, transparent)'",
+        },
+      ],
+      pseudo: '&:hover',
+    });
+  });
+
+  it('throws on out-of-range opacity', () => {
+    expect(() => mapShorthand('bg:primary/150')).toThrow(/opacity/i);
+  });
+});
+
+describe('mapShorthand — ring', () => {
+  it('maps ring:2 to outline with var(--color-ring)', () => {
+    expect(mapShorthand('ring:2')).toEqual({
+      entries: [{ cssKey: 'outline', valueExpr: "'2px solid var(--color-ring)'" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps ring:ring to outlineColor + token', () => {
+    expect(mapShorthand('ring:ring')).toEqual({
+      entries: [{ cssKey: 'outlineColor', valueExpr: 'token.color.ring' }],
+      pseudo: null,
+    });
+  });
+
+  it('maps focus:ring:2 with pseudo', () => {
+    expect(mapShorthand('focus:ring:2')).toEqual({
+      entries: [{ cssKey: 'outline', valueExpr: "'2px solid var(--color-ring)'" }],
+      pseudo: '&:focus',
+    });
+  });
+});
+
+describe('mapShorthand — raw aliases', () => {
+  it('expands transition:colors to the color-props list with timing', () => {
+    const result = mapShorthand('transition:colors');
+    expect(result.pseudo).toBeNull();
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]!.cssKey).toBe('transition');
+    expect(result.entries[0]!.valueExpr).toMatch(/^'color 150ms cubic-bezier/);
+    expect(result.entries[0]!.valueExpr).toContain('background-color');
+    expect(result.entries[0]!.valueExpr).toContain('stroke');
+  });
+
+  it('expands transition:all to all + timing', () => {
+    expect(mapShorthand('transition:all')).toEqual({
+      entries: [{ cssKey: 'transition', valueExpr: "'all 150ms cubic-bezier(0.4, 0, 0.2, 1)'" }],
+      pseudo: null,
+    });
+  });
+
+  it('expands transition:shadow to box-shadow + timing', () => {
+    expect(mapShorthand('transition:shadow')).toEqual({
+      entries: [
+        { cssKey: 'transition', valueExpr: "'box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1)'" },
+      ],
+      pseudo: null,
+    });
+  });
+
+  it('expands tracking:tight to letterSpacing + -0.025em', () => {
+    expect(mapShorthand('tracking:tight')).toEqual({
+      entries: [{ cssKey: 'letterSpacing', valueExpr: "'-0.025em'" }],
+      pseudo: null,
+    });
+  });
+
+  it('expands tracking:wider to letterSpacing + 0.05em', () => {
+    expect(mapShorthand('tracking:wider')).toEqual({
+      entries: [{ cssKey: 'letterSpacing', valueExpr: "'0.05em'" }],
+      pseudo: null,
+    });
+  });
+
+  it('expands grid-cols:3 to gridTemplateColumns + repeat()', () => {
+    expect(mapShorthand('grid-cols:3')).toEqual({
+      entries: [{ cssKey: 'gridTemplateColumns', valueExpr: "'repeat(3, minmax(0, 1fr))'" }],
+      pseudo: null,
+    });
+  });
+
+  it('expands aspect:square to aspectRatio + 1 / 1', () => {
+    expect(mapShorthand('aspect:square')).toEqual({
+      entries: [{ cssKey: 'aspectRatio', valueExpr: "'1 / 1'" }],
+      pseudo: null,
+    });
+  });
+
+  it('expands aspect:video to aspectRatio + 16 / 9', () => {
+    expect(mapShorthand('aspect:video')).toEqual({
+      entries: [{ cssKey: 'aspectRatio', valueExpr: "'16 / 9'" }],
+      pseudo: null,
+    });
+  });
+
+  it('resolves top:4 via spacing scale', () => {
+    expect(mapShorthand('top:4')).toEqual({
+      entries: [{ cssKey: 'top', valueExpr: 'token.spacing[4]' }],
+      pseudo: null,
+    });
+  });
+
+  it('resolves inset:8 via spacing scale', () => {
+    expect(mapShorthand('inset:8')).toEqual({
+      entries: [{ cssKey: 'inset', valueExpr: 'token.spacing[8]' }],
+      pseudo: null,
+    });
+  });
+
+  it('falls back to quoted raw value for top:0 (valid CSS zero)', () => {
+    expect(mapShorthand('top:0')).toEqual({
+      entries: [{ cssKey: 'top', valueExpr: 'token.spacing[0]' }],
+      pseudo: null,
+    });
   });
 });
 

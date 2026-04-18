@@ -9,11 +9,12 @@
  */
 
 import {
-  css,
   DialogStackProvider,
+  ThemeProvider,
+  css,
   getInjectedCSS,
   globalCss,
-  ThemeProvider,
+  token,
   useContext,
 } from '@vertz/ui';
 import { createSettingsValue, SettingsContext } from './lib/settings-context';
@@ -31,24 +32,28 @@ const appGlobals = globalCss({
 });
 
 const headerStyles = css({
-  title: ['font:lg', 'font:bold', 'text:foreground'],
-  subtitle: ['text:xs', 'text:muted-foreground'],
-  themeToggle: [
-    'inline-flex',
-    'items:center',
-    'justify:center',
-    'rounded:md',
-    'w:9',
-    'h:9',
-    'bg:transparent',
-    'text:muted-foreground',
-    'hover:text:foreground',
-    'hover:bg:accent',
-    'transition:colors',
-    'cursor:pointer',
-    'border:1',
-    'border:border',
-  ],
+  title: {
+    fontSize: token.font.size.lg,
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+  },
+  subtitle: { fontSize: token.font.size.xs, color: token.color['muted-foreground'] },
+  themeToggle: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: token.radius.md,
+    width: token.spacing[9],
+    height: token.spacing[9],
+    backgroundColor: 'transparent',
+    color: token.color['muted-foreground'],
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+    cursor: 'pointer',
+    borderWidth: '1px',
+    borderColor: token.color.border,
+    '&:hover': { color: token.color.foreground, backgroundColor: token.color.accent },
+  },
 });
 
 // ── SSR module exports ─────────────────────────────────────

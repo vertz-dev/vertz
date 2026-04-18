@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type AlertBlocks = {
   root: StyleEntry[];
@@ -11,21 +11,30 @@ type AlertBlocks = {
 /** Create alert css() styles. */
 export function createAlertStyles(): CSSOutput<AlertBlocks> {
   const s = css({
-    alertRoot: [
-      'relative',
-      'w:full',
-      'rounded:lg',
-      'border:1',
-      'border:border',
-      'px:2.5',
-      'py:2',
-      'text:sm',
-      'bg:card',
-      'text:card-foreground',
-    ],
-    alertDestructive: ['text:destructive', 'bg:card'],
-    alertTitle: ['font:medium', 'leading:none', 'tracking:tight', 'mb:1'],
-    alertDescription: ['text:muted-foreground', 'text:sm', { '&': { 'line-height': '1.625' } }],
+    alertRoot: {
+      position: 'relative',
+      width: '100%',
+      borderRadius: token.radius.lg,
+      borderWidth: '1px',
+      borderColor: token.color.border,
+      paddingInline: token.spacing['2.5'],
+      paddingBlock: token.spacing[2],
+      fontSize: token.font.size.sm,
+      backgroundColor: token.color.card,
+      color: token.color['card-foreground'],
+    },
+    alertDestructive: { color: token.color.destructive, backgroundColor: token.color.card },
+    alertTitle: {
+      fontWeight: token.font.weight.medium,
+      lineHeight: token.font.lineHeight.none,
+      letterSpacing: '-0.025em',
+      marginBottom: token.spacing[1],
+    },
+    alertDescription: {
+      color: token.color['muted-foreground'],
+      fontSize: token.font.size.sm,
+      '&': { lineHeight: '1.625' },
+    },
   });
   return {
     root: s.alertRoot,

@@ -37,6 +37,9 @@ export type {
   GlobalCSSInput,
   GlobalCSSOutput,
   PreloadItem,
+  SelectorKey,
+  StyleBlock,
+  StyleDeclarations,
   StyleEntry,
   StyleValue,
   Theme,
@@ -48,6 +51,8 @@ export type {
   VariantsConfig,
   VertzThemeColors,
   VertzThemeFonts,
+  VertzThemeRadius,
+  VertzThemeShadow,
   VertzThemeSpacing,
   VertzThemeTokens,
 } from './css';

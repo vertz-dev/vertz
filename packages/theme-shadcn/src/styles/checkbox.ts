@@ -1,5 +1,5 @@
-import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { bgOpacity, DARK } from './_helpers';
 
 type CheckboxBlocks = {
@@ -7,87 +7,67 @@ type CheckboxBlocks = {
   indicator: StyleEntry[];
 };
 
-const focusRing: Record<string, StyleValue[]> = {
-  '&:focus-visible': [
-    'outline-none',
-    'border:ring',
-    {
-      'box-shadow': '0 0 0 3px color-mix(in oklch, var(--color-ring) 50%, transparent)',
-    },
-  ],
+const focusRing = {
+  '&:focus-visible': {
+    outline: 'none',
+    borderColor: token.color.ring,
+    boxShadow: '0 0 0 3px color-mix(in oklch, var(--color-ring) 50%, transparent)',
+  },
 };
 
 /** Create checkbox css() styles. */
 export function createCheckboxStyles(): CSSOutput<CheckboxBlocks> {
   const s = css({
-    checkboxRoot: [
-      'shrink-0',
-      'flex',
-      'items:center',
-      'justify:center',
-      'h:4',
-      'w:4',
-      'border:1',
-      'border:input',
-      'cursor:pointer',
-      'transition:colors',
-      {
-        '&': {
-          padding: '0',
-          background: 'transparent',
-          'border-radius': 'calc(var(--radius) * 0.67)',
-        },
+    checkboxRoot: {
+      flexShrink: '0',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: token.spacing[4],
+      width: token.spacing[4],
+      borderWidth: '1px',
+      borderColor: token.color.input,
+      cursor: 'pointer',
+      transition:
+        'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+      '&': { padding: '0', background: 'transparent', borderRadius: 'calc(var(--radius) * 0.67)' },
+      [DARK]: bgOpacity('input', 30),
+      ...focusRing,
+      '&:disabled': { pointerEvents: 'none', opacity: '0.5' },
+      '&[data-state="checked"]': {
+        backgroundColor: token.color.primary,
+        color: token.color['primary-foreground'],
+        borderColor: token.color.primary,
       },
-      { [DARK]: [bgOpacity('input', 30)] },
-      focusRing,
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
-      {
-        '&[data-state="checked"]': ['bg:primary', 'text:primary-foreground', 'border:primary'],
-        '&[data-state="indeterminate"]': [
-          'bg:primary',
-          'text:primary-foreground',
-          'border:primary',
-        ],
+      '&[data-state="indeterminate"]': {
+        backgroundColor: token.color.primary,
+        color: token.color['primary-foreground'],
+        borderColor: token.color.primary,
       },
-    ],
-    checkboxIndicator: [
-      'relative',
-      'flex',
-      'items:center',
-      'justify:center',
-      // Both SVGs are always in the DOM, stacked absolutely.
-      // CSS controls which icon is visible based on the indicator's data-state.
-      {
-        '& [data-part="indicator-icon"]': {
-          position: 'absolute',
-          inset: '0',
-          opacity: '0',
-          transform: 'scale(0.5)',
-          transition:
-            'opacity 150ms cubic-bezier(0.4, 0, 0.2, 1), ' +
-            'transform 150ms cubic-bezier(0.4, 0, 0.2, 1)',
-        },
-        // Checkmark draw animation via stroke-dashoffset
-        '& [data-icon="check"] path': {
-          'stroke-dasharray': '30',
-          'stroke-dashoffset': '30',
-          transition: 'stroke-dashoffset 200ms cubic-bezier(0.4, 0, 0.2, 1) 50ms',
-        },
-        // Checked: show checkmark, draw the path
-        '&[data-state="checked"] [data-icon="check"]': {
-          opacity: '1',
-          transform: 'scale(1)',
-        },
-        '&[data-state="checked"] [data-icon="check"] path': {
-          'stroke-dashoffset': '0',
-        },
-        // Indeterminate: show minus icon
-        '&[data-state="indeterminate"] [data-icon="minus"]': {
-          opacity: '1',
-          transform: 'scale(1)',
-        },
+    },
+    checkboxIndicator: {
+      position: 'relative',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      '& [data-part="indicator-icon"]': {
+        position: 'absolute',
+        inset: '0',
+        opacity: '0',
+        transform: 'scale(0.5)',
+        transition:
+          'opacity 150ms cubic-bezier(0.4, 0, 0.2, 1), ' +
+          'transform 150ms cubic-bezier(0.4, 0, 0.2, 1)',
       },
-    ],
+      '& [data-icon="check"] path': {
+        strokeDasharray: '30',
+        strokeDashoffset: '30',
+        transition: 'stroke-dashoffset 200ms cubic-bezier(0.4, 0, 0.2, 1) 50ms',
+      },
+      '&[data-state="checked"] [data-icon="check"]': { opacity: '1', transform: 'scale(1)' },
+      '&[data-state="checked"] [data-icon="check"] path': { strokeDashoffset: '0' },
+      '&[data-state="indeterminate"] [data-icon="minus"]': { opacity: '1', transform: 'scale(1)' },
+    },
   });
   return {
     root: s.checkboxRoot,

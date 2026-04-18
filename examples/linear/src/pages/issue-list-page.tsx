@@ -1,4 +1,4 @@
-import { css, Link, query, useDialogStack, useParams } from '@vertz/ui';
+import { Link, css, query, token, useDialogStack, useParams } from '@vertz/ui';
 import { api } from '../api/client';
 import { Button } from '../components/button';
 import { CreateIssueDialog } from '../components/create-issue-dialog';
@@ -10,10 +10,24 @@ import type { Issue } from '../lib/types';
 import { emptyStateStyles } from '../styles/components';
 
 const styles = css({
-  container: ['p:6'],
-  header: ['flex', 'items:center', 'justify:between', 'mb:4'],
-  title: ['font:lg', 'font:semibold', 'text:foreground'],
-  list: ['border:1', 'border:border', 'rounded:lg', 'overflow-hidden'],
+  container: { padding: token.spacing[6] },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: token.spacing[4],
+  },
+  title: {
+    fontSize: token.font.size.lg,
+    fontWeight: token.font.weight.semibold,
+    color: token.color.foreground,
+  },
+  list: {
+    borderWidth: '1px',
+    borderColor: token.color.border,
+    borderRadius: token.radius.lg,
+    overflow: 'hidden',
+  },
 });
 
 export function IssueListPage() {

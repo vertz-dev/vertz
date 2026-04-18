@@ -13,12 +13,13 @@
 
 import { ListTodoIcon, MoonIcon, PlusCircleIcon, SettingsIcon, SunIcon } from '@vertz/icons';
 import {
-  css,
-  getInjectedCSS,
-  globalCss,
   RouterContext,
   RouterView,
   ThemeProvider,
+  css,
+  getInjectedCSS,
+  globalCss,
+  token,
 } from '@vertz/ui';
 import { createSettingsValue, SettingsContext, useSettings } from './lib/settings-context';
 import { appRouter, Link } from './router';
@@ -26,31 +27,38 @@ import { layoutStyles } from './styles/components';
 import { taskManagerTheme, themeGlobals } from './styles/theme';
 
 const navStyles = css({
-  navItem: [
-    'flex',
-    'items:center',
-    'gap:2',
-    'text:sm',
-    'text:muted-foreground',
-    'hover:text:foreground',
-    'transition:colors',
-  ],
-  navList: ['flex', 'flex-col', 'gap:1'],
-  navTitle: ['font:lg', 'font:bold', 'text:foreground', 'mb:6'],
-  themeToggle: [
-    'flex',
-    'items:center',
-    'gap:2',
-    'text:sm',
-    'text:muted-foreground',
-    'hover:text:foreground',
-    'transition:colors',
-    'cursor:pointer',
-    'mt:auto',
-    'pt:4',
-    'border-t:1',
-    'border:border',
-  ],
+  navItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[2],
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+    '&:hover': { color: token.color.foreground },
+  },
+  navList: { display: 'flex', flexDirection: 'column', gap: token.spacing[1] },
+  navTitle: {
+    fontSize: token.font.size.lg,
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+    marginBottom: token.spacing[6],
+  },
+  themeToggle: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[2],
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+    cursor: 'pointer',
+    marginTop: 'auto',
+    paddingTop: token.spacing[4],
+    borderTopWidth: '1px',
+    borderColor: token.color.border,
+    '&:hover': { color: token.color.foreground },
+  },
 });
 
 // ── App-specific global styles (extends theme globals) ─────

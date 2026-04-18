@@ -1,4 +1,4 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { Divider } from '../components/divider';
 import { Footer } from '../components/footer';
 import { Nav } from '../components/nav';
@@ -10,131 +10,97 @@ import { OpenAPIWhy } from '../components/openapi-why';
 // ── Hero styles ──────────────────────────────────────────
 
 const s = css({
-  section: [
-    'flex',
-    'items:center',
-    'justify:center',
-    'px:6',
-    'min-h:screen',
-    {
-      '&': { 'padding-top': '5rem' },
-      '@media (min-width: 1024px)': {
-        'padding-left': '3rem',
-        'padding-right': '3rem',
-        'padding-top': '0',
-      },
+  section: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingInline: token.spacing[6],
+    minHeight: '100vh',
+    '&': { paddingTop: '5rem' },
+    '@media (min-width: 1024px)': { paddingLeft: '3rem', paddingRight: '3rem', paddingTop: '0' },
+  },
+  grid: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[12],
+    width: '100%',
+    maxWidth: '72rem',
+    marginInline: 'auto',
+    alignItems: 'center',
+    '@media (min-width: 1024px)': { flexDirection: 'row', alignItems: 'center', gap: '4rem' },
+  },
+  textCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    textAlign: 'center',
+    '@media (min-width: 1024px)': { textAlign: 'left', flex: '1 1 0%', minWidth: '0' },
+  },
+  codeCol: { width: '100%', '@media (min-width: 1024px)': { flex: '1 1 0%', minWidth: '0' } },
+  badge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[2],
+    marginBottom: token.spacing[6],
+    '@media (min-width: 1024px)': { justifyContent: 'flex-start' },
+  },
+  badgeText: { fontSize: token.font.size.xs, letterSpacing: '0.1em', textTransform: 'uppercase' },
+  description: {
+    marginTop: token.spacing[6],
+    fontSize: token.font.size.base,
+    maxWidth: '36rem',
+    lineHeight: token.font.lineHeight.relaxed,
+  },
+  descriptionHighlight: { fontWeight: token.font.weight.medium },
+  ctas: {
+    marginTop: token.spacing[10],
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: token.spacing[4],
+    '@media (min-width: 1024px)': { alignItems: 'flex-start' },
+  },
+  ctaPrimary: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: token.spacing[2],
+    paddingBlock: token.spacing[3],
+    paddingInline: token.spacing[6],
+    fontSize: token.font.size.sm,
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+    '&': { background: '#C8451B', color: '#fff', borderRadius: '2px', textDecoration: 'none' },
+    '&:hover': { background: '#d65229' },
+    '@media (min-width: 640px)': { display: 'inline-flex' },
+  },
+  ctaLink: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: token.spacing[2],
+    paddingBlock: token.spacing[3],
+    paddingInline: token.spacing[6],
+    fontSize: token.font.size.sm,
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+    '@media (min-width: 640px)': { display: 'inline-flex' },
+  },
+  terminal: {
+    padding: token.spacing[6],
+    fontSize: token.font.size.sm,
+    borderWidth: '1px',
+    '&': {
+      overflowX: 'auto',
+      borderRadius: '2px',
+      backgroundColor: '#1C1B1A',
+      borderColor: '#2A2826',
     },
-  ],
-  grid: [
-    'flex',
-    'flex-col',
-    'gap:12',
-    'w:full',
-    'max-w:6xl',
-    'mx:auto',
-    'items:center',
-    {
-      '@media (min-width: 1024px)': {
-        'flex-direction': 'row',
-        'align-items': 'center',
-        gap: '4rem',
-      },
-    },
-  ],
-  textCol: [
-    'flex',
-    'flex-col',
-    'text:center',
-    {
-      '@media (min-width: 1024px)': {
-        'text-align': 'left',
-        flex: '1 1 0%',
-        'min-width': '0',
-      },
-    },
-  ],
-  codeCol: [
-    'w:full',
-    {
-      '@media (min-width: 1024px)': {
-        flex: '1 1 0%',
-        'min-width': '0',
-      },
-    },
-  ],
-  badge: [
-    'flex',
-    'items:center',
-    'gap:2',
-    'mb:6',
-    { '@media (min-width: 1024px)': { 'justify-content': 'flex-start' } },
-  ],
-  badgeText: ['font:xs', 'tracking:widest', 'uppercase'],
-  description: ['mt:6', 'font:base', 'max-w:xl', 'leading:relaxed'],
-  descriptionHighlight: ['weight:medium'],
-  ctas: [
-    'mt:10',
-    'flex',
-    'flex-col',
-    'items:stretch',
-    'gap:4',
-    {
-      '@media (min-width: 1024px)': {
-        'align-items': 'flex-start',
-      },
-    },
-  ],
-  ctaPrimary: [
-    'flex',
-    'items:center',
-    'justify:center',
-    'gap:2',
-    'py:3',
-    'px:6',
-    'font:sm',
-    'uppercase',
-    'tracking:wider',
-    'transition:colors',
-    {
-      '&': {
-        background: '#C8451B',
-        color: '#fff',
-        'border-radius': '2px',
-        'text-decoration': 'none',
-      },
-      '&:hover': { background: '#d65229' },
-      '@media (min-width: 640px)': { display: 'inline-flex' },
-    },
-  ],
-  ctaLink: [
-    'flex',
-    'items:center',
-    'justify:center',
-    'gap:2',
-    'py:3',
-    'px:6',
-    'font:sm',
-    'uppercase',
-    'tracking:wider',
-    'transition:colors',
-    {
-      '@media (min-width: 640px)': { display: 'inline-flex' },
-    },
-  ],
-  terminal: [
-    'p:6',
-    'font:sm',
-    'border:1',
-    {
-      '&': {
-        'overflow-x': 'auto',
-        'border-radius': '2px',
-        'background-color': '#1C1B1A',
-        'border-color': '#2A2826',
-      },
-    },
-  ],
-  terminalLine: ['mb:2'],
+  },
+  terminalLine: { marginBottom: token.spacing[2] },
 });
 
 // ── Hero terminal ────────────────────────────────────────

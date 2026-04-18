@@ -1,21 +1,29 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import type { Project } from '../lib/types';
 
 const styles = css({
-  card: [
-    'bg:card',
-    'rounded:lg',
-    'border:1',
-    'border:border',
-    'p:4',
-    'cursor:pointer',
-    'transition:colors',
-    'hover:bg:accent',
-    'hover:border:accent',
-  ],
-  name: ['font:medium', 'text:foreground', 'mb:1'],
-  key: ['text:xs', 'text:muted-foreground'],
-  description: ['text:sm', 'text:muted-foreground', 'mt:2'],
+  card: {
+    backgroundColor: token.color.card,
+    borderRadius: token.radius.lg,
+    borderWidth: '1px',
+    borderColor: token.color.border,
+    padding: token.spacing[4],
+    cursor: 'pointer',
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+    '&:hover': { backgroundColor: token.color.accent, borderColor: token.color.accent },
+  },
+  name: {
+    fontWeight: token.font.weight.medium,
+    color: token.color.foreground,
+    marginBottom: token.spacing[1],
+  },
+  key: { fontSize: token.font.size.xs, color: token.color['muted-foreground'] },
+  description: {
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    marginTop: token.spacing[2],
+  },
 });
 
 export function ProjectCard({ project }: { project: Project }) {

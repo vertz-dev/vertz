@@ -1,29 +1,35 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { Link } from '@vertz/ui/router';
 
 const styles = css({
-  nav: [
-    'flex',
-    'flex-col',
-    'w:64',
-    'min-h:screen',
-    'bg:card',
-    'border-r:1',
-    'border:border',
-    'p:4',
-  ],
-  brand: ['font:xl', 'font:bold', 'text:foreground', 'mb:6', 'px:2'],
-  links: ['flex', 'flex-col', 'gap:1'],
-  link: [
-    'px:3',
-    'py:2',
-    'rounded:md',
-    'text:sm',
-    'text:muted-foreground',
-    'hover:bg:accent',
-    'hover:text:foreground',
-    'transition:colors',
-  ],
+  nav: {
+    display: 'flex',
+    flexDirection: 'column',
+    width: token.spacing[64],
+    minHeight: '100vh',
+    backgroundColor: token.color.card,
+    borderRightWidth: '1px',
+    borderColor: token.color.border,
+    padding: token.spacing[4],
+  },
+  brand: {
+    fontSize: token.font.size.xl,
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+    marginBottom: token.spacing[6],
+    paddingInline: token.spacing[2],
+  },
+  links: { display: 'flex', flexDirection: 'column', gap: token.spacing[1] },
+  link: {
+    paddingInline: token.spacing[3],
+    paddingBlock: token.spacing[2],
+    borderRadius: token.radius.md,
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+    '&:hover': { backgroundColor: token.color.accent, color: token.color.foreground },
+  },
 });
 
 export function NavBar() {

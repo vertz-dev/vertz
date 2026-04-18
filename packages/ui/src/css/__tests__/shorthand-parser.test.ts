@@ -1,3 +1,6 @@
+// REMOVED-IN-PHASE-4: this file only tests the shorthand parser itself, which
+// is removed in Phase 4. Delete this file together with
+// `packages/ui/src/css/shorthand-parser.ts`.
 import { describe, expect, it } from '@vertz/test';
 import { parseShorthand, ShorthandParseError } from '../shorthand-parser';
 

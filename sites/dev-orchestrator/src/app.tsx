@@ -1,31 +1,35 @@
-import { css, getInjectedCSS, globalCss, ThemeProvider } from "@vertz/ui";
-import { RouterContext, RouterView } from "@vertz/ui/router";
-import { CommandPalette } from "./components/command-palette";
-import { Sidebar } from "./components/sidebar";
-import { Topbar } from "./components/topbar";
-import { appRouter } from "./router";
-import { themeGlobals } from "./styles/theme";
+import { ThemeProvider, css, getInjectedCSS, globalCss, token } from '@vertz/ui';
+import { RouterContext, RouterView } from '@vertz/ui/router';
+import { CommandPalette } from './components/command-palette';
+import { Sidebar } from './components/sidebar';
+import { Topbar } from './components/topbar';
+import { appRouter } from './router';
+import { themeGlobals } from './styles/theme';
 
 const appGlobals = globalCss({
-  "*": {
-    boxSizing: "border-box",
-    margin: "0",
-    padding: "0",
+  '*': {
+    boxSizing: 'border-box',
+    margin: '0',
+    padding: '0',
   },
   body: {
-    margin: "0",
-    fontFamily: "system-ui, -apple-system, sans-serif",
+    margin: '0',
+    fontFamily: 'system-ui, -apple-system, sans-serif',
   },
   a: {
-    textDecoration: "none",
-    color: "inherit",
+    textDecoration: 'none',
+    color: 'inherit',
   },
 });
 
 const s = css({
-  shell: ['flex', 'min-h:screen', { '&': { background: 'var(--color-background)', color: 'var(--color-foreground)' } }],
-  content: ['flex', 'flex-col', 'flex-1', { '&': { 'min-width': '0' } }],
-  main: ['flex-1', 'p:6', 'overflow:auto'],
+  shell: {
+    display: 'flex',
+    minHeight: '100vh',
+    '&': { background: 'var(--color-background)', color: 'var(--color-foreground)' },
+  },
+  content: { display: 'flex', flexDirection: 'column', flex: '1 1 0%', '&': { minWidth: '0' } },
+  main: { flex: '1 1 0%', padding: token.spacing[6], overflow: 'auto' },
 });
 
 export { getInjectedCSS };
@@ -60,7 +64,9 @@ export function App() {
             {cmdPaletteOpen && (
               <CommandPalette
                 open={cmdPaletteOpen}
-                onClose={() => { cmdPaletteOpen = false; }}
+                onClose={() => {
+                  cmdPaletteOpen = false;
+                }}
               />
             )}
           </div>

@@ -20,6 +20,7 @@ import {
   CSS_COLOR_KEYWORDS,
   FONT_SIZE_SCALE,
   FONT_WEIGHT_SCALE,
+  HEIGHT_AXIS_PROPERTIES,
   KEYWORD_MAP,
   PROPERTY_MAP,
   PSEUDO_MAP,
@@ -107,6 +108,7 @@ export function mapShorthand(input: string): MappedShorthand {
   if (property === 'text') return { entries: mapText(value), pseudo };
   if (property === 'font') return { entries: mapFont(value), pseudo };
   if (property === 'border') return { entries: mapBorder(value), pseudo };
+  if (property === 'ring') return { entries: mapRing(value), pseudo };
 
   const valueExpr = mapValueForType(value, mapping.valueType, property);
   const entries = mapping.properties.map((cssProp) => ({
@@ -147,14 +149,94 @@ function mapValueForType(
     case 'font-weight':
       return mapFontWeight(value);
     case 'line-height':
-      return `token.font.lineHeight.${value}`;
+      return memberAccess('token.font.lineHeight', value);
     case 'content':
       return mapContent(value);
     case 'ring':
     case 'display':
     case 'raw':
-      return quote(value);
+      return mapRaw(value, property);
   }
+}
+
+const TRANSITION_TIMING = '150ms cubic-bezier(0.4, 0, 0.2, 1)';
+const TRANSITION_COLOR_PROPS = [
+  'color',
+  'background-color',
+  'border-color',
+  'outline-color',
+  'text-decoration-color',
+  'fill',
+  'stroke',
+];
+const TRANSITION_MAP: Record<string, string> = {
+  none: 'none',
+  all: `all ${TRANSITION_TIMING}`,
+  colors: TRANSITION_COLOR_PROPS.map((p) => `${p} ${TRANSITION_TIMING}`).join(', '),
+  shadow: `box-shadow ${TRANSITION_TIMING}`,
+  transform: `transform ${TRANSITION_TIMING}`,
+  opacity: `opacity ${TRANSITION_TIMING}`,
+};
+
+const TRACKING_MAP: Record<string, string> = {
+  tighter: '-0.05em',
+  tight: '-0.025em',
+  normal: '0em',
+  wide: '0.025em',
+  wider: '0.05em',
+  widest: '0.1em',
+};
+
+const ASPECT_MAP: Record<string, string> = {
+  square: '1 / 1',
+  video: '16 / 9',
+  photo: '4 / 3',
+};
+
+const POSITION_PROPERTIES = new Set(['inset', 'top', 'right', 'bottom', 'left']);
+
+function mapRaw(value: string, property: string): string {
+  if (
+    property === 'border-r' ||
+    property === 'border-l' ||
+    property === 'border-t' ||
+    property === 'border-b'
+  ) {
+    const num = Number(value);
+    if (!Number.isNaN(num)) return quote(`${num}px`);
+    return quote(value);
+  }
+
+  if (property === 'transition') {
+    const mapped = TRANSITION_MAP[value];
+    if (mapped !== undefined) return quote(mapped);
+    return quote(value);
+  }
+
+  if (property === 'tracking') {
+    const mapped = TRACKING_MAP[value];
+    if (mapped !== undefined) return quote(mapped);
+    return quote(value);
+  }
+
+  if (property === 'grid-cols') {
+    const num = Number(value);
+    if (!Number.isNaN(num) && num > 0) return quote(`repeat(${num}, minmax(0, 1fr))`);
+    return quote(value);
+  }
+
+  if (property === 'aspect') {
+    const mapped = ASPECT_MAP[value];
+    if (mapped !== undefined) return quote(mapped);
+    return quote(value);
+  }
+
+  if (POSITION_PROPERTIES.has(property)) {
+    if (SPACING_SCALE[value] !== undefined) return spacingAccess(value);
+    return quote(value);
+  }
+
+  return quote(value);
 }
 
 function mapSpacing(value: string, property: string): string {
@@ -169,31 +251,89 @@ function spacingAccess(key: string): string {
   return /^\d+$/.test(key) ? `token.spacing[${key}]` : `token.spacing['${key}']`;
 }
 
+const OPACITY_PATTERN = /^(.+)\/(\d+)$/;
+
 function mapColor(value: string, property: string): string {
   if (CSS_COLOR_KEYWORDS.has(value)) return quote(value);
+
+  const opacityMatch = OPACITY_PATTERN.exec(value);
+  if (opacityMatch) {
+    const colorPart = opacityMatch[1]!;
+    const opacityStr = opacityMatch[2]!;
+    const opacity = Number(opacityStr);
+    if (opacity < 0 || opacity > 100) {
+      throw new TypeError(
+        `Invalid opacity '${opacityStr}' in '${value}' for '${property}': must be 0-100`,
+      );
+    }
+    const cssVar = colorToCssVar(colorPart, property);
+    return quote(`color-mix(in oklch, ${cssVar} ${opacity}%, transparent)`);
+  }
 
   const dotIndex = value.indexOf('.');
   if (dotIndex !== -1) {
     const namespace = value.substring(0, dotIndex);
     const shade = value.substring(dotIndex + 1);
-    return `token.color.${namespace}[${shade}]`;
+    return `token.color${accessKey(namespace)}[${shadeKey(shade)}]`;
   }
-  if (COLOR_NAMESPACES.has(value)) return `token.color.${value}`;
+  if (COLOR_NAMESPACES.has(value)) return `token.color${accessKey(value)}`;
   throw new TypeError(`Invalid color value '${value}' for '${property}'`);
 }
 
+function colorToCssVar(color: string, property: string): string {
+  const dotIndex = color.indexOf('.');
+  if (dotIndex !== -1) {
+    const namespace = color.substring(0, dotIndex);
+    const shade = color.substring(dotIndex + 1);
+    if (COLOR_NAMESPACES.has(namespace)) return `var(--color-${namespace}-${shade})`;
+    throw new TypeError(`Invalid color namespace '${namespace}' for '${property}'`);
+  }
+  if (COLOR_NAMESPACES.has(color)) return `var(--color-${color})`;
+  throw new TypeError(`Invalid color value '${color}' for '${property}'`);
+}
+
+const IDENT_RE = /^[A-Za-z_$][\w$]*$/;
+
+function accessKey(name: string): string {
+  return IDENT_RE.test(name) ? `.${name}` : `['${name}']`;
+}
+
+function memberAccess(base: string, key: string): string {
+  return `${base}${accessKey(key)}`;
+}
+
+function shadeKey(shade: string): string {
+  return /^\d+$/.test(shade) ? shade : `'${shade}'`;
+}
+
 function mapRadius(value: string): string {
-  return `token.radius.${value}`;
+  return memberAccess('token.radius', value);
 }
 
 function mapShadow(value: string): string {
-  return `token.shadow.${value}`;
+  return memberAccess('token.shadow', value);
 }
+
+const FRACTION_PATTERN = /^(\d+)\/(\d+)$/;
 
 function mapSize(value: string, property: string): string {
   if (SPACING_SCALE[value] !== undefined) return spacingAccess(value);
+  if (value === 'screen') {
+    return HEIGHT_AXIS_PROPERTIES.has(property) ? quote('100vh') : quote('100vw');
+  }
   const keyword = SIZE_KEYWORDS[value];
   if (keyword !== undefined) return quote(keyword);
+  const fractionMatch = FRACTION_PATTERN.exec(value);
+  if (fractionMatch) {
+    const numerator = Number(fractionMatch[1]);
+    const denominator = Number(fractionMatch[2]);
+    if (denominator === 0) {
+      throw new TypeError(`Invalid fraction '${value}' for '${property}': denominator is zero`);
+    }
+    const percent = (numerator / denominator) * 100;
+    const formatted = percent % 1 === 0 ? `${percent}` : percent.toFixed(6);
+    return quote(`${formatted}%`);
+  }
   throw new TypeError(`Invalid size value '${value}' for '${property}'`);
 }
 
@@ -209,19 +349,19 @@ function mapFontSize(value: string): string {
   if (FONT_SIZE_SCALE[value] === undefined) {
     throw new TypeError(`Invalid font-size value '${value}'`);
   }
-  return `token.font.size.${value}`;
+  return memberAccess('token.font.size', value);
 }
 
 function mapFontWeight(value: string): string {
   if (FONT_WEIGHT_SCALE[value] === undefined) {
     throw new TypeError(`Invalid font-weight value '${value}'`);
   }
-  return `token.font.weight.${value}`;
+  return memberAccess('token.font.weight', value);
 }
 
 function mapText(value: string): MappedEntry[] {
   if (FONT_SIZE_SCALE[value] !== undefined) {
-    return [{ cssKey: 'fontSize', valueExpr: `token.font.size.${value}` }];
+    return [{ cssKey: 'fontSize', valueExpr: memberAccess('token.font.size', value) }];
   }
   if (TEXT_ALIGN_KEYWORDS.has(value)) {
     return [{ cssKey: 'textAlign', valueExpr: quote(value) }];
@@ -231,10 +371,10 @@ function mapText(value: string): MappedEntry[] {
 
 function mapFont(value: string): MappedEntry[] {
   if (FONT_FAMILY_KEYS.has(value)) {
-    return [{ cssKey: 'fontFamily', valueExpr: `token.font.family.${value}` }];
+    return [{ cssKey: 'fontFamily', valueExpr: memberAccess('token.font.family', value) }];
   }
   if (FONT_WEIGHT_SCALE[value] !== undefined) {
-    return [{ cssKey: 'fontWeight', valueExpr: `token.font.weight.${value}` }];
+    return [{ cssKey: 'fontWeight', valueExpr: memberAccess('token.font.weight', value) }];
   }
   return [{ cssKey: 'fontSize', valueExpr: mapFontSize(value) }];
 }
@@ -253,6 +393,14 @@ function mapBorder(value: string): MappedEntry[] {
     return [{ cssKey: 'borderWidth', valueExpr: quote(`${num}px`) }];
   }
   return [{ cssKey: 'borderColor', valueExpr: mapColor(value, 'border') }];
+}
+
+function mapRing(value: string): MappedEntry[] {
+  const num = Number(value);
+  if (!Number.isNaN(num) && num >= 0) {
+    return [{ cssKey: 'outline', valueExpr: quote(`${num}px solid var(--color-ring)`) }];
+  }
+  return [{ cssKey: 'outlineColor', valueExpr: mapColor(value, 'ring') }];
 }
 
 function toCamel(kebab: string): string {

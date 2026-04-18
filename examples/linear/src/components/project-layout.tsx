@@ -1,11 +1,20 @@
-import { css, Link, Outlet, query, useParams } from '@vertz/ui';
+import { Link, Outlet, css, query, token, useParams } from '@vertz/ui';
 import { api } from '../api/client';
 
 const styles = css({
-  header: ['flex', 'items:center', 'gap:2', 'mb:4'],
-  breadcrumb: ['text:sm', 'text:muted-foreground'],
-  separator: ['text:sm', 'text:muted-foreground'],
-  title: ['font:xl', 'font:bold', 'text:foreground'],
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[2],
+    marginBottom: token.spacing[4],
+  },
+  breadcrumb: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
+  separator: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
+  title: {
+    fontSize: token.font.size.xl,
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+  },
 });
 
 export function ProjectLayout() {

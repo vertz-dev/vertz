@@ -1,5 +1,5 @@
 import type { CSSOutput } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 type AppShellBlocks = {
   root: string[];
@@ -15,27 +15,53 @@ type AppShellBlocks = {
 /** Create AppShell css() styles. */
 export function createAppShell(): CSSOutput<AppShellBlocks> {
   const s = css({
-    shellRoot: ['flex', 'min-h:screen', 'bg:background'],
-    shellSidebar: ['w:56', 'bg:card', 'border-r:1', 'border:border', 'p:4', 'flex', 'flex-col'],
-    shellBrand: ['font:lg', 'font:bold', 'text:foreground', 'mb:6'],
-    shellNav: ['flex', 'flex-col', 'gap:1', 'mb:auto'],
-    shellNavItem: [
-      'flex',
-      'items:center',
-      'gap:2',
-      'text:sm',
-      'text:muted-foreground',
-      'py:1.5',
-      'px:2',
-      'rounded:md',
-      'transition:colors',
-      'hover:text:foreground',
-      'hover:bg:accent',
-      { '&': { 'text-decoration': 'none' } },
-    ],
-    shellNavItemActive: ['text:foreground', 'bg:accent'],
-    shellContent: ['flex-1'],
-    shellUser: ['mt:auto', 'pt:4', 'border-t:1', 'border:border', 'flex', 'items:center', 'gap:2'],
+    shellRoot: { display: 'flex', minHeight: '100vh', backgroundColor: token.color.background },
+    shellSidebar: {
+      width: token.spacing[56],
+      backgroundColor: token.color.card,
+      borderRightWidth: '1px',
+      borderColor: token.color.border,
+      padding: token.spacing[4],
+      display: 'flex',
+      flexDirection: 'column',
+    },
+    shellBrand: {
+      fontSize: token.font.size.lg,
+      fontWeight: token.font.weight.bold,
+      color: token.color.foreground,
+      marginBottom: token.spacing[6],
+    },
+    shellNav: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: token.spacing[1],
+      marginBottom: 'auto',
+    },
+    shellNavItem: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: token.spacing[2],
+      fontSize: token.font.size.sm,
+      color: token.color['muted-foreground'],
+      paddingBlock: token.spacing['1.5'],
+      paddingInline: token.spacing[2],
+      borderRadius: token.radius.md,
+      transition:
+        'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+      '&:hover': { color: token.color.foreground, backgroundColor: token.color.accent },
+      '&': { textDecoration: 'none' },
+    },
+    shellNavItemActive: { color: token.color.foreground, backgroundColor: token.color.accent },
+    shellContent: { flex: '1 1 0%' },
+    shellUser: {
+      marginTop: 'auto',
+      paddingTop: token.spacing[4],
+      borderTopWidth: '1px',
+      borderColor: token.color.border,
+      display: 'flex',
+      alignItems: 'center',
+      gap: token.spacing[2],
+    },
   });
   return {
     root: s.shellRoot,

@@ -1,22 +1,56 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { Footer } from '../components/footer';
 import { Nav } from '../components/nav';
 
 const s = css({
-  page: ['min-h:screen'],
-  article: ['max-w:3xl', 'mx:auto', 'px:6', 'pt:32', 'pb:24'],
-  subtitle: ['font:xl', 'mb:16', 'text:gray.400'],
-  section: ['mb:16'],
-  sectionTitle: ['font:2xl', 'mb:6', 'text:gray.100'],
-  paragraph: ['font:lg', 'leading:relaxed', 'mb:6', 'text:gray.400'],
-  highlight: ['text:gray.200', 'weight:medium'],
-  bold: ['weight:semibold', 'text:gray.100'],
-  divider: ['my:16'],
-  list: ['mb:6'],
-  tradeoffItem: ['font:lg', 'leading:relaxed', 'mb:4', 'text:gray.400'],
-  listItem: ['font:lg', 'leading:relaxed', 'mb:3', 'text:gray.400'],
-  blockquote: ['font:2xl', 'text:center', 'my:8', 'text:gray.100'],
-  closing: ['font:lg', 'text:center', 'text:gray.400'],
+  page: { minHeight: '100vh' },
+  article: {
+    maxWidth: '48rem',
+    marginInline: 'auto',
+    paddingInline: token.spacing[6],
+    paddingTop: token.spacing[32],
+    paddingBottom: token.spacing[24],
+  },
+  subtitle: {
+    fontSize: token.font.size.xl,
+    marginBottom: token.spacing[16],
+    color: token.color.gray[400],
+  },
+  section: { marginBottom: token.spacing[16] },
+  sectionTitle: {
+    fontSize: token.font.size['2xl'],
+    marginBottom: token.spacing[6],
+    color: token.color.gray[100],
+  },
+  paragraph: {
+    fontSize: token.font.size.lg,
+    lineHeight: token.font.lineHeight.relaxed,
+    marginBottom: token.spacing[6],
+    color: token.color.gray[400],
+  },
+  highlight: { color: token.color.gray[200], fontWeight: token.font.weight.medium },
+  bold: { fontWeight: token.font.weight.semibold, color: token.color.gray[100] },
+  divider: { marginBlock: token.spacing[16] },
+  list: { marginBottom: token.spacing[6] },
+  tradeoffItem: {
+    fontSize: token.font.size.lg,
+    lineHeight: token.font.lineHeight.relaxed,
+    marginBottom: token.spacing[4],
+    color: token.color.gray[400],
+  },
+  listItem: {
+    fontSize: token.font.size.lg,
+    lineHeight: token.font.lineHeight.relaxed,
+    marginBottom: token.spacing[3],
+    color: token.color.gray[400],
+  },
+  blockquote: {
+    fontSize: token.font.size['2xl'],
+    textAlign: 'center',
+    marginBlock: token.spacing[8],
+    color: token.color.gray[100],
+  },
+  closing: { fontSize: token.font.size.lg, textAlign: 'center', color: token.color.gray[400] },
 });
 
 export default function ManifestoPage() {

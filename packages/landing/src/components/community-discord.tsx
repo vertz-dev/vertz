@@ -1,37 +1,59 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 const s = css({
-  section: ['py:24', 'px:6', 'relative', 'overflow:hidden'],
-  container: ['max-w:4xl', 'mx:auto', 'text:center'],
-  inner: ['max-w:2xl', 'mx:auto'],
-  badge: ['flex', 'items:center', 'justify:center', 'gap:2', 'mb:6'],
-  badgeDot: ['inline-flex', 'rounded:full', 'h:2.5', 'w:2.5'],
-  badgeText: ['font:xs', 'tracking:widest', 'uppercase', { '&': { color: '#6B6560' } }],
-  heading: ['font:4xl', 'mb:6'],
-  desc: ['font:lg', 'leading:relaxed', 'mb:10'],
-  cta: [
-    'inline-flex',
-    'items:center',
-    'gap:2',
-    'py:3',
-    'px:8',
-    'font:sm',
-    'uppercase',
-    'tracking:wider',
-    'transition:colors',
-    {
-      '&': {
-        background: '#5865F2',
-        color: '#fff',
-        borderRadius: '2px',
-        border: 'none',
-        textDecoration: 'none',
-      },
-      '&:hover': {
-        background: '#4752C4',
-      },
+  section: {
+    paddingBlock: token.spacing[24],
+    paddingInline: token.spacing[6],
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  container: { maxWidth: '56rem', marginInline: 'auto', textAlign: 'center' },
+  inner: { maxWidth: '42rem', marginInline: 'auto' },
+  badge: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: token.spacing[2],
+    marginBottom: token.spacing[6],
+  },
+  badgeDot: {
+    display: 'inline-flex',
+    borderRadius: token.radius.full,
+    height: token.spacing['2.5'],
+    width: token.spacing['2.5'],
+  },
+  badgeText: {
+    fontSize: token.font.size.xs,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    '&': { color: '#6B6560' },
+  },
+  heading: { fontSize: token.font.size['4xl'], marginBottom: token.spacing[6] },
+  desc: {
+    fontSize: token.font.size.lg,
+    lineHeight: token.font.lineHeight.relaxed,
+    marginBottom: token.spacing[10],
+  },
+  cta: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: token.spacing[2],
+    paddingBlock: token.spacing[3],
+    paddingInline: token.spacing[8],
+    fontSize: token.font.size.sm,
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+    '&': {
+      background: '#5865F2',
+      color: '#fff',
+      borderRadius: '2px',
+      border: 'none',
+      textDecoration: 'none',
     },
-  ],
+    '&:hover': { background: '#4752C4' },
+  },
 });
 
 const DISCORD_URL = 'https://discord.gg/C7JkeBhH5';

@@ -1,30 +1,46 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import type { ArtifactViewerProps } from './artifact-viewer-utils';
 import { isMarkdown } from './artifact-viewer-utils';
 
 export type { ArtifactViewerProps } from './artifact-viewer-utils';
 
 const s = css({
-  card: ['border:1', 'border:border', 'rounded:lg', 'overflow:hidden'],
-  header: [
-    'py:2',
-    'px:3',
-    'bg:secondary',
-    'text:xs',
-    'font:medium',
-    'text:muted-foreground',
-    { '&': { 'font-family': 'monospace' } },
-  ],
-  body: ['py:3', 'px:4', 'text:sm', 'text:foreground', { '&': { 'line-height': '1.6' } }],
-  pre: [
-    'py:3',
-    'px:4',
-    'text:xs',
-    'text:foreground',
-    'bg:secondary',
-    'm:0',
-    { '&': { 'line-height': '1.5', 'font-family': 'monospace', 'white-space': 'pre-wrap', 'word-break': 'break-word' } },
-  ],
+  card: {
+    borderWidth: '1px',
+    borderColor: token.color.border,
+    borderRadius: token.radius.lg,
+    overflow: 'hidden',
+  },
+  header: {
+    paddingBlock: token.spacing[2],
+    paddingInline: token.spacing[3],
+    backgroundColor: token.color.secondary,
+    fontSize: token.font.size.xs,
+    fontWeight: token.font.weight.medium,
+    color: token.color['muted-foreground'],
+    '&': { fontFamily: 'monospace' },
+  },
+  body: {
+    paddingBlock: token.spacing[3],
+    paddingInline: token.spacing[4],
+    fontSize: token.font.size.sm,
+    color: token.color.foreground,
+    '&': { lineHeight: '1.6' },
+  },
+  pre: {
+    paddingBlock: token.spacing[3],
+    paddingInline: token.spacing[4],
+    fontSize: token.font.size.xs,
+    color: token.color.foreground,
+    backgroundColor: token.color.secondary,
+    margin: token.spacing[0],
+    '&': {
+      lineHeight: '1.5',
+      fontFamily: 'monospace',
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word',
+    },
+  },
 });
 
 export default function ArtifactViewer({ path, content, type }: ArtifactViewerProps) {
@@ -33,11 +49,7 @@ export default function ArtifactViewer({ path, content, type }: ArtifactViewerPr
   return (
     <div className={s.card}>
       <div className={s.header}>{path}</div>
-      {markdown ? (
-        <div className={s.body}>{content}</div>
-      ) : (
-        <pre className={s.pre}>{content}</pre>
-      )}
+      {markdown ? <div className={s.body}>{content}</div> : <pre className={s.pre}>{content}</pre>}
     </div>
   );
 }

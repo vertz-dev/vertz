@@ -1,29 +1,61 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { query } from '@vertz/ui/query';
 import { useRouter } from '@vertz/ui/router';
 import { sdk } from '../lib/sdk';
 
 const s = css({
-  page: ['flex', 'flex-col', 'gap:6', { '&': { 'max-width': '960px' } }],
-  heading: ['text:2xl', 'font:bold', 'text:foreground', 'm:0'],
-  subtitle: ['text:sm', 'text:muted-foreground', { '&': { margin: '4px 0 0' } }],
-  grid: ['grid', 'gap:3', 'grid-cols:repeat(2, 1fr)'],
-  card: ['p:4', 'rounded:lg', 'border:1', 'border:border', 'bg:card', 'flex', 'flex-col', 'gap:2', 'cursor:pointer', 'transition:border-color 0.15s'],
-  cardHeader: ['flex', 'items:center', { '&': { 'justify-content': 'space-between' } }],
-  cardTitle: ['text:sm', 'font:medium', 'text:foreground'],
-  cardDesc: ['text:sm', 'text:muted-foreground'],
-  badge: ['text:xs', 'rounded:full', 'bg:secondary', 'font:medium', { '&': { padding: '2px 8px', color: 'var(--color-secondary-foreground)' } }],
-  toolCount: ['text:xs', 'text:muted-foreground'],
-  loading: ['text:muted-foreground', 'text:sm'],
-  error: ['text:destructive', 'text:sm'],
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[6],
+    '&': { maxWidth: '960px' },
+  },
+  heading: {
+    fontSize: token.font.size['2xl'],
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+    margin: token.spacing[0],
+  },
+  subtitle: {
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    '&': { margin: '4px 0 0' },
+  },
+  grid: { display: 'grid', gap: token.spacing[3], gridTemplateColumns: 'repeat(2, 1fr)' },
+  card: {
+    padding: token.spacing[4],
+    borderRadius: token.radius.lg,
+    borderWidth: '1px',
+    borderColor: token.color.border,
+    backgroundColor: token.color.card,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[2],
+    cursor: 'pointer',
+    transition: 'border-color 0.15s',
+  },
+  cardHeader: { display: 'flex', alignItems: 'center', '&': { justifyContent: 'space-between' } },
+  cardTitle: {
+    fontSize: token.font.size.sm,
+    fontWeight: token.font.weight.medium,
+    color: token.color.foreground,
+  },
+  cardDesc: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
+  badge: {
+    fontSize: token.font.size.xs,
+    borderRadius: token.radius.full,
+    backgroundColor: token.color.secondary,
+    fontWeight: token.font.weight.medium,
+    '&': { padding: '2px 8px', color: 'var(--color-secondary-foreground)' },
+  },
+  toolCount: { fontSize: token.font.size.xs, color: token.color['muted-foreground'] },
+  loading: { color: token.color['muted-foreground'], fontSize: token.font.size.sm },
+  error: { color: token.color.destructive, fontSize: token.font.size.sm },
 });
 
 export default function AgentsPage() {
   const { navigate } = useRouter();
-  const agentsQuery = query(
-    () => sdk.agents.list(),
-    { key: 'agents-list' },
-  );
+  const agentsQuery = query(() => sdk.agents.list(), { key: 'agents-list' });
 
   const agents = () => agentsQuery.data?.agents ?? [];
 

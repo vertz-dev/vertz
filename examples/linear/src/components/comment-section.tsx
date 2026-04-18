@@ -1,5 +1,5 @@
 import type { FormSchema } from '@vertz/ui';
-import { css, form } from '@vertz/ui';
+import { css, form, token } from '@vertz/ui';
 import { api } from '../api/client';
 import type { Comment, CreateCommentBody } from '../lib/types';
 import { formStyles, inputStyles } from '../styles/components';
@@ -7,12 +7,36 @@ import { Button } from './button';
 import { CommentItem } from './comment-item';
 
 const styles = css({
-  section: ['mt:8', 'border-t:1', 'border:border', 'pt:6'],
-  heading: ['font:base', 'font:semibold', 'text:foreground', 'mb:4', 'm:0'],
-  loading: ['text:sm', 'text:muted-foreground', 'py:4'],
-  empty: ['text:sm', 'text:muted-foreground', 'py:4'],
-  form: ['mt:4', 'flex', 'flex-col', 'gap:2'],
-  submitRow: ['flex', 'justify:end'],
+  section: {
+    marginTop: token.spacing[8],
+    borderTopWidth: '1px',
+    borderColor: token.color.border,
+    paddingTop: token.spacing[6],
+  },
+  heading: {
+    fontSize: token.font.size.base,
+    fontWeight: token.font.weight.semibold,
+    color: token.color.foreground,
+    marginBottom: token.spacing[4],
+    margin: token.spacing[0],
+  },
+  loading: {
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    paddingBlock: token.spacing[4],
+  },
+  empty: {
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    paddingBlock: token.spacing[4],
+  },
+  form: {
+    marginTop: token.spacing[4],
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[2],
+  },
+  submitRow: { display: 'flex', justifyContent: 'flex-end' },
 });
 
 const createCommentSchema: FormSchema<CreateCommentBody> = {

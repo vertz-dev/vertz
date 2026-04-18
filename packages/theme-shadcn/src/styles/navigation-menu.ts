@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { animationDecl, bgOpacity } from './_helpers';
 
 type NavigationMenuBlocks = {
@@ -14,66 +14,47 @@ type NavigationMenuBlocks = {
 /** Create navigation menu css() styles. */
 export function createNavigationMenuStyles(): CSSOutput<NavigationMenuBlocks> {
   const s = css({
-    navRoot: ['relative', 'z:10'],
-    navList: ['flex', 'items:center', 'gap:1'],
-    navTrigger: [
-      'inline-flex',
-      'items:center',
-      'justify:center',
-      'rounded:md',
-      'px:4',
-      'py:2',
-      'text:sm',
-      'font:medium',
-      'cursor:pointer',
-      'transition:colors',
-      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
-      { '&[data-state="open"]': [bgOpacity('accent', 50)] },
-    ],
-    navContent: [
-      'absolute',
-      'w:full',
-      'rounded:md',
-      'border:1',
-      'border:border',
-      'bg:popover',
-      'p:4',
-      'shadow:lg',
-      'text:popover-foreground',
-      {
-        '&': {
-          left: '0',
-          top: '100%',
-        },
-      },
-      {
-        '&[data-state="open"]': [animationDecl('vz-fade-in 150ms ease-out forwards')],
-      },
-      {
-        '&[data-state="closed"]': [animationDecl('vz-fade-out 150ms ease-out forwards')],
-      },
-    ],
-    navLink: [
-      'block',
-      'rounded:md',
-      'p:3',
-      'text:sm',
-      'leading:none',
-      {
-        '&': { 'text-decoration-line': 'none' },
-      },
-      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
-    ],
-    navViewport: [
-      'absolute',
-      'w:full',
-      {
-        '&': {
-          left: '0',
-          top: '100%',
-        },
-      },
-    ],
+    navRoot: { position: 'relative', zIndex: '10' },
+    navList: { display: 'flex', alignItems: 'center', gap: token.spacing[1] },
+    navTrigger: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: token.radius.md,
+      paddingInline: token.spacing[4],
+      paddingBlock: token.spacing[2],
+      fontSize: token.font.size.sm,
+      fontWeight: token.font.weight.medium,
+      cursor: 'pointer',
+      transition:
+        'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+      '&:hover': { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
+      '&[data-state="open"]': bgOpacity('accent', 50),
+    },
+    navContent: {
+      position: 'absolute',
+      width: '100%',
+      borderRadius: token.radius.md,
+      borderWidth: '1px',
+      borderColor: token.color.border,
+      backgroundColor: token.color.popover,
+      padding: token.spacing[4],
+      boxShadow: token.shadow.lg,
+      color: token.color['popover-foreground'],
+      '&': { left: '0', top: '100%' },
+      '&[data-state="open"]': animationDecl('vz-fade-in 150ms ease-out forwards'),
+      '&[data-state="closed"]': animationDecl('vz-fade-out 150ms ease-out forwards'),
+    },
+    navLink: {
+      display: 'block',
+      borderRadius: token.radius.md,
+      padding: token.spacing[3],
+      fontSize: token.font.size.sm,
+      lineHeight: token.font.lineHeight.none,
+      '&': { textDecorationLine: 'none' },
+      '&:hover': { backgroundColor: token.color.accent, color: token.color['accent-foreground'] },
+    },
+    navViewport: { position: 'absolute', width: '100%', '&': { left: '0', top: '100%' } },
   });
   return {
     root: s.navRoot,

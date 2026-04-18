@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from '@vertz/test';
 import { getInjectedCSS, resetInjectedStyles } from '../css';
 import { variants } from '../variants';
+import { token } from '@vertz/ui';
 
 describe('variants() lazy compilation', () => {
   afterEach(() => {
@@ -10,15 +11,15 @@ describe('variants() lazy compilation', () => {
   it('only injects base CSS when the variant function is created but never called', () => {
     resetInjectedStyles();
     const button = variants({
-      base: ['p:4'],
+      base: { padding: token.spacing[4] },
       variants: {
         intent: {
-          primary: ['bg:primary'],
-          secondary: ['bg:secondary'],
+          primary: { backgroundColor: token.color.primary },
+          secondary: { backgroundColor: token.color.secondary },
         },
         size: {
-          sm: ['h:8'],
-          md: ['h:10'],
+          sm: { height: token.spacing[8] },
+          md: { height: token.spacing[10] },
         },
       },
       defaultVariants: { intent: 'primary', size: 'md' },
@@ -26,10 +27,10 @@ describe('variants() lazy compilation', () => {
 
     const injected = getInjectedCSS();
     // Base CSS should be injected
-    expect(injected.some((css) => css.includes('padding: 1rem'))).toBe(true);
+    expect(injected.some((css) => css.includes('padding: var(--spacing-4)'))).toBe(true);
     // Variant option CSS should NOT be injected yet
-    expect(injected.some((css) => css.includes('height: 2rem'))).toBe(false); // h:8
-    expect(injected.some((css) => css.includes('height: 2.5rem'))).toBe(false); // h:10
+    expect(injected.some((css) => css.includes('height: var(--spacing-8)'))).toBe(false); // h:8
+    expect(injected.some((css) => css.includes('height: var(--spacing-10)'))).toBe(false); // h:10
     // Suppress unused var
     void button;
   });
@@ -37,15 +38,15 @@ describe('variants() lazy compilation', () => {
   it('injects CSS for only the used variant options when called', () => {
     resetInjectedStyles();
     const button = variants({
-      base: ['p:4'],
+      base: { padding: token.spacing[4] },
       variants: {
         intent: {
-          primary: ['bg:primary'],
-          secondary: ['bg:secondary'],
+          primary: { backgroundColor: token.color.primary },
+          secondary: { backgroundColor: token.color.secondary },
         },
         size: {
-          sm: ['h:8'],
-          md: ['h:10'],
+          sm: { height: token.spacing[8] },
+          md: { height: token.spacing[10] },
         },
       },
       defaultVariants: { intent: 'primary', size: 'md' },
@@ -56,19 +57,19 @@ describe('variants() lazy compilation', () => {
 
     const injected = getInjectedCSS();
     // Used options should be injected
-    expect(injected.some((css) => css.includes('height: 2rem'))).toBe(true); // h:8 = sm
+    expect(injected.some((css) => css.includes('height: var(--spacing-8)'))).toBe(true); // h:8 = sm
     // Unused options should NOT be injected
-    expect(injected.some((css) => css.includes('height: 2.5rem'))).toBe(false); // h:10 = md
+    expect(injected.some((css) => css.includes('height: var(--spacing-10)'))).toBe(false); // h:10 = md
   });
 
   it('does not re-inject CSS for already-compiled variant options', () => {
     resetInjectedStyles();
     const button = variants({
-      base: ['p:4'],
+      base: { padding: token.spacing[4] },
       variants: {
         size: {
-          sm: ['h:8'],
-          md: ['h:10'],
+          sm: { height: token.spacing[8] },
+          md: { height: token.spacing[10] },
         },
       },
       defaultVariants: { size: 'md' },
@@ -85,56 +86,60 @@ describe('variants() lazy compilation', () => {
   it('lazily compiles compound variants only when all conditions match', () => {
     resetInjectedStyles();
     const button = variants({
-      base: ['rounded:md'],
+      base: { borderRadius: token.radius.md },
       variants: {
         intent: {
-          primary: ['bg:primary.600'],
-          secondary: ['bg:background'],
+          primary: { backgroundColor: token.color.primary[600] },
+          secondary: { backgroundColor: token.color.background },
         },
         size: {
-          sm: ['h:8'],
-          md: ['h:10'],
+          sm: { height: token.spacing[8] },
+          md: { height: token.spacing[10] },
         },
       },
       defaultVariants: { intent: 'primary', size: 'md' },
-      compoundVariants: [{ intent: 'primary', size: 'sm', styles: ['px:2'] }],
+      compoundVariants: [
+        { intent: 'primary', size: 'sm', styles: { paddingInline: token.spacing[2] } },
+      ],
     });
 
     // Call without matching compound conditions
     button({ intent: 'secondary', size: 'sm' });
     const beforeCompound = getInjectedCSS();
     expect(
-      beforeCompound.some((css) => css.includes('padding-left:') && css.includes('0.5rem')),
+      beforeCompound.some(
+        (css) => css.includes('padding-inline:') && css.includes('var(--spacing-2)'),
+      ),
     ).toBe(false);
 
     // Call with matching compound conditions
     button({ intent: 'primary', size: 'sm' });
     const afterCompound = getInjectedCSS();
-    expect(afterCompound.some((css) => css.includes('0.5rem'))).toBe(true);
+    expect(afterCompound.some((css) => css.includes('var(--spacing-2)'))).toBe(true);
   });
 
   it('fn.css returns only CSS for base + used options', () => {
     resetInjectedStyles();
     const button = variants({
-      base: ['p:4'],
+      base: { padding: token.spacing[4] },
       variants: {
         size: {
-          sm: ['h:8'],
-          md: ['h:10'],
+          sm: { height: token.spacing[8] },
+          md: { height: token.spacing[10] },
         },
       },
       defaultVariants: { size: 'md' },
     });
 
     // Before any call — only base CSS
-    expect(button.css).toContain('padding: 1rem');
-    expect(button.css).not.toContain('height: 2rem');
-    expect(button.css).not.toContain('height: 2.5rem');
+    expect(button.css).toContain('padding: var(--spacing-4)');
+    expect(button.css).not.toContain('height: var(--spacing-8)');
+    expect(button.css).not.toContain('height: var(--spacing-10)');
 
     // After calling with size: 'sm'
     button({ size: 'sm' });
-    expect(button.css).toContain('height: 2rem'); // h:8
-    expect(button.css).not.toContain('height: 2.5rem'); // h:10 still unused
+    expect(button.css).toContain('height: var(--spacing-8)'); // h:8
+    expect(button.css).not.toContain('height: var(--spacing-10)'); // h:10 still unused
   });
 });
 
@@ -142,15 +147,19 @@ describe('variants()', () => {
   // IT-2B-1: variants() generates classes per variant combination
   it('generates correct classes for each variant', () => {
     const button = variants({
-      base: ['flex', 'weight:medium', 'rounded:md'],
+      base: {
+        display: 'flex',
+        fontWeight: token.font.weight.medium,
+        borderRadius: token.radius.md,
+      },
       variants: {
         intent: {
-          primary: ['bg:primary.600', 'text:foreground'],
-          secondary: ['bg:background', 'text:muted'],
+          primary: { backgroundColor: token.color.primary[600], color: token.color.foreground },
+          secondary: { backgroundColor: token.color.background, color: token.color.muted },
         },
         size: {
-          sm: ['font:xs', 'h:8'],
-          md: ['font:sm', 'h:10'],
+          sm: { fontSize: token.font.size.xs, height: token.spacing[8] },
+          md: { fontSize: token.font.size.sm, height: token.spacing[10] },
         },
       },
       defaultVariants: { intent: 'primary', size: 'md' },
@@ -164,8 +173,8 @@ describe('variants()', () => {
   // IT-2B-2: Default variants apply when no override is given
   it('uses default variants when not specified', () => {
     const button = variants({
-      base: ['rounded:md'],
-      variants: { size: { sm: ['h:8'], md: ['h:10'] } },
+      base: { borderRadius: token.radius.md },
+      variants: { size: { sm: { height: token.spacing[8] }, md: { height: token.spacing[10] } } },
       defaultVariants: { size: 'md' },
     });
     const defaultClass = button();
@@ -175,7 +184,7 @@ describe('variants()', () => {
 
   it('returns a string class name from base styles alone', () => {
     const box = variants({
-      base: ['p:4', 'bg:background'],
+      base: { padding: token.spacing[4], backgroundColor: token.color.background },
       variants: {},
     });
 
@@ -186,11 +195,11 @@ describe('variants()', () => {
 
   it('merges base and variant class names', () => {
     const button = variants({
-      base: ['rounded:md'],
+      base: { borderRadius: token.radius.md },
       variants: {
         size: {
-          sm: ['h:8'],
-          md: ['h:10'],
+          sm: { height: token.spacing[8] },
+          md: { height: token.spacing[10] },
         },
       },
       defaultVariants: { size: 'sm' },
@@ -204,19 +213,21 @@ describe('variants()', () => {
 
   it('applies compound variants when multiple variant values match', () => {
     const button = variants({
-      base: ['flex', 'rounded:md'],
+      base: { display: 'flex', borderRadius: token.radius.md },
       variants: {
         intent: {
-          primary: ['bg:primary.600'],
-          secondary: ['bg:background'],
+          primary: { backgroundColor: token.color.primary[600] },
+          secondary: { backgroundColor: token.color.background },
         },
         size: {
-          sm: ['h:8'],
-          md: ['h:10'],
+          sm: { height: token.spacing[8] },
+          md: { height: token.spacing[10] },
         },
       },
       defaultVariants: { intent: 'primary', size: 'md' },
-      compoundVariants: [{ intent: 'primary', size: 'sm', styles: ['px:2'] }],
+      compoundVariants: [
+        { intent: 'primary', size: 'sm', styles: { paddingInline: token.spacing[2] } },
+      ],
     });
 
     // Compound should apply: intent=primary + size=sm
@@ -233,11 +244,11 @@ describe('variants()', () => {
 
   it('returns deterministic class names for the same config', () => {
     const makeConfig = () => ({
-      base: ['p:4'] as string[],
+      base: { padding: token.spacing[4] },
       variants: {
         size: {
-          sm: ['h:8'] as string[],
-          md: ['h:10'] as string[],
+          sm: { height: token.spacing[8] },
+          md: { height: token.spacing[10] },
         },
       },
       defaultVariants: { size: 'md' as const },
@@ -257,8 +268,8 @@ describe('variants()', () => {
       base: [],
       variants: {
         color: {
-          red: ['bg:destructive'],
-          green: ['bg:success'],
+          red: { backgroundColor: token.color.destructive },
+          green: { backgroundColor: token.color.success },
         },
       },
       defaultVariants: { color: 'red' },
@@ -271,21 +282,21 @@ describe('variants()', () => {
 
   it('handles multiple compound variant rules', () => {
     const button = variants({
-      base: ['rounded:md'],
+      base: { borderRadius: token.radius.md },
       variants: {
         intent: {
-          primary: ['bg:primary.600'],
-          secondary: ['bg:background'],
+          primary: { backgroundColor: token.color.primary[600] },
+          secondary: { backgroundColor: token.color.background },
         },
         size: {
-          sm: ['h:8'],
-          md: ['h:10'],
+          sm: { height: token.spacing[8] },
+          md: { height: token.spacing[10] },
         },
       },
       defaultVariants: { intent: 'primary', size: 'md' },
       compoundVariants: [
-        { intent: 'primary', size: 'sm', styles: ['px:2'] },
-        { intent: 'secondary', size: 'md', styles: ['px:4'] },
+        { intent: 'primary', size: 'sm', styles: { paddingInline: token.spacing[2] } },
+        { intent: 'secondary', size: 'md', styles: { paddingInline: token.spacing[4] } },
       ],
     });
 
@@ -300,15 +311,15 @@ describe('variants()', () => {
 
   it('allows partial variant overrides (fills from defaults)', () => {
     const button = variants({
-      base: ['rounded:md'],
+      base: { borderRadius: token.radius.md },
       variants: {
         intent: {
-          primary: ['bg:primary.600'],
-          secondary: ['bg:background'],
+          primary: { backgroundColor: token.color.primary[600] },
+          secondary: { backgroundColor: token.color.background },
         },
         size: {
-          sm: ['h:8'],
-          md: ['h:10'],
+          sm: { height: token.spacing[8] },
+          md: { height: token.spacing[10] },
         },
       },
       defaultVariants: { intent: 'primary', size: 'md' },
@@ -322,7 +333,7 @@ describe('variants()', () => {
 
   it('works with empty variants object', () => {
     const box = variants({
-      base: ['p:4', 'rounded:md'],
+      base: { padding: token.spacing[4], borderRadius: token.radius.md },
       variants: {},
     });
 
@@ -333,11 +344,11 @@ describe('variants()', () => {
 
   it('produces CSS output for each used variant combination', () => {
     const button = variants({
-      base: ['p:4'],
+      base: { padding: token.spacing[4] },
       variants: {
         size: {
-          sm: ['h:8'],
-          md: ['h:10'],
+          sm: { height: token.spacing[8] },
+          md: { height: token.spacing[10] },
         },
       },
       defaultVariants: { size: 'md' },
@@ -351,26 +362,28 @@ describe('variants()', () => {
     expect(button.css).toBeDefined();
     expect(typeof button.css).toBe('string');
     expect(button.css.length).toBeGreaterThan(0);
-    expect(button.css).toContain('padding: 1rem');
-    expect(button.css).toContain('height: 2rem'); // h:8 = 2rem
-    expect(button.css).toContain('height: 2.5rem'); // h:10 = 2.5rem
+    expect(button.css).toContain('padding: var(--spacing-4)');
+    expect(button.css).toContain('height: var(--spacing-8)'); // h:8 = 2rem
+    expect(button.css).toContain('height: var(--spacing-10)'); // h:10 = 2.5rem
   });
 
   it('compound variant does not apply when conditions are not fully met', () => {
     const button = variants({
-      base: ['rounded:md'],
+      base: { borderRadius: token.radius.md },
       variants: {
         intent: {
-          primary: ['bg:primary.600'],
-          secondary: ['bg:background'],
+          primary: { backgroundColor: token.color.primary[600] },
+          secondary: { backgroundColor: token.color.background },
         },
         size: {
-          sm: ['h:8'],
-          md: ['h:10'],
+          sm: { height: token.spacing[8] },
+          md: { height: token.spacing[10] },
         },
       },
       defaultVariants: { intent: 'primary', size: 'md' },
-      compoundVariants: [{ intent: 'primary', size: 'sm', styles: ['px:2'] }],
+      compoundVariants: [
+        { intent: 'primary', size: 'sm', styles: { paddingInline: token.spacing[2] } },
+      ],
     });
 
     // intent=primary + size=md does NOT match the compound (needs size=sm)
@@ -385,15 +398,15 @@ describe('variants()', () => {
 
   it('calling with no args uses all default variants', () => {
     const button = variants({
-      base: ['p:4'],
+      base: { padding: token.spacing[4] },
       variants: {
         intent: {
-          primary: ['bg:primary'],
-          secondary: ['bg:secondary'],
+          primary: { backgroundColor: token.color.primary },
+          secondary: { backgroundColor: token.color.secondary },
         },
         size: {
-          sm: ['h:8'],
-          md: ['h:10'],
+          sm: { height: token.spacing[8] },
+          md: { height: token.spacing[10] },
         },
       },
       defaultVariants: { intent: 'primary', size: 'md' },

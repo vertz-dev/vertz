@@ -1,27 +1,71 @@
-import { BotIcon, LayoutDashboardIcon, NetworkIcon } from "@vertz/icons";
-import { css } from '@vertz/ui';
+import { BotIcon, LayoutDashboardIcon, NetworkIcon } from '@vertz/icons';
+import { css, token } from '@vertz/ui';
 import { useRouter } from '@vertz/ui/router';
 
 const s = css({
-  sidebar: ['flex', 'flex-col', 'min-h:screen', 'bg:card', 'border-r:1', 'border:border', { '&': { width: '220px' } }],
-  brand: ['p:4', 'text:sm', 'font:bold', 'text:foreground'],
-  separator: ['bg:border', 'mx:4', { '&': { height: '1px' } }],
-  nav: ['flex', 'flex-col', 'p:3', { '&': { gap: '2px' } }],
-  navItem: [
-    'flex', 'items:center', 'gap:2', 'px:3', 'py:2', 'rounded:md', 'text:sm',
-    'text:muted-foreground', 'w:full', 'cursor:pointer', 'text:left',
-    { '&': { background: 'transparent', border: 'none' } },
-  ],
-  navItemActive: [
-    'flex', 'items:center', 'gap:2', 'px:3', 'py:2', 'rounded:md', 'text:sm',
-    'text:foreground', 'bg:secondary', 'font:medium', 'w:full', 'cursor:pointer', 'text:left',
-    { '&': { border: 'none' } },
-  ],
-  footer: ['p:4', 'text:muted-foreground', { '&': { 'margin-top': 'auto', 'font-size': '11px' } }],
-  kbd: [
-    'bg:background', 'text:muted-foreground', 'border:1', 'border:border',
-    { '&': { 'font-size': '10px', padding: '1px 4px', 'border-radius': '3px', 'margin-left': 'auto' } },
-  ],
+  sidebar: {
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: '100vh',
+    backgroundColor: token.color.card,
+    borderRightWidth: '1px',
+    borderColor: token.color.border,
+    '&': { width: '220px' },
+  },
+  brand: {
+    padding: token.spacing[4],
+    fontSize: token.font.size.sm,
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+  },
+  separator: {
+    backgroundColor: token.color.border,
+    marginInline: token.spacing[4],
+    '&': { height: '1px' },
+  },
+  nav: { display: 'flex', flexDirection: 'column', padding: token.spacing[3], '&': { gap: '2px' } },
+  navItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[2],
+    paddingInline: token.spacing[3],
+    paddingBlock: token.spacing[2],
+    borderRadius: token.radius.md,
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    width: '100%',
+    cursor: 'pointer',
+    textAlign: 'left',
+    '&': { background: 'transparent', border: 'none' },
+  },
+  navItemActive: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[2],
+    paddingInline: token.spacing[3],
+    paddingBlock: token.spacing[2],
+    borderRadius: token.radius.md,
+    fontSize: token.font.size.sm,
+    color: token.color.foreground,
+    backgroundColor: token.color.secondary,
+    fontWeight: token.font.weight.medium,
+    width: '100%',
+    cursor: 'pointer',
+    textAlign: 'left',
+    '&': { border: 'none' },
+  },
+  footer: {
+    padding: token.spacing[4],
+    color: token.color['muted-foreground'],
+    '&': { marginTop: 'auto', fontSize: '11px' },
+  },
+  kbd: {
+    backgroundColor: token.color.background,
+    color: token.color['muted-foreground'],
+    borderWidth: '1px',
+    borderColor: token.color.border,
+    '&': { fontSize: '10px', padding: '1px 4px', borderRadius: '3px', marginLeft: 'auto' },
+  },
 });
 
 interface NavEntry {

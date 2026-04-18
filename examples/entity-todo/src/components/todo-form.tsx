@@ -7,14 +7,14 @@
  * - Reactive disabled state during submission
  */
 
-import { css, form } from '@vertz/ui';
+import { css, form, token } from '@vertz/ui';
 import type { TodosResponse } from '../api/client';
 import { api } from '../api/client';
 import { button, formStyles, inputStyles } from '../styles/components';
 
 const styles = css({
-  row: ['flex', 'gap:2', 'items:start', 'w:full'],
-  inputWrap: ['flex-1'],
+  row: { display: 'flex', gap: token.spacing[2], alignItems: 'flex-start', width: '100%' },
+  inputWrap: { flex: '1 1 0%' },
 });
 
 export interface TodoFormProps {

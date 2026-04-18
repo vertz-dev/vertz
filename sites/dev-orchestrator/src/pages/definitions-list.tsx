@@ -1,16 +1,35 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { query } from '@vertz/ui/query';
 import { useRouter } from '@vertz/ui/router';
 import { sdk } from '../lib/sdk';
 
 const s = css({
-  page: ['flex', 'flex-col', { '&': { gap: '20px', 'max-width': '960px' } }],
-  heading: ['text:2xl', 'font:bold', 'text:foreground', 'm:0'],
-  table: ['w:full', 'text:sm', { '&': { 'border-collapse': 'collapse' } }],
-  th: ['text:left', 'text:xs', 'font:semibold', 'text:muted-foreground', 'uppercase', 'border-b:2', 'border:border', { '&': { padding: '8px 12px' } }],
-  td: ['text:foreground', 'border-b:1', 'border:border', { '&': { padding: '10px 12px' } }],
-  row: ['cursor:pointer', 'transition:background 0.1s'],
-  loading: ['text:muted-foreground', 'text:sm'],
+  page: { display: 'flex', flexDirection: 'column', '&': { gap: '20px', maxWidth: '960px' } },
+  heading: {
+    fontSize: token.font.size['2xl'],
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+    margin: token.spacing[0],
+  },
+  table: { width: '100%', fontSize: token.font.size.sm, '&': { borderCollapse: 'collapse' } },
+  th: {
+    textAlign: 'left',
+    fontSize: token.font.size.xs,
+    fontWeight: token.font.weight.semibold,
+    color: token.color['muted-foreground'],
+    textTransform: 'uppercase',
+    borderBottomWidth: '2px',
+    borderColor: token.color.border,
+    '&': { padding: '8px 12px' },
+  },
+  td: {
+    color: token.color.foreground,
+    borderBottomWidth: '1px',
+    borderColor: token.color.border,
+    '&': { padding: '10px 12px' },
+  },
+  row: { cursor: 'pointer', transition: 'background 0.1s' },
+  loading: { color: token.color['muted-foreground'], fontSize: token.font.size.sm },
 });
 
 export default function DefinitionsListPage() {
