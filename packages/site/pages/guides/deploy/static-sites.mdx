@@ -98,7 +98,7 @@ The build script produces a self-contained `dist/` directory. It:
 // scripts/build.ts
 import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { createVertzBunPlugin } from '@vertz/ui-server/bun-plugin';
+import { createVertzBuildPlugin } from '@vertz/ui-server/build-plugin';
 
 const ROOT = resolve(import.meta.dir, '..');
 const DIST = resolve(ROOT, 'dist');
@@ -108,7 +108,7 @@ const PORT = 4100;
 rmSync(DIST, { recursive: true, force: true });
 mkdirSync(resolve(DIST, 'assets'), { recursive: true });
 
-const { plugin, fileExtractions } = createVertzBunPlugin({
+const { plugin, fileExtractions } = createVertzBuildPlugin({
   hmr: false,
   fastRefresh: false,
   projectRoot: ROOT,
