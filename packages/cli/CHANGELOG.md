@@ -1,5 +1,19 @@
 # @vertz/cli
 
+## 0.2.72
+
+### Patch Changes
+
+- Updated dependencies [[`756742c`](https://github.com/vertz-dev/vertz/commit/756742c2eb9cc95e253d441eb79ad5de7a13f25c), [`c65900b`](https://github.com/vertz-dev/vertz/commit/c65900bfa0d3f53e958526c9c0109ed32bd06511), [`36a459d`](https://github.com/vertz-dev/vertz/commit/36a459d191d732370cb4020533c7f8494622f1b5), [`8493aee`](https://github.com/vertz-dev/vertz/commit/8493aee0c1157a2a0f78b2579e29e1fbd70e629e), [`303e119`](https://github.com/vertz-dev/vertz/commit/303e119c194bed3b532ce1842ed5293bcf974818)]:
+  - @vertz/db@0.2.72
+  - @vertz/ui-server@0.2.72
+  - @vertz/codegen@0.2.72
+  - @vertz/compiler@0.2.72
+  - @vertz/create-vertz-app@0.2.72
+  - @vertz/errors@0.2.72
+  - @vertz/tui@0.2.72
+  - @vertz/docs@0.1.3
+
 ## 0.2.71
 
 ### Patch Changes

@@ -1,5 +1,57 @@
 # @vertz/ui-server
 
+## 0.2.72
+
+### Patch Changes
+
+- [#2791](https://github.com/vertz-dev/vertz/pull/2791) [`36a459d`](https://github.com/vertz-dev/vertz/commit/36a459d191d732370cb4020533c7f8494622f1b5) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(ui): add `innerHTML` JSX prop for raw HTML injection
+
+  Vertz now supports rendering raw HTML via an `innerHTML` prop on any HTML
+  host element — the equivalent of React's `dangerouslySetInnerHTML`, but
+  spelled as a single plain prop:
+
+  ```tsx
+  <div innerHTML={trustedMarkup} />
+  ```
+
+  The value is inserted verbatim. Callers are responsible for trust and
+  sanitization; a `trusted()` helper is exported from `@vertz/ui` for
+  marking already-sanitized values. The compiler rejects the React spelling
+  (`dangerouslySetInnerHTML`) with a clear error (E0762), blocks pairing
+  with children (E0761), and forbids the prop on SVG elements (E0764).
+  The prop is reactive — bound signals update the element in place — and
+  safe across SSR + hydration (server content is preserved until after
+  hydration completes).
+
+  Closes #2761.
+
+- [#2773](https://github.com/vertz-dev/vertz/pull/2773) [`303e119`](https://github.com/vertz-dev/vertz/commit/303e119c194bed3b532ce1842ed5293bcf974818) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - refactor: rename vtz plugin system for honesty
+
+  Dev is vtz; production build uses a Bun-shaped factory whose purpose (not
+  runtime) drives its name.
+
+  **Breaking changes:**
+
+  - `@vertz/ui-server/bun-plugin` subpath removed. Use `@vertz/ui-server/build-plugin`.
+  - `vertz/ui-server/bun-plugin` subpath removed. Use `vertz/ui-server/build-plugin`.
+  - `createVertzBunPlugin` → `createVertzBuildPlugin`.
+  - `VertzBunPluginOptions` → `VertzBuildPluginOptions`.
+  - `VertzBunPluginResult` → `VertzBuildPluginResult`.
+  - `vtz --plugin` CLI flag removed (only Vertz is supported now).
+  - `ReactPlugin` removed from Rust (including `PluginChoice::React` config,
+    `.vertzrc` handling, `package.json` auto-detect, and embedded React
+    fast-refresh assets).
+
+  **Dead-code cleanup:**
+
+  - All six `bun-plugin-shim.ts` files deleted from examples, benchmarks, and
+    first-party packages. These were orphans — no `bunfig.toml` referenced them.
+  - `docs/fullstack-app-setup.md` deleted (documented a setup that no longer worked).
+
+- Updated dependencies [[`d8e23a1`](https://github.com/vertz-dev/vertz/commit/d8e23a13049afb0a8611c63081bf799dc9790f77), [`8bed545`](https://github.com/vertz-dev/vertz/commit/8bed5454aeeec6c374ceb43bccc92841442d87da), [`e2db646`](https://github.com/vertz-dev/vertz/commit/e2db646ea254b60c9bec01d51400c1c46c328c98), [`8d8976d`](https://github.com/vertz-dev/vertz/commit/8d8976dd3d2d2475f37d0df79f8477fd3f58395f), [`36a459d`](https://github.com/vertz-dev/vertz/commit/36a459d191d732370cb4020533c7f8494622f1b5)]:
+  - @vertz/ui@0.2.72
+  - @vertz/core@0.2.72
+
 ## 0.2.71
 
 ### Patch Changes

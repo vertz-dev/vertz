@@ -1,5 +1,47 @@
 # vertz
 
+## 0.2.72
+
+### Patch Changes
+
+- [#2773](https://github.com/vertz-dev/vertz/pull/2773) [`303e119`](https://github.com/vertz-dev/vertz/commit/303e119c194bed3b532ce1842ed5293bcf974818) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - refactor: rename vtz plugin system for honesty
+
+  Dev is vtz; production build uses a Bun-shaped factory whose purpose (not
+  runtime) drives its name.
+
+  **Breaking changes:**
+
+  - `@vertz/ui-server/bun-plugin` subpath removed. Use `@vertz/ui-server/build-plugin`.
+  - `vertz/ui-server/bun-plugin` subpath removed. Use `vertz/ui-server/build-plugin`.
+  - `createVertzBunPlugin` → `createVertzBuildPlugin`.
+  - `VertzBunPluginOptions` → `VertzBuildPluginOptions`.
+  - `VertzBunPluginResult` → `VertzBuildPluginResult`.
+  - `vtz --plugin` CLI flag removed (only Vertz is supported now).
+  - `ReactPlugin` removed from Rust (including `PluginChoice::React` config,
+    `.vertzrc` handling, `package.json` auto-detect, and embedded React
+    fast-refresh assets).
+
+  **Dead-code cleanup:**
+
+  - All six `bun-plugin-shim.ts` files deleted from examples, benchmarks, and
+    first-party packages. These were orphans — no `bunfig.toml` referenced them.
+  - `docs/fullstack-app-setup.md` deleted (documented a setup that no longer worked).
+
+- Updated dependencies [[`d8e23a1`](https://github.com/vertz-dev/vertz/commit/d8e23a13049afb0a8611c63081bf799dc9790f77), [`756742c`](https://github.com/vertz-dev/vertz/commit/756742c2eb9cc95e253d441eb79ad5de7a13f25c), [`c65900b`](https://github.com/vertz-dev/vertz/commit/c65900bfa0d3f53e958526c9c0109ed32bd06511), [`8bed545`](https://github.com/vertz-dev/vertz/commit/8bed5454aeeec6c374ceb43bccc92841442d87da), [`e2db646`](https://github.com/vertz-dev/vertz/commit/e2db646ea254b60c9bec01d51400c1c46c328c98), [`8d8976d`](https://github.com/vertz-dev/vertz/commit/8d8976dd3d2d2475f37d0df79f8477fd3f58395f), [`36a459d`](https://github.com/vertz-dev/vertz/commit/36a459d191d732370cb4020533c7f8494622f1b5), [`303e119`](https://github.com/vertz-dev/vertz/commit/303e119c194bed3b532ce1842ed5293bcf974818)]:
+  - @vertz/ui@0.2.72
+  - @vertz/db@0.2.72
+  - @vertz/ui-auth@0.2.20
+  - @vertz/schema@0.2.72
+  - @vertz/ui-server@0.2.72
+  - @vertz/cli@0.2.72
+  - @vertz/cloudflare@0.2.72
+  - @vertz/errors@0.2.72
+  - @vertz/fetch@0.2.72
+  - @vertz/server@0.2.72
+  - @vertz/testing@0.2.72
+  - @vertz/tui@0.2.72
+  - @vertz/ui-primitives@0.2.72
+
 ## 0.2.71
 
 ### Patch Changes

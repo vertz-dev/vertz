@@ -1,5 +1,12 @@
 # @vertz/core
 
+## 0.2.72
+
+### Patch Changes
+
+- Updated dependencies [[`8d8976d`](https://github.com/vertz-dev/vertz/commit/8d8976dd3d2d2475f37d0df79f8477fd3f58395f)]:
+  - @vertz/schema@0.2.72
+
 ## 0.2.71
 
 ### Patch Changes

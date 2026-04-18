@@ -1,5 +1,52 @@
 # @vertz/runtime
 
+## 0.2.72
+
+### Patch Changes
+
+- [#2768](https://github.com/vertz-dev/vertz/pull/2768) [`cde05ee`](https://github.com/vertz-dev/vertz/commit/cde05eec91b283cccc5c6129f5fc76de0388c7e3) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): trigger HMR and clean module graph on file delete
+
+  The dev server's file-change loop called `compile_for_browser` on every
+  event, which fails for a deleted file — pushing the flow into the
+  compilation-error branch and skipping graph/cache cleanup. Dependents of
+  the deleted file were never HMR-invalidated, so clients kept using stale
+  modules.
+
+  `process_file_change` now cleans the module graph on `Remove` events
+  (under a single write lock, so a concurrent browser fetch can't re-add
+  the deleted node between the read and write phases). Deleting a
+  standalone CSS file escalates past `CssUpdate` (whose URL would 404) to
+  `ModuleUpdate`. The server loop branches on `Remove` to skip compilation
+  while still invalidating dependents, so HMR broadcasts an `Update` (or
+  `FullReload` when the entry file is deleted).
+
+  Closes #2764.
+
+- [#2800](https://github.com/vertz-dev/vertz/pull/2800) [`6db51ae`](https://github.com/vertz-dev/vertz/commit/6db51aede789a8bc01d2056fce2291ce847cb06c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(pm): `vtz install` now writes resolved npm dist-tag specs (`"latest"`, `"next"`, custom tags) to `vertz.lock` instead of silently dropping them (#2794). Previously, a `package.json` dep like `"@types/bun": "latest"` resolved and installed correctly but never landed in the lockfile, causing subsequent `vtz install --frozen` to fail with "lockfile is out of date".
+
+- [#2773](https://github.com/vertz-dev/vertz/pull/2773) [`303e119`](https://github.com/vertz-dev/vertz/commit/303e119c194bed3b532ce1842ed5293bcf974818) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - refactor: rename vtz plugin system for honesty
+
+  Dev is vtz; production build uses a Bun-shaped factory whose purpose (not
+  runtime) drives its name.
+
+  **Breaking changes:**
+
+  - `@vertz/ui-server/bun-plugin` subpath removed. Use `@vertz/ui-server/build-plugin`.
+  - `vertz/ui-server/bun-plugin` subpath removed. Use `vertz/ui-server/build-plugin`.
+  - `createVertzBunPlugin` → `createVertzBuildPlugin`.
+  - `VertzBunPluginOptions` → `VertzBuildPluginOptions`.
+  - `VertzBunPluginResult` → `VertzBuildPluginResult`.
+  - `vtz --plugin` CLI flag removed (only Vertz is supported now).
+  - `ReactPlugin` removed from Rust (including `PluginChoice::React` config,
+    `.vertzrc` handling, `package.json` auto-detect, and embedded React
+    fast-refresh assets).
+
+  **Dead-code cleanup:**
+
+  - All six `bun-plugin-shim.ts` files deleted from examples, benchmarks, and
+    first-party packages. These were orphans — no `bunfig.toml` referenced them.
+  - `docs/fullstack-app-setup.md` deleted (documented a setup that no longer worked).
+
 ## 0.2.71
 
 ### Patch Changes

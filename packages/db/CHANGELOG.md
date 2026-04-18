@@ -1,5 +1,37 @@
 # @vertz/db
 
+## 0.2.72
+
+### Patch Changes
+
+- [#2805](https://github.com/vertz-dev/vertz/pull/2805) [`756742c`](https://github.com/vertz-dev/vertz/commit/756742c2eb9cc95e253d441eb79ad5de7a13f25c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(db): re-export column/table/relation types referenced by public `d.*` signatures
+
+  Consumers writing `export const myTable = d.table(...)` with `declaration: true`
+  previously hit `TS2742` because the inferred return types referenced internal
+  modules like `@vertz/db/dist/schema/column`. The following types are now
+  re-exported from the package entry: `DefaultMeta`, `SerialMeta`, `VectorMeta`
+  (from `./schema/column`), `ColumnRecord`, `TableOptions` (from `./schema/table`),
+  `ValidateOneRelationFKs` (from `./schema/model`), `ThroughDef`, `ManyRelationDef`
+  (from `./schema/relation`).
+
+  Closes #2778.
+
+- [#2807](https://github.com/vertz-dev/vertz/pull/2807) [`c65900b`](https://github.com/vertz-dev/vertz/commit/c65900bfa0d3f53e958526c9c0109ed32bd06511) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(db): export `EnumSchemaLike` named by the `d.enum(name, schema)` overload
+
+  The second overload of `d.enum` accepts any object with a `.values` array (e.g.
+  an `EnumSchema` from `@vertz/schema`) via a duck-typed `EnumSchemaLike` interface.
+  That interface lived as a file-local declaration in `packages/db/src/d.ts`, so
+  consumers who named the function type — for example by emitting `.d.ts` for a
+  helper that wraps `d.enum`, or by writing `typeof d.enum` — hit `TS2742` against
+  `@vertz/db/dist/d`. `EnumSchemaLike` is now exported from the package entry so
+  those references resolve to the public path.
+
+  Closes #2804.
+
+- Updated dependencies [[`8d8976d`](https://github.com/vertz-dev/vertz/commit/8d8976dd3d2d2475f37d0df79f8477fd3f58395f)]:
+  - @vertz/schema@0.2.72
+  - @vertz/errors@0.2.72
+
 ## 0.2.71
 
 ### Patch Changes

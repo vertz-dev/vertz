@@ -1,5 +1,137 @@
 # @vertz/ui
 
+## 0.2.72
+
+### Patch Changes
+
+- [#2799](https://github.com/vertz-dev/vertz/pull/2799) [`d8e23a1`](https://github.com/vertz-dev/vertz/commit/d8e23a13049afb0a8611c63081bf799dc9790f77) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui,compiler): emit numeric/boolean raw CSS declarations from `css()` and `variants()`
+
+  Raw object declarations inside nested selectors used to silently drop
+  non-string values. Numeric values now flow through the same kebab-case +
+  unitless/`px` rules as shorthand tokens, in both the runtime and the AOT
+  compiler.
+
+  ```ts
+  css({
+    card: [
+      {
+        "&:hover": {
+          fontSize: 16, // → font-size: 16px
+          opacity: 0.8, // → opacity: 0.8 (unitless)
+          marginTop: -8, // → margin-top: -8px
+          "--my-tone": 1, // → --my-tone: 1 (custom prop, no unit)
+          padding: 0, // → padding: 0 (zero is unitless)
+        },
+      },
+    ],
+  });
+  ```
+
+  `UnaryExpression(-, NumericLiteral)` and `BooleanLiteral` are also accepted.
+  The unitless property list is shared between `packages/ui/src/css/unitless-properties.ts`
+  and `native/vertz-compiler-core/src/css_unitless.rs`, with a parity test
+  already enforcing they stay in sync.
+
+  Closes #2783.
+
+- [#2795](https://github.com/vertz-dev/vertz/pull/2795) [`8bed545`](https://github.com/vertz-dev/vertz/commit/8bed5454aeeec6c374ceb43bccc92841442d87da) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - refactor(ui): drop shorthand-string CSS API in favour of object-form `css()` +
+  `token.*`
+
+  The array-form `css()` API is gone. `css()` and `variants()` now accept only
+  object-form `StyleBlock` trees:
+
+  ```tsx
+  // Before
+  css({ card: ["bg:background", "p:4", "rounded:lg"] });
+
+  // After
+  css({
+    card: {
+      backgroundColor: token.color.background,
+      padding: token.spacing[4],
+      borderRadius: token.radius.lg,
+    },
+  });
+  ```
+
+  Removed from the public API: `StyleEntry`, `StyleValue`, `UtilityClass`, `s`,
+  `parseShorthand`, `resolveToken`, `ShorthandParseError`, `TokenResolveError`,
+  `InlineStyleError`, `isKnownProperty`, `isValidColorToken`, and all
+  token-table helpers.
+
+  The Rust compiler (`@vertz/native-compiler`) is smaller: the array-form
+  shorthand parser, the 1,900-line token tables, and the diagnostic pass that
+  validated shorthand strings have all been deleted. Only object-form extraction
+  remains.
+
+  Closes #1988.
+
+- [#2798](https://github.com/vertz-dev/vertz/pull/2798) [`e2db646`](https://github.com/vertz-dev/vertz/commit/e2db646ea254b60c9bec01d51400c1c46c328c98) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(compiler): emit valid code for callback `ref` props on host elements
+
+  Previously, the native compiler always emitted `{expr}.current = {el}` for
+  the `ref` JSX prop, assuming an object ref. For a callback ref such as
+  `ref={(el) => { /* ... */ }}`, the output was the invalid JavaScript
+  `(el) => { /* ... */ }.current = __el0` — a member expression cannot
+  follow an arrow function with a block body, so the module failed to parse
+  with "Unexpected token '.'".
+
+  The fix routes both forms through a new `__ref(el, value)` runtime helper
+  (matching the existing inline logic in `jsx-runtime/index.ts`) that calls
+  the value if it is a function and otherwise assigns to `.current`.
+
+  Closes #2788.
+
+- [#2810](https://github.com/vertz-dev/vertz/pull/2810) [`8d8976d`](https://github.com/vertz-dev/vertz/commit/8d8976dd3d2d2475f37d0df79f8477fd3f58395f) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui,schema): coerce FormData to schema-declared types in `form()` (#2771)
+
+  `form()` now coerces FormData values to match the body schema's declared types
+  before validation and submission.
+
+  - Boolean fields: checked → `true`; unchecked → `false`; `value="false"`/`"0"`/`"off"` → `false`.
+  - Number/BigInt fields: numeric strings → numbers; empty strings dropped (let `optional()`/`default()` apply).
+  - Date fields: parseable strings → `Date`.
+  - String fields: never coerced, even if the value looks numeric.
+  - Multi-value fields: `<input type="checkbox" name="tags" value="..." />` produces `string[]`.
+  - The same coercion is applied to blur/change re-validation so live and submit
+    errors agree.
+
+  Behavior change: (1) Custom `onSubmit` handlers that pre-coerce values should
+  remove that logic to avoid double-coercion. (2) User schemas that switched
+  fields to `s.coerce.boolean()` / `s.coerce.number()` as a workaround should
+  revert to strict `s.boolean()` / `s.number()` — the UI layer now handles the
+  conversion.
+
+  Adds two additive accessors to `@vertz/schema`:
+
+  - `ArraySchema.element` — public getter for the element schema (previously
+    `_element` was private).
+  - `RefinedSchema.unwrap()` / `SuperRefinedSchema.unwrap()` — return the inner
+    schema, so consumers (including the new form coercion path) can walk through
+    `.refine()` / `.superRefine()` wrappers to reach the underlying object shape.
+
+- [#2791](https://github.com/vertz-dev/vertz/pull/2791) [`36a459d`](https://github.com/vertz-dev/vertz/commit/36a459d191d732370cb4020533c7f8494622f1b5) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(ui): add `innerHTML` JSX prop for raw HTML injection
+
+  Vertz now supports rendering raw HTML via an `innerHTML` prop on any HTML
+  host element — the equivalent of React's `dangerouslySetInnerHTML`, but
+  spelled as a single plain prop:
+
+  ```tsx
+  <div innerHTML={trustedMarkup} />
+  ```
+
+  The value is inserted verbatim. Callers are responsible for trust and
+  sanitization; a `trusted()` helper is exported from `@vertz/ui` for
+  marking already-sanitized values. The compiler rejects the React spelling
+  (`dangerouslySetInnerHTML`) with a clear error (E0762), blocks pairing
+  with children (E0761), and forbids the prop on SVG elements (E0764).
+  The prop is reactive — bound signals update the element in place — and
+  safe across SSR + hydration (server content is preserved until after
+  hydration completes).
+
+  Closes #2761.
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.72
+
 ## 0.2.71
 
 ### Patch Changes
