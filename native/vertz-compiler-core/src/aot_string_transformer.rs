@@ -107,7 +107,10 @@ fn is_boolean_attribute(name: &str) -> bool {
 }
 
 fn is_skip_prop(name: &str) -> bool {
-    matches!(name, "key" | "ref" | "dangerouslySetInnerHTML")
+    matches!(
+        name,
+        "key" | "ref" | "dangerouslySetInnerHTML" | "innerHTML"
+    )
 }
 
 fn is_component_tag(tag: &str) -> bool {
@@ -447,7 +450,8 @@ fn element_to_string(
     let is_void = is_void_element(&tag_name);
     let is_raw_text = is_raw_text_element(&tag_name);
 
-    let dangerous_html = extract_dangerous_inner_html(&elem.opening_element, ms);
+    let dangerous_html = extract_dangerous_inner_html(&elem.opening_element, ms)
+        .or_else(|| extract_inner_html(&elem.opening_element, ms));
     let attrs = attrs_to_string(&elem.opening_element.attributes, ms);
     let hydration_attr = hydration_id
         .map(|id| format!(" data-v-id=\"{id}\""))
@@ -901,6 +905,25 @@ fn attr_to_string(attr: &JSXAttribute, ms: &MagicString) -> Option<String> {
         None => Some(html_name),
         _ => None,
     }
+}
+
+fn extract_inner_html(opening: &JSXOpeningElement, ms: &MagicString) -> Option<String> {
+    for attr in &opening.attributes {
+        if let JSXAttributeItem::Attribute(jsx_attr) = attr {
+            if get_jsx_attr_name(jsx_attr) == "innerHTML" {
+                if let Some(JSXAttributeValue::ExpressionContainer(container)) = &jsx_attr.value {
+                    if let Some(expr) = container.expression.as_expression() {
+                        let span = expr.span();
+                        return Some(ms.get_transformed_slice(span.start, span.end));
+                    }
+                }
+                if let Some(JSXAttributeValue::StringLiteral(s)) = &jsx_attr.value {
+                    return Some(format!("'{}'", escape_string_literal(&s.value)));
+                }
+            }
+        }
+    }
+    None
 }
 
 fn extract_dangerous_inner_html(opening: &JSXOpeningElement, ms: &MagicString) -> Option<String> {
@@ -1806,6 +1829,7 @@ mod tests {
         assert!(is_skip_prop("key"));
         assert!(is_skip_prop("ref"));
         assert!(is_skip_prop("dangerouslySetInnerHTML"));
+        assert!(is_skip_prop("innerHTML"));
         assert!(!is_skip_prop("className"));
         assert!(!is_skip_prop("id"));
     }
@@ -2946,6 +2970,42 @@ export function GameDetail() {
         assert!(
             !ssr.contains("<span>"),
             "children should be ignored with dangerouslySetInnerHTML, ssr: {}",
+            ssr
+        );
+    }
+
+    // ========== innerHTML inside AOT-compiled component (#2790) ==========
+
+    #[test]
+    fn inner_html_is_not_emitted_as_ssr_attribute() {
+        let source = r#"export function BrandedIcon({ providerId }) {
+    return <span innerHTML={getProviderIcon(providerId)} />;
+}"#;
+        let result = compile(source);
+        let ssr = appended_code(&result, source);
+        assert!(
+            !ssr.contains("innerHTML=\""),
+            "innerHTML must not be serialized as an HTML attribute, ssr: {}",
+            ssr
+        );
+        assert!(
+            ssr.contains("getProviderIcon(providerId)"),
+            "innerHTML expression must appear in the SSR string as element content, ssr: {}",
+            ssr
+        );
+    }
+
+    #[test]
+    fn inner_html_overrides_children_in_ssr() {
+        let source = r#"export function Comp() {
+    return <div innerHTML={rawHtml}><span>ignored</span></div>;
+}"#;
+        let result = compile(source);
+        let ssr = appended_code(&result, source);
+        assert!(ssr.contains("rawHtml"), "ssr: {}", ssr);
+        assert!(
+            !ssr.contains("<span>"),
+            "children should be ignored when innerHTML is set, ssr: {}",
             ssr
         );
     }
