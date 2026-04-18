@@ -336,6 +336,10 @@ export class RefinedSchema<O, I = O> extends Schema<O, I> {
       }),
     );
   }
+
+  unwrap(): Schema<O, I> {
+    return this._inner;
+  }
 }
 
 export class SuperRefinedSchema<O, I = O> extends Schema<O, I> {
@@ -365,6 +369,10 @@ export class SuperRefinedSchema<O, I = O> extends Schema<O, I> {
 
   _clone(): SuperRefinedSchema<O, I> {
     return this._cloneBase(new SuperRefinedSchema(this._inner, this._refinement));
+  }
+
+  unwrap(): Schema<O, I> {
+    return this._inner;
   }
 }
 

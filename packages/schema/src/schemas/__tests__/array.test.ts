@@ -91,4 +91,30 @@ describe('ArraySchema', () => {
   it('metadata.type returns SchemaType.Array', () => {
     expect(new ArraySchema(new StringSchema()).metadata.type).toBe(SchemaType.Array);
   });
+
+  describe('.element accessor', () => {
+    it('returns the element schema reference passed at construction', () => {
+      const element = new StringSchema();
+      const schema = new ArraySchema(element);
+      expect(schema.element).toBe(element);
+    });
+
+    it('returns a schema whose _schemaType matches the element type', () => {
+      expect(new ArraySchema(new StringSchema()).element._schemaType()).toBe(SchemaType.String);
+      expect(new ArraySchema(new NumberSchema()).element._schemaType()).toBe(SchemaType.Number);
+    });
+
+    it('preserves the live element schema (parses successfully via accessor)', () => {
+      const schema = new ArraySchema(new NumberSchema());
+      const result = schema.element.safeParse(42);
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.data).toBe(42);
+    });
+
+    it('survives _clone() so chained validators still expose .element', () => {
+      const element = new StringSchema();
+      const schema = new ArraySchema(element).min(1).max(5);
+      expect(schema.element).toBe(element);
+    });
+  });
 });

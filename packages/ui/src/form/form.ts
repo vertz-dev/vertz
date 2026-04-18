@@ -1,10 +1,11 @@
 import type { Result } from '@vertz/fetch';
 import { computed, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal } from '../runtime/signal-types';
+import { coerceFormDataToSchema, coerceLeaf } from './coerce';
 import { createFieldState, type FieldState } from './field-state';
 import { formDataToObject } from './form-data';
 import type { FormSchema } from './validation';
-import { validate, validateField } from './validation';
+import { resolveFieldSchema, validate, validateField } from './validation';
 
 const FIELD_STATE_SIGNALS = new Set(['error', 'dirty', 'touched', 'value']);
 const FIELD_STATE_METHODS = new Set(['setValue', 'reset']);
@@ -257,7 +258,9 @@ export function form<TBody, TResult>(
 
   async function submitPipeline(formData: FormData): Promise<void> {
     hasSubmitted = true;
-    const data = formDataToObject(formData, { nested: true });
+    const data = resolvedSchema
+      ? coerceFormDataToSchema(formData, resolvedSchema)
+      : formDataToObject(formData, { nested: true });
 
     if (resolvedSchema) {
       const result = validate(resolvedSchema, data);
@@ -329,8 +332,11 @@ export function form<TBody, TResult>(
     const field = fieldCache.get(fieldName);
     if (!field || field.error.peek() === undefined) return;
 
+    const leafSchema = resolveFieldSchema(resolvedSchema, fieldName);
+    const raw = field.value.peek();
+    const coerced = leafSchema ? coerceLeaf(raw, leafSchema) : raw;
     const formData = assembleFormData();
-    const result = validateField(resolvedSchema, fieldName, field.value.peek(), formData);
+    const result = validateField(resolvedSchema, fieldName, coerced, formData);
     field.error.value = result.valid ? undefined : result.error;
   }
 
