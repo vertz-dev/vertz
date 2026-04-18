@@ -171,6 +171,7 @@ export function createDialogGlobalStyles(): GlobalCSSOutput {
       outline: 'none',
       containerType: 'inline-size',
       backgroundColor: 'var(--color-background)',
+      color: 'var(--color-foreground)',
     },
     // ── Panel open/close animations ──
     'dialog[data-dialog-wrapper][data-state="open"] > [data-part="panel"]': {
@@ -189,6 +190,7 @@ export function createDialogGlobalStyles(): GlobalCSSOutput {
       fontSize: '1rem',
       lineHeight: '1',
       fontWeight: '500',
+      color: 'var(--color-foreground)',
     },
     'dialog[data-dialog-wrapper] [data-part="description"]': {
       fontSize: '0.875rem',
