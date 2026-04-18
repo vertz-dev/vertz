@@ -1,89 +1,58 @@
-// REMOVED-IN-PHASE-4: the string / array variants of `StyleEntry`, `StyleValue`,
-// and `CSSInput` are removed in Phase 4. Most assertions here test the
-// shorthand-string type surface and will be deleted with the source changes.
 /**
  * Type-level tests for css() and its related types.
  *
- * These tests verify that CSSInput, CSSOutput, and StyleEntry types
- * are enforced correctly. Checked by `tsc --noEmit` (typecheck),
- * not by vitest at runtime.
+ * Covers the object-form-only API. Shorthand strings / array form were
+ * removed in the drop-classname-utilities feature.
  */
 
-import type { CSSInput, CSSOutput, StyleEntry, StyleValue } from '../css';
+import type { CSSInput, CSSOutput } from '../css';
 import { css } from '../css';
+import type { StyleBlock } from '../style-block';
 
-// Verify UtilityClass is assignable to string (compile-time only, no runtime)
-const _utilCheck: string = '' as import('../utility-types').UtilityClass;
-void _utilCheck;
+// ─── StyleBlock — CSS declarations + nested selectors ─────────────
 
-// ─── StyleValue — string or CSS declarations map ───────────────────
+// Plain CSS properties (camelCase)
+const _block1: StyleBlock = { padding: '1rem', backgroundColor: 'red' };
+void _block1;
 
-// String values are valid
-const _strVal: StyleValue = 'p:4';
-void _strVal;
+// Numeric values are valid (auto-px for length properties)
+const _block2: StyleBlock = { padding: 16, marginTop: 8 };
+void _block2;
 
-// CSS declarations maps are valid
-const _objVal: StyleValue = { 'flex-direction': 'row' };
-void _objVal;
-
-// ─── StyleEntry — string or nested record ─────────────────────────
-
-// String entries are valid
-const _strEntry: StyleEntry = 'p:4';
-void _strEntry;
-
-// Record entries with array values (nested selectors) are valid
-const _recEntry: StyleEntry = { '&::after': ['content:empty', 'block'] };
-void _recEntry;
-
-// Record entries with direct object values are valid
-const _directObjEntry: StyleEntry = { '@media (min-width: 640px)': { 'flex-direction': 'row' } };
-void _directObjEntry;
-
-// Mixed: array with CSS objects inside
-const _mixedArrayEntry: StyleEntry = {
-  '&:hover': ['text:foreground', { 'background-color': 'red' }],
+// Nested pseudo-class selector
+const _block3: StyleBlock = {
+  padding: '1rem',
+  '&:hover': { backgroundColor: 'blue' },
 };
-void _mixedArrayEntry;
+void _block3;
 
-// @ts-expect-error - number is not a valid StyleEntry
-const _badEntry: StyleEntry = 42;
-void _badEntry;
+// Nested @media selector
+const _block4: StyleBlock = {
+  padding: '1rem',
+  '@media (min-width: 640px)': { padding: '2rem' },
+};
+void _block4;
 
-// @ts-expect-error - boolean is not a valid StyleEntry
-const _boolEntry: StyleEntry = true;
-void _boolEntry;
+// Nested attribute selector
+const _block5: StyleBlock = {
+  '&[data-open="true"]': { opacity: '1' },
+};
+void _block5;
+
+// CSS custom properties
+const _block6: StyleBlock = { '--color-primary': '#000' };
+void _block6;
 
 // ─── CSSInput — record of named style blocks ─────────────────────
 
-// Valid input with string entries
 const _validInput: CSSInput = {
-  card: ['p:4', 'bg:background', 'rounded:lg'],
-  title: ['font:xl', 'weight:bold'],
+  card: { padding: '1rem', backgroundColor: 'red' },
+  title: { fontSize: '1.25rem', fontWeight: 700 },
 };
 void _validInput;
 
-// Valid input with mixed entries (string + nested record)
-const _mixedInput: CSSInput = {
-  card: ['p:4', 'bg:background', { '&::after': ['content:empty', 'block'] }],
-};
-void _mixedInput;
-
-// Empty style block is valid
-const _emptyBlock: CSSInput = {
-  empty: [],
-};
-void _emptyBlock;
-
-const _badInput: CSSInput = {
-  // @ts-expect-error - value must be an array, not a string
-  card: 'p:4',
-};
-void _badInput;
-
 // ─── CSSOutput — flat class names + css ───────────────────────────
 
-// Bare CSSOutput has string index signature (values are string | undefined)
 declare const output: CSSOutput;
 
 const _anyBlock: string | undefined = output.someBlock;
@@ -95,392 +64,46 @@ void _cssStr;
 // ─── css() — return type with literal keys ──────────────────────
 
 const typed = css({
-  card: ['p:4', 'bg:background'],
-  title: ['font:xl'],
+  card: { padding: '1rem', backgroundColor: 'red' },
+  title: { fontSize: '1.25rem' },
 });
 
-// Block names are top-level string properties
-const _card: string = typed.card;
+const _card: string | undefined = typed.card;
 void _card;
 
-const _title: string = typed.title;
+const _title: string | undefined = typed.title;
 void _title;
 
-// css property is accessible
 const _resultCss: string = typed.css;
 void _resultCss;
 
-// @ts-expect-error - classNames no longer exists
-void typed.classNames;
-
-// @ts-expect-error - 'css' is a reserved block name
-css({ css: ['p:4'] });
-
 // ─── css() — input validation ─────────────────────────────────────
 
-// Valid call with string entries
-const _valid1 = css({ root: ['p:4', 'bg:primary'] });
+const _valid1 = css({ root: { padding: '1rem', backgroundColor: 'red' } });
 void _valid1;
 
-// Valid call with nested records (array form)
 const _valid2 = css({
-  root: ['p:4', { '&:hover': ['bg:primary.700'] }],
+  root: { padding: '1rem', '&:hover': { backgroundColor: 'blue' } },
 });
 void _valid2;
 
-// Valid call with direct object form for media queries
-const _valid2b = css({
-  root: ['p:4', { '@media (min-width: 640px)': { 'flex-direction': 'row' } }],
-});
-void _valid2b;
-
-// Valid call with CSS object in array
-const _valid2c = css({
-  root: ['p:4', { '&:hover': [{ 'background-color': 'red', opacity: '1' }] }],
-});
-void _valid2c;
-
-// Valid call with filePath argument
-const _valid3 = css({ root: ['p:4'] }, '/app/components/card.ts');
+const _valid3 = css(
+  { root: { padding: '1rem' } },
+  '/app/components/card.ts',
+);
 void _valid3;
 
-// @ts-expect-error - entries must be StyleEntry[], not number[]
-css({ root: [42] });
+// @ts-expect-error - block value must be a StyleBlock object, not a string
+css({ root: 'padding: 1rem' });
 
 // @ts-expect-error - first argument must be CSSInput, not string
-css('p:4');
-
-// ─── css() — output structure ─────────────────────────────────────
-
-const styles = css({
-  container: ['p:4'],
-  header: ['font:lg'],
-  footer: ['mt:4'],
-});
-
-// Block names are directly on the result
-const _containerClass: string = styles.container;
-const _headerClass: string = styles.header;
-const _footerClass: string = styles.footer;
-void _containerClass;
-void _headerClass;
-void _footerClass;
-
-// css property is a string
-const _cssProperty: string = styles.css;
-void _cssProperty;
-
-// ─── UtilityClass — type-safe CSS utility strings ─────────────────
-
-// Valid keywords
-const _keyword1: StyleEntry = 'flex';
-const _keyword2: StyleEntry = 'grid';
-const _keyword3: StyleEntry = 'hidden';
-const _keyword4: StyleEntry = 'inline-flex';
-const _keyword5: StyleEntry = 'flex-col';
-const _keyword6: StyleEntry = 'shrink-0';
-const _keyword7: StyleEntry = 'whitespace-nowrap';
-void _keyword1;
-void _keyword2;
-void _keyword3;
-void _keyword4;
-void _keyword5;
-void _keyword6;
-void _keyword7;
-
-// Valid spacing utilities
-const _spacing1: StyleEntry = 'p:4';
-const _spacing2: StyleEntry = 'mx:auto';
-const _spacing3: StyleEntry = 'gap:2';
-const _spacing4: StyleEntry = 'mt:0.5';
-const _spacing5: StyleEntry = 'pb:96';
-void _spacing1;
-void _spacing2;
-void _spacing3;
-void _spacing4;
-void _spacing5;
-
-// Valid color utilities
-const _color1: StyleEntry = 'bg:primary';
-const _color2: StyleEntry = 'bg:primary.700';
-const _color3: StyleEntry = 'bg:transparent';
-const _color4: StyleEntry = 'bg:white';
-void _color1;
-void _color2;
-void _color3;
-void _color4;
-
-// Valid multi-mode text utilities
-const _text1: StyleEntry = 'text:foreground';
-const _text2: StyleEntry = 'text:sm';
-const _text3: StyleEntry = 'text:center';
-const _text4: StyleEntry = 'text:primary.500';
-void _text1;
-void _text2;
-void _text3;
-void _text4;
-
-// Valid multi-mode font utilities
-const _font1: StyleEntry = 'font:xl';
-const _font2: StyleEntry = 'font:medium';
-const _font3: StyleEntry = 'font:bold';
-void _font1;
-void _font2;
-void _font3;
-
-// Valid multi-mode border utilities
-const _border1: StyleEntry = 'border:border';
-const _border2: StyleEntry = 'border:1';
-void _border1;
-void _border2;
-
-// Valid size utilities
-const _size1: StyleEntry = 'w:full';
-const _size2: StyleEntry = 'h:screen';
-const _size3: StyleEntry = 'max-w:xl';
-const _size4: StyleEntry = 'h:4';
-void _size1;
-void _size2;
-void _size3;
-void _size4;
-
-// Valid radius, shadow, alignment, etc.
-const _radius1: StyleEntry = 'rounded:lg';
-const _shadow1: StyleEntry = 'shadow:md';
-const _align1: StyleEntry = 'items:center';
-const _align2: StyleEntry = 'justify:between';
-const _weight1: StyleEntry = 'weight:bold';
-const _leading1: StyleEntry = 'leading:tight';
-const _content1: StyleEntry = 'content:empty';
-void _radius1;
-void _shadow1;
-void _align1;
-void _align2;
-void _weight1;
-void _leading1;
-void _content1;
-
-// Valid raw utilities (accept any value)
-const _raw1: StyleEntry = 'cursor:pointer';
-const _raw2: StyleEntry = 'z:10';
-const _raw3: StyleEntry = 'opacity:0.5';
-const _raw4: StyleEntry = 'transition:colors';
-void _raw1;
-void _raw2;
-void _raw3;
-void _raw4;
-
-// Valid overflow utilities
-const _overflow1: StyleEntry = 'overflow:auto';
-const _overflow2: StyleEntry = 'overflow-x:scroll';
-const _overflow3: StyleEntry = 'overflow-y:hidden';
-void _overflow1;
-void _overflow2;
-void _overflow3;
-
-// Valid transform scale keywords
-const _scale1: StyleEntry = 'scale-110';
-const _scale2: StyleEntry = 'scale-0';
-const _scale3: StyleEntry = 'scale-150';
-void _scale1;
-void _scale2;
-void _scale3;
-
-// Valid fraction dimensions
-const _frac1: StyleEntry = 'w:1/2';
-const _frac2: StyleEntry = 'h:2/3';
-const _frac3: StyleEntry = 'min-w:1/4';
-const _frac4: StyleEntry = 'max-w:3/4';
-void _frac1;
-void _frac2;
-void _frac3;
-void _frac4;
-
-// Valid color opacity modifiers
-const _opacity1: StyleEntry = 'bg:primary/50';
-const _opacity2: StyleEntry = 'bg:primary.700/50';
-const _opacity3: StyleEntry = 'text:muted/90';
-const _opacity4: StyleEntry = 'border:ring/30';
-void _opacity1;
-void _opacity2;
-void _opacity3;
-void _opacity4;
-
-// Valid pseudo-prefixed utilities
-const _pseudo1: StyleEntry = 'hover:bg:primary';
-const _pseudo2: StyleEntry = 'focus:outline-none';
-const _pseudo3: StyleEntry = 'disabled:opacity:0.5';
-const _pseudo4: StyleEntry = 'hover:flex';
-void _pseudo1;
-void _pseudo2;
-void _pseudo3;
-void _pseudo4;
-
-// Valid ring and list utilities
-const _ring1: StyleEntry = 'ring:2';
-const _ring2: StyleEntry = 'ring:primary';
-const _ring3: StyleEntry = 'ring:primary.500';
-const _list1: StyleEntry = 'list:none';
-const _list2: StyleEntry = 'list:inside';
-const _list3: StyleEntry = 'list:disc';
-const _list4: StyleEntry = 'list:decimal';
-const _list5: StyleEntry = 'list:outside';
-void _ring1;
-void _ring2;
-void _ring3;
-void _list1;
-void _list2;
-void _list3;
-void _list4;
-void _list5;
-
-// Multi-mode text: font-size, text-align, and color modes
-const _textAlign1: StyleEntry = 'text:left';
-const _textAlign2: StyleEntry = 'text:right';
-const _textAlign3: StyleEntry = 'text:justify';
-const _textAlign4: StyleEntry = 'text:start';
-const _textAlign5: StyleEntry = 'text:end';
-void _textAlign1;
-void _textAlign2;
-void _textAlign3;
-void _textAlign4;
-void _textAlign5;
-
-// Multi-mode font: weight extremes
-const _fontW1: StyleEntry = 'font:thin';
-const _fontW2: StyleEntry = 'font:black';
-const _fontW3: StyleEntry = 'font:semibold';
-void _fontW1;
-void _fontW2;
-void _fontW3;
-
-// Multi-mode border: color and width modes
-const _borderColor1: StyleEntry = 'border:transparent';
-const _borderColor2: StyleEntry = 'border:primary.500';
-const _borderWidth1: StyleEntry = 'border:1';
-const _borderWidth2: StyleEntry = 'border:1.5';
-const _borderWidth3: StyleEntry = 'border:0';
-void _borderColor1;
-void _borderColor2;
-void _borderWidth1;
-void _borderWidth2;
-void _borderWidth3;
-
-// Size properties with spacing values
-const _sizeSpacing1: StyleEntry = 'w:64';
-const _sizeSpacing2: StyleEntry = 'h:12';
-const _sizeSpacing3: StyleEntry = 'min-h:24';
-const _sizeSpacing4: StyleEntry = 'max-w:xl';
-const _sizeSpacing5: StyleEntry = 'h:screen';
-void _sizeSpacing1;
-void _sizeSpacing2;
-void _sizeSpacing3;
-void _sizeSpacing4;
-void _sizeSpacing5;
-
-// ─── UtilityClass — INVALID strings must be rejected ──────────────
-
-// @ts-expect-error — completely unknown utility
-const _badUtil1: StyleEntry = 'typo-that-doesnt-exist';
-void _badUtil1;
-
-// @ts-expect-error — unknown property shorthand
-const _badUtil2: StyleEntry = 'bgg:primary';
-void _badUtil2;
-
-// @ts-expect-error — invalid spacing value
-const _badUtil3: StyleEntry = 'p:999';
-void _badUtil3;
-
-// @ts-expect-error — invalid color token (for bg, which validates colors)
-const _badUtil4: StyleEntry = 'bg:nonexistent';
-void _badUtil4;
-
-// @ts-expect-error — invalid pseudo prefix
-const _badUtil5: StyleEntry = 'hoverr:bg:primary';
-void _badUtil5;
-
-// @ts-expect-error — invalid keyword
-const _badUtil6: StyleEntry = 'flexx';
-void _badUtil6;
-
-// @ts-expect-error — invalid radius value
-const _badUtil7: StyleEntry = 'rounded:banana';
-void _badUtil7;
-
-// @ts-expect-error — invalid shadow value
-const _badUtil8: StyleEntry = 'shadow:banana';
-void _badUtil8;
-
-// @ts-expect-error — invalid alignment value
-const _badUtil9: StyleEntry = 'items:banana';
-void _badUtil9;
-
-// ─── CSSDeclarations — rejects invalid CSS property names ───────────
-
-// Valid CSS properties in raw declarations
-const _validCssProp1: StyleValue = { 'background-color': 'red' };
-const _validCssProp2: StyleValue = { display: 'flex', 'flex-direction': 'row' };
-void _validCssProp1;
-void _validCssProp2;
-
-// CSS custom properties are valid
-const _validCustomProp: StyleValue = { '--color-primary': '#000' };
-void _validCustomProp;
-
-// Vendor prefixes are valid
-const _validVendor: StyleValue = { '-webkit-backdrop-filter': 'blur(8px)' };
-void _validVendor;
-
-// @ts-expect-error — 'hello' is not a valid CSS property name
-const _invalidCssProp1: StyleValue = { hello: 'world' };
-void _invalidCssProp1;
-
-// @ts-expect-error — 'bgColor' is not a valid CSS property (camelCase not allowed in css())
-const _invalidCssProp2: StyleValue = { bgColor: 'red' };
-void _invalidCssProp2;
-
-// Valid CSS property in nested selector
-const _validNested: StyleEntry = { '&': { 'min-height': '100vh' } };
-void _validNested;
-
-// @ts-expect-error — 'foo' is not a valid CSS property inside nested selector
-const _invalidNested: StyleEntry = { '&': { foo: 'bar' } };
-void _invalidNested;
-
-// ─── UtilityClass in css() calls ───────────────────────────────────
-
-// Valid css() call with all utility types
-const _validFull = css({
-  card: [
-    'flex',
-    'flex-col',
-    'p:4',
-    'bg:primary',
-    'rounded:lg',
-    'hover:bg:primary.700',
-    'shadow:md',
-    'items:center',
-    { '&:hover': ['bg:muted', { 'text-decoration': 'underline' }] },
-  ],
-});
-void _validFull;
-
-// css() rejects invalid utilities
-css({
-  card: [
-    'p:4',
-    // @ts-expect-error — invalid utility in css() array
-    'definitely-not-a-utility',
-  ],
-});
+css('padding: 1rem');
 
 // ─── css() — object-form typo rejection (strict validator) ─────────
 
 // @ts-expect-error — top-level typo in object-form block
 css({ card: { bacgroundColor: 'red' } });
 
-// prettier-ignore
 // @ts-expect-error — typo inside nested selector
 css({ card: { padding: 16, '&:hover': { fooBar: 'baz' } } });
 
@@ -489,4 +112,6 @@ css({ card: { padding: 16, '&:hover': { fooBar: 'baz' } } });
 css({ card: { padding: 16, '@media (min-width: 768px)': { bacgroundColor: 'red' } } });
 
 // Valid object-form block — no error
-css({ card: { padding: 16, backgroundColor: 'red', '&:hover': { color: 'blue' } } });
+css({
+  card: { padding: 16, backgroundColor: 'red', '&:hover': { color: 'blue' } },
+});

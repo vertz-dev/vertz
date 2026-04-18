@@ -1,8 +1,8 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 import { bgOpacity, DARK } from './_helpers';
 
-type TextareaBlocks = { base: StyleEntry[] };
+type TextareaBlocks = { base: StyleBlock };
 
 /** Create textarea css() styles. */
 export function createTextarea(): CSSOutput<TextareaBlocks> {

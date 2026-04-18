@@ -145,7 +145,6 @@ describe('Subpath Exports — @vertz/ui/css', () => {
     'font',
     'globalCss',
     'googleFont',
-    's',
     'token',
     'variants',
   ];
@@ -177,6 +176,7 @@ describe('Subpath Exports — @vertz/ui/css', () => {
     expect(mod.isValidColorToken).toBeUndefined();
     expect(mod.resolveToken).toBeUndefined();
     expect(mod.TokenResolveError).toBeUndefined();
+    expect(mod.s).toBeUndefined();
   });
 
   test('same references as main barrel', async () => {
@@ -188,7 +188,6 @@ describe('Subpath Exports — @vertz/ui/css', () => {
     expect(subpath.defineTheme).toBe(main.defineTheme);
     expect(subpath.font).toBe(main.font);
     expect(subpath.globalCss).toBe(main.globalCss);
-    expect(subpath.s).toBe(main.s);
     expect(subpath.ThemeProvider).toBe(main.ThemeProvider);
     expect(subpath.token).toBe(main.token);
     expect(subpath.variants).toBe(main.variants);
@@ -274,7 +273,6 @@ describe('Subpath Exports — main barrel backward compat', () => {
     expect(main.defineTheme).toBeTypeOf('function');
     expect(main.font).toBeTypeOf('function');
     expect(main.globalCss).toBeTypeOf('function');
-    expect(main.s).toBeTypeOf('function');
     expect(main.ThemeProvider).toBeTypeOf('function');
     expect(main.token).toBeTypeOf('object');
     expect(main.variants).toBeTypeOf('function');

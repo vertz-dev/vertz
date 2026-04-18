@@ -1,16 +1,16 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 import { bgOpacity } from './_helpers';
 
 type TableBlocks = {
-  root: StyleEntry[];
-  header: StyleEntry[];
-  body: StyleEntry[];
-  row: StyleEntry[];
-  head: StyleEntry[];
-  cell: StyleEntry[];
-  caption: StyleEntry[];
-  footer: StyleEntry[];
+  root: StyleBlock;
+  header: StyleBlock;
+  body: StyleBlock;
+  row: StyleBlock;
+  head: StyleBlock;
+  cell: StyleBlock;
+  caption: StyleBlock;
+  footer: StyleBlock;
 };
 
 /** Create table css() styles. */
@@ -21,8 +21,8 @@ export function createTableStyles(): CSSOutput<TableBlocks> {
       fontSize: token.font.size.sm,
       '&': { captionSide: 'bottom', borderCollapse: 'collapse' },
     },
-    tableHeader: [{ '& tr': { borderBottomWidth: '1px', borderColor: token.color.border } }],
-    tableBody: [{ '& tr:last-child': { 'border-bottom': '0' } }],
+    tableHeader: { '& tr': { borderBottomWidth: '1px', borderColor: token.color.border } },
+    tableBody: { '& tr:last-child': { borderBottom: '0' } },
     tableRow: {
       borderBottomWidth: '1px',
       borderColor: token.color.border,

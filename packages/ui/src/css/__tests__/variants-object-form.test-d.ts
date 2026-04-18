@@ -32,9 +32,9 @@ const _compound = variants({
 });
 void _compound;
 
-// Mixed array + object interoperability
+// Object-form base with raw CSS values
 const _mixed = variants({
-  base: ['p:4'],
+  base: { padding: 4 },
   variants: { tone: { muted: { color: 'var(--color-muted-foreground)' } } },
 });
 void _mixed;

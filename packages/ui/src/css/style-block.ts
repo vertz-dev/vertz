@@ -36,9 +36,8 @@ export type StrictStyleBlock<T> = {
 };
 
 /**
- * Validate a css() / variants() block value — accepts legacy token-string
- * arrays unchanged, runs `StrictStyleBlock` on object-form blocks. Written as
- * a naked-parameter conditional so it distributes over unions like
- * `StyleEntry[] | StyleBlock` (avoids collapsing the array side to `never[]`).
+ * Validate a css() / variants() block value — runs `StrictStyleBlock` on the
+ * object-form block to give call-site errors through generic inference, where
+ * normal excess-property checking would be bypassed.
  */
-export type StrictBlockValue<V> = V extends readonly unknown[] ? V : StrictStyleBlock<V>;
+export type StrictBlockValue<V> = StrictStyleBlock<V>;

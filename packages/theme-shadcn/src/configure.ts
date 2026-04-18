@@ -1,5 +1,5 @@
 import { injectCSS } from '@vertz/ui';
-import type { VariantFunction } from '@vertz/ui';
+import type { StyleBlock, VariantFunction } from '@vertz/ui';
 import type {
   ComposedAlertProps,
   ComposedBadgeProps,
@@ -150,8 +150,8 @@ import { configureThemeBase } from './base';
 export interface ThemeStyles {
   /** Button variant function: `button({ intent: 'primary', size: 'md' })` */
   button: VariantFunction<{
-    intent: Record<string, string[]>;
-    size: Record<string, string[]>;
+    intent: Record<string, StyleBlock>;
+    size: Record<string, StyleBlock>;
   }>;
   /** Alert css() result with root, destructive, title, description. */
   alert: {
@@ -163,7 +163,7 @@ export interface ThemeStyles {
   };
   /** Badge variant function: `badge({ color: 'blue' })` */
   badge: VariantFunction<{
-    color: Record<string, string[]>;
+    color: Record<string, StyleBlock>;
   }>;
   /** AppShell css() result with root, sidebar, brand, nav, navItem, navItemActive, content, user. */
   appShell: {

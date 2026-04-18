@@ -1,11 +1,11 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, keyframes, token } from '@vertz/ui';
 
 type SkeletonBlocks = {
-  root: StyleEntry[];
-  textRoot: StyleEntry[];
-  textLine: StyleEntry[];
-  circleRoot: StyleEntry[];
+  root: StyleBlock;
+  textRoot: StyleBlock;
+  textLine: StyleBlock;
+  circleRoot: StyleBlock;
 };
 
 const pulse = keyframes('vz-skeleton-pulse', {
@@ -21,7 +21,7 @@ const skeletonBase = {
 
 /** Create skeleton css() styles. */
 export function createSkeletonStyles(): CSSOutput<SkeletonBlocks> {
-  return css({
+  const s = css({
     root: { ...skeletonBase },
     textRoot: { display: 'flex', flexDirection: 'column' },
     textLine: { height: token.spacing[4], ...skeletonBase },
@@ -30,4 +30,11 @@ export function createSkeletonStyles(): CSSOutput<SkeletonBlocks> {
       '&': { animation: `${pulse} 2s ease-in-out infinite`, borderRadius: '50%' },
     },
   });
+  return {
+    root: s.root,
+    textRoot: s.textRoot,
+    textLine: s.textLine,
+    circleRoot: s.circleRoot,
+    css: s.css,
+  } as CSSOutput<SkeletonBlocks>;
 }

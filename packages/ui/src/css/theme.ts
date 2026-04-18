@@ -21,7 +21,6 @@ import {
   type PreloadItem,
 } from './font';
 import { sanitizeCssValue } from './sanitize';
-import { COLOR_NAMESPACES } from './token-tables';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -111,20 +110,6 @@ export function compileTheme(theme: Theme, options?: CompileThemeOptions): Compi
       throw new Error(
         `Color token '${name}' uses camelCase. Use kebab-case to match CSS custom property naming.`,
       );
-    }
-  }
-
-  // Validate: detect namespace+shade collisions with compound namespaces
-  for (const [name, values] of Object.entries(theme.colors)) {
-    for (const key of Object.keys(values)) {
-      if (key === 'DEFAULT' || key.startsWith('_')) continue;
-      const compoundName = `${name}-${key}`;
-      if (COLOR_NAMESPACES.has(compoundName)) {
-        throw new Error(
-          `Token collision: '${name}.${key}' produces CSS variable '--color-${name}-${key}' ` +
-            `which conflicts with semantic token '${compoundName}'.`,
-        );
-      }
     }
   }
 

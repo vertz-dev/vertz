@@ -1,11 +1,11 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, keyframes, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type AccordionBlocks = {
-  item: StyleEntry[];
-  trigger: StyleEntry[];
-  content: StyleEntry[];
+  item: StyleBlock;
+  trigger: StyleBlock;
+  content: StyleBlock;
 };
 
 const accordionDown = keyframes('vz-accordion-down', {

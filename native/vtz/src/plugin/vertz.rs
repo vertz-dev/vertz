@@ -521,7 +521,7 @@ mod tests {
             target: "ssr",
             test_mode: false,
         };
-        let source = r#"const styles = css({ root: ['flex', 'p:4'] });"#;
+        let source = r#"const styles = css({ root: { display: 'flex', padding: 16 } });"#;
         let output = plugin.compile(source, &ctx);
         assert!(
             output.code.contains("css("),
@@ -544,7 +544,7 @@ mod tests {
             target: "ssr",
             test_mode: false,
         };
-        let source = r#"const styles = css({ root: ['flex'] });"#;
+        let source = r#"const styles = css({ root: { display: 'flex' } });"#;
         let output = plugin.compile(source, &ctx);
         assert!(
             output.code.contains("css("),
@@ -563,7 +563,7 @@ mod tests {
             target: "ssr",
             test_mode: false,
         };
-        let source = r#"const styles = css({ root: ['flex'] });"#;
+        let source = r#"const styles = css({ root: { display: 'flex' } });"#;
         let output = plugin.compile(source, &ctx);
         assert!(
             output.code.contains("css("),
@@ -582,7 +582,7 @@ mod tests {
             target: "ssr",
             test_mode: false,
         };
-        let source = r#"const styles = css({ root: ['flex'] });"#;
+        let source = r#"const styles = css({ root: { display: 'flex' } });"#;
         let output = plugin.compile(source, &ctx);
         assert!(
             output.code.contains("css("),
@@ -996,7 +996,7 @@ export function X() { return <div />; }
             target: "ssr",
             test_mode: false,
         };
-        let source = r#"const styles = css({ root: ['flex', 'p:4'] });"#;
+        let source = r#"const styles = css({ root: { display: 'flex', padding: 16 } });"#;
         let output = plugin.compile(source, &ctx);
         assert!(
             !output.code.contains("css("),

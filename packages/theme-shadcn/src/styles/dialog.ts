@@ -1,25 +1,22 @@
-import type { CSSOutput, GlobalCSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
+import type { CSSOutput, GlobalCSSOutput, StyleBlock } from '@vertz/ui';
 import { css, globalCss, injectCSS, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type DialogBlocks = {
-  overlay: StyleEntry[];
-  panel: StyleEntry[];
-  header: StyleEntry[];
-  title: StyleEntry[];
-  description: StyleEntry[];
-  close: StyleEntry[];
-  footer: StyleEntry[];
+  overlay: StyleBlock;
+  panel: StyleBlock;
+  header: StyleBlock;
+  title: StyleBlock;
+  description: StyleBlock;
+  close: StyleBlock;
+  footer: StyleBlock;
 };
 
-const focusRing: Record<string, StyleValue[]> = {
-  '&:focus-visible': [
-    'outline-none',
-    {
-      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
-    },
-    { 'outline-offset': '2px' },
-  ],
+const focusRing: StyleBlock = {
+  '&:focus-visible': {
+    outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+    outlineOffset: '2px',
+  },
 };
 
 /** Create dialog css() styles matching shadcn v4 Nova theme. */

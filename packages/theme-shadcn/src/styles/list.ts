@@ -1,11 +1,11 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, keyframes, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type ListBlocks = {
-  root: StyleEntry[];
-  item: StyleEntry[];
-  dragHandle: StyleEntry[];
+  root: StyleBlock;
+  item: StyleBlock;
+  dragHandle: StyleBlock;
 };
 
 const listEnter = keyframes('vz-list-enter', {
@@ -22,21 +22,17 @@ export function createListStyles(): CSSOutput<ListBlocks> {
       gap: token.spacing[0],
       '&': { listStyle: 'none', margin: '0', padding: '0', position: 'relative' },
     },
-    listItem: [
-      {
-        '&[data-dragging]': {
-          position: 'relative',
-          'z-index': '50',
-          'box-shadow': '0 4px 12px rgba(0,0,0,0.15)',
-          'background-color': 'var(--color-background)',
-          opacity: '1',
-        },
+    listItem: {
+      '&[data-dragging]': {
+        position: 'relative',
+        zIndex: '50',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        backgroundColor: 'var(--color-background)',
+        opacity: '1',
       },
-      { '&[data-presence="enter"]': animationDecl(`${listEnter} 200ms ease-out`) },
-      {
-        '&[data-presence="exit"]': { overflow: 'hidden', 'pointer-events': 'none' },
-      },
-    ],
+      '&[data-presence="enter"]': animationDecl(`${listEnter} 200ms ease-out`),
+      '&[data-presence="exit"]': { overflow: 'hidden', pointerEvents: 'none' },
+    },
     listDragHandle: {
       display: 'flex',
       alignItems: 'center',

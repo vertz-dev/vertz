@@ -2629,13 +2629,11 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let state = create_test_state(tmp.path());
 
-        // Write a file with a css() call that triggers a CSS warning.
-        // 'text:purplez' uses a misspelled color that is not a valid token — the
-        // compiler will emit a [css-unknown-color-token] diagnostic.
+        // Write a file that triggers a W0763 warning: setting .innerHTML
+        // inside a ref callback doesn't render during SSR.
         std::fs::write(
             tmp.path().join("src/sidebar.tsx"),
-            r#"const styles = css({ root: ['text:purplez'] });
-export default function Sidebar() { return <div class={styles.root}>Hi</div>; }
+            r#"export default function Sidebar() { return <pre ref={(el) => { el.innerHTML = "x"; }} />; }
 "#,
         )
         .unwrap();
@@ -2651,11 +2649,11 @@ export default function Sidebar() { return <div class={styles.root}>Hi</div>; }
         // The warning should appear in the error broadcaster (via tokio::spawn).
         let payload = poll_broadcaster(
             &state.error_broadcaster,
-            |p| p.contains("css-unknown-color-token"),
-            "timed out waiting for CSS warning to appear in error broadcaster",
+            |p| p.contains("W0763"),
+            "timed out waiting for W0763 warning to appear in error broadcaster",
         )
         .await;
-        assert!(payload.contains("css-unknown-color-token"));
+        assert!(payload.contains("W0763"));
     }
 
     #[tokio::test]
@@ -2663,11 +2661,10 @@ export default function Sidebar() { return <div class={styles.root}>Hi</div>; }
         let tmp = tempfile::tempdir().unwrap();
         let state = create_test_state(tmp.path());
 
-        // Step 1: Compile a file with CSS warning
+        // Step 1: Compile a file with a W0763 warning
         std::fs::write(
             tmp.path().join("src/sidebar.tsx"),
-            r#"const styles = css({ root: ['text:purplez'] });
-export default function Sidebar() { return <div class={styles.root}>Hi</div>; }
+            r#"export default function Sidebar() { return <pre ref={(el) => { el.innerHTML = "x"; }} />; }
 "#,
         )
         .unwrap();
@@ -2680,8 +2677,8 @@ export default function Sidebar() { return <div class={styles.root}>Hi</div>; }
 
         poll_broadcaster(
             &state.error_broadcaster,
-            |p| p.contains("css-unknown-color-token"),
-            "timed out waiting for CSS warning",
+            |p| p.contains("W0763"),
+            "timed out waiting for W0763 warning",
         )
         .await;
 
@@ -2700,7 +2697,7 @@ export default function Sidebar() { return <div class={styles.root}>Hi</div>; }
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let current = state.error_broadcaster.current_state().await;
         assert!(
-            current.to_json().contains("css-unknown-color-token"),
+            current.to_json().contains("W0763"),
             "warning for sidebar.tsx should still be present after compiling a different file"
         );
     }

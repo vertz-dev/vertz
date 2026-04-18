@@ -1,9 +1,9 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type TooltipBlocks = {
-  content: StyleEntry[];
+  content: StyleBlock;
 };
 
 /** Create tooltip css() styles. */

@@ -1,11 +1,11 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 
 type ScrollAreaBlocks = {
-  root: StyleEntry[];
-  viewport: StyleEntry[];
-  scrollbar: StyleEntry[];
-  thumb: StyleEntry[];
+  root: StyleBlock;
+  viewport: StyleBlock;
+  scrollbar: StyleBlock;
+  thumb: StyleBlock;
 };
 
 /** Create scroll-area css() styles following shadcn conventions. */

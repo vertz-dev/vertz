@@ -1,7 +1,7 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 
-type LabelBlocks = { base: StyleEntry[] };
+type LabelBlocks = { base: StyleBlock };
 
 /** Create label css() styles. */
 export function createLabel(): CSSOutput<LabelBlocks> {

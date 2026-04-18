@@ -1,16 +1,16 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type SheetBlocks = {
-  overlay: StyleEntry[];
-  panelLeft: StyleEntry[];
-  panelRight: StyleEntry[];
-  panelTop: StyleEntry[];
-  panelBottom: StyleEntry[];
-  title: StyleEntry[];
-  description: StyleEntry[];
-  close: StyleEntry[];
+  overlay: StyleBlock;
+  panelLeft: StyleBlock;
+  panelRight: StyleBlock;
+  panelTop: StyleBlock;
+  panelBottom: StyleBlock;
+  title: StyleBlock;
+  description: StyleBlock;
+  close: StyleBlock;
 };
 
 const focusRing = {

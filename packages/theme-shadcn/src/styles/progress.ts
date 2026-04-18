@@ -1,9 +1,9 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 
 type ProgressBlocks = {
-  root: StyleEntry[];
-  indicator: StyleEntry[];
+  root: StyleBlock;
+  indicator: StyleBlock;
 };
 
 /** Create progress css() styles. */

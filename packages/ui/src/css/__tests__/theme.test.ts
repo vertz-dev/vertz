@@ -170,21 +170,6 @@ describe('compileTheme()', () => {
     );
   });
 
-  it('throws on namespace+shade collision with compound namespace', () => {
-    const theme = defineTheme({
-      colors: {
-        primary: {
-          500: '#3b82f6',
-          foreground: '#ffffff',
-        },
-      },
-    });
-    expect(() => compileTheme(theme)).toThrow(
-      "Token collision: 'primary.foreground' produces CSS variable '--color-primary-foreground' " +
-        "which conflicts with semantic token 'primary-foreground'.",
-    );
-  });
-
   it('does not throw when shade does not collide with compound namespace', () => {
     const theme = defineTheme({
       colors: {

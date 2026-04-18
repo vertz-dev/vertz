@@ -1,24 +1,21 @@
-import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 
 type PaginationBlocks = {
-  nav: StyleEntry[];
-  list: StyleEntry[];
-  item: StyleEntry[];
-  link: StyleEntry[];
-  linkActive: StyleEntry[];
-  navButton: StyleEntry[];
-  ellipsis: StyleEntry[];
+  nav: StyleBlock;
+  list: StyleBlock;
+  item: StyleBlock;
+  link: StyleBlock;
+  linkActive: StyleBlock;
+  navButton: StyleBlock;
+  ellipsis: StyleBlock;
 };
 
-const focusRing: Record<string, StyleValue[]> = {
-  '&:focus-visible': [
-    'outline-none',
-    {
-      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
-    },
-    { 'outline-offset': '2px' },
-  ],
+const focusRing: StyleBlock = {
+  '&:focus-visible': {
+    outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+    outlineOffset: '2px',
+  },
 };
 
 /** Create pagination css() styles. */
@@ -36,7 +33,7 @@ export function createPaginationStyles(): CSSOutput<PaginationBlocks> {
       alignItems: 'center',
       '&': { gap: '0.125rem', listStyle: 'none', margin: '0', padding: '0' },
     },
-    paginationItem: [],
+    paginationItem: {},
     /* PaginationLink: ghost variant, size=icon (size-8 = 2rem) */
     paginationLink: {
       display: 'inline-flex',

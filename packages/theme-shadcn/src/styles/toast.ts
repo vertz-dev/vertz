@@ -1,24 +1,21 @@
-import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
+import type { CSSOutput, StyleBlock } from '@vertz/ui';
 import { css, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type ToastBlocks = {
-  viewport: StyleEntry[];
-  root: StyleEntry[];
-  title: StyleEntry[];
-  description: StyleEntry[];
-  action: StyleEntry[];
-  close: StyleEntry[];
+  viewport: StyleBlock;
+  root: StyleBlock;
+  title: StyleBlock;
+  description: StyleBlock;
+  action: StyleBlock;
+  close: StyleBlock;
 };
 
-const focusRing: Record<string, StyleValue[]> = {
-  '&:focus-visible': [
-    'outline-none',
-    {
-      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
-    },
-    { 'outline-offset': '2px' },
-  ],
+const focusRing: StyleBlock = {
+  '&:focus-visible': {
+    outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+    outlineOffset: '2px',
+  },
 };
 
 /** Create toast css() styles. */
