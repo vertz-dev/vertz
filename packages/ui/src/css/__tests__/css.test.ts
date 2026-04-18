@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { createTestSSRContext, disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import { css, getInjectedCSS, injectCSS, resetInjectedStyles } from '../css';
+import { token } from '@vertz/ui';
 
 /** Read all CSS text from adopted stylesheets (used by injectCSS when available). */
 function getAdoptedCSSText(): string[] {
@@ -28,26 +29,29 @@ describe('css() runtime style injection', () => {
   afterEach(cleanupStyles);
 
   it('injects generated CSS into the document via adoptedStyleSheets', () => {
-    css({ card: ['p:4', 'bg:background'] }, 'inject-test.tsx');
+    css(
+      { card: { padding: token.spacing[4], backgroundColor: token.color.background } },
+      'inject-test.tsx',
+    );
 
     const sheets = getAdoptedCSSText();
     expect(sheets.length).toBe(1);
     const cssText = sheets[0];
-    expect(cssText).toContain('padding: 1rem');
+    expect(cssText).toContain('padding: var(--spacing-4)');
     expect(cssText).toContain('background-color: var(--color-background)');
   });
 
   it('does not inject the same CSS twice (deduplication)', () => {
-    css({ card: ['p:4'] }, 'dedup-test.tsx');
-    css({ card: ['p:4'] }, 'dedup-test.tsx');
+    css({ card: { padding: token.spacing[4] } }, 'dedup-test.tsx');
+    css({ card: { padding: token.spacing[4] } }, 'dedup-test.tsx');
 
     const sheets = getAdoptedCSSText();
     expect(sheets.length).toBe(1);
   });
 
   it('injects separate stylesheets for different css() calls', () => {
-    css({ a: ['p:4'] }, 'file-a.tsx');
-    css({ b: ['m:4'] }, 'file-b.tsx');
+    css({ a: { padding: token.spacing[4] } }, 'file-a.tsx');
+    css({ b: { margin: token.spacing[4] } }, 'file-b.tsx');
 
     const sheets = getAdoptedCSSText();
     expect(sheets.length).toBe(2);
@@ -122,12 +126,15 @@ describe('injectCSS SSR behavior', () => {
       resetInjectedStyles();
       enableTestSSR(createTestSSRContext(`/page-${req}`));
 
-      css({ card: ['p:4', 'bg:background'] }, 'ssr-multi.tsx');
+      css(
+        { card: { padding: token.spacing[4], backgroundColor: token.color.background } },
+        'ssr-multi.tsx',
+      );
 
       // CSS is tracked in the Set, not in DOM
       const collected = getInjectedCSS();
       expect(collected.length).toBe(1);
-      expect(collected[0]).toContain('padding: 1rem');
+      expect(collected[0]).toContain('padding: var(--spacing-4)');
     }
   });
 });
@@ -136,8 +143,8 @@ describe('css()', () => {
   it('returns class names for each block', () => {
     const result = css(
       {
-        card: ['p:4'],
-        title: ['font:xl'],
+        card: { padding: token.spacing[4] },
+        title: { fontSize: token.font.size.xl },
       },
       'test.tsx',
     );
@@ -150,38 +157,41 @@ describe('css()', () => {
   it('produces valid CSS with class selectors', () => {
     const result = css(
       {
-        card: ['p:4', 'bg:background'],
+        card: { padding: token.spacing[4], backgroundColor: token.color.background },
       },
       'test.tsx',
     );
 
     expect(result.css).toContain(`.${result.card}`);
-    expect(result.css).toContain('padding: 1rem');
+    expect(result.css).toContain('padding: var(--spacing-4)');
     expect(result.css).toContain('background-color: var(--color-background)');
   });
 
   it('produces deterministic class names', () => {
-    const a = css({ card: ['p:4'] }, 'test.tsx');
-    const b = css({ card: ['p:4'] }, 'test.tsx');
+    const a = css({ card: { padding: token.spacing[4] } }, 'test.tsx');
+    const b = css({ card: { padding: token.spacing[4] } }, 'test.tsx');
     expect(a.card).toBe(b.card);
   });
 
   it('handles display keywords', () => {
     const result = css(
       {
-        layout: ['flex', 'gap:4'],
+        layout: { display: 'flex', gap: token.spacing[4] },
       },
       'test.tsx',
     );
 
     expect(result.css).toContain('display: flex');
-    expect(result.css).toContain('gap: 1rem');
+    expect(result.css).toContain('gap: var(--spacing-4)');
   });
 
   it('handles pseudo-state prefixes', () => {
     const result = css(
       {
-        button: ['bg:primary', 'hover:bg:primary.700'],
+        button: {
+          backgroundColor: token.color.primary,
+          '&:hover': { backgroundColor: token.color.primary[700] },
+        },
       },
       'test.tsx',
     );
@@ -194,7 +204,11 @@ describe('css()', () => {
   it('handles multiple pseudo-states', () => {
     const result = css(
       {
-        input: ['bg:background', 'hover:bg:primary.100', 'focus:bg:primary.200'],
+        input: {
+          backgroundColor: token.color.background,
+          '&:hover': { backgroundColor: token.color.primary[100] },
+          '&:focus': { backgroundColor: token.color.primary[200] },
+        },
       },
       'test.tsx',
     );
@@ -207,7 +221,7 @@ describe('css()', () => {
   it('handles object form for complex selectors', () => {
     const result = css(
       {
-        card: ['p:4', { '&::after': ['block'] }],
+        card: { padding: token.spacing[4], '&::after': { display: 'block' } },
       },
       'test.tsx',
     );
@@ -220,13 +234,18 @@ describe('css()', () => {
   it('handles mixed array and object entries', () => {
     const result = css(
       {
-        card: ['p:4', 'bg:background', 'hover:bg:primary.100', { '&::before': ['block'] }],
+        card: {
+          padding: token.spacing[4],
+          backgroundColor: token.color.background,
+          '&:hover': { backgroundColor: token.color.primary[100] },
+          '&::before': { display: 'block' },
+        },
       },
       'test.tsx',
     );
 
     const className = result.card as string;
-    expect(result.css).toContain('padding: 1rem');
+    expect(result.css).toContain('padding: var(--spacing-4)');
     expect(result.css).toContain('var(--color-background)');
     expect(result.css).toContain(`.${className}:hover`);
     expect(result.css).toContain(`.${className}::before`);
@@ -235,31 +254,31 @@ describe('css()', () => {
   it('handles multiple blocks', () => {
     const result = css(
       {
-        card: ['p:4', 'rounded:lg'],
-        title: ['font:xl', 'weight:bold'],
-        body: ['text:foreground', 'leading:normal'],
+        card: { padding: token.spacing[4], borderRadius: token.radius.lg },
+        title: { fontSize: token.font.size.xl, fontWeight: token.font.weight.bold },
+        body: { color: token.color.foreground, lineHeight: token.font.lineHeight.normal },
       },
       'test.tsx',
     );
 
-    expect(result.css).toContain('padding: 1rem');
-    expect(result.css).toContain('border-radius: calc(var(--radius) * 1.33)');
-    expect(result.css).toContain('font-size: 1.25rem');
-    expect(result.css).toContain('font-weight: 700');
+    expect(result.css).toContain('padding: var(--spacing-4)');
+    expect(result.css).toContain('border-radius: var(--radius-lg)');
+    expect(result.css).toContain('font-size: var(--font-size-xl)');
+    expect(result.css).toContain('font-weight: var(--font-weight-bold)');
     expect(result.css).toContain('color: var(--color-foreground)');
-    expect(result.css).toContain('line-height: 1.5');
+    expect(result.css).toContain('line-height: var(--font-lineHeight-normal)');
   });
 
   it('uses default file path when none provided', () => {
-    const result = css({ root: ['p:4'] });
+    const result = css({ root: { padding: token.spacing[4] } });
     expect(result.root).toBeDefined();
-    expect(result.css).toContain('padding: 1rem');
+    expect(result.css).toContain('padding: var(--spacing-4)');
   });
 
   it('handles content:empty in object form (documented API)', () => {
     const result = css(
       {
-        card: ['p:4', { '&::after': ['content:empty', 'block'] }],
+        card: { padding: token.spacing[4], '&::after': { content: "''", display: 'block' } },
       },
       'test.tsx',
     );
@@ -273,7 +292,10 @@ describe('css()', () => {
   it('handles ring:2 with focus-visible pseudo', () => {
     const result = css(
       {
-        button: ['bg:primary', 'focus-visible:ring:2'],
+        button: {
+          backgroundColor: token.color.primary,
+          '&:focus-visible': { outline: '2px solid var(--color-ring)' },
+        },
       },
       'test.tsx',
     );
@@ -286,7 +308,7 @@ describe('css()', () => {
   it('handles h:screen as 100vh (axis-aware)', () => {
     const result = css(
       {
-        layout: ['w:screen', 'h:screen'],
+        layout: { width: '100vw', height: '100vh' },
       },
       'test.tsx',
     );
@@ -296,13 +318,13 @@ describe('css()', () => {
   });
 
   it('css property is non-enumerable (Object.keys excludes it)', () => {
-    const result = css({ card: ['p:4'] }, 'test.tsx');
+    const result = css({ card: { padding: token.spacing[4] } }, 'test.tsx');
     expect(Object.keys(result)).toEqual(['card']);
-    expect(result.css).toContain('padding: 1rem');
+    expect(result.css).toContain('padding: var(--spacing-4)');
   });
 
   it('spreading drops the non-enumerable css property', () => {
-    const result = css({ card: ['p:4'] }, 'test.tsx');
+    const result = css({ card: { padding: token.spacing[4] } }, 'test.tsx');
     const spread = { ...result };
     expect(spread).toHaveProperty('card');
     expect(spread).not.toHaveProperty('css');
@@ -311,15 +333,28 @@ describe('css()', () => {
   it('produces different class names for same block name with different styles (no runtime collision)', () => {
     // Two different css() calls with the same block name 'title' but different styles.
     // Without a filePath, both use __runtime__ — this must NOT collide.
-    const a = css({ title: ['font:lg', 'font:bold', 'text:foreground'] });
-    const b = css({ title: ['flex-1', 'text:sm', 'font:normal', 'text:foreground'] });
+    const a = css({
+      title: {
+        fontSize: token.font.size.lg,
+        fontWeight: token.font.weight.bold,
+        color: token.color.foreground,
+      },
+    });
+    const b = css({
+      title: {
+        flex: '1 1 0%',
+        fontSize: token.font.size.sm,
+        fontWeight: token.font.weight.normal,
+        color: token.color.foreground,
+      },
+    });
 
     expect(a.title).not.toBe(b.title);
   });
 
   it('still produces same class name for identical block name + styles (dedup)', () => {
-    const a = css({ card: ['p:4', 'bg:background'] });
-    const b = css({ card: ['p:4', 'bg:background'] });
+    const a = css({ card: { padding: token.spacing[4], backgroundColor: token.color.background } });
+    const b = css({ card: { padding: token.spacing[4], backgroundColor: token.color.background } });
 
     expect(a.card).toBe(b.card);
   });
@@ -327,23 +362,18 @@ describe('css()', () => {
   it('throws when block name is "css" (reserved)', () => {
     expect(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (css as any)({ css: ['p:4'] }, 'test.tsx');
+      (css as any)({ css: { padding: token.spacing[4] } }, 'test.tsx');
     }).toThrow("css(): block name 'css' is reserved");
   });
 
   it('handles direct object form for media queries', () => {
     const result = css(
       {
-        layout: [
-          'flex',
-          'flex-col',
-          {
-            '@media (min-width: 640px)': {
-              'flex-direction': 'row',
-              'align-items': 'center',
-            },
-          },
-        ],
+        layout: {
+          display: 'flex',
+          flexDirection: 'column',
+          '@media (min-width: 640px)': { flexDirection: 'row', alignItems: 'center' },
+        },
       },
       'media-obj.tsx',
     );
@@ -358,12 +388,7 @@ describe('css()', () => {
   it('handles direct object form for pseudo selectors', () => {
     const result = css(
       {
-        btn: [
-          'p:4',
-          {
-            '&:hover': { opacity: '1' },
-          },
-        ],
+        btn: { padding: token.spacing[4], '&:hover': { opacity: '1' } },
       },
       'pseudo-obj.tsx',
     );
@@ -376,12 +401,10 @@ describe('css()', () => {
   it('handles CSS object elements inside arrays (mixed with shorthands)', () => {
     const result = css(
       {
-        card: [
-          'p:4',
-          {
-            '&:hover': ['text:foreground', { 'background-color': 'rgba(0,0,0,0.3)' }],
-          },
-        ],
+        card: {
+          padding: token.spacing[4],
+          '&:hover': { color: token.color.foreground, backgroundColor: 'rgba(0,0,0,0.3)' },
+        },
       },
       'mixed-obj.tsx',
     );
@@ -393,12 +416,10 @@ describe('css()', () => {
   it('handles multiple CSS properties in a single object element within array', () => {
     const result = css(
       {
-        overlay: [
-          'fixed',
-          {
-            '&': [{ 'background-color': 'oklch(0 0 0 / 50%)', 'backdrop-filter': 'blur(4px)' }],
-          },
-        ],
+        overlay: {
+          position: 'fixed',
+          '&': { backgroundColor: 'oklch(0 0 0 / 50%)', backdropFilter: 'blur(4px)' },
+        },
       },
       'multi-prop.tsx',
     );

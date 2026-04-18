@@ -6,23 +6,24 @@
  * checked by `tsc --noEmit` (typecheck), not by vitest at runtime.
  */
 
-import type { StyleEntry } from '../css';
+import type { StyleBlock } from '../style-block';
 import type { VariantProps, VariantsConfig } from '../variants';
 import { variants } from '../variants';
+import { token } from '@vertz/ui';
 
 // ─── Basic variant type inference ───────────────────────────────
 
 const button = variants({
-  base: ['flex', 'rounded:md'],
+  base: { display: 'flex', borderRadius: token.radius.md },
   variants: {
     intent: {
-      primary: ['bg:primary.600'],
-      secondary: ['bg:background'],
+      primary: { backgroundColor: token.color.primary[500] },
+      secondary: { backgroundColor: token.color.background },
     },
     size: {
-      sm: ['h:8'],
-      md: ['h:10'],
-      lg: ['h:12'],
+      sm: { height: token.spacing[1] },
+      md: { height: token.spacing[4] },
+      lg: { height: token.spacing[8] },
     },
   },
   defaultVariants: { intent: 'primary', size: 'md' },
@@ -57,12 +58,12 @@ void _badVariant;
 
 type ButtonVariants = {
   intent: {
-    primary: StyleEntry[];
-    secondary: StyleEntry[];
+    primary: StyleBlock;
+    secondary: StyleBlock;
   };
   size: {
-    sm: StyleEntry[];
-    md: StyleEntry[];
+    sm: StyleBlock;
+    md: StyleBlock;
   };
 };
 
@@ -87,19 +88,21 @@ void _invalidProp;
 // ─── Compound variants type inference ───────────────────────────
 
 const _withCompound = variants({
-  base: ['rounded:md'],
+  base: { borderRadius: token.radius.md },
   variants: {
     intent: {
-      primary: ['bg:primary'],
-      secondary: ['bg:secondary'],
+      primary: { backgroundColor: token.color.primary[500] },
+      secondary: { backgroundColor: token.color.background },
     },
     size: {
-      sm: ['h:8'],
-      md: ['h:10'],
+      sm: { height: token.spacing[1] },
+      md: { height: token.spacing[4] },
     },
   },
   defaultVariants: { intent: 'primary', size: 'md' },
-  compoundVariants: [{ intent: 'primary', size: 'sm', styles: ['px:2'] }],
+  compoundVariants: [
+    { intent: 'primary', size: 'sm', styles: { paddingInline: token.spacing[1] } },
+  ],
 });
 void _withCompound;
 
@@ -107,13 +110,19 @@ void _withCompound;
 
 // defaultVariants must reference valid variant names and values
 const _validConfig: VariantsConfig<{
-  intent: { primary: StyleEntry[]; secondary: StyleEntry[] };
-  size: { sm: StyleEntry[]; md: StyleEntry[] };
+  intent: { primary: StyleBlock; secondary: StyleBlock };
+  size: { sm: StyleBlock; md: StyleBlock };
 }> = {
-  base: ['p:4'],
+  base: { padding: token.spacing[4] },
   variants: {
-    intent: { primary: ['bg:primary'], secondary: ['bg:secondary'] },
-    size: { sm: ['h:8'], md: ['h:10'] },
+    intent: {
+      primary: { backgroundColor: token.color.primary[500] },
+      secondary: { backgroundColor: token.color.background },
+    },
+    size: {
+      sm: { height: token.spacing[1] },
+      md: { height: token.spacing[4] },
+    },
   },
   defaultVariants: { intent: 'primary', size: 'md' },
 };
@@ -127,7 +136,7 @@ void _cssString;
 // ─── Empty variants ─────────────────────────────────────────────
 
 const emptyBox = variants({
-  base: ['p:4'],
+  base: { padding: token.spacing[4] },
   variants: {},
 });
 

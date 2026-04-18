@@ -1,3 +1,6 @@
+// REMOVED-IN-PHASE-4: tests the shorthand → CSS value resolver, which is
+// removed in Phase 4. Delete this file together with
+// `packages/ui/src/css/token-resolver.ts`.
 import { describe, expect, it } from '@vertz/test';
 import { isValidColorToken, resolveToken, TokenResolveError } from '../token-resolver';
 

@@ -1,3 +1,6 @@
+// REMOVED-IN-PHASE-4: this file covers the legacy shorthand → token resolver
+// pipeline. Delete this file together with `packages/ui/src/css/shorthand-parser.ts`
+// and `packages/ui/src/css/token-resolver.ts`.
 import { describe, expect, it } from '@vertz/test';
 import { css, generateClassName, globalCss, parseShorthand, resolveToken } from '../css';
 

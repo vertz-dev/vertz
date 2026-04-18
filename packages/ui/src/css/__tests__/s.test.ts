@@ -1,3 +1,6 @@
+// REMOVED-IN-PHASE-4: this file tests the `s()` template-tag helper and its
+// shorthand parser — both removed in Phase 4. Delete this file together with
+// `packages/ui/src/css/s.ts`.
 import { describe, expect, it } from '@vertz/test';
 import { InlineStyleError, s } from '../s';
 

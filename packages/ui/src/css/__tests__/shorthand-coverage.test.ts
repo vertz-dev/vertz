@@ -1,3 +1,6 @@
+// REMOVED-IN-PHASE-4: coverage suite for the legacy shorthand parser.
+// Delete this file together with `packages/ui/src/css/shorthand-parser.ts`
+// and `packages/ui/src/css/token-resolver.ts`.
 /**
  * Integration test that validates every CSS shorthand token used in the
  * task-manager demo app resolves without errors.
