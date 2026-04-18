@@ -82,6 +82,9 @@ export function Foreign({
 
   // Inject pre-rendered HTML during SSR. On the client, the content is
   // already in the DOM from SSR and preserved by hydration (no __enterChildren).
+  // Imperative innerHTML is kept here because Foreign is a framework primitive
+  // built on `__element()` directly (no JSX) and only fires on the SSR path
+  // where the element has no reactive content to preserve.
   if (html && getSSRContext()) {
     (el as HTMLElement).innerHTML = html;
   }

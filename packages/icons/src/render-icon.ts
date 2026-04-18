@@ -1,5 +1,9 @@
 import type { IconProps } from './types';
 
+// This package has no Vertz compiler plugin and consumes trusted SVG strings
+// from `lucide-static` at generate time, so JSX + innerHTML prop would add
+// disproportionate build machinery for a leaf-level factory with no user
+// input path.
 export function renderIcon(svgString: string, props?: IconProps): HTMLSpanElement {
   const { size = 16, className, class: classProp } = props ?? {};
   const effectiveClass = className ?? classProp;

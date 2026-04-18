@@ -1,0 +1,190 @@
+---
+title: Raw HTML Injection
+description: 'Rendering pre-serialized HTML markup with the innerHTML prop'
+---
+
+Vertz supports rendering raw HTML via the `innerHTML` prop on any HTML host element.
+This is the equivalent of React's `dangerouslySetInnerHTML` — except the API is a
+single plain prop, and the compiler blocks the React spelling with a clear error.
+
+```tsx
+export function Announcement({ html }: { html: string }) {
+  return <div innerHTML={html} />;
+}
+```
+
+<Warning>
+  The value passed to `innerHTML` is inserted **without escaping**. Never pass
+  untrusted input directly. See [Safely rendering user content](#safely-rendering-user-content).
+</Warning>
+
+## When to use it
+
+Use `innerHTML` only when you already have pre-serialized HTML that you need to
+render as-is. Common cases:
+
+- **Syntax-highlighted code blocks** from a highlighter (Shiki, Prism, highlight.js)
+- **Markdown-rendered content** produced by a trusted pipeline at build time
+- **Sanitized rich-text** (e.g. blog post bodies) that passed through a sanitizer
+- **Inline SVG icons** wrapped in a `<span>`
+
+For everything else — dynamic text, conditional rendering, attribute binding —
+use JSX. The framework handles escaping for you.
+
+## Basic usage
+
+```tsx
+const html = '<strong>Hello</strong>, <em>world</em>!';
+return <div innerHTML={html} />;
+```
+
+`innerHTML` accepts a `string`, `null`, or `undefined`. Nullish values render as
+empty content (`element.innerHTML = ''`).
+
+It is reactive: when the bound signal changes, the element's contents update.
+
+```tsx
+const markup = signal('<b>first</b>');
+// ...
+<div innerHTML={markup} />
+// Later:
+markup.value = '<i>second</i>'; // div updates in place
+```
+
+## What you cannot do
+
+### No `dangerouslySetInnerHTML`
+
+Vertz rejects React's spelling at compile time:
+
+```tsx
+// Compile error E0762 — use `innerHTML` instead.
+<div dangerouslySetInnerHTML={{ __html: markup }} />
+```
+
+If you're migrating from React, change `dangerouslySetInnerHTML={{ __html: x }}`
+to `innerHTML={x}`.
+
+### No children together with `innerHTML`
+
+Setting both would discard one or the other. The compiler raises an error if you
+do:
+
+```tsx
+// Compile error E0763 — children and innerHTML are mutually exclusive.
+<div innerHTML={html}>Also some text</div>
+```
+
+Pick one. If you need both a wrapper and raw markup inside, nest them:
+
+```tsx
+<section>
+  <h2>Heading</h2>
+  <div innerHTML={html} />
+</section>
+```
+
+### No `innerHTML` on void elements or SVG elements
+
+Void HTML elements (`<img>`, `<input>`, `<br>`, `<hr>`, `<meta>`, `<link>`,
+`<area>`, `<base>`, `<col>`, `<embed>`, `<source>`, `<track>`, `<wbr>`) cannot
+contain children, so `innerHTML` on them is a compile error (E0764).
+
+SVG elements also reject `innerHTML` — SVG content serialization uses
+`outerHTML` semantics and the DOM `innerHTML` setter on SVG parses as HTML,
+not SVG. Wrap SVG markup in a `<span>` instead:
+
+```tsx
+// Wrong — compile error E0764
+<svg innerHTML={svgMarkup} />
+
+// Right — span wrapper, browser parses SVG correctly inside HTML context
+<span innerHTML={svgMarkup} />
+```
+
+## Safely rendering user content
+
+The string passed to `innerHTML` is inserted verbatim. A `<script>` tag or an
+`onerror` handler in the input will execute. If the content comes from anything
+a user can influence — form submissions, URL parameters, database rows, API
+responses — sanitize first.
+
+The standard sanitizer is [DOMPurify](https://github.com/cure53/DOMPurify):
+
+```tsx
+import DOMPurify from 'dompurify';
+
+export function UserBio({ bio }: { bio: string }) {
+  const safe = DOMPurify.sanitize(bio);
+  return <div innerHTML={safe} />;
+}
+```
+
+Sanitize at the boundary — when the data enters your app — not at the render
+site. That way every render path for the same data is protected.
+
+## The trust boundary
+
+`innerHTML` has no built-in sanitizer. This is deliberate: sanitization policy
+is application-specific (what tags, what attributes, what URL schemes), and
+shipping a default would either be too permissive or too restrictive.
+
+Your app owns the trust boundary. The rule of thumb:
+
+- **Sanitize once** at the edge (form handler, API response, database read)
+- **Mark the result as trusted** in your app's types
+- **Render without re-sanitizing** via `innerHTML`
+
+For a value that has already been sanitized and you want the type system to
+carry that fact, wrap it with the `trusted()` helper from `@vertz/ui`:
+
+```tsx
+import { trusted } from '@vertz/ui';
+
+const safe = trusted(DOMPurify.sanitize(userInput));
+return <div innerHTML={safe} />;
+```
+
+`trusted()` is a nominal-type marker. It does not sanitize, transform, or
+validate. It exists so reviewers can grep for `trusted(` and audit every
+place that asserts markup is safe to render.
+
+## SSR and hydration
+
+`innerHTML` works on both the server and the client. On SSR, the value is
+written into the HTML response verbatim (no escaping, no sanitization). On
+hydration, the hydrated element's existing children are preserved — the first
+reactive update runs *after* hydration completes so server-rendered content
+isn't re-written on initial paint.
+
+If you produce the same markup on the server and client, there is no visible
+flash or mismatch warning.
+
+## Full example: syntax-highlighted code
+
+```tsx
+import { highlightCode } from './highlighter';
+
+export function CodeBlock({ code, lang }: { code: string; lang: string }) {
+  // highlightCode returns trusted HTML from Shiki (a trusted source at build time)
+  const highlighted = highlightCode(code, lang);
+  return <div className="code-block" innerHTML={highlighted} />;
+}
+```
+
+## Migrating from React
+
+| React                                            | Vertz                      |
+| ------------------------------------------------ | -------------------------- |
+| `<div dangerouslySetInnerHTML={{ __html: x }} />` | `<div innerHTML={x} />`    |
+| `null`/`undefined` → empty                        | Same — nullish → empty     |
+| Sanitize with DOMPurify                          | Same — DOMPurify works     |
+| Children + dangerouslySetInnerHTML (React warns) | Compile error E0763         |
+
+## Summary
+
+- `innerHTML` is a plain prop on HTML host elements
+- `dangerouslySetInnerHTML` is a compile error — use `innerHTML`
+- Never pass untrusted input; sanitize at the boundary with DOMPurify
+- Wrap sanitized values with `trusted()` for audit clarity
+- Mutually exclusive with children; forbidden on void and SVG elements
