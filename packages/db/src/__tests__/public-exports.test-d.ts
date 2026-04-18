@@ -4,6 +4,8 @@ import {
   type ColumnBuilder,
   type ColumnRecord,
   type DefaultMeta,
+  type EnumMeta,
+  type EnumSchemaLike,
   type ManyRelationDef,
   type ModelDef,
   type NumericColumnBuilder,
@@ -82,5 +84,21 @@ describe('Public API exports — issue #2778', () => {
     const model = d.model(todo);
     // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} is the public default for "no relations"
     type _t1 = Expect<Equal<typeof model, ModelDef<typeof todo, {}>>>;
+  });
+
+  // Issue #2804 — EnumSchemaLike is referenced by the d.enum(name, schema) overload.
+  // It must be re-exported so consumers naming `typeof d.enum` (or emitting .d.ts that
+  // pins that overload) don't trip TS2742 against @vertz/db/dist/d.
+  it('EnumSchemaLike names the second-overload parameter shape of d.enum()', () => {
+    const roleSchema: EnumSchemaLike<readonly ['admin', 'member']> = {
+      values: ['admin', 'member'] as const,
+    };
+    const col = d.enum('role', roleSchema);
+    type _t1 = Expect<
+      Equal<
+        typeof col,
+        ColumnBuilder<'admin' | 'member', EnumMeta<'role', readonly ['admin', 'member']>>
+      >
+    >;
   });
 });

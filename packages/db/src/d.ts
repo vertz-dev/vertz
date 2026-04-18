@@ -35,7 +35,9 @@ import { createIndex, createTable } from './schema/table';
 
 // Duck-typing interface so @vertz/db can accept EnumSchema from @vertz/schema
 // without a hard runtime import (keeps the dependency boundary clean).
-interface EnumSchemaLike<T extends readonly string[]> {
+// Exported so consumers naming the d.enum(name, schema) overload (e.g. via
+// `typeof d.enum`) don't trip TS2742 against @vertz/db/dist/d. See #2804.
+export interface EnumSchemaLike<T extends readonly string[]> {
   readonly values: T;
 }
 
