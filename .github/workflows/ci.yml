@@ -259,6 +259,15 @@ jobs:
           workspaces: native
           shared-key: vtz-ci-release
 
+      # Bun is still required to run package scripts invoked by ci.config.ts
+      # (`bun run build|typecheck|test`). vtz run does not resolve root
+      # node_modules/.bin from workspace packages, so package scripts that use
+      # vtzx-wrapped binaries (e.g. `vtzx vertz-build`) fail when driven by
+      # vtz run inside a workspace. Installs still use vtz install --frozen.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+
       - name: Build vtz from source (release profile)
         run: |
           cd native
