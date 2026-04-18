@@ -195,7 +195,9 @@ fn extract_style_block_key(key: &PropertyKey) -> Option<String> {
 
 fn is_static_scalar_value(expr: &Expression) -> bool {
     match expr {
-        Expression::StringLiteral(_) | Expression::NumericLiteral(_) => true,
+        Expression::StringLiteral(_)
+        | Expression::NumericLiteral(_)
+        | Expression::BooleanLiteral(_) => true,
         Expression::UnaryExpression(u) if u.operator == UnaryOperator::UnaryNegation => {
             matches!(&u.argument, Expression::NumericLiteral(_))
         }
@@ -251,6 +253,7 @@ fn extract_scalar_value(expr: &Expression) -> Option<StyleDeclValue> {
     match expr {
         Expression::StringLiteral(s) => Some(StyleDeclValue::String(s.value.to_string())),
         Expression::NumericLiteral(n) => Some(StyleDeclValue::Number(n.value)),
+        Expression::BooleanLiteral(b) => Some(StyleDeclValue::String(b.value.to_string())),
         Expression::UnaryExpression(u) if u.operator == UnaryOperator::UnaryNegation => {
             if let Expression::NumericLiteral(n) = &u.argument {
                 Some(StyleDeclValue::Number(-n.value))
@@ -792,5 +795,87 @@ const b = css({ root: { display: 'grid' } });
         let source = r#"const s = css({ card: { marginTop: -8 } });"#;
         let (_, css) = transform(source);
         assert!(css.contains("margin-top: -8px;"), "css: {}", css);
+    }
+
+    // ── Nested raw declarations: numeric values parity contract [#2783] ──────────
+
+    #[test]
+    fn nested_raw_declarations_numeric_dimensional_gets_px() {
+        let source = r#"const s = css({ card: { '&:hover': { fontSize: 16 } } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains(":hover"), "css: {}", css);
+        assert!(css.contains("font-size: 16px;"), "css: {}", css);
+    }
+
+    #[test]
+    fn nested_raw_declarations_unitless_no_px() {
+        let source = r#"const s = css({ card: { '&:hover': { opacity: 1, lineHeight: 1.5, zIndex: 10 } } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains("opacity: 1;"), "css: {}", css);
+        assert!(css.contains("line-height: 1.5;"), "css: {}", css);
+        assert!(css.contains("z-index: 10;"), "css: {}", css);
+        assert!(!css.contains("opacity: 1px"), "unitless got px: {}", css);
+        assert!(
+            !css.contains("line-height: 1.5px"),
+            "unitless got px: {}",
+            css
+        );
+        assert!(!css.contains("z-index: 10px"), "unitless got px: {}", css);
+    }
+
+    #[test]
+    fn nested_raw_declarations_negative_numeric_via_unary() {
+        let source = r#"const s = css({ card: { '&:hover': { marginTop: -8 } } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains("margin-top: -8px;"), "css: {}", css);
+    }
+
+    #[test]
+    fn nested_raw_declarations_zero_no_px() {
+        let source = r#"const s = css({ card: { '&:hover': { padding: 0 } } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains("padding: 0;"), "css: {}", css);
+        assert!(!css.contains("0px"), "0 got px: {}", css);
+    }
+
+    #[test]
+    fn nested_raw_declarations_custom_property_passthrough() {
+        let source = r#"const s = css({ card: { '&:hover': { '--my-tone': 1 } } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains("--my-tone: 1;"), "css: {}", css);
+        assert!(!css.contains("1px"), "custom prop got px: {}", css);
+    }
+
+    #[test]
+    fn nested_raw_declarations_boolean_value() {
+        let source = r#"const s = css({ card: { '&:hover': { someFlag: false } } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains("some-flag: false;"), "css: {}", css);
+    }
+
+    #[test]
+    fn nested_raw_declarations_string_still_works() {
+        let source = r#"const s = css({ card: { '&:hover': { color: 'red' } } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains("color: red;"), "css: {}", css);
+    }
+
+    #[test]
+    fn nested_raw_declarations_mixed_string_and_numeric() {
+        let source =
+            r#"const s = css({ card: { '&:focus': { color: 'red', padding: 8, opacity: 1 } } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains("color: red;"), "css: {}", css);
+        assert!(css.contains("padding: 8px;"), "css: {}", css);
+        assert!(css.contains("opacity: 1;"), "css: {}", css);
+    }
+
+    #[test]
+    fn nested_raw_declarations_deeply_nested_numeric() {
+        let source = r#"const s = css({ card: { '&:hover': { '& > span': { fontSize: 16, opacity: 1 } } } });"#;
+        let (_, css) = transform(source);
+        assert!(css.contains(":hover > span"), "css: {}", css);
+        assert!(css.contains("font-size: 16px;"), "css: {}", css);
+        assert!(css.contains("opacity: 1;"), "css: {}", css);
     }
 }
