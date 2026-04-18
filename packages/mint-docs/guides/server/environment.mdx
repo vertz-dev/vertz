@@ -1,0 +1,92 @@
+---
+title: Runtime Environment
+description: 'What globals and APIs are available inside Vertz server handlers'
+---
+
+Vertz server handlers run in a Cloudflare-Workers-compatible JavaScript environment. The same code runs locally under `vtz dev` and on the edge under `vtz deploy` — the runtime surface is deliberately aligned with Workers so there is no "works locally, breaks in production" gap.
+
+## What's available
+
+**Network + data:**
+
+- `fetch`, `Request`, `Response`, `Headers`
+- `URL`, `URLSearchParams`
+- `AbortController`, `AbortSignal`
+- `FormData`, `Blob`, `ReadableStream`, `WritableStream`, `TransformStream`
+- `TextEncoder`, `TextDecoder`
+
+**Timers + scheduling:**
+
+- `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval`
+- `queueMicrotask`, `performance.now()`
+
+**Crypto:**
+
+- `crypto.randomUUID()`, `crypto.getRandomValues()`, `crypto.subtle`
+
+**Environment identification:**
+
+- `navigator.userAgent` — identifies the Vertz server runtime (useful for `User-Agent` headers on outbound `fetch`)
+
+**Standard ECMAScript:** `Promise`, `Map`, `Set`, `WeakMap`, `WeakSet`, `Intl`, `JSON`, etc.
+
+**Vertz APIs:** everything in `vertz/server` (`entity`, `service`, `rules`, etc.), `vertz/db`, `vertz/schema`, and `vertz/errors`.
+
+## What's not available
+
+Server handlers do **not** expose browser globals:
+
+- `window`, `document`, `HTMLElement`, `Element`, `Node`, and other DOM types
+- `location`, `history`
+- `localStorage`, `sessionStorage`
+- `MutationObserver`, `ResizeObserver`, `IntersectionObserver`
+
+Calling any of these from a handler throws `ReferenceError`. That's intentional — handler code has no DOM to manipulate, and the absence of these globals is what lets third-party SDKs recognize the environment as "not a browser".
+
+## Using third-party SDKs
+
+SDKs that gate on `typeof window !== 'undefined'` (like `@anthropic-ai/sdk`, `openai`, and `stripe`) work out of the box — no `dangerouslyAllowBrowser: true` flag required.
+
+```ts
+import Anthropic from '@anthropic-ai/sdk';
+import { service } from 'vertz/server';
+import { s } from 'vertz/schema';
+
+export default service('ai', {
+  actions: {
+    summarize: {
+      body: s.object({ text: s.string() }),
+      handler: async ({ text }) => {
+        const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+        const message = await client.messages.create({
+          model: 'claude-haiku-4-5',
+          max_tokens: 256,
+          messages: [{ role: 'user', content: `Summarize: ${text}` }],
+        });
+        return { summary: message.content };
+      },
+    },
+  },
+});
+```
+
+<Warning>
+  If you see older guides suggesting `dangerouslyAllowBrowser: true` for Vertz handlers, remove it.
+  That flag disables a safety check that prevents API keys from leaking into client bundles — it is
+  not needed in a server handler and leaves you exposed if the same file is ever imported by client
+  code.
+</Warning>
+
+## SSR vs. handlers
+
+During server-side rendering (SSR) of a page, Vertz transiently installs a DOM shim (`document`, `window`, etc.) so the same components that run in the browser can build HTML on the server. That shim is scoped to the render — it is installed before the framework begins rendering the matched route and removed immediately after.
+
+Handler code (entity actions, service actions, middleware, auth resolvers, route loaders, etc.) always runs **outside** that scope. A handler triggered by an API request, a form submission, or a fetch-interception during SSR never sees the shim: `typeof window === 'undefined'` is a stable invariant in handler code.
+
+## Migrating from older workarounds
+
+If you or a library you depend on added one of the following because of `ReferenceError: window is not defined` or `@anthropic-ai/sdk: It looks like you're running in a browser-like environment`, remove it:
+
+- `dangerouslyAllowBrowser: true` on any SDK constructor
+- `globalThis.window = undefined` / `delete globalThis.window` at the top of a handler file
+- `if (typeof window === 'undefined')` guards around handler-only code (no longer necessary for correctness — still safe to leave in place)
