@@ -118,7 +118,7 @@ const taskForm = form(api.tasks.create, { schema: taskSchema });
 | `s.boolean()`     | checkbox absent (unchecked)                                 | `false`                                                        |
 | `s.boolean()`     | explicit `"false"`, `"0"`, `"off"`                          | `false`                                                        |
 | `s.number()`      | `"42"`                                                      | `42`                                                           |
-| `s.number()`      | `""` (empty)                                                | dropped — `optional()` / `default()` apply                     |
+| `s.number()`      | `""` (empty)                                                | dropped — field is treated as missing (lets `optional()` validate)|
 | `s.bigint()`      | `"9007199254740993"`                                        | `9007199254740993n`                                            |
 | `s.date()`        | `"2026-04-18"`                                              | `new Date("2026-04-18")`                                       |
 | `s.string()`      | `"42"`                                                      | `"42"` (never coerced)                                         |

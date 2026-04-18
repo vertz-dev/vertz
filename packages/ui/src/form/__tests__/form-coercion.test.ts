@@ -5,6 +5,25 @@ import type { SdkMethodWithMeta } from '../form';
 import { form } from '../form';
 import type { FormSchema } from '../validation';
 
+function createMockFormElement() {
+  const listeners: Record<string, ((e: Event) => void)[]> = {};
+  const mockReset = mock();
+  const el = {
+    addEventListener: (type: string, handler: (e: Event) => void) => {
+      if (!listeners[type]) listeners[type] = [];
+      listeners[type].push(handler);
+    },
+    removeEventListener: () => {},
+    reset: mockReset,
+    dispatchEvent(e: Event) {
+      const handlers = listeners[e.type] || [];
+      for (const h of handlers) h(e);
+      return true;
+    },
+  } as unknown as HTMLFormElement;
+  return { el, listeners };
+}
+
 function createSubmitEventFromFormData(fd: FormData) {
   const mockReset = mock();
   const event = new Event('submit', { cancelable: true });
@@ -222,21 +241,7 @@ describe('Feature: form() FormData coercion', () => {
           bodySchema,
         });
 
-        const listeners: Record<string, ((e: Event) => void)[]> = {};
-        const el: HTMLFormElement = {
-          addEventListener: (type: string, handler: (e: Event) => void) => {
-            if (!listeners[type]) listeners[type] = [];
-            listeners[type].push(handler);
-          },
-          removeEventListener: () => {},
-          reset: () => {},
-          dispatchEvent(e: Event) {
-            const handlers = listeners[e.type] || [];
-            for (const h of handlers) h(e);
-            return true;
-          },
-        } as unknown as HTMLFormElement;
-
+        const { el } = createMockFormElement();
         const f = form(sdk);
         f.__bindElement(el);
 
@@ -258,6 +263,53 @@ describe('Feature: form() FormData coercion', () => {
         el.dispatchEvent(focusoutEvent);
 
         expect(f.priority.error.peek()).toBeUndefined();
+      });
+    });
+  });
+
+  describe('Given a top-level refined object schema (cross-field validation)', () => {
+    describe('When the form is submitted with a checkbox checked', () => {
+      it('then coercion still runs through the .refine() wrapper', async () => {
+        const handler = mock().mockResolvedValue({ id: 1 });
+        const bodySchema = s
+          .object({ active: s.boolean(), priority: s.number() })
+          .refine((d) => d.priority > 0);
+        const sdk = mockSdkWithMeta({ url: '/x', method: 'POST', handler, bodySchema });
+
+        const fd = new FormData();
+        fd.append('active', 'on');
+        fd.append('priority', '42');
+        const { event, cleanup } = createSubmitEventFromFormData(fd);
+        try {
+          const f = form(sdk);
+          await f.onSubmit(event);
+          expect(handler).toHaveBeenCalledWith({ active: true, priority: 42 });
+        } finally {
+          cleanup();
+        }
+      });
+    });
+  });
+
+  describe('Given a custom schema adapter without _schemaType (no .shape)', () => {
+    describe('When the form is submitted', () => {
+      it('then submitPipeline falls back to formDataToObject without coercion', async () => {
+        const handler = mock().mockResolvedValue({ id: 1 });
+        const bodySchema: FormSchema<{ active: string }> = {
+          parse: (data) => ({ ok: true, data: data as { active: string } }),
+        };
+        const sdk = mockSdkWithMeta({ url: '/x', method: 'POST', handler, bodySchema });
+
+        const fd = new FormData();
+        fd.append('active', 'on');
+        const { event, cleanup } = createSubmitEventFromFormData(fd);
+        try {
+          const f = form(sdk);
+          await f.onSubmit(event);
+          expect(handler).toHaveBeenCalledWith({ active: 'on' });
+        } finally {
+          cleanup();
+        }
       });
     });
   });

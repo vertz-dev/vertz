@@ -22,5 +22,10 @@ fields to `s.coerce.boolean()` / `s.coerce.number()` as a workaround should
 revert to strict `s.boolean()` / `s.number()` — the UI layer now handles the
 conversion.
 
-Adds a public `get element(): Schema<unknown>` accessor to `ArraySchema` in
-`@vertz/schema` (additive; previously `_element` was private).
+Adds two additive accessors to `@vertz/schema`:
+
+- `ArraySchema.element` — public getter for the element schema (previously
+  `_element` was private).
+- `RefinedSchema.unwrap()` / `SuperRefinedSchema.unwrap()` — return the inner
+  schema, so consumers (including the new form coercion path) can walk through
+  `.refine()` / `.superRefine()` wrappers to reach the underlying object shape.

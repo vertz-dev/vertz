@@ -96,7 +96,7 @@ Access any field by name on the form instance (e.g., `taskForm.title`). Each fie
 Before validation, `form()` coerces each `FormData` string into the type declared by the body schema:
 
 - `s.boolean()` — checkbox checked → `true`; absent (unchecked) → `false`; explicit `"false"`/`"0"`/`"off"` → `false`.
-- `s.number()` / `s.bigint()` — numeric strings → numbers; empty strings dropped so `optional()`/`default()` apply.
+- `s.number()` / `s.bigint()` — numeric strings → numbers; empty strings dropped so the field is treated as missing (lets `optional()` validate).
 - `s.date()` — parseable strings → `Date`.
 - `s.string()` — never coerced (even when the value looks numeric).
 - `s.array(<primitive>)` — multiple values for the same `name` produce an array of the leaf type.
