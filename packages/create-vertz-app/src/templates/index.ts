@@ -647,7 +647,7 @@ export function tsconfigTemplate(): string {
       skipLibCheck: true,
       strict: true,
       target: 'ES2022',
-      types: ['vertz/env'],
+      types: ['vertz/client'],
     },
     include: ['src', '.vertz/generated'],
   };
@@ -884,7 +884,7 @@ export function entryClientTemplate(): string {
   return `import { mount } from 'vertz/ui';
 import { App, globalStyles, theme } from './app';
 
-import.meta.hot.accept();
+import.meta.hot?.accept();
 
 mount(App, {
   theme,

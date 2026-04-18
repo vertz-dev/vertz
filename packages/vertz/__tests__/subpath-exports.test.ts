@@ -94,7 +94,7 @@ describe('exports point to built artifacts', () => {
 
     for (const [subpath, entry] of Object.entries(pkg.exports)) {
       const { import: importPath } = entry as { import?: string };
-      // Types-only exports (e.g., ./env) have no import field
+      // Types-only exports (e.g., ./client) have no import field
       if (!importPath) continue;
       expect(importPath.startsWith('./dist/')).toBe(true);
       expect(importPath.endsWith('.js')).toBe(true);
@@ -118,19 +118,29 @@ describe('exports point to built artifacts', () => {
     }
   });
 
-  it('vertz/env is a types-only export pointing to env.d.ts', async () => {
+  it('vertz/client is a types-only export pointing to client.d.ts', async () => {
     const fs = await import('node:fs');
     const path = await import('node:path');
     const pkgPath = path.resolve(import.meta.dirname, '..', 'package.json');
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
 
-    const envExport = pkg.exports['./env'];
-    expect(envExport).toBeDefined();
-    expect(envExport.types).toBe('./env.d.ts');
-    expect(envExport.import).toBeUndefined();
+    const clientExport = pkg.exports['./client'];
+    expect(clientExport).toBeDefined();
+    expect(clientExport.types).toBe('./client.d.ts');
+    expect(clientExport.import).toBeUndefined();
 
-    const fullPath = path.resolve(import.meta.dirname, '..', envExport.types);
+    const fullPath = path.resolve(import.meta.dirname, '..', clientExport.types);
     expect(fs.existsSync(fullPath)).toBe(true);
+  });
+
+  it('legacy vertz/env export does not exist (renamed to ./client)', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const pkgPath = path.resolve(import.meta.dirname, '..', 'package.json');
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+
+    expect(pkg.exports['./env']).toBeUndefined();
+    expect(fs.existsSync(path.resolve(import.meta.dirname, '..', 'env.d.ts'))).toBe(false);
   });
 });
 

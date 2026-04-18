@@ -138,10 +138,10 @@ describe('templates', () => {
       expect(tsconfig.compilerOptions.jsxImportSource).toBe('@vertz/ui');
     });
 
-    it('includes vertz/env in types for ImportMeta augmentations (#2561)', () => {
+    it('includes vertz/client in types for ImportMeta augmentations (#2777)', () => {
       const result = tsconfigTemplate();
       const tsconfig = JSON.parse(result);
-      expect(tsconfig.compilerOptions.types).toEqual(['vertz/env']);
+      expect(tsconfig.compilerOptions.types).toEqual(['vertz/client']);
     });
   });
 
@@ -297,8 +297,8 @@ describe('templates', () => {
       expect(entryClientTemplate()).toContain('mount');
     });
 
-    it('includes HMR self-accept', () => {
-      expect(entryClientTemplate()).toContain('import.meta.hot.accept()');
+    it('includes HMR self-accept with optional chaining', () => {
+      expect(entryClientTemplate()).toContain('import.meta.hot?.accept()');
     });
   });
 

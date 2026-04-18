@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "exclude": ["node_modules", "dist", "**/*.test.ts"],
+  "extends": "../../tsconfig.json",
+  "include": ["src", "src/**/*.test-d.ts"]
+}
