@@ -140,6 +140,34 @@ describe('mapShorthand — radius / shadow / font', () => {
     });
   });
 
+  it('maps font:2xl using bracket notation (key starts with digit)', () => {
+    expect(mapShorthand('font:2xl')).toEqual({
+      entries: [{ cssKey: 'fontSize', valueExpr: "token.font.size['2xl']" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps text:3xl using bracket notation (key starts with digit)', () => {
+    expect(mapShorthand('text:3xl')).toEqual({
+      entries: [{ cssKey: 'fontSize', valueExpr: "token.font.size['3xl']" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps rounded:2xl using bracket notation (key starts with digit)', () => {
+    expect(mapShorthand('rounded:2xl')).toEqual({
+      entries: [{ cssKey: 'borderRadius', valueExpr: "token.radius['2xl']" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps shadow:2xl using bracket notation (key starts with digit)', () => {
+    expect(mapShorthand('shadow:2xl')).toEqual({
+      entries: [{ cssKey: 'boxShadow', valueExpr: "token.shadow['2xl']" }],
+      pseudo: null,
+    });
+  });
+
   it('maps font:bold (weight keyword) to fontWeight', () => {
     expect(mapShorthand('font:bold')).toEqual({
       entries: [{ cssKey: 'fontWeight', valueExpr: 'token.font.weight.bold' }],
@@ -203,6 +231,20 @@ describe('mapShorthand — size / border', () => {
   it('maps border:1 to borderWidth', () => {
     expect(mapShorthand('border:1')).toEqual({
       entries: [{ cssKey: 'borderWidth', valueExpr: "'1px'" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps border-r:1 to borderRightWidth with px suffix', () => {
+    expect(mapShorthand('border-r:1')).toEqual({
+      entries: [{ cssKey: 'borderRightWidth', valueExpr: "'1px'" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps border-t:2 to borderTopWidth with px suffix', () => {
+    expect(mapShorthand('border-t:2')).toEqual({
+      entries: [{ cssKey: 'borderTopWidth', valueExpr: "'2px'" }],
       pseudo: null,
     });
   });

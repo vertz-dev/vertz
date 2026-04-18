@@ -148,14 +148,27 @@ function mapValueForType(
     case 'font-weight':
       return mapFontWeight(value);
     case 'line-height':
-      return `token.font.lineHeight.${value}`;
+      return memberAccess('token.font.lineHeight', value);
     case 'content':
       return mapContent(value);
     case 'ring':
     case 'display':
     case 'raw':
-      return quote(value);
+      return mapRaw(value, property);
   }
+}
+
+function mapRaw(value: string, property: string): string {
+  if (
+    property === 'border-r' ||
+    property === 'border-l' ||
+    property === 'border-t' ||
+    property === 'border-b'
+  ) {
+    const num = Number(value);
+    if (!Number.isNaN(num)) return quote(`${num}px`);
+  }
+  return quote(value);
 }
 
 function mapSpacing(value: string, property: string): string {
@@ -189,16 +202,20 @@ function accessKey(name: string): string {
   return IDENT_RE.test(name) ? `.${name}` : `['${name}']`;
 }
 
+function memberAccess(base: string, key: string): string {
+  return `${base}${accessKey(key)}`;
+}
+
 function shadeKey(shade: string): string {
   return /^\d+$/.test(shade) ? shade : `'${shade}'`;
 }
 
 function mapRadius(value: string): string {
-  return `token.radius.${value}`;
+  return memberAccess('token.radius', value);
 }
 
 function mapShadow(value: string): string {
-  return `token.shadow.${value}`;
+  return memberAccess('token.shadow', value);
 }
 
 const FRACTION_PATTERN = /^(\d+)\/(\d+)$/;
@@ -236,19 +253,19 @@ function mapFontSize(value: string): string {
   if (FONT_SIZE_SCALE[value] === undefined) {
     throw new TypeError(`Invalid font-size value '${value}'`);
   }
-  return `token.font.size.${value}`;
+  return memberAccess('token.font.size', value);
 }
 
 function mapFontWeight(value: string): string {
   if (FONT_WEIGHT_SCALE[value] === undefined) {
     throw new TypeError(`Invalid font-weight value '${value}'`);
   }
-  return `token.font.weight.${value}`;
+  return memberAccess('token.font.weight', value);
 }
 
 function mapText(value: string): MappedEntry[] {
   if (FONT_SIZE_SCALE[value] !== undefined) {
-    return [{ cssKey: 'fontSize', valueExpr: `token.font.size.${value}` }];
+    return [{ cssKey: 'fontSize', valueExpr: memberAccess('token.font.size', value) }];
   }
   if (TEXT_ALIGN_KEYWORDS.has(value)) {
     return [{ cssKey: 'textAlign', valueExpr: quote(value) }];
@@ -258,10 +275,10 @@ function mapText(value: string): MappedEntry[] {
 
 function mapFont(value: string): MappedEntry[] {
   if (FONT_FAMILY_KEYS.has(value)) {
-    return [{ cssKey: 'fontFamily', valueExpr: `token.font.family.${value}` }];
+    return [{ cssKey: 'fontFamily', valueExpr: memberAccess('token.font.family', value) }];
   }
   if (FONT_WEIGHT_SCALE[value] !== undefined) {
-    return [{ cssKey: 'fontWeight', valueExpr: `token.font.weight.${value}` }];
+    return [{ cssKey: 'fontWeight', valueExpr: memberAccess('token.font.weight', value) }];
   }
   return [{ cssKey: 'fontSize', valueExpr: mapFontSize(value) }];
 }
