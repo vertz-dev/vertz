@@ -119,6 +119,17 @@ describe('Feature: Intrinsic element spread attributes', () => {
         __spread(el, { ref: myRef });
         expect(myRef.current).toBe(el);
       });
+
+      it('Then a callback ref is invoked with the element', () => {
+        const el = document.createElement('span');
+        let captured: Element | null = null;
+        __spread(el, {
+          ref: (node: Element) => {
+            captured = node;
+          },
+        });
+        expect(captured).toBe(el);
+      });
     });
   });
 
