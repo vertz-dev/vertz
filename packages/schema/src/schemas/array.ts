@@ -68,6 +68,10 @@ export class ArraySchema<T> extends Schema<T[]> {
     return clone;
   }
 
+  get element(): Schema<unknown> {
+    return this._element as Schema<unknown>;
+  }
+
   _schemaType(): SchemaType {
     return SchemaType.Array;
   }
