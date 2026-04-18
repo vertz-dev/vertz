@@ -1067,10 +1067,10 @@ pub const DOM_SHIM_JS: &str = r#"
     delete globalThis.history;
   };
 
-  // Phase 1: preserve current behavior by eagerly installing the shim.
-  // Phase 2 (#2760) removes this line and wires install/uninstall into
-  // persistent_isolate.rs dispatch functions instead.
-  globalThis.__vertz_install_dom_shim();
+  // DOM shim is NOT eagerly installed. Server handlers see a clean,
+  // Worker-like environment (no `window`, `document`, ...). SSR renders
+  // call `__vertz_install_dom_shim()` / `__vertz_uninstall_dom_shim()`
+  // around their render boundary (see persistent_isolate.rs).
 })();
 "#;
 
@@ -1172,6 +1172,8 @@ mod tests {
     fn test_document_is_defined() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script("<test>", "typeof globalThis.document")
             .unwrap();
@@ -1182,6 +1184,8 @@ mod tests {
     fn test_window_is_defined() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script("<test>", "typeof globalThis.window")
             .unwrap();
@@ -1192,6 +1196,8 @@ mod tests {
     fn test_navigator_is_defined() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script("<test>", "typeof globalThis.navigator")
             .unwrap();
@@ -1202,6 +1208,8 @@ mod tests {
     fn test_location_is_defined() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script("<test>", "globalThis.location.pathname")
             .unwrap();
@@ -1212,6 +1220,8 @@ mod tests {
     fn test_create_element() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1228,6 +1238,8 @@ mod tests {
     fn test_create_text_node() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1244,6 +1256,8 @@ mod tests {
     fn test_create_document_fragment() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1260,6 +1274,8 @@ mod tests {
     fn test_element_set_attribute() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1277,6 +1293,8 @@ mod tests {
     fn test_element_append_child() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1295,6 +1313,8 @@ mod tests {
     fn test_element_inner_html() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1315,6 +1335,8 @@ mod tests {
     fn test_element_outer_html() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1337,6 +1359,8 @@ mod tests {
     fn test_element_outer_html_escapes() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1357,6 +1381,8 @@ mod tests {
     fn test_void_elements_self_close() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1374,6 +1400,8 @@ mod tests {
     fn test_element_class_name() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1391,6 +1419,8 @@ mod tests {
     fn test_element_class_list() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1408,6 +1438,8 @@ mod tests {
     fn test_set_ssr_location() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         set_ssr_location(&mut rt, "/tasks/123?filter=active").unwrap();
         let result = rt
             .execute_script("<test>", "globalThis.location.pathname")
@@ -1423,6 +1455,8 @@ mod tests {
     fn test_set_ssr_location_root() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         set_ssr_location(&mut rt, "/").unwrap();
         let result = rt
             .execute_script("<test>", "globalThis.location.pathname")
@@ -1434,6 +1468,8 @@ mod tests {
     fn test_document_head_and_body_exist() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let head = rt
             .execute_script("<test>", "document.head.tagName")
             .unwrap();
@@ -1448,6 +1484,8 @@ mod tests {
     fn test_css_injection() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1468,6 +1506,8 @@ mod tests {
     fn test_css_collection_and_clear() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         rt.execute_script_void(
             "<test>",
             r#"
@@ -1492,6 +1532,8 @@ mod tests {
     fn test_create_comment() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1510,6 +1552,8 @@ mod tests {
     fn test_element_text_content_setter() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1527,6 +1571,8 @@ mod tests {
     fn test_nested_element_serialization() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1554,6 +1600,8 @@ mod tests {
     fn test_event_listeners_are_noop() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1572,6 +1620,8 @@ mod tests {
     fn test_request_animation_frame_is_noop() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1589,6 +1639,8 @@ mod tests {
     fn test_match_media_is_noop() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1605,6 +1657,8 @@ mod tests {
     fn test_shim_does_not_interfere_with_globals() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         // Ensure basic JS still works after shim
         let result = rt.execute_script("<test>", "1 + 1").unwrap();
         assert_eq!(result, serde_json::json!(2));
@@ -1614,6 +1668,8 @@ mod tests {
     fn test_mutation_observer_noop() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1632,6 +1688,8 @@ mod tests {
     fn test_history_is_noop() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1648,6 +1706,8 @@ mod tests {
     fn test_element_style_serialization() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1668,6 +1728,8 @@ mod tests {
     fn test_element_dataset() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1685,6 +1747,8 @@ mod tests {
     fn test_insert_before() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1705,6 +1769,8 @@ mod tests {
     fn test_remove_child() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1724,6 +1790,8 @@ mod tests {
     fn test_element_get_bounding_client_rect() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1741,6 +1809,8 @@ mod tests {
     fn test_document_fragment_append_to_element() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1778,6 +1848,8 @@ mod tests {
     fn test_install_uninstall_functions_are_registered() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1792,6 +1864,8 @@ mod tests {
     fn test_install_sets_window_and_document() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1809,6 +1883,8 @@ mod tests {
     fn test_install_produces_fresh_document_per_call() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1829,6 +1905,8 @@ mod tests {
     fn test_uninstall_removes_browser_globals() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1865,6 +1943,8 @@ mod tests {
     fn test_css_collector_state_is_permanent() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1891,6 +1971,8 @@ mod tests {
     fn test_navigator_is_permanent() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1910,6 +1992,8 @@ mod tests {
     fn test_install_is_idempotent() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1930,6 +2014,8 @@ mod tests {
     fn test_uninstall_is_idempotent() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let ok = rt
             .execute_script(
                 "<test>",

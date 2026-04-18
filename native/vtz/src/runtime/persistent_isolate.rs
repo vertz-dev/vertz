@@ -1134,12 +1134,16 @@ const FETCH_INTERCEPTOR_JS: &str = r#"
     const handler = globalThis.__vertz_api_handler;
     const prefixes = globalThis.__vertz_intercept_prefixes || ['/api/'];
     const originalFetch = globalThis.fetch;
-    const selfOrigin = globalThis.location ? globalThis.location.origin : '';
 
     globalThis.__vertz_original_fetch = originalFetch;
     globalThis.__vertz_fetch_intercept_count = 0;
 
     globalThis.fetch = async function(input, init) {
+        // Read location.origin lazily per call — globalThis.location only
+        // exists while the DOM shim is installed (SSR render scope). Reading
+        // at install time would capture `undefined` and break once the shim
+        // is uninstalled between requests.
+        const selfOrigin = globalThis.location ? globalThis.location.origin : '';
         const req = input instanceof Request ? input : new Request(input, init);
         const url = new URL(req.url, selfOrigin || 'http://localhost');
 
@@ -1347,6 +1351,31 @@ const SSR_RENDER_LEGACY_JS: &str = r#"
 
 /// Dispatch a single SSR render request in the V8 isolate.
 ///
+/// Installs the DOM shim for the duration of the render, then uninstalls it
+/// on every exit path (success, error, timeout). See #2760 for background:
+/// server handlers run in a clean Worker-like environment without DOM globals,
+/// so the shim must be scoped to the SSR boundary only.
+async fn dispatch_ssr_request(
+    runtime: &mut crate::runtime::js_runtime::VertzJsRuntime,
+    request: &SsrRequest,
+) -> Result<SsrResponse, String> {
+    runtime
+        .execute_script_void(
+            "<ssr-install-shim>",
+            "globalThis.__vertz_install_dom_shim();",
+        )
+        .map_err(|e| format!("Install DOM shim error: {}", e))?;
+
+    let result = dispatch_ssr_request_inner(runtime, request).await;
+
+    let _ = runtime.execute_script_void(
+        "<ssr-uninstall-shim>",
+        "globalThis.__vertz_uninstall_dom_shim();",
+    );
+
+    result
+}
+
 /// When `ssrRenderSinglePass` is available (stored as `globalThis.__vertz_ssr_render_fn`
 /// during init), uses the framework engine. Otherwise falls back to legacy DOM scraping.
 ///
@@ -1355,7 +1384,7 @@ const SSR_RENDER_LEGACY_JS: &str = r#"
 /// 3. Installs session data
 /// 4. Renders via framework engine or legacy path
 /// 5. Parses result
-async fn dispatch_ssr_request(
+async fn dispatch_ssr_request_inner(
     runtime: &mut crate::runtime::js_runtime::VertzJsRuntime,
     request: &SsrRequest,
 ) -> Result<SsrResponse, String> {
@@ -1658,6 +1687,29 @@ const COMPONENT_RENDER_JS: &str = r#"
 
 /// Dispatch a single component render request in the V8 isolate.
 ///
+/// Installs the DOM shim for the duration of the render, then uninstalls it
+/// on every exit path (success, error, timeout). See #2760.
+async fn dispatch_component_render(
+    runtime: &mut crate::runtime::js_runtime::VertzJsRuntime,
+    request: &ComponentRenderRequest,
+) -> Result<ComponentRenderResponse, String> {
+    runtime
+        .execute_script_void(
+            "<component-install-shim>",
+            "globalThis.__vertz_install_dom_shim();",
+        )
+        .map_err(|e| format!("Install DOM shim error: {}", e))?;
+
+    let result = dispatch_component_render_inner(runtime, request).await;
+
+    let _ = runtime.execute_script_void(
+        "<component-uninstall-shim>",
+        "globalThis.__vertz_uninstall_dom_shim();",
+    );
+
+    result
+}
+
 /// Renders a component in isolation: no router, no layout, no data fetching.
 /// Uses a component-specific DOM reset (no baseline CSS restoration) and
 /// cache-busted dynamic import to load the latest file version.
@@ -1667,7 +1719,7 @@ const COMPONENT_RENDER_JS: &str = r#"
 /// 3. Executes the async render script
 /// 4. Drains the V8 event loop (resolves the dynamic import)
 /// 5. Reads and parses the result
-async fn dispatch_component_render(
+async fn dispatch_component_render_inner(
     runtime: &mut crate::runtime::js_runtime::VertzJsRuntime,
     request: &ComponentRenderRequest,
 ) -> Result<ComponentRenderResponse, String> {
