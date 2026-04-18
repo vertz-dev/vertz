@@ -20,6 +20,7 @@ import {
   CSS_COLOR_KEYWORDS,
   FONT_SIZE_SCALE,
   FONT_WEIGHT_SCALE,
+  HEIGHT_AXIS_PROPERTIES,
   KEYWORD_MAP,
   PROPERTY_MAP,
   PSEUDO_MAP,
@@ -176,10 +177,20 @@ function mapColor(value: string, property: string): string {
   if (dotIndex !== -1) {
     const namespace = value.substring(0, dotIndex);
     const shade = value.substring(dotIndex + 1);
-    return `token.color.${namespace}[${shade}]`;
+    return `token.color${accessKey(namespace)}[${shadeKey(shade)}]`;
   }
-  if (COLOR_NAMESPACES.has(value)) return `token.color.${value}`;
+  if (COLOR_NAMESPACES.has(value)) return `token.color${accessKey(value)}`;
   throw new TypeError(`Invalid color value '${value}' for '${property}'`);
+}
+
+const IDENT_RE = /^[A-Za-z_$][\w$]*$/;
+
+function accessKey(name: string): string {
+  return IDENT_RE.test(name) ? `.${name}` : `['${name}']`;
+}
+
+function shadeKey(shade: string): string {
+  return /^\d+$/.test(shade) ? shade : `'${shade}'`;
 }
 
 function mapRadius(value: string): string {
@@ -190,10 +201,26 @@ function mapShadow(value: string): string {
   return `token.shadow.${value}`;
 }
 
+const FRACTION_PATTERN = /^(\d+)\/(\d+)$/;
+
 function mapSize(value: string, property: string): string {
   if (SPACING_SCALE[value] !== undefined) return spacingAccess(value);
+  if (value === 'screen') {
+    return HEIGHT_AXIS_PROPERTIES.has(property) ? quote('100vh') : quote('100vw');
+  }
   const keyword = SIZE_KEYWORDS[value];
   if (keyword !== undefined) return quote(keyword);
+  const fractionMatch = FRACTION_PATTERN.exec(value);
+  if (fractionMatch) {
+    const numerator = Number(fractionMatch[1]);
+    const denominator = Number(fractionMatch[2]);
+    if (denominator === 0) {
+      throw new TypeError(`Invalid fraction '${value}' for '${property}': denominator is zero`);
+    }
+    const percent = (numerator / denominator) * 100;
+    const formatted = percent % 1 === 0 ? `${percent}` : percent.toFixed(6);
+    return quote(`${formatted}%`);
+  }
   throw new TypeError(`Invalid size value '${value}' for '${property}'`);
 }
 

@@ -2,10 +2,10 @@
  * Type-level verification for `token.*`.
  *
  * Without theme augmentation, every dot path types as `TokenPath` — a
- * string-like type that flows into CSS-value positions cleanly. Under
- * `noUncheckedIndexedAccess`, chained bracket access (`token.color.x[500]`)
- * does introduce `| undefined` on the leaf; CSS-value positions accept it
- * because they are optional (`string | number | undefined`).
+ * string-like type whose sub-keys come from a finite union of the
+ * framework's known scale keys. Chained bracket access (`token.color.x[500]`)
+ * stays `TokenPath` (no `| undefined`) even under `noUncheckedIndexedAccess`,
+ * because mapped types over a finite key union bypass the widening rule.
  */
 
 import type { CSSInput } from '../css';
@@ -20,20 +20,19 @@ const vanillaInput: CSSInput = {
     color: token.color.foreground,
     fontFamily: token.font.sans,
     padding: token.spacing[4],
+    borderRadius: token.radius.md,
+    boxShadow: token.shadow.lg,
   },
 };
 void css(vanillaInput);
 
-// ─── Deep chains — under `noUncheckedIndexedAccess`, vanilla users reach
-// shades via optional chaining; CSS-value slots accept `undefined`. After
-// project augmentation (see `token.ts` jsdoc), `.primary` is narrowed to a
-// specific type and `?.` is no longer needed.
+// ─── Deep chains — no optional chaining needed under the new design.
 
 const shadedInput: CSSInput = {
   button: {
-    color: token.color.primary?.[500],
+    color: token.color.primary[500],
     '&:hover': {
-      backgroundColor: token.color.primary?.[700],
+      backgroundColor: token.color.primary[700],
     },
   },
 };

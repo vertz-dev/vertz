@@ -213,6 +213,59 @@ describe('mapShorthand — size / border', () => {
       pseudo: null,
     });
   });
+
+  it('maps text:muted-foreground using bracket notation for hyphenated key', () => {
+    expect(mapShorthand('text:muted-foreground')).toEqual({
+      entries: [{ cssKey: 'color', valueExpr: "token.color['muted-foreground']" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps bg:primary.50 with numeric shade as bracket number', () => {
+    expect(mapShorthand('bg:primary.50')).toEqual({
+      entries: [{ cssKey: 'backgroundColor', valueExpr: 'token.color.primary[50]' }],
+      pseudo: null,
+    });
+  });
+
+  it('maps w:screen to 100vw (width axis)', () => {
+    expect(mapShorthand('w:screen')).toEqual({
+      entries: [{ cssKey: 'width', valueExpr: "'100vw'" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps h:screen to 100vh (height axis)', () => {
+    expect(mapShorthand('h:screen')).toEqual({
+      entries: [{ cssKey: 'height', valueExpr: "'100vh'" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps min-h:screen to 100vh (height axis)', () => {
+    expect(mapShorthand('min-h:screen')).toEqual({
+      entries: [{ cssKey: 'minHeight', valueExpr: "'100vh'" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps w:1/2 to 50%', () => {
+    expect(mapShorthand('w:1/2')).toEqual({
+      entries: [{ cssKey: 'width', valueExpr: "'50%'" }],
+      pseudo: null,
+    });
+  });
+
+  it('maps w:2/3 to 66.666667%', () => {
+    expect(mapShorthand('w:2/3')).toEqual({
+      entries: [{ cssKey: 'width', valueExpr: "'66.666667%'" }],
+      pseudo: null,
+    });
+  });
+
+  it('throws on fraction with zero denominator', () => {
+    expect(() => mapShorthand('w:1/0')).toThrow(/denominator/);
+  });
 });
 
 describe('mapShorthand — content', () => {

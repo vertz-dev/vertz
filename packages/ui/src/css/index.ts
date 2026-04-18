@@ -64,6 +64,8 @@ export type {
   TokenPath,
   VertzThemeColors,
   VertzThemeFonts,
+  VertzThemeRadius,
+  VertzThemeShadow,
   VertzThemeSpacing,
   VertzThemeTokens,
 } from './token';
