@@ -33,7 +33,11 @@ export class ServiceTypesGenerator implements Generator {
     const emitted = new Set<string>();
 
     for (const action of svc.actions) {
-      if (action.inputSchema && action.resolvedInputFields?.length && !emitted.has(action.inputSchema)) {
+      if (
+        action.inputSchema &&
+        action.resolvedInputFields?.length &&
+        !emitted.has(action.inputSchema)
+      ) {
         lines.push(this.emitInterface(action.inputSchema, action.resolvedInputFields));
         lines.push('');
         emitted.add(action.inputSchema);
