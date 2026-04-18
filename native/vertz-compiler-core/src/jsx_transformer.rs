@@ -76,6 +76,40 @@ fn is_idl_attr(attr: &AttrInfo, tag_name: &str) -> bool {
     is_idl_property(tag_name, attr_name)
 }
 
+/// Check if an attribute is the `innerHTML` prop. Spread doesn't count —
+/// `innerHTML` must be written directly as a JSX attribute to route through
+/// `__html()`.
+fn is_inner_html_attr(attr: &AttrInfo) -> bool {
+    match attr {
+        AttrInfo::Static { name, .. }
+        | AttrInfo::Expression { name, .. }
+        | AttrInfo::BooleanShorthand { name } => name == "innerHTML",
+        AttrInfo::Spread { .. } => false,
+    }
+}
+
+/// Build the `__html(el, () => value)` statement for the `innerHTML` attribute.
+/// Static and reactive values both go through the same helper so hydration
+/// claim order is identical (the helper defers the first run).
+fn build_inner_html_stmt(ms: &MagicString, attr: &AttrInfo, el_var: &str) -> Option<String> {
+    match attr {
+        AttrInfo::Static { value, .. } => {
+            Some(format!("__html({}, () => {})", el_var, json_quote(value)))
+        }
+        AttrInfo::Expression {
+            expr_start,
+            expr_end,
+            ..
+        } => {
+            let expr_text = ms.get_transformed_slice(*expr_start, *expr_end);
+            Some(format!("__html({}, () => {})", el_var, expr_text))
+        }
+        // BooleanShorthand (<pre innerHTML />) and Spread are handled by
+        // diagnostics, not emission. If one slips through, skip it.
+        _ => None,
+    }
+}
+
 /// Transform all JSX in a component body into DOM helper calls.
 pub fn transform_jsx(
     ms: &mut MagicString,
@@ -1158,8 +1192,20 @@ fn transform_element(
     // Process attributes — split into normal and deferred IDL property statements.
     // IDL properties (select.value, input.value/checked, textarea.value) are deferred
     // until after children so that e.g. <select>.value is set when <option>s exist.
+    //
+    // `innerHTML` is routed through the `__html(el, () => value)` runtime helper
+    // regardless of whether the value is static or reactive — both paths go
+    // through `deferredDomEffect` so hydration claim order is preserved.
+    // Mutual-exclusion with children is enforced at the diagnostic layer
+    // (innerhtml_diagnostics); here we simply skip the attribute and emit the
+    // helper call.
     let mut deferred_idl_stmts: Vec<String> = Vec::new();
+    let mut inner_html_stmt: Option<String> = None;
     for attr in &info.attrs {
+        if is_inner_html_attr(attr) {
+            inner_html_stmt = build_inner_html_stmt(ms, attr, &el_var);
+            continue;
+        }
         if let Some(stmt) = process_attr(ms, attr, &el_var, &info.tag_name, rx) {
             if is_idl_attr(attr, &info.tag_name) {
                 deferred_idl_stmts.push(stmt);
@@ -1167,6 +1213,9 @@ fn transform_element(
                 stmts.push(stmt);
             }
         }
+    }
+    if let Some(stmt) = inner_html_stmt {
+        stmts.push(stmt);
     }
 
     // Process children
@@ -4615,5 +4664,83 @@ export function App() {
             result_component_only, result_full,
             "module-level pass should not alter component JSX"
         );
+    }
+
+    // ========== innerHTML prop ==========
+
+    #[test]
+    fn inner_html_static_string_emits_html_helper() {
+        let result = transform(
+            r#"export function App() {
+    return <pre innerHTML="<b>x</b>" />;
+}"#,
+        );
+        assert!(
+            result.contains("__html(__el0, () =>"),
+            "must emit __html helper: {result}"
+        );
+        assert!(
+            result.contains("\"<b>x</b>\""),
+            "must preserve literal: {result}"
+        );
+    }
+
+    #[test]
+    fn inner_html_expression_emits_html_helper() {
+        let result = transform(
+            r#"export function App() {
+    const html = "<b>x</b>";
+    return <pre innerHTML={html} />;
+}"#,
+        );
+        assert!(
+            result.contains("__html(__el0, () => html)"),
+            "must emit __html wrapping expression: {result}"
+        );
+    }
+
+    #[test]
+    fn inner_html_does_not_emit_setattribute_or_dot_prop() {
+        let result = transform(
+            r#"export function App() {
+    return <pre innerHTML={x} />;
+}"#,
+        );
+        assert!(
+            !result.contains(".innerHTML = "),
+            "must not emit direct assignment: {result}"
+        );
+        assert!(
+            !result.contains("setAttribute(\"innerHTML\""),
+            "must not emit setAttribute: {result}"
+        );
+    }
+
+    #[test]
+    fn inner_html_with_empty_children_still_emits() {
+        let result = transform(
+            r#"export function App() {
+    return <pre innerHTML={x}></pre>;
+}"#,
+        );
+        assert!(
+            result.contains("__html(__el0, () => x)"),
+            "empty children ok: {result}"
+        );
+    }
+
+    #[test]
+    fn inner_html_coexists_with_class_and_events() {
+        let result = transform(
+            r#"export function App() {
+    return <pre className="code" innerHTML={x} onClick={h} />;
+}"#,
+        );
+        assert!(
+            result.contains("setAttribute(\"class\", \"code\")"),
+            "class: {result}"
+        );
+        assert!(result.contains("__on(__el0, \"click\""), "click: {result}");
+        assert!(result.contains("__html(__el0, () => x)"), "html: {result}");
     }
 }
