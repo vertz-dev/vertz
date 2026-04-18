@@ -58,6 +58,7 @@ export { computeTenantGraph, createDb } from './client';
 export type { createPostgresDriver, PostgresDriver } from './client/postgres-driver';
 // Schema builder
 export { d } from './d';
+export type { EnumSchemaLike } from './d';
 // Update expressions
 export type { DbExpr } from './sql/expr';
 export { isDbExpr } from './sql/expr';
