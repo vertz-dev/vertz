@@ -40,7 +40,7 @@ const detailStyles = css({
     fontWeight: token.font.weight.semibold,
     color: token.color['muted-foreground'],
     textTransform: 'uppercase',
-    letterSpacing: 'wide',
+    letterSpacing: '0.025em',
     marginBottom: token.spacing[2],
   },
   description: { color: token.color.foreground, lineHeight: token.font.lineHeight.relaxed },

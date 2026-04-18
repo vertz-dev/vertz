@@ -21,7 +21,8 @@ const styles = css({
     cursor: 'pointer',
     backgroundColor: 'transparent',
     color: token.color['muted-foreground'],
-    transition: 'colors',
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
     '&:hover': { backgroundColor: token.color.accent, color: token.color.foreground },
   },
   active: {

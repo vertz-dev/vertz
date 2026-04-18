@@ -952,7 +952,7 @@ const styles = css({
   input: { width: '100%', height: token.spacing[10], paddingInline: token.spacing[3], borderRadius: token.radius.md, borderWidth: '1px', borderColor: token.color.border, backgroundColor: token.color.background, color: token.color.foreground, fontSize: token.font.size.sm },
   fieldError: { color: token.color.destructive, fontSize: token.font.size.xs, marginTop: token.spacing[1] },
   list: { display: 'flex', flexDirection: 'column', gap: token.spacing[2] },
-  item: { display: 'flex', width: '100%', alignItems: 'center', gap: token.spacing[3], paddingInline: token.spacing[4], paddingBlock: token.spacing[3], borderRadius: token.radius.md, borderWidth: '1px', borderColor: token.color.border, backgroundColor: token.color.card, transition: 'colors', '&:hover': { backgroundColor: token.color.accent } },
+  item: { display: 'flex', width: '100%', alignItems: 'center', gap: token.spacing[3], paddingInline: token.spacing[4], paddingBlock: token.spacing[3], borderRadius: token.radius.md, borderWidth: '1px', borderColor: token.color.border, backgroundColor: token.color.card, transition: 'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)', '&:hover': { backgroundColor: token.color.accent } },
   checkbox: { width: token.spacing[4], height: token.spacing[4], cursor: 'pointer', borderRadius: token.radius.sm },
   label: { flex: '1 1 0%', fontSize: token.font.size.sm, color: token.color.foreground },
   labelDone: { flex: '1 1 0%', fontSize: token.font.size.sm, color: token.color['muted-foreground'], textDecoration: 'line-through' },
@@ -1310,7 +1310,7 @@ const styles = css({
   nav: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingInline: token.spacing[6], paddingBlock: token.spacing[4], borderBottomWidth: '1px', borderColor: token.color.border },
   brand: { fontSize: token.font.size.lg, fontWeight: token.font.weight.bold, color: token.color.foreground },
   links: { display: 'flex', gap: token.spacing[4] },
-  link: { fontSize: token.font.size.sm, color: token.color['muted-foreground'], transition: 'colors', '&:hover': { color: token.color.foreground } },
+  link: { fontSize: token.font.size.sm, color: token.color['muted-foreground'], transition: 'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)', '&:hover': { color: token.color.foreground } },
   active: { color: token.color.foreground, fontWeight: token.font.weight.medium },
 });
 
@@ -1528,7 +1528,7 @@ const styles = css({
   nav: { position: 'fixed', zIndex: '50', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingInline: token.spacing[6], paddingBlock: token.spacing[4], '&': { top: '0', left: '0', right: '0', background: 'rgba(17,17,16,0.85)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #2A2826' } },
   brand: { fontSize: token.font.size.lg, fontWeight: token.font.weight.bold },
   links: { display: 'flex', alignItems: 'center', gap: token.spacing[6] },
-  link: { fontSize: token.font.size.sm, transition: 'colors', '&': { color: '#9C9690' }, '&:hover': { color: '#E8E4DC' } },
+  link: { fontSize: token.font.size.sm, transition: 'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)', '&': { color: '#9C9690' }, '&:hover': { color: '#E8E4DC' } },
 });
 
 export function Nav() {
@@ -1555,7 +1555,7 @@ const styles = css({
   footer: { paddingBlock: token.spacing[12], paddingInline: token.spacing[6], '&': { borderTop: '1px solid #2A2826' } },
   container: { maxWidth: '64rem', marginInline: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: token.font.size.xs, '&': { color: '#6B6560' } },
   links: { display: 'flex', alignItems: 'center', gap: token.spacing[4] },
-  link: { transition: 'colors', '&:hover': { color: '#E8E4DC' } },
+  link: { transition: 'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)', '&:hover': { color: '#E8E4DC' } },
 });
 
 export function Footer() {
@@ -1769,7 +1769,7 @@ const styles = css({
       },
     },
   ],
-  tierName: { fontSize: token.font.size.sm, textTransform: 'uppercase', letterSpacing: 'wider', '&': { color: '#6B6560' } },
+  tierName: { fontSize: token.font.size.sm, textTransform: 'uppercase', letterSpacing: '0.05em', '&': { color: '#6B6560' } },
   price: { fontSize: token.font.size['3xl'], fontWeight: token.font.weight.bold, '&': { color: '#E8E4DC' } },
   desc: { fontSize: token.font.size.sm, '&': { color: '#9C9690' } },
   features: { display: 'flex', flexDirection: 'column', gap: token.spacing[2], marginTop: token.spacing[4], '&': { flex: '1' } },

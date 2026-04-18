@@ -23,7 +23,7 @@ const styles = css({
     fontWeight: token.font.weight.semibold,
     color: token.color['muted-foreground'],
     textTransform: 'uppercase',
-    letterSpacing: 'wide',
+    letterSpacing: '0.025em',
   },
   columnCount: {
     fontSize: token.font.size.xs,

@@ -70,7 +70,11 @@ export function IssueListSkeleton() {
 // ── Project grid skeleton ───────────────────────────────────
 
 const gridStyles = css({
-  container: { display: 'grid', gridTemplateColumns: '1', gap: token.spacing[3] },
+  container: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(1, minmax(0, 1fr))',
+    gap: token.spacing[3],
+  },
 });
 
 export function ProjectGridSkeleton() {

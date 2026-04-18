@@ -9,7 +9,8 @@ const styles = css({
     borderRadius: token.radius.md,
     color: token.color['muted-foreground'],
     cursor: 'pointer',
-    transition: 'colors',
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
     '&:hover': { color: token.color.foreground, backgroundColor: token.color.muted },
   },
   activeTab: {

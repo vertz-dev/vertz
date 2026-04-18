@@ -20,7 +20,11 @@ const styles = css({
     fontWeight: token.font.weight.bold,
     color: token.color.foreground,
   },
-  grid: { display: 'grid', gridTemplateColumns: '1', gap: token.spacing[3] },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(1, minmax(0, 1fr))',
+    gap: token.spacing[3],
+  },
 });
 
 export function ProjectsPage() {

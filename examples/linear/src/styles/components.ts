@@ -137,7 +137,8 @@ export const errorFallbackStyles = css({
     fontWeight: token.font.weight.medium,
     cursor: 'pointer',
     borderWidth: '0px',
-    transition: 'colors',
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
     '&:hover': { backgroundColor: 'color-mix(in oklch, var(--color-primary) 90%, transparent)' },
   },
 });

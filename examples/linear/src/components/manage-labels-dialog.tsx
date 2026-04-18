@@ -46,7 +46,7 @@ const styles = css({
     borderWidth: '2px',
     borderColor: 'transparent',
     cursor: 'pointer',
-    transition: 'all',
+    transition: 'all 150ms cubic-bezier(0.4, 0, 0.2, 1)',
     '&:hover': { borderColor: token.color.foreground },
   },
   colorSelected: {
@@ -56,7 +56,7 @@ const styles = css({
     borderWidth: '2px',
     borderColor: token.color.foreground,
     cursor: 'pointer',
-    transition: 'all',
+    transition: 'all 150ms cubic-bezier(0.4, 0, 0.2, 1)',
   },
   empty: {
     fontSize: token.font.size.sm,
