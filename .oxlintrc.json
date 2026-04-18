@@ -12,11 +12,14 @@
   "jsPlugins": ["./oxlint-plugins/vertz-rules.js"],
   "rules": {
     "typescript/no-explicit-any": "error",
-    "typescript/ban-ts-comment": ["error", {
-      "ts-ignore": true,
-      "ts-expect-error": false,
-      "ts-nocheck": false
-    }],
+    "typescript/ban-ts-comment": [
+      "error",
+      {
+        "ts-ignore": true,
+        "ts-expect-error": false,
+        "ts-nocheck": false
+      }
+    ],
     "react/react-in-jsx-scope": "off",
     "react/jsx-key": "off",
     "react/no-children-prop": "off",
@@ -50,7 +53,8 @@
     "vertz-rules/no-throw-plain-error": "warn",
     "vertz-rules/no-wrong-effect": "warn",
     "vertz-rules/no-body-jsx": "warn",
-    "vertz-rules/no-try-catch-result": "warn"
+    "vertz-rules/no-try-catch-result": "warn",
+    "vertz-rules/no-narrowing-let": "warn"
   },
   "overrides": [
     {

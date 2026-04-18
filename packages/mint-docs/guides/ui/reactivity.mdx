@@ -42,6 +42,53 @@ Behind the scenes, `let count = 0` becomes `const count = signal(0)`, and `count
 | `count = 10`     | `count.value = 10`                       |
 | `{count}` in JSX | Reactive text node reading `count.value` |
 
+## Union-typed state
+
+When a `let` needs a union type (like `'code' | 'spec'`), annotate the variable **and** widen the initializer with `as`:
+
+```tsx
+export function Panel() {
+  // ✗ TS narrows `panel` to `'code'` — `panel === 'spec'` fails with TS2367.
+  let panel: 'code' | 'spec' = 'code';
+
+  // ✓ Variable annotation + value-side cast prevent narrowing.
+  let panel: 'code' | 'spec' = 'code' as 'code' | 'spec';
+
+  const isSpec = panel === 'spec';
+
+  return (
+    <div>
+      <button
+        onClick={() => {
+          panel = 'spec';
+        }}
+      >
+        Spec
+      </button>
+      <button
+        onClick={() => {
+          panel = 'code';
+        }}
+      >
+        Code
+      </button>
+    </div>
+  );
+}
+```
+
+### Why this is needed
+
+This is standard TypeScript behavior: when you initialize `let panel: 'code' | 'spec' = 'code'`, the compiler's control-flow analysis narrows `panel` to the literal type `'code'` — because at the next statement, nothing has reassigned it yet. Comparing it to `'spec'` then fails with `TS2367: This comparison appears to be unintentional because the types '"code"' and '"spec"' have no overlap`.
+
+The Vertz compiler rewrites `let` into a signal, but TypeScript sees your source — not the compiled output — so the narrowing still applies.
+
+### The fix: `let x: T = v as T`
+
+Keeping the variable annotation and adding `as T` on the initializer tells TypeScript: "this is the declared type, not the literal." The compiler keeps the signal it generates, the runtime value is unchanged, and comparisons work as expected.
+
+The oxlint rule [`vertz-rules/no-narrowing-let`](https://github.com/vertz-dev/vertz/blob/main/oxlint-plugins/vertz-rules.js) flags this pattern in `.tsx` components and autofixes it.
+
 ## Derived values with `const`
 
 Declare derived values with `const`. If the expression depends on a signal, the compiler wraps it in `computed()`.
