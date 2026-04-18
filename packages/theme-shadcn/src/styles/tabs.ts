@@ -66,7 +66,7 @@ export function createTabsStyles(): CSSOutput<TabsBlocks> {
       height: token.spacing[9],
       alignItems: 'flex-end',
       gap: token.spacing[4],
-      borderBottomWidth: '1',
+      borderBottomWidth: '1px',
       borderColor: token.color.border,
     },
     tabsTriggerLine: [

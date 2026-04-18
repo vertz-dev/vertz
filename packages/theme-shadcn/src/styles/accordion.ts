@@ -21,7 +21,7 @@ const accordionUp = keyframes('vz-accordion-up', {
 /** Create accordion css() styles. */
 export function createAccordionStyles(): CSSOutput<AccordionBlocks> {
   const s = css({
-    accordionItem: { borderBottomWidth: '1', borderColor: token.color.border },
+    accordionItem: { borderBottomWidth: '1px', borderColor: token.color.border },
     accordionTrigger: [
       'flex',
       'w:full',

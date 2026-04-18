@@ -19,7 +19,7 @@ export function createAppShell(): CSSOutput<AppShellBlocks> {
     shellSidebar: {
       width: token.spacing[56],
       backgroundColor: token.color.card,
-      borderRightWidth: '1',
+      borderRightWidth: '1px',
       borderColor: token.color.border,
       padding: token.spacing[4],
       display: 'flex',
@@ -56,7 +56,7 @@ export function createAppShell(): CSSOutput<AppShellBlocks> {
     shellUser: {
       marginTop: 'auto',
       paddingTop: token.spacing[4],
-      borderTopWidth: '1',
+      borderTopWidth: '1px',
       borderColor: token.color.border,
       display: 'flex',
       alignItems: 'center',

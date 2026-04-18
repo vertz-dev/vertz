@@ -27,7 +27,7 @@ export function createScrollAreaStyles(): CSSOutput<ScrollAreaBlocks> {
         '&[data-orientation="vertical"]': {
           height: '100%',
           width: token.spacing['2.5'],
-          borderLeftWidth: '1',
+          borderLeftWidth: '1px',
           borderColor: 'transparent',
         },
       },
@@ -35,7 +35,7 @@ export function createScrollAreaStyles(): CSSOutput<ScrollAreaBlocks> {
         '&[data-orientation="horizontal"]': {
           height: token.spacing['2.5'],
           flexDirection: 'column',
-          borderTopWidth: '1',
+          borderTopWidth: '1px',
           borderColor: 'transparent',
         },
       },

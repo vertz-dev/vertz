@@ -26,7 +26,7 @@ export function createTableStyles(): CSSOutput<TableBlocks> {
         },
       },
     ],
-    tableHeader: [{ '& tr': { borderBottomWidth: '1', borderColor: token.color.border } }],
+    tableHeader: [{ '& tr': { borderBottomWidth: '1px', borderColor: token.color.border } }],
     tableBody: [{ '& tr:last-child': { 'border-bottom': '0' } }],
     tableRow: [
       'border-b:1',
