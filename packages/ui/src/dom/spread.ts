@@ -1,4 +1,5 @@
 import { deferredDomEffect } from '../runtime/signal';
+import { __ref } from './ref';
 import { styleObjectToString } from './style';
 import { normalizeSVGAttr, SVG_NS } from './svg-tags';
 
@@ -49,11 +50,9 @@ export function __spread(
 
     const value = props[key];
 
-    // ref: { current: Element | null }
+    // ref: callback `(el) => void` or object `{ current: T }`.
     if (key === 'ref') {
-      if (value && typeof value === 'object' && 'current' in value) {
-        (value as { current: unknown }).current = el;
-      }
+      __ref(el, value as Parameters<typeof __ref>[1]);
       continue;
     }
 

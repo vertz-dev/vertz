@@ -76,6 +76,15 @@ fn is_idl_attr(attr: &AttrInfo, tag_name: &str) -> bool {
     is_idl_property(tag_name, attr_name)
 }
 
+/// Check if an attribute is the `ref` prop. Spread doesn't count — spread
+/// refs are routed through `__spread()` at runtime.
+fn is_ref_attr(attr: &AttrInfo) -> bool {
+    match attr {
+        AttrInfo::Expression { name, .. } => name == "ref",
+        _ => false,
+    }
+}
+
 /// Check if an attribute is the `innerHTML` prop. Spread doesn't count —
 /// `innerHTML` must be written directly as a JSX attribute to route through
 /// `__html()`.
@@ -1189,7 +1198,7 @@ fn transform_element(
         json_quote(&info.tag_name)
     ));
 
-    // Process attributes — split into normal and deferred IDL property statements.
+    // Process attributes — split into normal and deferred statements.
     // IDL properties (select.value, input.value/checked, textarea.value) are deferred
     // until after children so that e.g. <select>.value is set when <option>s exist.
     //
@@ -1199,11 +1208,20 @@ fn transform_element(
     // Mutual-exclusion with children is enforced at the diagnostic layer
     // (innerhtml_diagnostics); here we simply skip the attribute and emit the
     // helper call.
+    //
+    // `ref` is deferred until after children so callbacks that introspect the
+    // subtree (e.g. querySelector) observe the fully-constructed element —
+    // matching the runtime `jsx()` factory's behavior in jsx-runtime/index.ts.
     let mut deferred_idl_stmts: Vec<String> = Vec::new();
     let mut inner_html_stmt: Option<String> = None;
+    let mut ref_stmt: Option<String> = None;
     for attr in &info.attrs {
         if is_inner_html_attr(attr) {
             inner_html_stmt = build_inner_html_stmt(ms, attr, &el_var);
+            continue;
+        }
+        if is_ref_attr(attr) {
+            ref_stmt = process_attr(ms, attr, &el_var, &info.tag_name, rx);
             continue;
         }
         if let Some(stmt) = process_attr(ms, attr, &el_var, &info.tag_name, rx) {
@@ -1237,6 +1255,12 @@ fn transform_element(
     // IDL property statements after children — <select>.value needs <option>s in DOM first.
     // Also safe for <input>/<textarea> (no meaningful children).
     stmts.extend(deferred_idl_stmts);
+
+    // Ref after IDL properties so the callback sees an element that is fully
+    // attributed and has its children in place.
+    if let Some(stmt) = ref_stmt {
+        stmts.push(stmt);
+    }
 
     format!(
         "(() => {{\n{}\n  return {};\n}})()",
@@ -1557,9 +1581,13 @@ fn process_attr(
             let expr_text = ms.get_transformed_slice(*expr_start, *expr_end);
             let use_property = is_idl_property(tag_name, attr_name);
 
-            // Ref
+            // Ref — routed through `__ref(el, value)` so the runtime can
+            // distinguish callback refs from object refs (see issue #2788).
+            // Direct `.current =` emission is invalid for callback refs like
+            // `(el) => { ... }` because a member expression can't follow an
+            // arrow function with a block body.
             if attr_name == "ref" {
-                return Some(format!("{}.current = {}", expr_text, el_var));
+                return Some(format!("__ref({}, {})", el_var, expr_text));
             }
 
             // Form onChange → __formOnChange(el, handler) instead of __on(el, "change", handler)
@@ -2900,7 +2928,67 @@ export function App() {
     return <div ref={myRef}>text</div>;
 }"#,
         );
-        assert!(result.contains(".current = __el0"), "result: {result}");
+        assert!(result.contains("__ref(__el0, myRef)"), "result: {result}");
+    }
+
+    #[test]
+    fn ref_callback_attribute() {
+        // Issue #2788: callback ref must be routed through __ref() so the
+        // compiler doesn't emit invalid code like `(el) => {...}.current = __el0`.
+        let result = transform(
+            r#"export function App() {
+    return <div ref={(el) => { captured = el; }}>text</div>;
+}"#,
+        );
+        assert!(
+            result.contains("__ref(__el0, (el) => { captured = el; })"),
+            "result: {result}"
+        );
+        // Negative: must NOT emit the broken `.current = ` form for callbacks.
+        assert!(
+            !result.contains("}.current = __el0"),
+            "invalid `.current` on arrow body: {result}"
+        );
+    }
+
+    #[test]
+    fn ref_callback_with_inner_html() {
+        // Issue #2788 original repro: ref + innerHTML on the same host
+        // element must produce parseable output.
+        let result = transform(
+            r#"export function App({ html }) {
+    return <div className="foo" innerHTML={html} ref={(el) => { /* noop */ }} />;
+}"#,
+        );
+        assert!(result.contains("__ref(__el0,"), "result: {result}");
+        assert!(result.contains("__html(__el0,"), "result: {result}");
+        assert!(
+            !result.contains("}.current = __el0"),
+            "invalid `.current` on arrow body: {result}"
+        );
+    }
+
+    #[test]
+    fn ref_applied_after_children() {
+        // Ref callbacks must fire after children are in the DOM so they can
+        // introspect the subtree — matches the runtime `jsx()` factory's
+        // behavior (packages/ui/src/jsx-runtime/index.ts). Without this,
+        // `ref={(el) => el.querySelector('.foo')}` would return null.
+        let result = transform(
+            r#"export function App() {
+    return <div ref={(el) => {}}><span className="foo">hi</span></div>;
+}"#,
+        );
+        let ref_idx = result
+            .find("__ref(__el0,")
+            .unwrap_or_else(|| panic!("missing __ref: {result}"));
+        let exit_idx = result
+            .find("__exitChildren()")
+            .unwrap_or_else(|| panic!("missing __exitChildren: {result}"));
+        assert!(
+            ref_idx > exit_idx,
+            "ref must fire after children — got ref_idx={ref_idx}, exit_idx={exit_idx}: {result}"
+        );
     }
 
     // ========== Spread attributes ==========
@@ -3979,7 +4067,7 @@ export function App() {
     return <div ref={myRef}>text</div>;
 }"#,
         );
-        assert!(result.contains(".current ="), "result: {result}");
+        assert!(result.contains("__ref(__el0, myRef)"), "result: {result}");
     }
 
     // ========== Conditional rendering ==========

@@ -263,9 +263,20 @@ describe('Feature: JSX element transform', () => {
 
   describe('Given a ref attribute', () => {
     describe('When compiled', () => {
-      it('Then assigns .current on the element variable', () => {
+      it('Then routes the element through the __ref runtime helper', () => {
         const code = compileAndGetCode(`function App() {\n  return <input ref={myRef} />;\n}`);
-        expect(code).toContain('myRef.current');
+        expect(code).toContain('__ref(');
+        expect(code).toContain('myRef');
+      });
+
+      it('Then handles a callback ref without emitting invalid `.current` syntax', () => {
+        // Issue #2788: callback refs combined with a block body must
+        // round-trip through __ref(), not the broken `.current =` form.
+        const code = compileAndGetCode(
+          `function App() {\n  return <div innerHTML={html} ref={(el) => { captured = el; }} />;\n}`,
+        );
+        expect(code).toContain('__ref(');
+        expect(code).not.toMatch(/}\.current\s*=/);
       });
     });
   });

@@ -19,6 +19,7 @@ const DOM_HELPERS: &[&str] = &[
     "__listValue",
     "__on",
     "__prop",
+    "__ref",
     "__pushMountFrame",
     "__show",
     "__spread",
