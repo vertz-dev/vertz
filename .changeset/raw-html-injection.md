@@ -15,12 +15,12 @@ spelled as a single plain prop:
 ```
 
 The value is inserted verbatim. Callers are responsible for trust and
-sanitization; a `trusted()` helper exports from `@vertz/ui` for marking
-already-sanitized values. The compiler rejects the React spelling
+sanitization; a `trusted()` helper is exported from `@vertz/ui` for
+marking already-sanitized values. The compiler rejects the React spelling
 (`dangerouslySetInnerHTML`) with a clear error (E0762), blocks pairing
-with children (E0763), and forbids the prop on void and SVG elements
-(E0764). The prop is reactive — bound signals update the element in
-place — and safe across SSR + hydration (server content is preserved
-until after hydration completes).
+with children (E0761), and forbids the prop on SVG elements (E0764).
+The prop is reactive — bound signals update the element in place — and
+safe across SSR + hydration (server content is preserved until after
+hydration completes).
 
 Closes #2761.

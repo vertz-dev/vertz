@@ -14,8 +14,8 @@ export function Announcement({ html }: { html: string }) {
 ```
 
 <Warning>
-  The value passed to `innerHTML` is inserted **without escaping**. Never pass
-  untrusted input directly. See [Safely rendering user content](#safely-rendering-user-content).
+  The value passed to `innerHTML` is inserted **without escaping**. Never pass untrusted input
+  directly. See [Safely rendering user content](#safely-rendering-user-content).
 </Warning>
 
 ## When to use it
@@ -46,7 +46,7 @@ It is reactive: when the bound signal changes, the element's contents update.
 ```tsx
 const markup = signal('<b>first</b>');
 // ...
-<div innerHTML={markup} />
+<div innerHTML={markup} />;
 // Later:
 markup.value = '<i>second</i>'; // div updates in place
 ```
@@ -71,7 +71,7 @@ Setting both would discard one or the other. The compiler raises an error if you
 do:
 
 ```tsx
-// Compile error E0763 — children and innerHTML are mutually exclusive.
+// Compile error E0761 — children and innerHTML are mutually exclusive.
 <div innerHTML={html}>Also some text</div>
 ```
 
@@ -84,15 +84,11 @@ Pick one. If you need both a wrapper and raw markup inside, nest them:
 </section>
 ```
 
-### No `innerHTML` on void elements or SVG elements
+### No `innerHTML` on SVG elements
 
-Void HTML elements (`<img>`, `<input>`, `<br>`, `<hr>`, `<meta>`, `<link>`,
-`<area>`, `<base>`, `<col>`, `<embed>`, `<source>`, `<track>`, `<wbr>`) cannot
-contain children, so `innerHTML` on them is a compile error (E0764).
-
-SVG elements also reject `innerHTML` — SVG content serialization uses
-`outerHTML` semantics and the DOM `innerHTML` setter on SVG parses as HTML,
-not SVG. Wrap SVG markup in a `<span>` instead:
+SVG elements reject `innerHTML` at compile time (E0764) — SVG content
+serialization uses `outerHTML` semantics and the DOM `innerHTML` setter on SVG
+parses as HTML, not SVG. Wrap SVG markup in a `<span>` instead:
 
 ```tsx
 // Wrong — compile error E0764
@@ -101,6 +97,14 @@ not SVG. Wrap SVG markup in a `<span>` instead:
 // Right — span wrapper, browser parses SVG correctly inside HTML context
 <span innerHTML={svgMarkup} />
 ```
+
+### Void elements
+
+Void HTML elements (`<img>`, `<input>`, `<br>`, `<hr>`, `<meta>`, `<link>`,
+`<area>`, `<base>`, `<col>`, `<embed>`, `<source>`, `<track>`, `<wbr>`) cannot
+contain children — setting `innerHTML` on them has no effect in the DOM and
+should be avoided. The compiler does not currently reject this at compile time;
+treat it as a runtime no-op.
 
 ## Safely rendering user content
 
@@ -154,7 +158,7 @@ place that asserts markup is safe to render.
 `innerHTML` works on both the server and the client. On SSR, the value is
 written into the HTML response verbatim (no escaping, no sanitization). On
 hydration, the hydrated element's existing children are preserved — the first
-reactive update runs *after* hydration completes so server-rendered content
+reactive update runs _after_ hydration completes so server-rendered content
 isn't re-written on initial paint.
 
 If you produce the same markup on the server and client, there is no visible
@@ -174,12 +178,12 @@ export function CodeBlock({ code, lang }: { code: string; lang: string }) {
 
 ## Migrating from React
 
-| React                                            | Vertz                      |
-| ------------------------------------------------ | -------------------------- |
-| `<div dangerouslySetInnerHTML={{ __html: x }} />` | `<div innerHTML={x} />`    |
-| `null`/`undefined` → empty                        | Same — nullish → empty     |
-| Sanitize with DOMPurify                          | Same — DOMPurify works     |
-| Children + dangerouslySetInnerHTML (React warns) | Compile error E0763         |
+| React                                             | Vertz                   |
+| ------------------------------------------------- | ----------------------- |
+| `<div dangerouslySetInnerHTML={{ __html: x }} />` | `<div innerHTML={x} />` |
+| `null`/`undefined` → empty                        | Same — nullish → empty  |
+| Sanitize with DOMPurify                           | Same — DOMPurify works  |
+| Children + dangerouslySetInnerHTML (React warns)  | Compile error E0761     |
 
 ## Summary
 
@@ -187,4 +191,4 @@ export function CodeBlock({ code, lang }: { code: string; lang: string }) {
 - `dangerouslySetInnerHTML` is a compile error — use `innerHTML`
 - Never pass untrusted input; sanitize at the boundary with DOMPurify
 - Wrap sanitized values with `trusted()` for audit clarity
-- Mutually exclusive with children; forbidden on void and SVG elements
+- Mutually exclusive with children (E0761); forbidden on SVG elements (E0764)
