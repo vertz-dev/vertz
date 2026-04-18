@@ -231,4 +231,90 @@ describe('Feature: service SDK end-to-end pipeline', () => {
       expect(sdk).toContain("'POST'");
     });
   });
+
+  describe('Given a service with mixed access (one action with access, one without)', () => {
+    function makeMixedAccessAppIR(): AppIR {
+      const appIR = createEmptyAppIR();
+      appIR.services = [
+        {
+          name: 'billing',
+          inject: [],
+          access: { allowed: 'function' },
+          actions: [
+            {
+              name: 'allowed',
+              method: 'POST',
+              path: '/billing/allowed',
+              body: {
+                kind: 'inline',
+                sourceFile: 'billing.ts',
+                resolvedFields: [{ name: 'amount', tsType: 'number', optional: false }],
+              },
+              response: {
+                kind: 'inline',
+                sourceFile: 'billing.ts',
+                resolvedFields: [{ name: 'ok', tsType: 'boolean', optional: false }],
+              },
+            },
+            {
+              name: 'denied',
+              method: 'POST',
+              path: '/billing/denied',
+              body: {
+                kind: 'inline',
+                sourceFile: 'billing.ts',
+                resolvedFields: [{ name: 'secret', tsType: 'string', optional: false }],
+              },
+              response: {
+                kind: 'inline',
+                sourceFile: 'billing.ts',
+                resolvedFields: [{ name: 'token', tsType: 'string', optional: false }],
+              },
+            },
+          ],
+          sourceFile: 'billing.ts',
+          sourceLine: 1,
+          sourceColumn: 1,
+        },
+      ];
+      return appIR;
+    }
+
+    it('Then the SDK includes the action with access resolved to function', async () => {
+      const config = resolveCodegenConfig({
+        outputDir,
+        generators: ['typescript'],
+        format: false,
+      });
+      await generate(makeMixedAccessAppIR(), config);
+      const sdk = readFileSync(join(outputDir, 'services/billing.ts'), 'utf-8');
+      expect(sdk).toContain('allowed:');
+      expect(sdk).toContain("'/billing/allowed'");
+    });
+
+    it('Then the SDK excludes the action with no access entry (deny-by-default)', async () => {
+      const config = resolveCodegenConfig({
+        outputDir,
+        generators: ['typescript'],
+        format: false,
+      });
+      await generate(makeMixedAccessAppIR(), config);
+      const sdk = readFileSync(join(outputDir, 'services/billing.ts'), 'utf-8');
+      expect(sdk).not.toContain('denied:');
+      expect(sdk).not.toContain("'/billing/denied'");
+    });
+
+    it('Then types/services/billing.ts excludes types for the denied action', async () => {
+      const config = resolveCodegenConfig({
+        outputDir,
+        generators: ['typescript'],
+        format: false,
+      });
+      await generate(makeMixedAccessAppIR(), config);
+      const typesFile = readFileSync(join(outputDir, 'types/services/billing.ts'), 'utf-8');
+      expect(typesFile).toContain('AllowedBillingInput');
+      expect(typesFile).not.toContain('DeniedBillingInput');
+      expect(typesFile).not.toContain('DeniedBillingOutput');
+    });
+  });
 });
