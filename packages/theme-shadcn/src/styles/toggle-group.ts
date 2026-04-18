@@ -25,28 +25,27 @@ export function createToggleGroupStyles(): CSSOutput<ToggleGroupBlocks> {
       gap: token.spacing[1],
       borderRadius: token.radius.md,
     },
-    toggleGroupItem: [
-      'inline-flex',
-      'items:center',
-      'justify:center',
-      'rounded:md',
-      'text:sm',
-      'font:medium',
-      'h:9',
-      'w:9',
-      'bg:transparent',
-      'cursor:pointer',
-      'transition:colors',
-      focusRing,
-      { '&:hover': { backgroundColor: token.color.muted, color: token.color['muted-foreground'] } },
-      { '&:disabled': { pointerEvents: 'none', opacity: '0.5' } },
-      {
-        '&[data-state="on"]': {
-          backgroundColor: token.color.accent,
-          color: token.color['accent-foreground'],
-        },
+    toggleGroupItem: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: token.radius.md,
+      fontSize: token.font.size.sm,
+      fontWeight: token.font.weight.medium,
+      height: token.spacing[9],
+      width: token.spacing[9],
+      backgroundColor: 'transparent',
+      cursor: 'pointer',
+      transition:
+        'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+      ...focusRing,
+      '&:hover': { backgroundColor: token.color.muted, color: token.color['muted-foreground'] },
+      '&:disabled': { pointerEvents: 'none', opacity: '0.5' },
+      '&[data-state="on"]': {
+        backgroundColor: token.color.accent,
+        color: token.color['accent-foreground'],
       },
-    ],
+    },
   });
   return {
     root: s.toggleGroupRoot,

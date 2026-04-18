@@ -70,9 +70,9 @@ describe('button', () => {
     expect(typeof customButton({ intent: 'primary' })).toBe('string');
   });
 
-  it('outline variant includes explicit text:foreground for contrast in isolated contexts', () => {
-    const outlineIntent = buttonConfig.variants.intent.outline;
-    expect(outlineIntent).toContain('text:foreground');
+  it('outline variant includes explicit foreground color for contrast in isolated contexts', () => {
+    const outlineIntent = buttonConfig.variants.intent.outline as { color?: unknown };
+    expect(outlineIntent.color).toBeDefined();
   });
 });
 

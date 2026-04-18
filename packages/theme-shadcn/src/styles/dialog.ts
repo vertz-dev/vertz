@@ -25,135 +25,94 @@ const focusRing: Record<string, StyleValue[]> = {
 /** Create dialog css() styles matching shadcn v4 Nova theme. */
 export function createDialogStyles(): CSSOutput<DialogBlocks> {
   const s = css({
-    dialogOverlay: [
-      'fixed',
-      'inset:0',
-      'z:50',
-      {
-        // Nova: bg-black/10 + backdrop-blur-xs (lighter overlay with blur)
-        '&': {
-          'background-color': 'oklch(0 0 0 / 10%)',
-          'backdrop-filter': 'blur(4px)',
-          '-webkit-backdrop-filter': 'blur(4px)',
-        },
+    dialogOverlay: {
+      position: 'fixed',
+      inset: token.spacing[0],
+      zIndex: '50',
+      '&': {
+        backgroundColor: 'oklch(0 0 0 / 10%)',
+        backdropFilter: 'blur(4px)',
+        '-webkit-backdrop-filter': 'blur(4px)',
       },
-      {
-        '&[data-state="open"]': [animationDecl('vz-fade-in 100ms ease-out forwards')],
+      '&[data-state="open"]': animationDecl('vz-fade-in 100ms ease-out forwards'),
+      '&[data-state="closed"]': animationDecl('vz-fade-out 100ms ease-out forwards'),
+    },
+    dialogPanel: {
+      backgroundColor: token.color.background,
+      color: token.color.foreground,
+      gap: token.spacing[4],
+      '&': {
+        display: 'grid',
+        width: 'calc(100vw - 2rem)',
+        maxWidth: 'calc(100vw - 2rem)',
+        boxShadow: '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)',
+        borderRadius: 'calc(var(--radius) * 2)',
+        padding: '1rem',
+        fontSize: '0.875rem',
+        height: 'fit-content',
+        outline: 'none',
+        border: 'none',
+        containerType: 'inline-size',
       },
-      {
-        '&[data-state="closed"]': [animationDecl('vz-fade-out 100ms ease-out forwards')],
+      '&:not([open]):not([data-state="open"])': { display: 'none' },
+      '&::backdrop': {
+        backgroundColor: 'oklch(0 0 0 / 10%)',
+        backdropFilter: 'blur(4px)',
+        '-webkit-backdrop-filter': 'blur(4px)',
       },
-    ],
-    dialogPanel: [
-      'bg:background',
-      'text:foreground',
-      'gap:4',
-      {
-        // Native <dialog> uses showModal() for top-layer rendering.
-        // No fixed/z-index/inset needed — the browser handles positioning.
-        '&': {
-          display: 'grid',
-          width: 'calc(100vw - 2rem)',
-          'max-width': 'calc(100vw - 2rem)',
-          'box-shadow': '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)',
-          'border-radius': 'calc(var(--radius) * 2)',
-          padding: '1rem',
-          'font-size': '0.875rem',
-          height: 'fit-content',
-          outline: 'none',
-          border: 'none',
-          'container-type': 'inline-size',
-        },
-        // Ensure closed dialog is hidden (theme display:grid overrides UA dialog:not([open])).
-        // Also exclude [data-state="open"] so non-native <div role="dialog"> elements
-        // using panel styles remain visible when opened via data-state.
-        '&:not([open]):not([data-state="open"])': { display: 'none' },
-        // Style the native ::backdrop (replaces the overlay div)
-        '&::backdrop': {
-          'background-color': 'oklch(0 0 0 / 10%)',
-          'backdrop-filter': 'blur(4px)',
-          '-webkit-backdrop-filter': 'blur(4px)',
-        },
-        '&[data-state="open"]::backdrop': {
-          animation: 'vz-fade-in 100ms ease-out forwards',
-        },
-        '&[data-state="closed"]::backdrop': {
-          animation: 'vz-fade-out 100ms ease-out forwards',
-        },
-        '@media (min-width: 640px)': { 'max-width': '24rem' },
-      },
-      {
-        '&[data-state="open"]': [animationDecl('vz-zoom-in 100ms ease-out forwards')],
-      },
-      {
-        '&[data-state="closed"]': [animationDecl('vz-zoom-out 100ms ease-out forwards')],
-      },
-    ],
-    dialogHeader: [
-      'flex',
-      'flex-col',
-      'gap:2',
-      {
-        '@media (min-width: 640px)': { 'text-align': 'left' },
-      },
-    ],
-    dialogTitle: [
-      'text:foreground',
-      {
-        // Nova: text-base font-medium (smaller/lighter than base text-lg font-semibold)
-        '&': {
-          'font-size': '1rem',
-          'line-height': '1',
-          'font-weight': '500',
-        },
-      },
-    ],
+      '&[data-state="open"]::backdrop': { animation: 'vz-fade-in 100ms ease-out forwards' },
+      '&[data-state="closed"]::backdrop': { animation: 'vz-fade-out 100ms ease-out forwards' },
+      '@media (min-width: 640px)': { maxWidth: '24rem' },
+      '&[data-state="open"]': animationDecl('vz-zoom-in 100ms ease-out forwards'),
+      '&[data-state="closed"]': animationDecl('vz-zoom-out 100ms ease-out forwards'),
+    },
+    dialogHeader: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: token.spacing[2],
+      '@media (min-width: 640px)': { textAlign: 'left' },
+    },
+    dialogTitle: {
+      color: token.color.foreground,
+      '&': { fontSize: '1rem', lineHeight: '1', fontWeight: '500' },
+    },
     dialogDescription: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
-    dialogClose: [
-      'absolute',
-      'rounded:xs',
-      'cursor:pointer',
-      {
-        '&': {
-          // Nova: top-2 right-2 (closer to corner)
-          top: '0.5rem',
-          right: '0.5rem',
-          opacity: '0.7',
-          transition: 'opacity 150ms',
-          display: 'inline-flex',
-          'align-items': 'center',
-          'justify-content': 'center',
-          width: '1rem',
-          height: '1rem',
-          background: 'none',
-          border: 'none',
-          color: 'currentColor',
-          padding: '0',
-        },
-        '&:hover': { opacity: '1' },
-        '&:disabled': { 'pointer-events': 'none' },
+    dialogClose: {
+      position: 'absolute',
+      borderRadius: token.radius.xs,
+      cursor: 'pointer',
+      '&': {
+        top: '0.5rem',
+        right: '0.5rem',
+        opacity: '0.7',
+        transition: 'opacity 150ms',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '1rem',
+        height: '1rem',
+        background: 'none',
+        border: 'none',
+        color: 'currentColor',
+        padding: '0',
       },
-      focusRing,
-    ],
-    dialogFooter: [
-      'flex',
-      'gap:2',
-      {
-        '&': {
-          'flex-direction': 'column-reverse',
-          // Nova: bg-muted/50 -mx-4 -mb-4 rounded-b-xl border-t p-4
-          'background-color': 'color-mix(in oklch, var(--color-muted) 50%, transparent)',
-          margin: '0 -1rem -1rem -1rem',
-          'border-radius': '0 0 calc(var(--radius) * 2) calc(var(--radius) * 2)',
-          'border-top': '1px solid var(--color-border)',
-          padding: '1rem',
-        },
-        '@container (min-width: 20rem)': {
-          'flex-direction': 'row',
-          'justify-content': 'flex-end',
-        },
+      '&:hover': { opacity: '1' },
+      '&:disabled': { pointerEvents: 'none' },
+      ...focusRing,
+    },
+    dialogFooter: {
+      display: 'flex',
+      gap: token.spacing[2],
+      '&': {
+        flexDirection: 'column-reverse',
+        backgroundColor: 'color-mix(in oklch, var(--color-muted) 50%, transparent)',
+        margin: '0 -1rem -1rem -1rem',
+        borderRadius: '0 0 calc(var(--radius) * 2) calc(var(--radius) * 2)',
+        borderTop: '1px solid var(--color-border)',
+        padding: '1rem',
       },
-    ],
+      '@container (min-width: 20rem)': { flexDirection: 'row', justifyContent: 'flex-end' },
+    },
   });
   return {
     overlay: s.dialogOverlay,

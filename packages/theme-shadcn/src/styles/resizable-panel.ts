@@ -21,33 +21,19 @@ const focusRing: Record<string, StyleValue[]> = {
 export function createResizablePanelStyles(): CSSOutput<ResizablePanelBlocks> {
   const s = css({
     resizableRoot: { display: 'flex', height: '100%', width: '100%' },
-    resizablePanel: ['overflow-hidden', { '&': [{ 'white-space': 'nowrap' }] }],
-    resizableHandle: [
-      'relative',
-      'flex',
-      'items:center',
-      'justify:center',
-      'bg:border',
-      focusRing,
-      {
-        '&:hover': { backgroundColor: token.color['muted-foreground'] },
-      },
-      {
-        '&[data-orientation="horizontal"]': {
-          width: '1px',
-          cursor: 'col-resize',
-        },
-      },
-      {
-        '&[data-orientation="vertical"]': {
-          height: '1px',
-          cursor: 'row-resize',
-        },
-      },
-      {
-        '&[data-state="dragging"]': { backgroundColor: token.color.primary },
-      },
-    ],
+    resizablePanel: { overflow: 'hidden', '&': { whiteSpace: 'nowrap' } },
+    resizableHandle: {
+      position: 'relative',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: token.color.border,
+      ...focusRing,
+      '&:hover': { backgroundColor: token.color['muted-foreground'] },
+      '&[data-orientation="horizontal"]': { width: '1px', cursor: 'col-resize' },
+      '&[data-orientation="vertical"]': { height: '1px', cursor: 'row-resize' },
+      '&[data-state="dragging"]': { backgroundColor: token.color.primary },
+    },
   });
   return {
     root: s.resizableRoot,

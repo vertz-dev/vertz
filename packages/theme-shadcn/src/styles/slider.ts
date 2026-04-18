@@ -9,72 +9,42 @@ type SliderBlocks = {
 };
 
 const ringStyle = {
-  'box-shadow': '0 0 0 3px color-mix(in oklch, var(--color-ring) 50%, transparent)',
+  boxShadow: '0 0 0 3px color-mix(in oklch, var(--color-ring) 50%, transparent)',
 };
 
 /** Create slider css() styles following shadcn conventions. */
 export function createSliderStyles(): CSSOutput<SliderBlocks> {
   const s = css({
-    sliderRoot: [
-      'relative',
-      'flex',
-      'w:full',
-      'items:center',
-      {
-        '&': {
-          'touch-action': 'none',
-          'user-select': 'none',
-          height: '20px',
-          cursor: 'pointer',
-        },
-      },
-    ],
-    sliderTrack: [
-      'relative',
-      'w:full',
-      'rounded:full',
-      'bg:muted',
-      {
-        '&': {
-          height: '0.25rem',
-          overflow: 'visible',
-        },
-      },
-    ],
+    sliderRoot: {
+      position: 'relative',
+      display: 'flex',
+      width: '100%',
+      alignItems: 'center',
+      '&': { touchAction: 'none', userSelect: 'none', height: '20px', cursor: 'pointer' },
+    },
+    sliderTrack: {
+      position: 'relative',
+      width: '100%',
+      borderRadius: token.radius.full,
+      backgroundColor: token.color.muted,
+      '&': { height: '0.25rem', overflow: 'visible' },
+    },
     sliderRange: { backgroundColor: token.color.primary },
-    sliderThumb: [
-      'block',
-      'h:3',
-      'w:3',
-      'rounded:full',
-      'border:1',
-      'border:ring',
-      'cursor:pointer',
-      {
-        '&': {
-          background: 'white',
-          transition: 'color 150ms, box-shadow 150ms',
-          top: '50%',
-        },
-      },
-      {
-        '&::after': {
-          content: '""',
-          position: 'absolute',
-          inset: '-0.5rem',
-        },
-      },
-      {
-        '&:hover': ['outline-none', ringStyle],
-      },
-      {
-        '&:focus-visible': ['outline-none', ringStyle],
-      },
-      {
-        '&:active': [ringStyle],
-      },
-      { '&:disabled': { pointerEvents: 'none', opacity: '0.5' } },
-    ],
+    sliderThumb: {
+      display: 'block',
+      height: token.spacing[3],
+      width: token.spacing[3],
+      borderRadius: token.radius.full,
+      borderWidth: '1px',
+      borderColor: token.color.ring,
+      cursor: 'pointer',
+      '&': { background: 'white', transition: 'color 150ms, box-shadow 150ms', top: '50%' },
+      '&::after': { content: '""', position: 'absolute', inset: '-0.5rem' },
+      '&:hover': { outline: 'none', ...ringStyle },
+      '&:focus-visible': { outline: 'none', ...ringStyle },
+      '&:active': ringStyle,
+      '&:disabled': { pointerEvents: 'none', opacity: '0.5' },
+    },
   });
   return {
     root: s.sliderRoot,

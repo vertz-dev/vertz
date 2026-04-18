@@ -2,9 +2,9 @@
  * Generate a CSS declaration object for a background color token with opacity.
  * Uses color-mix() for broad browser support (Chrome 111+, Safari 16.2+, Firefox 113+).
  */
-export function bgOpacity(token: string, percent: number): { 'background-color': string } {
+export function bgOpacity(token: string, percent: number): { backgroundColor: string } {
   return {
-    'background-color': `color-mix(in oklch, var(--color-${token}) ${percent}%, transparent)`,
+    backgroundColor: `color-mix(in oklch, var(--color-${token}) ${percent}%, transparent)`,
   };
 }
 

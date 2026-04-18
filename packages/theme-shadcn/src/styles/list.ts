@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css, keyframes } from '@vertz/ui';
+import { css, keyframes, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type ListBlocks = {
@@ -16,19 +16,12 @@ const listEnter = keyframes('vz-list-enter', {
 /** Create list css() styles. */
 export function createListStyles(): CSSOutput<ListBlocks> {
   const s = css({
-    listRoot: [
-      'flex',
-      'flex-col',
-      'gap:0',
-      {
-        '&': {
-          'list-style': 'none',
-          margin: '0',
-          padding: '0',
-          position: 'relative',
-        },
-      },
-    ],
+    listRoot: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: token.spacing[0],
+      '&': { listStyle: 'none', margin: '0', padding: '0', position: 'relative' },
+    },
     listItem: [
       {
         '&[data-dragging]': {
@@ -39,24 +32,18 @@ export function createListStyles(): CSSOutput<ListBlocks> {
           opacity: '1',
         },
       },
-      { '&[data-presence="enter"]': [animationDecl(`${listEnter} 200ms ease-out`)] },
+      { '&[data-presence="enter"]': animationDecl(`${listEnter} 200ms ease-out`) },
       {
-        '&[data-presence="exit"]': [{ overflow: 'hidden', 'pointer-events': 'none' }],
+        '&[data-presence="exit"]': { overflow: 'hidden', 'pointer-events': 'none' },
       },
     ],
-    listDragHandle: [
-      'flex',
-      'items:center',
-      'text:muted-foreground',
-      {
-        '&': {
-          cursor: 'grab',
-          'touch-action': 'none',
-          'user-select': 'none',
-        },
-        '&:active': { cursor: 'grabbing' },
-      },
-    ],
+    listDragHandle: {
+      display: 'flex',
+      alignItems: 'center',
+      color: token.color['muted-foreground'],
+      '&': { cursor: 'grab', touchAction: 'none', userSelect: 'none' },
+      '&:active': { cursor: 'grabbing' },
+    },
   });
   return {
     root: s.listRoot,

@@ -27,10 +27,14 @@ export function createAlertStyles(): CSSOutput<AlertBlocks> {
     alertTitle: {
       fontWeight: token.font.weight.medium,
       lineHeight: token.font.lineHeight.none,
-      letterSpacing: 'tight',
+      letterSpacing: '-0.025em',
       marginBottom: token.spacing[1],
     },
-    alertDescription: ['text:muted-foreground', 'text:sm', { '&': { 'line-height': '1.625' } }],
+    alertDescription: {
+      color: token.color['muted-foreground'],
+      fontSize: token.font.size.sm,
+      '&': { lineHeight: '1.625' },
+    },
   });
   return {
     root: s.alertRoot,

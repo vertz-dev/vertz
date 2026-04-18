@@ -29,96 +29,68 @@ const focusRing: Record<string, StyleValue[]> = {
 export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
   const s = css({
     /* root: bg-background p-2, --cell-size = 1.75rem (spacing-7) */
-    calendarRoot: [
-      'w:fit',
-      'bg:background',
-      'text:foreground',
-      'rounded:lg',
-      'border:1',
-      'border:border',
-      {
-        '&': {
-          padding: '0.5rem',
-        },
-      },
-    ],
+    calendarRoot: {
+      width: 'fit-content',
+      backgroundColor: token.color.background,
+      color: token.color.foreground,
+      borderRadius: token.radius.lg,
+      borderWidth: '1px',
+      borderColor: token.color.border,
+      '&': { padding: '0.5rem' },
+    },
     /* root without border — used when calendar is embedded (e.g. inside DatePicker popover) */
-    calendarRootNoBorder: [
-      'w:fit',
-      'bg:background',
-      'text:foreground',
-      'rounded:md',
-      {
-        '&': {
-          padding: '0.5rem',
-        },
-      },
-    ],
+    calendarRootNoBorder: {
+      width: 'fit-content',
+      backgroundColor: token.color.background,
+      color: token.color.foreground,
+      borderRadius: token.radius.md,
+      '&': { padding: '0.5rem' },
+    },
     /* header: relative, flex, items-center, justify-between, h = --cell-size */
-    calendarHeader: [
-      'flex',
-      'items:center',
-      'justify:between',
-      {
-        '&': {
-          position: 'relative',
-          height: '1.75rem',
-          width: '100%',
-        },
-        /* dropdown-only mode: center the selects */
-        '&[data-caption-layout="dropdown"]': {
-          'justify-content': 'center',
-          gap: '0.25rem',
-        },
-        /* dropdown-buttons mode: space between with gap */
-        '&[data-caption-layout="dropdown-buttons"]': {
-          gap: '0.25rem',
-        },
-      },
-    ],
+    calendarHeader: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      '&': { position: 'relative', height: '1.75rem', width: '100%' },
+      '&[data-caption-layout="dropdown"]': { justifyContent: 'center', gap: '0.25rem' },
+      '&[data-caption-layout="dropdown-buttons"]': { gap: '0.25rem' },
+    },
     /* month_caption: flex h-(--cell-size) w-full items-center justify-center px-(--cell-size) */
-    calendarTitle: [
-      'text:sm',
-      'font:medium',
-      {
-        '&': {
-          position: 'absolute',
-          inset: '0',
-          display: 'flex',
-          'align-items': 'center',
-          'justify-content': 'center',
-          'pointer-events': 'none',
-          'user-select': 'none',
-        },
+    calendarTitle: {
+      fontSize: token.font.size.sm,
+      fontWeight: token.font.weight.medium,
+      '&': {
+        position: 'absolute',
+        inset: '0',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+        userSelect: 'none',
       },
-    ],
+    },
     /* nav buttons: ghost variant + size-(--cell-size) = 1.75rem, p-0 */
-    calendarNavButton: [
-      'inline-flex',
-      'items:center',
-      'justify:center',
-      'rounded:lg',
-      'bg:transparent',
-      'cursor:pointer',
-      'transition:all',
-      { '&:hover': { backgroundColor: token.color.muted, color: token.color.foreground } },
-      focusRing,
-      {
-        '&': {
-          height: '1.75rem',
-          width: '1.75rem',
-          padding: '0',
-          border: '1px solid transparent',
-          'user-select': 'none',
-          'z-index': '1',
-        },
-        '& svg:not([class*="size-"])': {
-          width: '1rem',
-          height: '1rem',
-        },
+    calendarNavButton: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: token.radius.lg,
+      backgroundColor: 'transparent',
+      cursor: 'pointer',
+      transition: 'all 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+      '&:hover': { backgroundColor: token.color.muted, color: token.color.foreground },
+      ...focusRing,
+      '&': {
+        height: '1.75rem',
+        width: '1.75rem',
+        padding: '0',
+        border: '1px solid transparent',
+        userSelect: 'none',
+        zIndex: '1',
       },
-      { '&[aria-disabled="true"]': { opacity: '0.5' } },
-    ],
+      '& svg:not([class*="size-"])': { width: '1rem', height: '1rem' },
+      '&[aria-disabled="true"]': { opacity: '0.5' },
+    },
     /* table: w-full border-collapse */
     calendarGrid: [
       {
@@ -129,18 +101,11 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
       },
     ],
     /* weekday: text-[0.8rem] font-normal text-muted-foreground select-none */
-    calendarHeadCell: [
-      'text:muted-foreground',
-      'font:normal',
-      {
-        '&': {
-          width: '1.75rem',
-          'text-align': 'center',
-          'font-size': '0.8rem',
-          'user-select': 'none',
-        },
-      },
-    ],
+    calendarHeadCell: {
+      color: token.color['muted-foreground'],
+      fontWeight: token.font.weight.normal,
+      '&': { width: '1.75rem', textAlign: 'center', fontSize: '0.8rem', userSelect: 'none' },
+    },
     /* day: aspect-square p-0 text-center select-none */
     calendarCell: [
       {
@@ -152,96 +117,56 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
       },
     ],
     /* DayButton: ghost variant, size=icon (size-8 = 2rem), font-normal, border-0 */
-    calendarDayButton: [
-      'inline-flex',
-      'items:center',
-      'justify:center',
-      'rounded:lg',
-      'text:sm',
-      'font:normal',
-      'bg:transparent',
-      'cursor:pointer',
-      'transition:all',
-      focusRing,
-      {
-        '&': {
-          height: '1.75rem',
-          width: '1.75rem',
-          border: '1px solid transparent',
-          padding: '0',
-        },
+    calendarDayButton: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: token.radius.lg,
+      fontSize: token.font.size.sm,
+      fontWeight: token.font.weight.normal,
+      backgroundColor: 'transparent',
+      cursor: 'pointer',
+      transition: 'all 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+      ...focusRing,
+      '&': { height: '1.75rem', width: '1.75rem', border: '1px solid transparent', padding: '0' },
+      '&:hover': { backgroundColor: token.color.muted, color: token.color.foreground },
+      '&[aria-selected="true"]': {
+        backgroundColor: token.color.primary,
+        color: token.color['primary-foreground'],
       },
-      { '&:hover': { backgroundColor: token.color.muted, color: token.color.foreground } },
-      /* selected single: bg-primary text-primary-foreground */
-      {
-        '&[aria-selected="true"]': {
-          backgroundColor: token.color.primary,
-          color: token.color['primary-foreground'],
-        },
+      '&[data-today="true"]': { backgroundColor: token.color.muted, color: token.color.foreground },
+      '&[data-today="true"][aria-selected="true"]': {
+        backgroundColor: token.color.primary,
+        color: token.color['primary-foreground'],
       },
-      /* today: bg-muted text-foreground (not selected) */
-      {
-        '&[data-today="true"]': {
-          backgroundColor: token.color.muted,
-          color: token.color.foreground,
-        },
+      '&[aria-disabled="true"]': {
+        color: token.color['muted-foreground'],
+        opacity: '0.5',
+        pointerEvents: 'none',
       },
-      /* today + selected: primary wins */
-      {
-        '&[data-today="true"][aria-selected="true"]': {
-          backgroundColor: token.color.primary,
-          color: token.color['primary-foreground'],
-        },
+      '&[data-outside-month="true"]': { color: token.color['muted-foreground'] },
+      '&[data-in-range="true"]': {
+        backgroundColor: token.color.muted,
+        color: token.color.foreground,
       },
-      /* disabled: text-muted-foreground opacity-50 */
-      {
-        '&[aria-disabled="true"]': {
-          color: token.color['muted-foreground'],
-          opacity: '0.5',
-          pointerEvents: 'none',
-        },
-      },
-      /* outside: text-muted-foreground */
-      {
-        '&[data-outside-month="true"]': { color: token.color['muted-foreground'] },
-      },
-      /* range middle: bg-muted text-foreground rounded-none */
-      {
-        '&[data-in-range="true"]': {
-          backgroundColor: token.color.muted,
-          color: token.color.foreground,
-        },
-      },
-    ],
+    },
     /* month/year dropdown selects */
-    calendarMonthSelect: [
-      'text:sm',
-      'font:medium',
-      'bg:transparent',
-      'cursor:pointer',
-      focusRing,
-      {
-        '&': {
-          border: 'none',
-          'padding-inline': '0.25rem',
-          appearance: 'auto',
-        },
-      },
-    ],
-    calendarYearSelect: [
-      'text:sm',
-      'font:medium',
-      'bg:transparent',
-      'cursor:pointer',
-      focusRing,
-      {
-        '&': {
-          border: 'none',
-          'padding-inline': '0.25rem',
-          appearance: 'auto',
-        },
-      },
-    ],
+    calendarMonthSelect: {
+      fontSize: token.font.size.sm,
+      fontWeight: token.font.weight.medium,
+      backgroundColor: 'transparent',
+      cursor: 'pointer',
+      ...focusRing,
+      '&': { border: 'none', paddingInline: '0.25rem', appearance: 'auto' },
+    },
+    calendarYearSelect: {
+      fontSize: token.font.size.sm,
+      fontWeight: token.font.weight.medium,
+      backgroundColor: 'transparent',
+      cursor: 'pointer',
+      ...focusRing,
+      '&': { border: 'none', paddingInline: '0.25rem', appearance: 'auto' },
+    },
   });
   return {
     root: s.calendarRoot,

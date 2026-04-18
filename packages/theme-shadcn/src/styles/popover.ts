@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type PopoverBlocks = {
@@ -9,32 +9,25 @@ type PopoverBlocks = {
 /** Create popover css() styles. */
 export function createPopoverStyles(): CSSOutput<PopoverBlocks> {
   const s = css({
-    popoverContent: [
-      'z:50',
-      'overflow-hidden',
-      'bg:popover',
-      'text:popover-foreground',
-      'rounded:lg',
-      'w:fit',
-      'flex',
-      'flex-col',
-      'gap:2.5',
-      'p:2.5',
-      'text:sm',
-      // Nova: ring-1 ring-foreground/10 instead of border, shadow-md
-      {
-        '&': {
-          'box-shadow':
-            '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent), 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-        },
+    popoverContent: {
+      zIndex: '50',
+      overflow: 'hidden',
+      backgroundColor: token.color.popover,
+      color: token.color['popover-foreground'],
+      borderRadius: token.radius.lg,
+      width: 'fit-content',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: token.spacing['2.5'],
+      padding: token.spacing['2.5'],
+      fontSize: token.font.size.sm,
+      '&': {
+        boxShadow:
+          '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent), 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
       },
-      {
-        '&[data-state="open"]': [animationDecl('vz-zoom-in 100ms ease-out forwards')],
-      },
-      {
-        '&[data-state="closed"]': [animationDecl('vz-zoom-out 100ms ease-out forwards')],
-      },
-    ],
+      '&[data-state="open"]': animationDecl('vz-zoom-in 100ms ease-out forwards'),
+      '&[data-state="closed"]': animationDecl('vz-zoom-out 100ms ease-out forwards'),
+    },
   });
   return {
     content: s.popoverContent,

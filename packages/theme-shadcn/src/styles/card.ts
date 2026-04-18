@@ -14,54 +14,45 @@ type CardBlocks = {
 /** Create card css() styles. */
 export function createCard(): CSSOutput<CardBlocks> {
   const s = css({
-    cardRoot: [
-      'flex',
-      'flex-col',
-      'bg:card',
-      'text:card-foreground',
-      'overflow-hidden',
-      'gap:4',
-      'py:4',
-      'text:sm',
-      {
-        '&': {
-          'border-radius': 'calc(var(--radius) * 2)',
-          'box-shadow': '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)',
-        },
+    cardRoot: {
+      display: 'flex',
+      flexDirection: 'column',
+      backgroundColor: token.color.card,
+      color: token.color['card-foreground'],
+      overflow: 'hidden',
+      gap: token.spacing[4],
+      paddingBlock: token.spacing[4],
+      fontSize: token.font.size.sm,
+      '&': {
+        borderRadius: 'calc(var(--radius) * 2)',
+        boxShadow: '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)',
       },
-    ],
+    },
     cardHeader: {
       display: 'flex',
       flexDirection: 'column',
       gap: token.spacing[1],
       paddingInline: token.spacing[4],
     },
-    cardTitle: [
-      'font:medium',
-      {
-        '&': {
-          'font-size': '1rem',
-          'line-height': '1.375',
-        },
-      },
-    ],
+    cardTitle: {
+      fontWeight: token.font.weight.medium,
+      '&': { fontSize: '1rem', lineHeight: '1.375' },
+    },
     cardDescription: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
     cardContent: { paddingInline: token.spacing[4] },
-    cardFooter: [
-      'flex',
-      'items:center',
-      'gap:2',
-      'p:4',
-      'border-t:1',
-      'border:border',
-      {
-        '&': {
-          'background-color': 'color-mix(in oklch, var(--color-muted) 50%, transparent)',
-          'border-radius': '0 0 calc(var(--radius) * 2) calc(var(--radius) * 2)',
-          'margin-bottom': '-1rem',
-        },
+    cardFooter: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: token.spacing[2],
+      padding: token.spacing[4],
+      borderTopWidth: '1px',
+      borderColor: token.color.border,
+      '&': {
+        backgroundColor: 'color-mix(in oklch, var(--color-muted) 50%, transparent)',
+        borderRadius: '0 0 calc(var(--radius) * 2) calc(var(--radius) * 2)',
+        marginBottom: '-1rem',
       },
-    ],
+    },
     cardAction: { marginLeft: 'auto' },
   });
   return {

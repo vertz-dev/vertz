@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type HoverCardBlocks = {
@@ -9,30 +9,24 @@ type HoverCardBlocks = {
 /** Create hover card css() styles. */
 export function createHoverCardStyles(): CSSOutput<HoverCardBlocks> {
   const s = css({
-    hoverCardContent: [
-      'z:50',
-      'rounded:lg',
-      'border:1',
-      'border:border',
-      'bg:popover',
-      'text:popover-foreground',
-      'shadow:md',
-      'outline-none',
-      'p:4',
-      {
-        '&': { width: '16rem' },
-      },
-      {
-        '&[data-state="open"]': [
-          animationDecl('vz-fade-in 150ms ease-out forwards, vz-zoom-in 150ms ease-out forwards'),
-        ],
-      },
-      {
-        '&[data-state="closed"]': [
-          animationDecl('vz-fade-out 150ms ease-out forwards, vz-zoom-out 150ms ease-out forwards'),
-        ],
-      },
-    ],
+    hoverCardContent: {
+      zIndex: '50',
+      borderRadius: token.radius.lg,
+      borderWidth: '1px',
+      borderColor: token.color.border,
+      backgroundColor: token.color.popover,
+      color: token.color['popover-foreground'],
+      boxShadow: token.shadow.md,
+      outline: 'none',
+      padding: token.spacing[4],
+      '&': { width: '16rem' },
+      '&[data-state="open"]': animationDecl(
+        'vz-fade-in 150ms ease-out forwards, vz-zoom-in 150ms ease-out forwards',
+      ),
+      '&[data-state="closed"]': animationDecl(
+        'vz-fade-out 150ms ease-out forwards, vz-zoom-out 150ms ease-out forwards',
+      ),
+    },
   });
   return {
     content: s.hoverCardContent,

@@ -11,7 +11,7 @@ type SeparatorBlocks = {
 export function createSeparator(): CSSOutput<SeparatorBlocks> {
   const s = css({
     separatorBase: { backgroundColor: token.color.border, flexShrink: '0' },
-    separatorHorizontal: ['w:full', { '&': { height: '1px' } }],
+    separatorHorizontal: { width: '100%', '&': { height: '1px' } },
     separatorVertical: [
       {
         '&': {

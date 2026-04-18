@@ -25,16 +25,11 @@ export function createAvatarStyles(): CSSOutput<AvatarBlocks> {
       overflow: 'hidden',
       borderRadius: token.radius.full,
     },
-    avatarImage: [
-      'h:full',
-      'w:full',
-      {
-        '&': {
-          'aspect-ratio': '1 / 1',
-          'object-fit': 'cover',
-        },
-      },
-    ],
+    avatarImage: {
+      height: '100%',
+      width: '100%',
+      '&': { aspectRatio: '1 / 1', objectFit: 'cover' },
+    },
     avatarFallback: {
       display: 'flex',
       height: '100%',
