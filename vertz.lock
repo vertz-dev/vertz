@@ -2646,6 +2646,13 @@
   dependencies:
     "@types/node" "*"
 
+@types/bun@^1.3.12:
+  version "1.3.12"
+  resolved "https://registry.npmjs.org/@types/bun/-/bun-1.3.12.tgz"
+  integrity "sha512-DBv81elK+/VSwXHDlnH3Qduw+KxkTIWi7TXkAeh24zpi5l0B2kUg9Ga3tb4nJaPcOFswflgi/yAvMVBPrxMB+A=="
+  dependencies:
+    "bun-types" "1.3.12"
+
 @types/chai@^5.2.2:
   version "5.2.3"
   resolved "https://registry.npmjs.org/@types/chai/-/chai-5.2.3.tgz"
@@ -2851,7 +2858,7 @@
     "satori" "0.16.0"
 
 @vertz-benchmarks/vertz-app@link:benchmarks/vertz:
-  version "0.0.66"
+  version "0.0.69"
   resolved "link:benchmarks/vertz"
   integrity ""
 
@@ -2866,7 +2873,7 @@
   integrity ""
 
 @vertz-examples/task-manager@link:examples/task-manager:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:examples/task-manager"
   integrity ""
 
@@ -2886,27 +2893,27 @@
   integrity ""
 
 @vertz/cli-runtime@link:packages/cli-runtime:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/cli-runtime"
   integrity ""
 
 @vertz/cli@link:packages/cli:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/cli"
   integrity ""
 
 @vertz/cloudflare@link:packages/cloudflare:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/cloudflare"
   integrity ""
 
 @vertz/codegen@link:packages/codegen:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/codegen"
   integrity ""
 
 @vertz/compiler@link:packages/compiler:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/compiler"
   integrity ""
 
@@ -2916,22 +2923,22 @@
   integrity ""
 
 @vertz/core@link:packages/core:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/core"
   integrity ""
 
 @vertz/create-vertz-app@link:packages/create-vertz-app:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/create-vertz-app"
   integrity ""
 
 @vertz/db@link:packages/db:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/db"
   integrity ""
 
 @vertz/desktop@link:packages/desktop:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/desktop"
   integrity ""
 
@@ -2946,17 +2953,17 @@
   integrity ""
 
 @vertz/errors@link:packages/errors:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/errors"
   integrity ""
 
 @vertz/fetch@link:packages/fetch:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/fetch"
   integrity ""
 
 @vertz/icons@link:packages/icons:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/icons"
   integrity ""
 
@@ -2991,27 +2998,27 @@
   integrity ""
 
 @vertz/native-compiler-darwin-arm64@link:packages/native-compiler-darwin-arm64:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/native-compiler-darwin-arm64"
   integrity ""
 
 @vertz/native-compiler-darwin-x64@link:packages/native-compiler-darwin-x64:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/native-compiler-darwin-x64"
   integrity ""
 
 @vertz/native-compiler-linux-arm64@link:packages/native-compiler-linux-arm64:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/native-compiler-linux-arm64"
   integrity ""
 
 @vertz/native-compiler-linux-x64@link:packages/native-compiler-linux-x64:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/native-compiler-linux-x64"
   integrity ""
 
 @vertz/native-compiler@link:native/vertz-compiler:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:native/vertz-compiler"
   integrity ""
 
@@ -3026,37 +3033,37 @@
   integrity ""
 
 @vertz/runtime-darwin-arm64@link:packages/runtime-darwin-arm64:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/runtime-darwin-arm64"
   integrity ""
 
 @vertz/runtime-darwin-x64@link:packages/runtime-darwin-x64:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/runtime-darwin-x64"
   integrity ""
 
 @vertz/runtime-linux-arm64@link:packages/runtime-linux-arm64:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/runtime-linux-arm64"
   integrity ""
 
 @vertz/runtime-linux-x64@link:packages/runtime-linux-x64:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/runtime-linux-x64"
   integrity ""
 
 @vertz/runtime@link:packages/runtime:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/runtime"
   integrity ""
 
 @vertz/schema@link:packages/schema:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/schema"
   integrity ""
 
 @vertz/server@link:packages/server:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/server"
   integrity ""
 
@@ -3071,22 +3078,22 @@
   integrity ""
 
 @vertz/test@link:packages/test:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/test"
   integrity ""
 
 @vertz/testing@link:packages/testing:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/testing"
   integrity ""
 
 @vertz/theme-shadcn@link:packages/theme-shadcn:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/theme-shadcn"
   integrity ""
 
 @vertz/tui@link:packages/tui:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/tui"
   integrity ""
 
@@ -3096,22 +3103,22 @@
   integrity ""
 
 @vertz/ui-canvas@link:packages/ui-canvas:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/ui-canvas"
   integrity ""
 
 @vertz/ui-primitives@link:packages/ui-primitives:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/ui-primitives"
   integrity ""
 
 @vertz/ui-server@link:packages/ui-server:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/ui-server"
   integrity ""
 
 @vertz/ui@link:packages/ui:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/ui"
   integrity ""
 
@@ -3640,7 +3647,7 @@ cookie@^1.0.2:
   integrity "sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ=="
 
 create-vertz@link:packages/create-vertz:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/create-vertz"
   integrity ""
 
@@ -6868,7 +6875,7 @@ uuid@^13.0.0:
     "uuid" "dist-node/bin/uuid"
 
 vertz@link:packages/vertz:
-  version "0.2.68"
+  version "0.2.71"
   resolved "link:packages/vertz"
   integrity ""
 
