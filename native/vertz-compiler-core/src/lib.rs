@@ -15,6 +15,7 @@ pub mod fast_refresh;
 pub mod field_selection;
 pub mod hydration_markers;
 pub mod import_injection;
+pub mod innerhtml_diagnostics;
 pub mod jsx_transformer;
 pub mod magic_string;
 pub mod mock_hoisting;
@@ -382,6 +383,11 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
                         column: d.column,
                     }),
             );
+            all_diagnostics.extend(innerhtml_diagnostics::analyze_innerhtml(
+                &parser_ret.program,
+                comp,
+                source,
+            ));
 
             // Analyze mutations before transforms
             let mutations =
