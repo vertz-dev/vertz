@@ -75,7 +75,7 @@ function isSchemaLike(value: unknown): value is { parse(data: unknown): unknown 
  * OptionalSchema/DefaultSchema/NullableSchema (via `.unwrap()`) at each level.
  * Returns the field schema if found, or undefined if traversal fails.
  */
-function resolveFieldSchema(
+export function resolveFieldSchema(
   schema: FormSchema<unknown>,
   fieldPath: string,
 ): { parse(data: unknown): unknown } | undefined {
