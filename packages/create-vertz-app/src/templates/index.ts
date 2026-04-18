@@ -520,8 +520,8 @@ Use \`css()\` for layout-specific styles that don't correspond to a theme compon
 
 \`\`\`tsx
 const styles = css({
-  container: ['flex', 'flex-col', 'gap:4', 'p:6'],
-  heading: ['font:xl', 'font:bold', 'text:foreground'],
+  container: { display: 'flex', flexDirection: 'column', gap: token.spacing[4], padding: token.spacing[6] },
+  heading: { fontSize: token.font.size.xl, fontWeight: token.font.weight.bold, color: token.color.foreground },
 });
 
 return <div className={styles.container}>...</div>;
@@ -529,15 +529,24 @@ return <div className={styles.container}>...</div>;
 
 ### Style Tokens
 
-Styles use a token system (similar to Tailwind but with Vertz syntax):
+Styles use plain CSS properties combined with design tokens via the \`token\` helper:
 
-- **Layout:** \`flex\`, \`grid\`, \`block\`, \`inline-flex\`
-- **Spacing:** \`p:4\`, \`px:6\`, \`py:2\`, \`m:4\`, \`mx:auto\`, \`gap:2\`
-- **Typography:** \`font:lg\`, \`font:bold\`, \`font:medium\`, \`text:foreground\`, \`text:sm\`
-- **Colors:** \`bg:background\`, \`bg:primary.600\`, \`text:white\`, \`border:border\`
-- **Sizing:** \`w:full\`, \`h:screen\`, \`max-w:2xl\`, \`min-h:screen\`
-- **Borders:** \`rounded:md\`, \`rounded:lg\`, \`border:1\`, \`border:border\`
-- **Flexbox:** \`items:center\`, \`justify:between\`, \`flex-1\`, \`flex-col\`
+\`\`\`ts
+import { css, token } from 'vertz/ui';
+
+const styles = css({
+  card: {
+    padding: token.spacing[4],
+    backgroundColor: token.color.background,
+    color: token.color.foreground,
+    borderRadius: token.radius.md,
+    fontSize: token.font.size.sm,
+    fontWeight: token.font.weight.medium,
+  },
+});
+\`\`\`
+
+Common token paths: \`token.spacing[n]\`, \`token.color.<namespace>[.shade]\`, \`token.font.size.<size>\`, \`token.font.weight.<weight>\`, \`token.radius.<size>\`, \`token.shadow.<size>\`.
 
 ## Context
 
@@ -825,7 +834,7 @@ export const api = createClient();
  * src/app.tsx — SSR module exports + ThemeProvider + render HomePage
  */
 export function appComponentTemplate(): string {
-  return `import { css, DialogStackProvider, getInjectedCSS, globalCss, ThemeProvider } from 'vertz/ui';
+  return `import { DialogStackProvider, ThemeProvider, css, getInjectedCSS, globalCss, token } from 'vertz/ui';
 import { HomePage } from './pages/home';
 import { appTheme, themeGlobals } from './styles/theme';
 
@@ -837,18 +846,10 @@ const appGlobals = globalCss({
 });
 
 const styles = css({
-  shell: ['min-h:screen', 'bg:background', 'text:foreground'],
-  header: [
-    'flex',
-    'items:center',
-    'justify:between',
-    'px:6',
-    'py:4',
-    'border-b:1',
-    'border:border',
-  ],
-  title: ['font:lg', 'font:bold', 'text:foreground'],
-  main: ['max-w:2xl', 'mx:auto', 'px:6', 'py:8'],
+  shell: { minHeight: '100vh', backgroundColor: token.color.background, color: token.color.foreground },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingInline: token.spacing[6], paddingBlock: token.spacing[4], borderBottomWidth: '1px', borderColor: token.color.border },
+  title: { fontSize: token.font.size.lg, fontWeight: token.font.weight.bold, color: token.color.foreground },
+  main: { maxWidth: '42rem', marginInline: 'auto', paddingInline: token.spacing[6], paddingBlock: token.spacing[8] },
 });
 
 export { getInjectedCSS };
@@ -926,6 +927,7 @@ export function homePageTemplate(): string {
   globalCss,
   query,
   slideInFromTop,
+  token,
   useDialogStack,
 } from 'vertz/ui';
 import { Button, List } from '@vertz/ui/components';
@@ -943,44 +945,21 @@ void globalCss({
 });
 
 const styles = css({
-  container: ['py:2', 'w:full'],
-  heading: ['font:xl', 'font:bold', 'text:foreground', 'mb:4'],
-  form: ['flex', 'items:start', 'gap:2', 'mb:6'],
-  inputWrap: ['flex-1'],
-  input: [
-    'w:full',
-    'h:10',
-    'px:3',
-    'rounded:md',
-    'border:1',
-    'border:border',
-    'bg:background',
-    'text:foreground',
-    'text:sm',
-  ],
-  fieldError: ['text:destructive', 'font:xs', 'mt:1'],
-  list: ['flex', 'flex-col', 'gap:2'],
-  item: [
-    'flex',
-    'w:full',
-    'items:center',
-    'gap:3',
-    'px:4',
-    'py:3',
-    'rounded:md',
-    'border:1',
-    'border:border',
-    'bg:card',
-    'hover:bg:accent',
-    'transition:colors',
-  ],
-  checkbox: ['w:4', 'h:4', 'cursor:pointer', 'rounded:sm'],
-  label: ['flex-1', 'text:sm', 'text:foreground'],
-  labelDone: ['flex-1', 'text:sm', 'text:muted-foreground', 'decoration:line-through'],
-  loading: ['text:muted-foreground'],
-  error: ['text:destructive'],
-  empty: ['text:muted-foreground', 'text:center', 'py:8'],
-  count: ['text:xs', 'text:muted-foreground', 'mt:4'],
+  container: { paddingBlock: token.spacing[2], width: '100%' },
+  heading: { fontSize: token.font.size.xl, fontWeight: token.font.weight.bold, color: token.color.foreground, marginBottom: token.spacing[4] },
+  form: { display: 'flex', alignItems: 'flex-start', gap: token.spacing[2], marginBottom: token.spacing[6] },
+  inputWrap: { flex: '1 1 0%' },
+  input: { width: '100%', height: token.spacing[10], paddingInline: token.spacing[3], borderRadius: token.radius.md, borderWidth: '1px', borderColor: token.color.border, backgroundColor: token.color.background, color: token.color.foreground, fontSize: token.font.size.sm },
+  fieldError: { color: token.color.destructive, fontSize: token.font.size.xs, marginTop: token.spacing[1] },
+  list: { display: 'flex', flexDirection: 'column', gap: token.spacing[2] },
+  item: { display: 'flex', width: '100%', alignItems: 'center', gap: token.spacing[3], paddingInline: token.spacing[4], paddingBlock: token.spacing[3], borderRadius: token.radius.md, borderWidth: '1px', borderColor: token.color.border, backgroundColor: token.color.card, transition: 'colors', '&:hover': { backgroundColor: token.color.accent } },
+  checkbox: { width: token.spacing[4], height: token.spacing[4], cursor: 'pointer', borderRadius: token.radius.sm },
+  label: { flex: '1 1 0%', fontSize: token.font.size.sm, color: token.color.foreground },
+  labelDone: { flex: '1 1 0%', fontSize: token.font.size.sm, color: token.color['muted-foreground'], textDecoration: 'line-through' },
+  loading: { color: token.color['muted-foreground'] },
+  error: { color: token.color.destructive },
+  empty: { color: token.color['muted-foreground'], textAlign: 'center', paddingBlock: token.spacing[8] },
+  count: { fontSize: token.font.size.xs, color: token.color['muted-foreground'], marginTop: token.spacing[4] },
 });
 
 interface TaskItemProps {
@@ -1194,7 +1173,7 @@ export default {};
  * src/app.tsx for hello-world — App with RouterContext.Provider, RouterView, and NavBar
  */
 export function helloWorldAppTemplate(): string {
-  return `import { css, getInjectedCSS, globalCss, RouterContext, RouterView, ThemeProvider } from 'vertz/ui';
+  return `import { RouterContext, RouterView, ThemeProvider, css, getInjectedCSS, globalCss, token } from 'vertz/ui';
 import { appRouter } from './router';
 import { appTheme, themeGlobals } from './styles/theme';
 import { NavBar } from './components/nav-bar';
@@ -1207,8 +1186,8 @@ const appGlobals = globalCss({
 });
 
 const styles = css({
-  shell: ['min-h:screen', 'bg:background', 'text:foreground'],
-  main: ['max-w:2xl', 'mx:auto', 'px:6', 'py:8'],
+  shell: { minHeight: '100vh', backgroundColor: token.color.background, color: token.color.foreground },
+  main: { maxWidth: '42rem', marginInline: 'auto', paddingInline: token.spacing[6], paddingBlock: token.spacing[8] },
 });
 
 export { getInjectedCSS };
@@ -1242,15 +1221,15 @@ export function App() {
  * the Vertz compiler's signal transformation (let → signal)
  */
 export function helloWorldHomePageTemplate(): string {
-  return `import { css } from 'vertz/ui';
+  return `import { css, token } from 'vertz/ui';
 import { Button } from '@vertz/ui/components';
 
 const styles = css({
-  container: ['flex', 'flex-col', 'items:center', 'justify:center', 'py:16', 'gap:6'],
-  title: ['font:4xl', 'font:bold', 'text:foreground'],
-  subtitle: ['text:muted-foreground', 'text:lg'],
-  count: ['font:6xl', 'font:bold', 'text:primary'],
-  actions: ['flex', 'gap:3'],
+  container: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingBlock: token.spacing[16], gap: token.spacing[6] },
+  title: { fontSize: token.font.size['4xl'], fontWeight: token.font.weight.bold, color: token.color.foreground },
+  subtitle: { color: token.color['muted-foreground'], fontSize: token.font.size.lg },
+  count: { fontSize: token.font.size['5xl'], fontWeight: token.font.weight.bold, color: token.color.primary },
+  actions: { display: 'flex', gap: token.spacing[3] },
 });
 
 export function HomePage() {
@@ -1296,13 +1275,13 @@ export const appRouter = createRouter(routes);
  * src/pages/about.tsx for hello-world — simple second page
  */
 export function helloWorldAboutPageTemplate(): string {
-  return `import { css } from 'vertz/ui';
+  return `import { css, token } from 'vertz/ui';
 
 const styles = css({
-  container: ['flex', 'flex-col', 'items:center', 'justify:center', 'py:16', 'gap:4'],
-  title: ['font:3xl', 'font:bold', 'text:foreground'],
-  text: ['text:muted-foreground', 'text:lg', 'max-w:lg', 'text:center'],
-  code: ['font:mono', 'bg:muted', 'px:2', 'py:1', 'rounded:sm', 'text:sm'],
+  container: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingBlock: token.spacing[16], gap: token.spacing[4] },
+  title: { fontSize: token.font.size['3xl'], fontWeight: token.font.weight.bold, color: token.color.foreground },
+  text: { color: token.color['muted-foreground'], fontSize: token.font.size.lg, maxWidth: '32rem', textAlign: 'center' },
+  code: { fontFamily: token.font.family.mono, backgroundColor: token.color.muted, paddingInline: token.spacing[2], paddingBlock: token.spacing[1], borderRadius: token.radius.sm, fontSize: token.font.size.sm },
 });
 
 export function AboutPage() {
@@ -1325,22 +1304,14 @@ export function AboutPage() {
  * src/components/nav-bar.tsx for hello-world — navigation with Link
  */
 export function helloWorldNavBarTemplate(): string {
-  return `import { css, Link } from 'vertz/ui';
+  return `import { Link, css, token } from 'vertz/ui';
 
 const styles = css({
-  nav: [
-    'flex',
-    'items:center',
-    'justify:between',
-    'px:6',
-    'py:4',
-    'border-b:1',
-    'border:border',
-  ],
-  brand: ['font:lg', 'font:bold', 'text:foreground'],
-  links: ['flex', 'gap:4'],
-  link: ['text:sm', 'text:muted-foreground', 'hover:text:foreground', 'transition:colors'],
-  active: ['text:foreground', 'font:medium'],
+  nav: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingInline: token.spacing[6], paddingBlock: token.spacing[4], borderBottomWidth: '1px', borderColor: token.color.border },
+  brand: { fontSize: token.font.size.lg, fontWeight: token.font.weight.bold, color: token.color.foreground },
+  links: { display: 'flex', gap: token.spacing[4] },
+  link: { fontSize: token.font.size.sm, color: token.color['muted-foreground'], transition: 'colors', '&:hover': { color: token.color.foreground } },
+  active: { color: token.color.foreground, fontWeight: token.font.weight.medium },
 });
 
 export function NavBar() {
@@ -1460,7 +1431,7 @@ export function landingPagePackageJsonTemplate(projectName: string): string {
  * src/app.tsx for landing-page — dark theme, Nav + Footer in layout, RouterView
  */
 export function landingPageAppTemplate(): string {
-  return `import { css, getInjectedCSS, RouterContext, RouterView, ThemeProvider } from 'vertz/ui';
+  return `import { RouterContext, RouterView, ThemeProvider, css, getInjectedCSS, token } from 'vertz/ui';
 import { appRouter } from './router';
 import { Nav } from './components/nav';
 import { Footer } from './components/footer';
@@ -1468,8 +1439,8 @@ import { appTheme, themeGlobals } from './styles/theme';
 import { appGlobals } from './styles/globals';
 
 const styles = css({
-  shell: ['min-h:screen'],
-  main: ['max-w:5xl', 'mx:auto', 'px:6'],
+  shell: { minHeight: '100vh' },
+  main: { maxWidth: '64rem', marginInline: 'auto', paddingInline: token.spacing[6] },
 });
 
 export { getInjectedCSS };
@@ -1551,31 +1522,13 @@ export const appRouter = createRouter(routes);
  * src/components/nav.tsx for landing-page — fixed top nav with backdrop blur
  */
 export function landingPageNavTemplate(): string {
-  return `import { css, Link } from 'vertz/ui';
+  return `import { Link, css, token } from 'vertz/ui';
 
 const styles = css({
-  nav: [
-    'fixed',
-    'z:50',
-    'flex',
-    'items:center',
-    'justify:between',
-    'px:6',
-    'py:4',
-    {
-      '&': {
-        top: '0',
-        left: '0',
-        right: '0',
-        background: 'rgba(17,17,16,0.85)',
-        backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid #2A2826',
-      },
-    },
-  ],
-  brand: ['font:lg', 'font:bold'],
-  links: ['flex', 'items:center', 'gap:6'],
-  link: ['font:sm', 'transition:colors', { '&': { color: '#9C9690' }, '&:hover': { color: '#E8E4DC' } }],
+  nav: { position: 'fixed', zIndex: '50', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingInline: token.spacing[6], paddingBlock: token.spacing[4], '&': { top: '0', left: '0', right: '0', background: 'rgba(17,17,16,0.85)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #2A2826' } },
+  brand: { fontSize: token.font.size.lg, fontWeight: token.font.weight.bold },
+  links: { display: 'flex', alignItems: 'center', gap: token.spacing[6] },
+  link: { fontSize: token.font.size.sm, transition: 'colors', '&': { color: '#9C9690' }, '&:hover': { color: '#E8E4DC' } },
 });
 
 export function Nav() {
@@ -1596,21 +1549,13 @@ export function Nav() {
  * src/components/footer.tsx for landing-page — footer with links
  */
 export function landingPageFooterTemplate(): string {
-  return `import { css } from 'vertz/ui';
+  return `import { css, token } from 'vertz/ui';
 
 const styles = css({
-  footer: ['py:12', 'px:6', { '&': { borderTop: '1px solid #2A2826' } }],
-  container: [
-    'max-w:5xl',
-    'mx:auto',
-    'flex',
-    'items:center',
-    'justify:between',
-    'font:xs',
-    { '&': { color: '#6B6560' } },
-  ],
-  links: ['flex', 'items:center', 'gap:4'],
-  link: ['transition:colors', { '&:hover': { color: '#E8E4DC' } }],
+  footer: { paddingBlock: token.spacing[12], paddingInline: token.spacing[6], '&': { borderTop: '1px solid #2A2826' } },
+  container: { maxWidth: '64rem', marginInline: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: token.font.size.xs, '&': { color: '#6B6560' } },
+  links: { display: 'flex', alignItems: 'center', gap: token.spacing[4] },
+  link: { transition: 'colors', '&:hover': { color: '#E8E4DC' } },
 });
 
 export function Footer() {
@@ -1633,28 +1578,14 @@ export function Footer() {
  * src/components/hero.tsx for landing-page — hero section with headline and CTA
  */
 export function landingPageHeroTemplate(): string {
-  return `import { css } from 'vertz/ui';
+  return `import { css, token } from 'vertz/ui';
 import { Button } from '@vertz/ui/components';
 
 const styles = css({
-  section: [
-    'flex',
-    'flex-col',
-    'items:center',
-    'text:center',
-    'gap:6',
-    {
-      '&': { paddingTop: '10rem', paddingBottom: '6rem' },
-      '@media (min-width: 768px)': { paddingBottom: '8rem' },
-    },
-  ],
-  headline: [
-    'font:4xl',
-    'font:bold',
-    { '&': { color: '#E8E4DC', lineHeight: '1.1' }, '@media (min-width: 768px)': { fontSize: '3.5rem' } },
-  ],
-  subtitle: ['font:lg', 'max-w:2xl', { '&': { color: '#9C9690' } }],
-  actions: ['flex', 'gap:3', 'mt:4'],
+  section: { display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: token.spacing[6], '&': { paddingTop: '10rem', paddingBottom: '6rem' }, '@media (min-width: 768px)': { paddingBottom: '8rem' } },
+  headline: { fontSize: token.font.size['4xl'], fontWeight: token.font.weight.bold, '&': { color: '#E8E4DC', lineHeight: '1.1' }, '@media (min-width: 768px)': { fontSize: '3.5rem' } },
+  subtitle: { fontSize: token.font.size.lg, maxWidth: '42rem', '&': { color: '#9C9690' } },
+  actions: { display: 'flex', gap: token.spacing[3], marginTop: token.spacing[4] },
 });
 
 export function Hero() {
@@ -1678,34 +1609,16 @@ export function Hero() {
  * src/components/features-section.tsx for landing-page — feature cards grid
  */
 export function landingPageFeaturesSectionTemplate(): string {
-  return `import { css } from 'vertz/ui';
+  return `import { css, token } from 'vertz/ui';
 
 const styles = css({
-  section: ['py:16'],
-  heading: ['font:2xl', 'font:bold', 'text:center', 'mb:12', { '&': { color: '#E8E4DC' } }],
-  grid: [
-    'grid',
-    'gap:8',
-    {
-      '@media (min-width: 768px)': { gridTemplateColumns: 'repeat(3, 1fr)' },
-    },
-  ],
-  card: [
-    'flex',
-    'flex-col',
-    'gap:3',
-    'p:6',
-    {
-      '&': {
-        borderRadius: '8px',
-        border: '1px solid #2A2826',
-        background: 'rgba(17,17,16,0.5)',
-      },
-    },
-  ],
-  icon: ['font:2xl'],
-  title: ['font:lg', 'font:semibold', { '&': { color: '#E8E4DC' } }],
-  desc: ['font:sm', { '&': { color: '#9C9690', lineHeight: '1.6' } }],
+  section: { paddingBlock: token.spacing[16] },
+  heading: { fontSize: token.font.size['2xl'], fontWeight: token.font.weight.bold, textAlign: 'center', marginBottom: token.spacing[12], '&': { color: '#E8E4DC' } },
+  grid: { display: 'grid', gap: token.spacing[8], '@media (min-width: 768px)': { gridTemplateColumns: 'repeat(3, 1fr)' } },
+  card: { display: 'flex', flexDirection: 'column', gap: token.spacing[3], padding: token.spacing[6], '&': { borderRadius: '8px', border: '1px solid #2A2826', background: 'rgba(17,17,16,0.5)' } },
+  icon: { fontSize: token.font.size['2xl'] },
+  title: { fontSize: token.font.size.lg, fontWeight: token.font.weight.semibold, '&': { color: '#E8E4DC' } },
+  desc: { fontSize: token.font.size.sm, '&': { color: '#9C9690', lineHeight: '1.6' } },
 });
 
 const FEATURES = [
@@ -1737,29 +1650,13 @@ export function FeaturesSection() {
  * src/components/cta-section.tsx for landing-page — call-to-action banner
  */
 export function landingPageCtaSectionTemplate(): string {
-  return `import { css } from 'vertz/ui';
+  return `import { css, token } from 'vertz/ui';
 import { Button } from '@vertz/ui/components';
 
 const styles = css({
-  section: [
-    'py:16',
-    'flex',
-    'flex-col',
-    'items:center',
-    'text:center',
-    'gap:6',
-    {
-      '&': {
-        borderRadius: '12px',
-        border: '1px solid #2A2826',
-        background: 'rgba(200,69,27,0.04)',
-        margin: '4rem 0',
-        padding: '4rem 2rem',
-      },
-    },
-  ],
-  heading: ['font:2xl', 'font:bold', { '&': { color: '#E8E4DC' } }],
-  desc: ['font:md', 'max-w:lg', { '&': { color: '#9C9690' } }],
+  section: { paddingBlock: token.spacing[16], display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: token.spacing[6], '&': { borderRadius: '12px', border: '1px solid #2A2826', background: 'rgba(200,69,27,0.04)', margin: '4rem 0', padding: '4rem 2rem' } },
+  heading: { fontSize: token.font.size['2xl'], fontWeight: token.font.weight.bold, '&': { color: '#E8E4DC' } },
+  desc: { fontSize: token.font.size.base, maxWidth: '32rem', '&': { color: '#9C9690' } },
 });
 
 export function CtaSection() {
@@ -1800,33 +1697,16 @@ export function HomePage() {
  * src/pages/features.tsx for landing-page — features detail page
  */
 export function landingPageFeaturesPageTemplate(): string {
-  return `import { css } from 'vertz/ui';
+  return `import { css, token } from 'vertz/ui';
 
 const styles = css({
-  container: ['py:32', 'flex', 'flex-col', 'gap:12'],
-  title: ['font:3xl', 'font:bold', 'text:center', { '&': { color: '#E8E4DC' } }],
-  subtitle: ['font:lg', 'text:center', 'max-w:2xl', 'mx:auto', { '&': { color: '#9C9690' } }],
-  grid: [
-    'grid',
-    'gap:8',
-    'mt:8',
-    { '@media (min-width: 768px)': { gridTemplateColumns: 'repeat(2, 1fr)' } },
-  ],
-  card: [
-    'flex',
-    'flex-col',
-    'gap:3',
-    'p:8',
-    {
-      '&': {
-        borderRadius: '8px',
-        border: '1px solid #2A2826',
-        background: 'rgba(17,17,16,0.5)',
-      },
-    },
-  ],
-  cardTitle: ['font:xl', 'font:semibold', { '&': { color: '#E8E4DC' } }],
-  cardDesc: ['font:sm', { '&': { color: '#9C9690', lineHeight: '1.6' } }],
+  container: { paddingBlock: token.spacing[32], display: 'flex', flexDirection: 'column', gap: token.spacing[12] },
+  title: { fontSize: token.font.size['3xl'], fontWeight: token.font.weight.bold, textAlign: 'center', '&': { color: '#E8E4DC' } },
+  subtitle: { fontSize: token.font.size.lg, textAlign: 'center', maxWidth: '42rem', marginInline: 'auto', '&': { color: '#9C9690' } },
+  grid: { display: 'grid', gap: token.spacing[8], marginTop: token.spacing[8], '@media (min-width: 768px)': { gridTemplateColumns: 'repeat(2, 1fr)' } },
+  card: { display: 'flex', flexDirection: 'column', gap: token.spacing[3], padding: token.spacing[8], '&': { borderRadius: '8px', border: '1px solid #2A2826', background: 'rgba(17,17,16,0.5)' } },
+  cardTitle: { fontSize: token.font.size.xl, fontWeight: token.font.weight.semibold, '&': { color: '#E8E4DC' } },
+  cardDesc: { fontSize: token.font.size.sm, '&': { color: '#9C9690', lineHeight: '1.6' } },
 });
 
 export function FeaturesPage() {
@@ -1872,32 +1752,15 @@ export function FeaturesPage() {
  * src/pages/pricing.tsx for landing-page — pricing tiers with cards
  */
 export function landingPagePricingPageTemplate(): string {
-  return `import { css } from 'vertz/ui';
+  return `import { css, token } from 'vertz/ui';
 import { Button } from '@vertz/ui/components';
 
 const styles = css({
-  container: ['py:32', 'flex', 'flex-col', 'gap:12'],
-  title: ['font:3xl', 'font:bold', 'text:center', { '&': { color: '#E8E4DC' } }],
-  subtitle: ['font:lg', 'text:center', 'max-w:2xl', 'mx:auto', { '&': { color: '#9C9690' } }],
-  grid: [
-    'grid',
-    'gap:8',
-    'mt:8',
-    { '@media (min-width: 768px)': { gridTemplateColumns: 'repeat(3, 1fr)' } },
-  ],
-  card: [
-    'flex',
-    'flex-col',
-    'gap:4',
-    'p:8',
-    {
-      '&': {
-        borderRadius: '8px',
-        border: '1px solid #2A2826',
-        background: 'rgba(17,17,16,0.5)',
-      },
-    },
-  ],
+  container: { paddingBlock: token.spacing[32], display: 'flex', flexDirection: 'column', gap: token.spacing[12] },
+  title: { fontSize: token.font.size['3xl'], fontWeight: token.font.weight.bold, textAlign: 'center', '&': { color: '#E8E4DC' } },
+  subtitle: { fontSize: token.font.size.lg, textAlign: 'center', maxWidth: '42rem', marginInline: 'auto', '&': { color: '#9C9690' } },
+  grid: { display: 'grid', gap: token.spacing[8], marginTop: token.spacing[8], '@media (min-width: 768px)': { gridTemplateColumns: 'repeat(3, 1fr)' } },
+  card: { display: 'flex', flexDirection: 'column', gap: token.spacing[4], padding: token.spacing[8], '&': { borderRadius: '8px', border: '1px solid #2A2826', background: 'rgba(17,17,16,0.5)' } },
   featured: [
     {
       '&': {
@@ -1906,11 +1769,11 @@ const styles = css({
       },
     },
   ],
-  tierName: ['font:sm', 'uppercase', 'tracking:wider', { '&': { color: '#6B6560' } }],
-  price: ['font:3xl', 'font:bold', { '&': { color: '#E8E4DC' } }],
-  desc: ['font:sm', { '&': { color: '#9C9690' } }],
-  features: ['flex', 'flex-col', 'gap:2', 'mt:4', 'flex:1'],
-  feature: ['font:sm', { '&': { color: '#9C9690' } }],
+  tierName: { fontSize: token.font.size.sm, textTransform: 'uppercase', letterSpacing: 'wider', '&': { color: '#6B6560' } },
+  price: { fontSize: token.font.size['3xl'], fontWeight: token.font.weight.bold, '&': { color: '#E8E4DC' } },
+  desc: { fontSize: token.font.size.sm, '&': { color: '#9C9690' } },
+  features: { display: 'flex', flexDirection: 'column', gap: token.spacing[2], marginTop: token.spacing[4], '&': { flex: '1' } },
+  feature: { fontSize: token.font.size.sm, '&': { color: '#9C9690' } },
 });
 
 const TIERS = [
@@ -1992,8 +1855,8 @@ import { Button, Input, Card } from '@vertz/ui/components';
 
 \`\`\`ts
 const styles = css({
-  container: ['flex', 'flex-col', 'gap:6', 'py:16'],
-  heading: ['font:2xl', 'font:bold', { '&': { color: '#E8E4DC' } }],
+  container: { display: 'flex', flexDirection: 'column', gap: token.spacing[6], paddingTop: token.spacing[16], paddingBottom: token.spacing[16] },
+  heading: { fontSize: token.font.size['2xl'], fontWeight: token.font.weight.bold, color: '#E8E4DC' },
 });
 
 // Usage: className={styles.container}
@@ -2016,10 +1879,11 @@ Use \`@media\` queries inside \`css()\` style objects:
 
 \`\`\`ts
 const styles = css({
-  grid: [
-    'grid', 'gap:8',
-    { '@media (min-width: 768px)': { gridTemplateColumns: 'repeat(3, 1fr)' } },
-  ],
+  grid: {
+    display: 'grid',
+    gap: token.spacing[8],
+    '@media (min-width: 768px)': { gridTemplateColumns: 'repeat(3, 1fr)' },
+  },
 });
 \`\`\`
 

@@ -402,7 +402,7 @@ describe('templates', () => {
 
     it('has hover state on task items', () => {
       const result = homePageTemplate();
-      expect(result).toContain('hover:bg:accent');
+      expect(result).toContain("'&:hover': { backgroundColor: token.color.accent }");
     });
 
     it('uses List animate for animated list', () => {
