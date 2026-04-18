@@ -1,4 +1,3 @@
-import { Foreign } from '@vertz/ui';
 import { highlightCode, isHighlighterReady, onHighlighterReady } from '../lib/highlighter';
 
 type SupportedLang = 'tsx' | 'ts' | 'bash' | 'json';
@@ -55,20 +54,7 @@ export function CodeBlock({ code, lang = 'tsx', style }: CodeBlockProps) {
   return (
     <div style={containerStyle}>
       {highlighted ? (
-        // @ts-expect-error Foreign returns Element (not JSX.Element) — known type gap in framework primitive
-        <Foreign
-          tag="div"
-          className="code-block-highlighted"
-          onReady={(container) => {
-            (container as HTMLElement).innerHTML = highlighted;
-            const pre = container.querySelector('pre');
-            if (pre) {
-              // Force background to match page — CSS !important on .code-block-highlighted pre
-              // doesn't reliably override shiki's output in Bun's dev server CSS pipeline.
-              pre.style.setProperty('background-color', 'var(--color-background)', 'important');
-            }
-          }}
-        />
+        <div className="code-block-highlighted" innerHTML={highlighted} />
       ) : (
         <pre style={preStyle}>
           <code>{code}</code>

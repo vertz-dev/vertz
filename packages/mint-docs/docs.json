@@ -58,6 +58,7 @@
               "guides/ui/overview",
               "guides/ui/components",
               "guides/ui/component-library",
+              "guides/ui/raw-html",
               "guides/ui/reactivity",
               "guides/ui/styling",
               "guides/ui/routing",

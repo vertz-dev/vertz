@@ -16,6 +16,8 @@ export type { PresenceProps } from './component/presence';
 export { Presence } from './component/presence';
 export type { Ref } from './component/refs';
 export { ref } from './component/refs';
+export type { TrustedHTML } from './trusted-html';
+export { trusted } from './trusted-html';
 export type { SuspenseProps } from './component/suspense';
 export { Suspense } from './component/suspense';
 // CSS & Theming

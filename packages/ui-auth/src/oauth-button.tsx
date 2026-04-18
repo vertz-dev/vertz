@@ -20,17 +20,19 @@ function isSafeUrl(url: string): boolean {
  * For providers not in @vertz/icons (Google, Discord, Microsoft),
  * render the branded SVG from provider-icons.ts the same way @vertz/icons does.
  */
-function brandedIcon(providerId: string, size: number): HTMLSpanElement {
-  const span = document.createElement('span');
-  Object.assign(span.style, {
-    display: 'inline-flex',
-    alignItems: 'center',
-    width: `${size}px`,
-    height: `${size}px`,
-    flexShrink: '0',
-  });
-  span.innerHTML = getProviderIcon(providerId, size);
-  return span;
+function BrandedIcon({ providerId, size }: { providerId: string; size: number }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        width: `${size}px`,
+        height: `${size}px`,
+        flexShrink: '0',
+      }}
+      innerHTML={getProviderIcon(providerId, size)}
+    />
+  );
 }
 
 /** Map provider ID → icon component (from @vertz/icons) or null for branded SVGs. */
@@ -40,13 +42,12 @@ const ICON_COMPONENTS: Record<string, ((props?: IconProps) => HTMLSpanElement) |
   twitter: TwitterIcon,
 };
 
-function renderProviderIcon(providerId: string, size: number): HTMLSpanElement {
+function renderProviderIcon(providerId: string, size: number) {
   const IconComponent = ICON_COMPONENTS[providerId];
   if (IconComponent) {
     return IconComponent({ size });
   }
-  // Google, Discord, Microsoft, and unknown providers use branded SVGs
-  return brandedIcon(providerId, size);
+  return <BrandedIcon providerId={providerId} size={size} />;
 }
 
 const button = variants({

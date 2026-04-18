@@ -13,6 +13,7 @@ const DOM_HELPERS: &[&str] = &[
     "__exitChildren",
     "__flushMountFrame",
     "__formOnChange",
+    "__html",
     "__insert",
     "__list",
     "__listValue",
