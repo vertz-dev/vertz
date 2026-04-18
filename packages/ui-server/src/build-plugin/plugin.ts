@@ -1,5 +1,5 @@
 /**
- * Unified Bun plugin for Vertz UI compilation with optional HMR and Fast Refresh.
+ * Unified production-build plugin for Vertz UI compilation with optional HMR and Fast Refresh.
  *
  * Pipeline:
  * 1. Image transform (detects <Image>, processes images, replaces with <picture>)

@@ -20,7 +20,7 @@ vi.mock('../route-chunk-manifest', () => ({
   generateRouteChunkManifest: (...args: unknown[]) => mockGenerateRouteChunkManifest(...args),
 }));
 
-const mockCreateVertzBunPlugin = mock(() => {
+const mockCreateVertzBuildPlugin = mock(() => {
   const fileExtractions = new Map();
   fileExtractions.set('test.tsx', { css: '.test { color: red; }' });
   const plugin = { name: 'vertz-build-plugin-mock', setup() {} };
@@ -28,7 +28,7 @@ const mockCreateVertzBunPlugin = mock(() => {
 });
 
 vi.mock('@vertz/ui-server/build-plugin', () => ({
-  createVertzBuildPlugin: (...args: unknown[]) => mockCreateVertzBunPlugin(...args),
+  createVertzBuildPlugin: (...args: unknown[]) => mockCreateVertzBuildPlugin(...args),
 }));
 
 const mockGenerateAotBuildManifest = mock(() => ({
@@ -131,7 +131,7 @@ describe('buildUI', () => {
 
     // Reset all mock implementations to defaults
     mockBunBuild.mockImplementation(defaultBunBuildImpl);
-    mockCreateVertzBunPlugin.mockImplementation(() => {
+    mockCreateVertzBuildPlugin.mockImplementation(() => {
       const fileExtractions = new Map();
       fileExtractions.set('test.tsx', { css: '.test { color: red; }' });
       const plugin = { name: 'vertz-build-plugin-mock', setup() {} };
@@ -503,7 +503,7 @@ describe('buildUI', () => {
   // ── Top-level error handling ──────────────────────────────────────
 
   it('should handle top-level exception gracefully', async () => {
-    mockCreateVertzBunPlugin.mockImplementation(() => {
+    mockCreateVertzBuildPlugin.mockImplementation(() => {
       throw new Error('Plugin init failed');
     });
 
@@ -515,7 +515,7 @@ describe('buildUI', () => {
   });
 
   it('should handle non-Error exceptions in top-level catch', async () => {
-    mockCreateVertzBunPlugin.mockImplementation(() => {
+    mockCreateVertzBuildPlugin.mockImplementation(() => {
       throw 'string error';
     });
 

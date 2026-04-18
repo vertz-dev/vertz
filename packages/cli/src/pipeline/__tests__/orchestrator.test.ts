@@ -64,7 +64,7 @@ vi.mock('@vertz/codegen', () => ({
   }),
 }));
 
-const mockCreateVertzBunPlugin = mock(() => ({
+const mockCreateVertzBuildPlugin = mock(() => ({
   plugin: { name: 'vertz-build-plugin', setup: mock() },
   fileExtractions: new Map(),
   cssSidecarMap: new Map(),
@@ -74,7 +74,7 @@ const mockCreateVertzBunPlugin = mock(() => ({
 }));
 
 vi.mock('@vertz/ui-server/build-plugin', () => ({
-  createVertzBuildPlugin: mockCreateVertzBunPlugin,
+  createVertzBuildPlugin: mockCreateVertzBuildPlugin,
 }));
 
 const mockRun = mock().mockResolvedValue(undefined);
@@ -207,7 +207,7 @@ describe('PipelineOrchestrator', () => {
     });
 
     it('should call createVertzBuildPlugin when no injected validator is provided', async () => {
-      mockCreateVertzBunPlugin.mockClear();
+      mockCreateVertzBuildPlugin.mockClear();
 
       const noValidatorOrchestrator = new PipelineOrchestrator({
         sourceDir: 'src',
@@ -222,7 +222,7 @@ describe('PipelineOrchestrator', () => {
 
       expect(result.success).toBe(true);
       expect(result.stages[0]?.output).toBe('UI compiler validated');
-      expect(mockCreateVertzBunPlugin).toHaveBeenCalledWith({
+      expect(mockCreateVertzBuildPlugin).toHaveBeenCalledWith({
         hmr: false,
         fastRefresh: false,
       });
@@ -231,7 +231,7 @@ describe('PipelineOrchestrator', () => {
     });
 
     it('should report failure when createVertzBuildPlugin throws', async () => {
-      mockCreateVertzBunPlugin.mockImplementationOnce(() => {
+      mockCreateVertzBuildPlugin.mockImplementationOnce(() => {
         throw new Error('Cannot find module @vertz/ui/reactivity.json');
       });
 
