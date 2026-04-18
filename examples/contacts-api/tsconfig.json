@@ -7,7 +7,7 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ESNext",
-    "types": ["bun-types"]
+    "types": ["bun-types", "vertz/client"]
   },
   "exclude": ["src/generated"],
   "include": ["src"]

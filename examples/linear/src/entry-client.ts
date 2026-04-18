@@ -9,7 +9,7 @@ import { mount } from '@vertz/ui';
 import { App, styles } from './app';
 import { linearTheme } from './styles/theme';
 
-import.meta.hot.accept();
+import.meta.hot?.accept();
 
 mount(App, {
   theme: linearTheme,
