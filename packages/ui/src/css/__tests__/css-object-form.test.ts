@@ -126,5 +126,4 @@ describe('css() — object form (StyleBlock input)', () => {
       });
     });
   });
-
 });

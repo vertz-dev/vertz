@@ -161,7 +161,10 @@ User code only needs `import { css, token } from '@vertz/ui'`. No `internals` ac
 
 ```ts
 declare module '@vertz/ui' {
-  interface VertzThemeColors { background: string; primary: string; /* ... */ }
+  interface VertzThemeColors {
+    background: string;
+    primary: string; /* ... */
+  }
 }
 ```
 
@@ -347,11 +350,11 @@ test/         ← imports router
 
 ### What's Not Extensible
 
-| Feature                    | Limitation                                                                       |
-| -------------------------- | -------------------------------------------------------------------------------- |
-| Effect disposal            | Internal `_dispose()` method                                                     |
-| Custom reactive containers | No factory pattern exported                                                      |
-| Token scale customization  | Theme-defined via `defineTheme()` + module augmentation of `VertzTheme*` types   |
+| Feature                    | Limitation                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------ |
+| Effect disposal            | Internal `_dispose()` method                                                   |
+| Custom reactive containers | No factory pattern exported                                                    |
+| Token scale customization  | Theme-defined via `defineTheme()` + module augmentation of `VertzTheme*` types |
 
 ---
 

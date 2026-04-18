@@ -47,16 +47,16 @@ Each key in the object becomes a scoped class name. CSS property names use camel
 
 The `token` namespace is typed against your active theme. Use dot notation for camelCase token names and bracket notation for any token name that contains a hyphen or a shade number.
 
-| Expression                             | CSS output                            |
-| -------------------------------------- | ------------------------------------- |
-| `token.color.card`                     | `var(--color-card)`                   |
-| `token.color.foreground`               | `var(--color-foreground)`             |
-| `token.color['muted-foreground']`      | `var(--color-muted-foreground)`       |
-| `token.color.primary[600]`             | `var(--color-primary-600)`            |
-| `token.spacing[4]`                     | `var(--spacing-4)`                    |
-| `token.font.size.lg`                   | `var(--font-size-lg)`                 |
-| `token.font.weight.bold`               | `var(--font-weight-bold)`             |
-| `token.radius.lg`                      | `var(--radius-lg)`                    |
+| Expression                        | CSS output                      |
+| --------------------------------- | ------------------------------- |
+| `token.color.card`                | `var(--color-card)`             |
+| `token.color.foreground`          | `var(--color-foreground)`       |
+| `token.color['muted-foreground']` | `var(--color-muted-foreground)` |
+| `token.color.primary[600]`        | `var(--color-primary-600)`      |
+| `token.spacing[4]`                | `var(--spacing-4)`              |
+| `token.font.size.lg`              | `var(--font-size-lg)`           |
+| `token.font.weight.bold`          | `var(--font-weight-bold)`       |
+| `token.radius.lg`                 | `var(--radius-lg)`              |
 
 Raw CSS keywords like `'flex'`, `'center'`, `'100%'`, `'inherit'`, or `'transparent'` are passed through literally.
 
@@ -100,19 +100,19 @@ const styles = css({
 
 **Available namespaces** -- these are the color namespaces that support shade notation:
 
-| Namespace     | Example                          | CSS output                                       |
-| ------------- | -------------------------------- | ------------------------------------------------ |
-| `primary`     | `token.color.primary[600]`       | `background-color: var(--color-primary-600)`     |
-| `secondary`   | `token.color.secondary[400]`     | `color: var(--color-secondary-400)`              |
-| `accent`      | `token.color.accent[100]`        | `background-color: var(--color-accent-100)`      |
-| `gray`        | `token.color.gray[500]`          | `color: var(--color-gray-500)`                   |
-| `destructive` | `token.color.destructive[600]`   | `background-color: var(--color-destructive-600)` |
-| `danger`      | `token.color.danger[500]`        | `color: var(--color-danger-500)`                 |
-| `success`     | `token.color.success[100]`       | `background-color: var(--color-success-100)`     |
-| `warning`     | `token.color.warning[300]`       | `border-color: var(--color-warning-300)`         |
-| `info`        | `token.color.info[50]`           | `background-color: var(--color-info-50)`         |
-| `muted`       | `token.color.muted[600]`         | `color: var(--color-muted-600)`                  |
-| `surface`     | `token.color.surface[100]`       | `background-color: var(--color-surface-100)`     |
+| Namespace     | Example                        | CSS output                                       |
+| ------------- | ------------------------------ | ------------------------------------------------ |
+| `primary`     | `token.color.primary[600]`     | `background-color: var(--color-primary-600)`     |
+| `secondary`   | `token.color.secondary[400]`   | `color: var(--color-secondary-400)`              |
+| `accent`      | `token.color.accent[100]`      | `background-color: var(--color-accent-100)`      |
+| `gray`        | `token.color.gray[500]`        | `color: var(--color-gray-500)`                   |
+| `destructive` | `token.color.destructive[600]` | `background-color: var(--color-destructive-600)` |
+| `danger`      | `token.color.danger[500]`      | `color: var(--color-danger-500)`                 |
+| `success`     | `token.color.success[100]`     | `background-color: var(--color-success-100)`     |
+| `warning`     | `token.color.warning[300]`     | `border-color: var(--color-warning-300)`         |
+| `info`        | `token.color.info[50]`         | `background-color: var(--color-info-50)`         |
+| `muted`       | `token.color.muted[600]`       | `color: var(--color-muted-600)`                  |
+| `surface`     | `token.color.surface[100]`     | `background-color: var(--color-surface-100)`     |
 
 **Shade scale** -- each namespace supports shades from `50` (lightest) to `950` (darkest):
 

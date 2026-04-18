@@ -1,6 +1,6 @@
 ---
 title: CSS
-description: "API reference for css(), variants(), globalCss(), font(), and compileFonts()"
+description: 'API reference for css(), variants(), globalCss(), font(), and compileFonts()'
 ---
 
 Vertz provides scoped, utility-driven styling with `css()` for component styles, `variants()` for parameterized variants, `globalCss()` for resets and base styles, and `font()` + `compileFonts()` for font management.
@@ -47,10 +47,10 @@ function css<T extends CSSInput>(input: T, filePath?: string): CSSOutput<T>;
 
 ### Parameters
 
-| Parameter  | Type       | Description                                           |
-| ---------- | ---------- | ----------------------------------------------------- |
-| `input`    | `CSSInput` | Object mapping block names to `StyleBlock` objects    |
-| `filePath` | `string`   | Used internally by the compiler for scoping           |
+| Parameter  | Type       | Description                                        |
+| ---------- | ---------- | -------------------------------------------------- |
+| `input`    | `CSSInput` | Object mapping block names to `StyleBlock` objects |
+| `filePath` | `string`   | Used internally by the compiler for scoping        |
 
 ### Returns
 
@@ -172,12 +172,12 @@ function variants<V extends VariantDefinitions>(config: VariantsConfig<V>): Vari
 
 ### VariantsConfig
 
-| Property           | Type                   | Description                                                              |
-| ------------------ | ---------------------- | ------------------------------------------------------------------------ |
-| `base`             | `StyleBlock`           | Base styles applied to all variants                                      |
-| `variants`         | `V`                    | Object mapping variant names to option → `StyleBlock` maps               |
-| `defaultVariants`  | `Partial<V>`           | Default variant selections when not specified                            |
-| `compoundVariants` | `CompoundVariant<V>[]` | Styles applied when specific variant combinations are active             |
+| Property           | Type                   | Description                                                  |
+| ------------------ | ---------------------- | ------------------------------------------------------------ |
+| `base`             | `StyleBlock`           | Base styles applied to all variants                          |
+| `variants`         | `V`                    | Object mapping variant names to option → `StyleBlock` maps   |
+| `defaultVariants`  | `Partial<V>`           | Default variant selections when not specified                |
+| `compoundVariants` | `CompoundVariant<V>[]` | Styles applied when specific variant combinations are active |
 
 ### Returns
 

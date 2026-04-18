@@ -186,9 +186,7 @@ describe('compileTheme()', () => {
         'primary-foreground': { DEFAULT: '#eee' },
       },
     });
-    expect(() => compileTheme(theme)).toThrow(
-      /Color token collision.*--color-primary-foreground/,
-    );
+    expect(() => compileTheme(theme)).toThrow(/Color token collision.*--color-primary-foreground/);
   });
 
   it('accepts kebab-case color token keys', () => {

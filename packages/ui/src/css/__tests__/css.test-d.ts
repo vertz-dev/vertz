@@ -87,10 +87,7 @@ const _valid2 = css({
 });
 void _valid2;
 
-const _valid3 = css(
-  { root: { padding: '1rem' } },
-  '/app/components/card.ts',
-);
+const _valid3 = css({ root: { padding: '1rem' } }, '/app/components/card.ts');
 void _valid3;
 
 // @ts-expect-error - block value must be a StyleBlock object, not a string
