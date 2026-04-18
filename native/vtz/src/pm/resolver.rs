@@ -23,6 +23,47 @@ pub fn version_satisfies_range(version_str: &str, range_str: &str) -> bool {
     range.satisfies(&version)
 }
 
+/// Returns true iff `range_str` is a non-semver dependency specifier that
+/// `graph_to_lockfile` must match by name alone (no semver range check).
+///
+/// Includes `github:` specifiers, `link:` workspace refs, and dist-tag-shaped
+/// strings (`latest`, `next`, `beta`, or custom tags). Excludes semver ranges
+/// (`^1.2.3`, `1.x`, `*`, etc.) and protocol specs (`file:`, `workspace:`,
+/// `npm:`, `http://`) — those are filtered out by `is_dist_tag_shape` and
+/// never reach the graph anyway.
+fn is_non_semver_spec(range_str: &str) -> bool {
+    range_str.starts_with("github:")
+        || range_str.starts_with("link:")
+        || is_dist_tag_shape(range_str)
+}
+
+/// Returns true iff `s` looks like an npm dist-tag name.
+///
+/// Rules:
+/// - Non-empty
+/// - First char is ASCII alphabetic — excludes semver (`1.2.3`), operators (`~1.0`),
+///   and the `*` wildcard.
+/// - All chars are ASCII alphanumeric or `-` / `_` / `.` — excludes protocol
+///   specs (`file:`, `npm:`, `http://`), paths (`./x`), and ranges with
+///   whitespace (`>=1.0.0 <2.0.0`).
+/// - Does not parse as a semver range — rejects `x` / `x.x.x` wildcards that
+///   pass the shape check.
+fn is_dist_tag_shape(s: &str) -> bool {
+    let Some(first) = s.chars().next() else {
+        return false;
+    };
+    if !first.is_ascii_alphabetic() {
+        return false;
+    }
+    if !s
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+    {
+        return false;
+    }
+    Range::parse(s).is_err()
+}
+
 /// Returns true iff a lockfile entry's pinned version still satisfies `range_str`.
 ///
 /// This guards the lockfile-reuse fast path in `resolve_one_task`: a stale entry
@@ -33,6 +74,12 @@ pub fn version_satisfies_range(version_str: &str, range_str: &str) -> bool {
 ///
 /// GitHub entries (range starts with `github:`) are treated as always-valid here,
 /// because they are pinned by SHA — semver has no meaning for them.
+///
+/// Dist-tag specs (`"latest"`, `"next"`, etc.) intentionally return `false` here
+/// (they fall through to `version_satisfies_range`, which fails on `Range::parse`).
+/// The consequence is that every `vtz install` re-fetches registry metadata for
+/// dist-tag deps to verify the lockfile pin is still current. See #2794 for the
+/// lockfile-write fix and the deferred fast-path optimization.
 pub fn lockfile_entry_satisfies_range(entry: &LockfileEntry, range_str: &str) -> bool {
     if range_str.starts_with("github:") || range_str.starts_with("link:") {
         return true;
@@ -561,9 +608,10 @@ pub fn graph_to_lockfile(
         // Find the resolved version for this dep. Match by name AND by semver range:
         // without the range check, a root dep would get wired to whichever version was
         // hoisted, even if that version doesn't satisfy the declared range (see #2738).
-        // Fall back to name-only for `link:` workspace refs and `github:` specifiers,
-        // which are not semver.
-        let is_non_semver = range.starts_with("github:") || range.starts_with("link:");
+        // Fall back to name-only for non-semver specs — `github:`, `link:`, or
+        // dist-tags like `"latest"` / `"next"` (see #2794). Dist-tag resolution
+        // happens in `resolve_version`; this site just needs to honor the graph.
+        let is_non_semver = is_non_semver_spec(range);
         if let Some(pkg) = graph.packages.values().find(|p| {
             p.name == *name
                 && p.nest_path.is_empty()
@@ -604,8 +652,17 @@ pub fn graph_to_lockfile(
         for (dep_name, dep_range) in all_transitive {
             let key = Lockfile::spec_key(dep_name, dep_range);
             if let std::collections::btree_map::Entry::Vacant(entry) = lockfile.entries.entry(key) {
-                let dep_pkg = if dep_range.starts_with("github:") {
-                    // GitHub dep: match by exact range string equality
+                let dep_pkg = if is_non_semver_spec(dep_range) {
+                    // Non-semver dep (`github:`, `link:`, or dist-tag like `"latest"`):
+                    // match by name only. Dist-tags are resolved upstream in
+                    // `resolve_version`, so a matching name in the graph is the
+                    // correct lockfile target (see #2794).
+                    //
+                    // Known edge: when `graph.packages` holds multiple versions
+                    // of the same name (e.g. sibling dep pulls a different
+                    // range), `find()` returns first-by-key (lexicographically
+                    // lowest version) instead of the dist-tag-resolved version.
+                    // Tracked in #2796.
                     graph.packages.values().find(|p| p.name == *dep_name)
                 } else {
                     // npm dep: match by semver range satisfaction.
@@ -881,6 +938,80 @@ mod tests {
         );
     }
 
+    // #2794: dist-tag classifier — recognizes npm dist-tag specs like "latest",
+    // "next", and custom tags as non-semver, distinct from both `github:`/`link:`
+    // specifiers and semver ranges. Used by `graph_to_lockfile` to match by name
+    // when the range string isn't a valid semver range.
+    #[test]
+    fn test_is_non_semver_spec_dist_tag_latest() {
+        assert!(
+            is_non_semver_spec("latest"),
+            "'latest' must be classified as a non-semver (dist-tag) spec"
+        );
+    }
+
+    #[test]
+    fn test_is_non_semver_spec_github_prefix() {
+        assert!(is_non_semver_spec("github:owner/repo"));
+        assert!(is_non_semver_spec("github:owner/repo#main"));
+    }
+
+    #[test]
+    fn test_is_non_semver_spec_link_prefix() {
+        assert!(is_non_semver_spec("link:../ws-pkg"));
+    }
+
+    #[test]
+    fn test_is_non_semver_spec_other_dist_tags() {
+        // Standard and custom tag names are all dist-tag-shaped.
+        assert!(is_non_semver_spec("next"));
+        assert!(is_non_semver_spec("beta"));
+        assert!(is_non_semver_spec("canary-build"));
+        assert!(is_non_semver_spec("alpha_1"));
+    }
+
+    #[test]
+    fn test_is_non_semver_spec_rejects_semver_ranges() {
+        assert!(!is_non_semver_spec("1.2.3"));
+        assert!(!is_non_semver_spec("^1.2.3"));
+        assert!(!is_non_semver_spec("~1.0.0"));
+        assert!(!is_non_semver_spec(">=1.0.0 <2.0.0"));
+        assert!(!is_non_semver_spec("1.x"));
+        assert!(
+            !is_non_semver_spec("*"),
+            "'*' is a semver wildcard, not a tag"
+        );
+    }
+
+    #[test]
+    fn test_is_non_semver_spec_rejects_protocol_specs() {
+        // Protocol specs (file:, workspace:, npm:) don't reach the graph via
+        // resolve_version. Even if they did, the shape check keeps them out
+        // of the dist-tag class.
+        assert!(!is_non_semver_spec("file:./x"));
+        assert!(!is_non_semver_spec("workspace:*"));
+        assert!(!is_non_semver_spec("npm:react@1.0.0"));
+        assert!(!is_non_semver_spec("http://example.com/pkg.tgz"));
+    }
+
+    #[test]
+    fn test_is_non_semver_spec_edge_cases() {
+        assert!(!is_non_semver_spec(""), "empty string is not a dist-tag");
+        assert!(
+            !is_non_semver_spec("1latest"),
+            "digit-prefixed strings aren't tag-shaped"
+        );
+    }
+
+    #[test]
+    fn test_is_dist_tag_shape_rejects_semver_wildcards() {
+        // `x` and `x.x.x` pass the char shape check but parse as semver
+        // wildcards — Range::parse accepts them, so they must NOT be classified
+        // as dist-tags.
+        assert!(!is_dist_tag_shape("x"));
+        assert!(!is_dist_tag_shape("x.x.x"));
+    }
+
     #[test]
     fn test_graph_to_lockfile_rejects_hoisted_version_outside_range() {
         // Regression for #2738: if the hoisted package version does not satisfy
@@ -997,6 +1128,244 @@ mod tests {
 
         // Single version should remain at root
         assert!(graph.packages["zod@3.24.4"].nest_path.is_empty());
+    }
+
+    // #2794: when the graph has both a root and a nested version of the same
+    // package, a dist-tag root dep must pick the root (hoisted) version.
+    #[test]
+    fn test_graph_to_lockfile_dist_tag_respects_nest_path() {
+        let mut graph = ResolvedGraph::default();
+        graph.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: "root-url".to_string(),
+                integrity: "root-integrity".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+        graph.packages.insert(
+            "zod@4.0.0".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "4.0.0".to_string(),
+                tarball_url: "nested-url".to_string(),
+                integrity: "nested-integrity".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec!["some-parent".to_string()],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        let mut deps = BTreeMap::new();
+        deps.insert("zod".to_string(), "latest".to_string());
+
+        let lockfile = graph_to_lockfile(&graph, &deps, &[], &HashSet::new());
+        let entry = &lockfile.entries["zod@latest"];
+        assert_eq!(
+            entry.version, "3.24.4",
+            "dist-tag root dep must pick the root (nest_path=[]) version, not nested"
+        );
+        assert_eq!(entry.resolved, "root-url");
+    }
+
+    // #2794: a transitive dep declared with a dist-tag spec (e.g. `"bar": "latest"`
+    // inside another package's `dependencies`) must also land in the lockfile.
+    // Separate match site from the root-dep loop — has its own code path.
+    #[test]
+    fn test_graph_to_lockfile_dist_tag_transitive_dep() {
+        let mut graph = ResolvedGraph::default();
+
+        // foo@1.0.0 depends on bar@latest
+        let mut foo_deps = BTreeMap::new();
+        foo_deps.insert("bar".to_string(), "latest".to_string());
+        graph.packages.insert(
+            "foo@1.0.0".to_string(),
+            ResolvedPackage {
+                name: "foo".to_string(),
+                version: "1.0.0".to_string(),
+                tarball_url: "foo-url".to_string(),
+                integrity: "foo-integrity".to_string(),
+                dependencies: foo_deps,
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        // bar@2.5.0 — what `latest` resolved to
+        graph.packages.insert(
+            "bar@2.5.0".to_string(),
+            ResolvedPackage {
+                name: "bar".to_string(),
+                version: "2.5.0".to_string(),
+                tarball_url: "bar-url".to_string(),
+                integrity: "bar-integrity".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        let mut deps = BTreeMap::new();
+        deps.insert("foo".to_string(), "^1.0.0".to_string());
+
+        let lockfile = graph_to_lockfile(&graph, &deps, &[], &HashSet::new());
+        let entry = lockfile
+            .entries
+            .get("bar@latest")
+            .expect("transitive dist-tag dep must be written to the lockfile");
+        assert_eq!(entry.version, "2.5.0");
+        assert_eq!(entry.resolved, "bar-url");
+    }
+
+    // #2796: documents the current (wrong) behavior when a transitive dist-tag
+    // dep collides with a sibling that pulls a different version of the same
+    // name. Name-only `find()` returns first-by-key, not the dist-tag-resolved
+    // version. Real fix needs `resolved_from_tag` plumbing — tracked separately.
+    #[test]
+    fn test_graph_to_lockfile_dist_tag_transitive_multi_version_is_first_by_key() {
+        let mut graph = ResolvedGraph::default();
+
+        // foo@1.0.0 declares "bar": "latest" — resolves to bar@2.5.0
+        let mut foo_deps = BTreeMap::new();
+        foo_deps.insert("bar".to_string(), "latest".to_string());
+        graph.packages.insert(
+            "foo@1.0.0".to_string(),
+            ResolvedPackage {
+                name: "foo".to_string(),
+                version: "1.0.0".to_string(),
+                tarball_url: "foo-url".to_string(),
+                integrity: "foo-integrity".to_string(),
+                dependencies: foo_deps,
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        // baz@1.0.0 declares "bar": "^1.0.0" — resolves to bar@1.0.0
+        let mut baz_deps = BTreeMap::new();
+        baz_deps.insert("bar".to_string(), "^1.0.0".to_string());
+        graph.packages.insert(
+            "baz@1.0.0".to_string(),
+            ResolvedPackage {
+                name: "baz".to_string(),
+                version: "1.0.0".to_string(),
+                tarball_url: "baz-url".to_string(),
+                integrity: "baz-integrity".to_string(),
+                dependencies: baz_deps,
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        graph.packages.insert(
+            "bar@1.0.0".to_string(),
+            ResolvedPackage {
+                name: "bar".to_string(),
+                version: "1.0.0".to_string(),
+                tarball_url: "bar-1-url".to_string(),
+                integrity: "bar-1-integrity".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        graph.packages.insert(
+            "bar@2.5.0".to_string(),
+            ResolvedPackage {
+                name: "bar".to_string(),
+                version: "2.5.0".to_string(),
+                tarball_url: "bar-2-url".to_string(),
+                integrity: "bar-2-integrity".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        let mut deps = BTreeMap::new();
+        deps.insert("foo".to_string(), "^1.0.0".to_string());
+        deps.insert("baz".to_string(), "^1.0.0".to_string());
+
+        let lockfile = graph_to_lockfile(&graph, &deps, &[], &HashSet::new());
+        let entry = lockfile
+            .entries
+            .get("bar@latest")
+            .expect("transitive dist-tag entry must exist");
+        // Current behavior: first-by-key wins. Once #2796 is fixed, this should
+        // assert "2.5.0" instead.
+        assert_eq!(
+            entry.version, "1.0.0",
+            "documents #2796 — rewrite when fix lands"
+        );
+    }
+
+    // #2794: a root dep declared with a dist-tag spec (`"latest"`) must land
+    // in the lockfile pinned to the resolved version, not be silently dropped.
+    #[test]
+    fn test_graph_to_lockfile_dist_tag_root_dep() {
+        let mut graph = ResolvedGraph::default();
+        graph.packages.insert(
+            "@types/bun@1.3.12".to_string(),
+            ResolvedPackage {
+                name: "@types/bun".to_string(),
+                version: "1.3.12".to_string(),
+                tarball_url: "https://registry.npmjs.org/@types/bun/-/bun-1.3.12.tgz".to_string(),
+                integrity: "sha512-bun-tag".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        let mut deps = BTreeMap::new();
+        deps.insert("@types/bun".to_string(), "latest".to_string());
+
+        let lockfile = graph_to_lockfile(&graph, &deps, &[], &HashSet::new());
+        assert_eq!(
+            lockfile.entries.len(),
+            1,
+            "dist-tag dep must produce a lockfile entry"
+        );
+
+        let entry = &lockfile.entries["@types/bun@latest"];
+        assert_eq!(entry.version, "1.3.12");
+        assert_eq!(
+            entry.resolved,
+            "https://registry.npmjs.org/@types/bun/-/bun-1.3.12.tgz"
+        );
+        assert_eq!(entry.integrity, "sha512-bun-tag");
     }
 
     #[test]
