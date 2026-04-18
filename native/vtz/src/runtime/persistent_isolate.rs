@@ -1352,9 +1352,18 @@ const SSR_RENDER_LEGACY_JS: &str = r#"
 /// Dispatch a single SSR render request in the V8 isolate.
 ///
 /// Installs the DOM shim for the duration of the render, then uninstalls it
-/// on every exit path (success, error, timeout). See #2760 for background:
-/// server handlers run in a clean Worker-like environment without DOM globals,
-/// so the shim must be scoped to the SSR boundary only.
+/// after the inner function returns (Ok or Err, including internal SSR
+/// timeouts). See #2760 for background: server handlers run in a clean
+/// Worker-like environment without DOM globals, so the shim must be scoped to
+/// the SSR boundary only.
+///
+/// NOTE on cleanup: a Rust panic or tokio task cancellation would skip
+/// uninstall, but the V8 isolate is single-threaded and owns the runtime, so
+/// a panic here takes the isolate down anyway. `__vertz_install_dom_shim()`
+/// is also idempotent — a stale install is a no-op on the next dispatch, and
+/// `SSR_RESET_JS` refreshes the document/body on every render. If we ever
+/// add cancellation-prone call paths (e.g., a select over dispatch), switch
+/// to a scopeguard-style RAII uninstall.
 async fn dispatch_ssr_request(
     runtime: &mut crate::runtime::js_runtime::VertzJsRuntime,
     request: &SsrRequest,
@@ -2537,6 +2546,109 @@ mod tests {
             resp_b.content.contains("User: anonymous"),
             "Request B should NOT see session from request A: {}",
             resp_b.content
+        );
+    }
+
+    /// Verifies #2760: after SSR render completes, the DOM shim is uninstalled
+    /// so API handlers (which run in the same isolate) see a clean Worker-like
+    /// environment. If uninstall is broken, `document` leaks into handler code.
+    #[tokio::test]
+    async fn test_ssr_render_leaves_no_browser_globals_for_handler() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let app_path = temp_dir.path().join("app.js");
+        std::fs::write(
+            &app_path,
+            r#"
+            globalThis.__vertz_ssr_render = function(url) {
+                // Inside SSR the shim must be installed.
+                const documentInSsr = typeof document !== 'undefined';
+                return '<div>documentInSsr=' + documentInSsr + '</div>';
+            };
+            "#,
+        )
+        .unwrap();
+
+        // Handler reports whether browser globals leaked into its context.
+        let server_path = temp_dir.path().join("server.js");
+        std::fs::write(
+            &server_path,
+            r#"
+            const handler = async (request) => {
+                const report = {
+                    window: typeof window,
+                    document: typeof document,
+                    location: typeof location,
+                    history: typeof history,
+                    HTMLElement: typeof HTMLElement,
+                };
+                return new Response(JSON.stringify(report), {
+                    status: 200,
+                    headers: { 'content-type': 'application/json' },
+                });
+            };
+            globalThis.__vertz_server_module = { default: { handler } };
+            "#,
+        )
+        .unwrap();
+
+        let opts = PersistentIsolateOptions {
+            root_dir: temp_dir.path().to_path_buf(),
+            ssr_entry: app_path,
+            server_entry: Some(server_path),
+            channel_capacity: 16,
+            auto_installer: None,
+            init_timeout: None,
+            enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
+        };
+
+        let isolate = PersistentIsolate::new(opts).unwrap();
+        wait_for_init(&isolate).await;
+
+        // 1. Run an SSR render to install/uninstall the shim.
+        let ssr_resp = isolate
+            .handle_ssr(SsrRequest {
+                cookies: None,
+                url: "/home".to_string(),
+                session_json: None,
+            })
+            .await
+            .unwrap();
+        assert!(
+            ssr_resp.content.contains("documentInSsr=true"),
+            "document must be visible inside SSR render: {}",
+            ssr_resp.content
+        );
+
+        // 2. Hit the API handler — it must see a clean environment.
+        let api_resp = isolate
+            .handle_request(IsolateRequest {
+                method: "GET".to_string(),
+                url: "http://localhost/api/env".to_string(),
+                headers: vec![],
+                body: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(api_resp.status, 200);
+        let report: serde_json::Value = serde_json::from_slice(&api_resp.body).unwrap();
+        assert_eq!(report["window"], "undefined", "window leaked: {}", report);
+        assert_eq!(
+            report["document"], "undefined",
+            "document leaked: {}",
+            report
+        );
+        assert_eq!(
+            report["location"], "undefined",
+            "location leaked: {}",
+            report
+        );
+        assert_eq!(report["history"], "undefined", "history leaked: {}", report);
+        assert_eq!(
+            report["HTMLElement"], "undefined",
+            "HTMLElement leaked: {}",
+            report
         );
     }
 

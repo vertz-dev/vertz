@@ -1023,8 +1023,11 @@ pub const DOM_SHIM_JS: &str = r#"
       length: 1,
     };
 
-    // Start each render with a clean CSS collector.
-    globalThis.__vertz_css_state.length = 0;
+    // Intentionally NOT resetting __vertz_css_state here. The dispatch-level
+    // reset scripts (SSR_RESET_JS / COMPONENT_RESET_JS in persistent_isolate)
+    // own per-request CSS isolation, including snapshotting module-level
+    // baseline CSS on first call. Wiping here would destroy that baseline
+    // before the snapshot can capture it.
   };
 
   globalThis.__vertz_uninstall_dom_shim = function () {
@@ -1950,11 +1953,14 @@ mod tests {
                 "<test>",
                 r#"
                 globalThis.__vertz_uninstall_dom_shim();
+                // Inject + collector API remain available while uninstalled.
                 const beforeExists = typeof globalThis.__vertz_inject_css === 'function';
+                globalThis.__vertz_clear_collected_css();
                 globalThis.__vertz_inject_css('a { color: red; }');
                 const afterFirst = globalThis.__vertz_get_collected_css().length;
+                // Install must NOT wipe collected CSS — dispatch-level reset
+                // owns per-request CSS isolation, including baseline capture.
                 globalThis.__vertz_install_dom_shim();
-                // install resets the collector for the new render
                 const afterInstall = globalThis.__vertz_get_collected_css().length;
                 globalThis.__vertz_inject_css('b { color: blue; }');
                 const afterSecond = globalThis.__vertz_get_collected_css().length;
@@ -1964,7 +1970,7 @@ mod tests {
                 "#,
             )
             .unwrap();
-        assert_eq!(result, serde_json::json!([true, 1, 0, 1, true]));
+        assert_eq!(result, serde_json::json!([true, 1, 1, 2, true]));
     }
 
     #[test]

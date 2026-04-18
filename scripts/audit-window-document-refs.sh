@@ -99,7 +99,13 @@ ALLOWLIST=(
   "packages/ui/src/test/test-router.ts"
 )
 
-PATTERN='(^|[^A-Za-z_.$])(window|document|location|history)\.'
+# Matches:
+#   - Dotted access:  foo.window.bar, document.body, !location, history.back()
+#   - Bracket access: globalThis['window'], obj["document"]
+# Does NOT catch destructuring (`const { window } = ...`), dynamic keys, or
+# type-cast bypasses (`(g as any).window`). The trip-wire leaves those to
+# human review — the goal is to make the easy/accidental references fail CI.
+PATTERN='(^|[^A-Za-z_.$])(window|document|location|history)\.|\[["'"'"'](window|document|location|history)["'"'"']\]'
 
 declare -A ALLOWED
 for f in "${ALLOWLIST[@]}"; do
