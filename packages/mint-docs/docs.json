@@ -99,7 +99,8 @@
               "guides/server/codegen",
               "guides/server/oauth",
               "guides/server/services",
-              "guides/env"
+              "guides/env",
+              "guides/hmr-types"
             ]
           },
           {
