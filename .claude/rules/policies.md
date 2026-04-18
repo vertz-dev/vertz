@@ -27,6 +27,7 @@
   - `no-wrong-effect` — use `domEffect()` or `lifecycleEffect()`
   - `no-body-jsx` — no JSX in variable initializers
   - `no-try-catch-result` — no try/catch around error-as-value APIs
+  - `no-narrowing-let` — flags union-typed `let` in top-level components (`.tsx`); autofixes to `let x: T = v as T`
 - Built-in `typescript/ban-ts-comment` (error) — use `@ts-expect-error` instead of `@ts-ignore`
 
 ## Linting & Formatting (Rust)
