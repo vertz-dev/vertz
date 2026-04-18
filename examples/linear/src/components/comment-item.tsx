@@ -1,13 +1,31 @@
-import { css, formatRelativeTime } from '@vertz/ui';
+import { css, formatRelativeTime, token } from '@vertz/ui';
 import type { Comment } from '../lib/types';
 
 const styles = css({
-  comment: ['py:3', 'border-b:1', 'border:border'],
-  header: ['flex', 'items:center', 'gap:2', 'mb:1'],
-  avatar: ['w:6', 'h:6', 'rounded:full'],
-  author: ['text:sm', 'font:medium', 'text:foreground'],
-  date: ['text:xs', 'text:muted-foreground'],
-  body: ['text:sm', 'text:foreground', 'leading:relaxed', 'm:0'],
+  comment: {
+    paddingBlock: token.spacing[3],
+    borderBottomWidth: '1px',
+    borderColor: token.color.border,
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[2],
+    marginBottom: token.spacing[1],
+  },
+  avatar: { width: token.spacing[6], height: token.spacing[6], borderRadius: token.radius.full },
+  author: {
+    fontSize: token.font.size.sm,
+    fontWeight: token.font.weight.medium,
+    color: token.color.foreground,
+  },
+  date: { fontSize: token.font.size.xs, color: token.color['muted-foreground'] },
+  body: {
+    fontSize: token.font.size.sm,
+    color: token.color.foreground,
+    lineHeight: token.font.lineHeight.relaxed,
+    margin: token.spacing[0],
+  },
 });
 
 interface CommentItemProps {

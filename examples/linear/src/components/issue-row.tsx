@@ -1,24 +1,41 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { PRIORITY_CONFIG, STATUS_COLORS, STATUS_LABELS } from '../lib/issue-config';
 import type { Issue } from '../lib/types';
 
 const styles = css({
-  row: [
-    'flex',
-    'items:center',
-    'gap:3',
-    'px:4',
-    'py:3',
-    'border-b:1',
-    'border:border',
-    'cursor:pointer',
-    'transition:colors',
-    'hover:bg:accent',
-  ],
-  identifier: ['text:xs', 'text:muted-foreground', 'w:20', 'shrink-0'],
-  title: ['text:sm', 'text:foreground', 'flex-1', 'overflow-hidden', 'whitespace-nowrap'],
-  status: ['text:xs', 'px:2', 'py:0.5', 'rounded:full', 'shrink-0'],
-  priority: ['text:xs', 'shrink-0', 'font:medium'],
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[3],
+    paddingInline: token.spacing[4],
+    paddingBlock: token.spacing[3],
+    borderBottomWidth: '1px',
+    borderColor: token.color.border,
+    cursor: 'pointer',
+    transition: 'colors',
+    '&:hover': { backgroundColor: token.color.accent },
+  },
+  identifier: {
+    fontSize: token.font.size.xs,
+    color: token.color['muted-foreground'],
+    width: token.spacing[20],
+    flexShrink: '0',
+  },
+  title: {
+    fontSize: token.font.size.sm,
+    color: token.color.foreground,
+    flex: '1 1 0%',
+    overflow: 'hidden',
+    whiteSpace: 'nowrap',
+  },
+  status: {
+    fontSize: token.font.size.xs,
+    paddingInline: token.spacing[2],
+    paddingBlock: token.spacing['0.5'],
+    borderRadius: token.radius.full,
+    flexShrink: '0',
+  },
+  priority: { fontSize: token.font.size.xs, flexShrink: '0', fontWeight: token.font.weight.medium },
 });
 
 interface IssueRowProps {

@@ -1,5 +1,5 @@
 import type { DialogHandle } from '@vertz/ui';
-import { css, form, query, useDialogStack } from '@vertz/ui';
+import { css, form, query, token, useDialogStack } from '@vertz/ui';
 import { Button, Dialog } from '@vertz/ui/components';
 import { api } from '../api/client';
 import { LABEL_COLORS } from '../lib/issue-config';
@@ -7,33 +7,63 @@ import type { Label } from '../lib/types';
 import { formStyles, inputStyles, labelStyles } from '../styles/components';
 
 const styles = css({
-  list: ['flex', 'flex-col', 'gap:2', 'mb:4', 'max-h:80', 'overflow-y:auto'],
-  item: ['flex', 'items:center', 'gap:2', 'px:3', 'py:2', 'rounded:md', 'bg:muted'],
-  dot: ['w:3', 'h:3', 'rounded:full', 'shrink-0'],
-  name: ['flex-1', 'text:sm', 'text:foreground'],
-  actions: ['flex', 'gap:1'],
-  formContainer: ['flex', 'flex-col', 'gap:3', 'mb:4'],
-  colorGrid: ['flex', 'flex-wrap', 'gap:2'],
-  colorButton: [
-    'w:6',
-    'h:6',
-    'rounded:full',
-    'border:2',
-    'border:transparent',
-    'cursor:pointer',
-    'transition:all',
-    'hover:border:foreground',
-  ],
-  colorSelected: [
-    'w:6',
-    'h:6',
-    'rounded:full',
-    'border:2',
-    'border:foreground',
-    'cursor:pointer',
-    'transition:all',
-  ],
-  empty: ['text:sm', 'text:muted-foreground', 'py:4', 'text:center'],
+  list: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[2],
+    marginBottom: token.spacing[4],
+    maxHeight: token.spacing[80],
+    overflowY: 'auto',
+  },
+  item: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[2],
+    paddingInline: token.spacing[3],
+    paddingBlock: token.spacing[2],
+    borderRadius: token.radius.md,
+    backgroundColor: token.color.muted,
+  },
+  dot: {
+    width: token.spacing[3],
+    height: token.spacing[3],
+    borderRadius: token.radius.full,
+    flexShrink: '0',
+  },
+  name: { flex: '1 1 0%', fontSize: token.font.size.sm, color: token.color.foreground },
+  actions: { display: 'flex', gap: token.spacing[1] },
+  formContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[3],
+    marginBottom: token.spacing[4],
+  },
+  colorGrid: { display: 'flex', flexWrap: 'wrap', gap: token.spacing[2] },
+  colorButton: {
+    width: token.spacing[6],
+    height: token.spacing[6],
+    borderRadius: token.radius.full,
+    borderWidth: '2px',
+    borderColor: 'transparent',
+    cursor: 'pointer',
+    transition: 'all',
+    '&:hover': { borderColor: token.color.foreground },
+  },
+  colorSelected: {
+    width: token.spacing[6],
+    height: token.spacing[6],
+    borderRadius: token.radius.full,
+    borderWidth: '2px',
+    borderColor: token.color.foreground,
+    cursor: 'pointer',
+    transition: 'all',
+  },
+  empty: {
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    paddingBlock: token.spacing[4],
+    textAlign: 'center',
+  },
 });
 
 interface ManageLabelsDialogProps {

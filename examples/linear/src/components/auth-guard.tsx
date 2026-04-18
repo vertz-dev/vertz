@@ -5,28 +5,32 @@
  * This component only handles the authenticated layout.
  */
 
-import { css, Link, Outlet, query } from '@vertz/ui';
+import { Link, Outlet, css, query, token } from '@vertz/ui';
 import { useAuth } from '@vertz/ui/auth';
 import { AppShell, Button } from '@vertz/ui/components';
 import { api } from '../api/client';
 
 const styles = css({
-  projectLink: [
-    'text:sm',
-    'text:muted-foreground',
-    'py:1',
-    'px:2',
-    'pl:4',
-    'rounded:md',
-    'overflow-hidden',
-    'whitespace-nowrap',
-    'transition:colors',
-    'hover:text:foreground',
-    'hover:bg:accent',
-  ],
-  avatar: ['w:8', 'h:8', 'rounded:full'],
-  userName: ['text:sm', 'font:medium', 'text:foreground', 'flex-1'],
-  signOutButton: ['text:xs'],
+  projectLink: {
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    paddingBlock: token.spacing[1],
+    paddingInline: token.spacing[2],
+    paddingLeft: token.spacing[4],
+    borderRadius: token.radius.md,
+    overflow: 'hidden',
+    whiteSpace: 'nowrap',
+    transition: 'colors',
+    '&:hover': { color: token.color.foreground, backgroundColor: token.color.accent },
+  },
+  avatar: { width: token.spacing[8], height: token.spacing[8], borderRadius: token.radius.full },
+  userName: {
+    fontSize: token.font.size.sm,
+    fontWeight: token.font.weight.medium,
+    color: token.color.foreground,
+    flex: '1 1 0%',
+  },
+  signOutButton: { fontSize: token.font.size.xs },
 });
 
 export function WorkspaceShell() {

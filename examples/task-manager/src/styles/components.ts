@@ -6,7 +6,7 @@
  * state, textarea, select) are defined here.
  */
 
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { themeStyles } from './theme';
 
 // ── Re-export theme styles for easy consumption ─────────────
@@ -21,67 +21,108 @@ export const dialogStyles = themeStyles.dialog;
 // ── Layout styles (app-specific) ────────────────────────────
 
 export const layoutStyles = css({
-  shell: ['flex', 'min-h:screen', 'bg:background'],
-  sidebar: ['w:64', 'bg:card', 'border-r:1', 'border:border', 'p:4'],
-  main: ['flex-1', 'p:6'],
-  header: ['flex', 'justify:between', 'items:center', 'mb:4'],
+  shell: { display: 'flex', minHeight: '100vh', backgroundColor: token.color.background },
+  sidebar: {
+    width: token.spacing[64],
+    backgroundColor: token.color.card,
+    borderRightWidth: '1px',
+    borderColor: token.color.border,
+    padding: token.spacing[4],
+  },
+  main: { flex: '1 1 0%', padding: token.spacing[6] },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: token.spacing[4],
+  },
 });
 
 // ── Form styles (app-specific extensions) ───────────────────
 
 export const formStyles = css({
-  formGroup: ['flex', 'flex-col', 'gap:1', 'mb:4'],
-  label: ['text:sm', 'font:medium', 'text:foreground'],
-  input: [
-    'w:full',
-    'px:3',
-    'py:2',
-    'rounded:md',
-    'border:1',
-    'border:border',
-    'bg:background',
-    'text:foreground',
-    'text:sm',
-    'focus:outline-none',
-    'focus:ring:2',
-    'focus-visible:ring:ring',
-    'focus-visible:border:primary',
-  ],
-  textarea: [
-    'w:full',
-    'px:3',
-    'py:2',
-    'rounded:md',
-    'border:1',
-    'border:border',
-    'bg:background',
-    'text:foreground',
-    'text:sm',
-    'min-h:24',
-    'resize:vertical',
-    'focus:outline-none',
-    'focus:ring:2',
-    'focus-visible:ring:ring',
-  ],
-  select: [
-    'w:full',
-    'px:3',
-    'py:2',
-    'rounded:md',
-    'border:1',
-    'border:border',
-    'bg:background',
-    'text:foreground',
-    'text:sm',
-  ],
-  error: ['text:xs', 'text:destructive', 'mt:1'],
+  formGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[1],
+    marginBottom: token.spacing[4],
+  },
+  label: {
+    fontSize: token.font.size.sm,
+    fontWeight: token.font.weight.medium,
+    color: token.color.foreground,
+  },
+  input: {
+    width: '100%',
+    paddingInline: token.spacing[3],
+    paddingBlock: token.spacing[2],
+    borderRadius: token.radius.md,
+    borderWidth: '1px',
+    borderColor: token.color.border,
+    backgroundColor: token.color.background,
+    color: token.color.foreground,
+    fontSize: token.font.size.sm,
+    '&:focus': { outline: '2px solid var(--color-ring)' },
+    '&:focus-visible': { outlineColor: token.color.ring, borderColor: token.color.primary },
+  },
+  textarea: {
+    width: '100%',
+    paddingInline: token.spacing[3],
+    paddingBlock: token.spacing[2],
+    borderRadius: token.radius.md,
+    borderWidth: '1px',
+    borderColor: token.color.border,
+    backgroundColor: token.color.background,
+    color: token.color.foreground,
+    fontSize: token.font.size.sm,
+    minHeight: token.spacing[24],
+    resize: 'vertical',
+    '&:focus': { outline: '2px solid var(--color-ring)' },
+    '&:focus-visible': { outlineColor: token.color.ring },
+  },
+  select: {
+    width: '100%',
+    paddingInline: token.spacing[3],
+    paddingBlock: token.spacing[2],
+    borderRadius: token.radius.md,
+    borderWidth: '1px',
+    borderColor: token.color.border,
+    backgroundColor: token.color.background,
+    color: token.color.foreground,
+    fontSize: token.font.size.sm,
+  },
+  error: {
+    fontSize: token.font.size.xs,
+    color: token.color.destructive,
+    marginTop: token.spacing[1],
+  },
 });
 
 // ── Empty state ─────────────────────────────────────────────
 
 export const emptyStateStyles = css({
-  container: ['flex', 'flex-col', 'items:center', 'justify:center', 'py:12', 'text:center'],
-  icon: ['text:4xl', 'text:muted-foreground', 'mb:3'],
-  title: ['font:lg', 'font:semibold', 'text:foreground', 'mb:1'],
-  description: ['text:sm', 'text:muted-foreground', 'mb:4'],
+  container: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBlock: token.spacing[12],
+    textAlign: 'center',
+  },
+  icon: {
+    fontSize: token.font.size['4xl'],
+    color: token.color['muted-foreground'],
+    marginBottom: token.spacing[3],
+  },
+  title: {
+    fontSize: token.font.size.lg,
+    fontWeight: token.font.weight.semibold,
+    color: token.color.foreground,
+    marginBottom: token.spacing[1],
+  },
+  description: {
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    marginBottom: token.spacing[4],
+  },
 });

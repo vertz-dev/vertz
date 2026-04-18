@@ -11,40 +11,50 @@
  */
 
 import { ArrowLeftIcon } from '@vertz/icons';
-import { css, query, useParams, useRouter } from '@vertz/ui';
+import { css, query, token, useParams, useRouter } from '@vertz/ui';
 import { api } from '../api/mock-data';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import type { TaskStatus } from '../lib/types';
 import { badge, button } from '../styles/components';
 
 const detailStyles = css({
-  page: ['max-w:2xl', 'mx:auto'],
-  header: ['flex', 'justify:between', 'items:start', 'mb:6'],
-  titleArea: ['flex-1'],
-  title: ['font:2xl', 'font:bold', 'text:foreground', 'mb:1'],
-  meta: ['text:sm', 'text:muted-foreground'],
-  actions: ['flex', 'gap:2', 'items:start'],
-  section: ['mb:6'],
-  sectionTitle: [
-    'font:sm',
-    'font:semibold',
-    'text:muted-foreground',
-    'uppercase',
-    'tracking:wide',
-    'mb:2',
-  ],
-  description: ['text:foreground', 'leading:relaxed'],
-  statusBar: [
-    'flex',
-    'gap:2',
-    'items:center',
-    'p:3',
-    'bg:card',
-    'rounded:lg',
-    'border:1',
-    'border:border',
-  ],
-  timeline: ['text:sm', 'text:muted-foreground'],
+  page: { maxWidth: '42rem', marginInline: 'auto' },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: token.spacing[6],
+  },
+  titleArea: { flex: '1 1 0%' },
+  title: {
+    fontSize: token.font.size['2xl'],
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+    marginBottom: token.spacing[1],
+  },
+  meta: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
+  actions: { display: 'flex', gap: token.spacing[2], alignItems: 'flex-start' },
+  section: { marginBottom: token.spacing[6] },
+  sectionTitle: {
+    fontSize: token.font.size.sm,
+    fontWeight: token.font.weight.semibold,
+    color: token.color['muted-foreground'],
+    textTransform: 'uppercase',
+    letterSpacing: 'wide',
+    marginBottom: token.spacing[2],
+  },
+  description: { color: token.color.foreground, lineHeight: token.font.lineHeight.relaxed },
+  statusBar: {
+    display: 'flex',
+    gap: token.spacing[2],
+    alignItems: 'center',
+    padding: token.spacing[3],
+    backgroundColor: token.color.card,
+    borderRadius: token.radius.lg,
+    borderWidth: '1px',
+    borderColor: token.color.border,
+  },
+  timeline: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
 });
 
 /**

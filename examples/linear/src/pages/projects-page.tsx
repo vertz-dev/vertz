@@ -1,4 +1,4 @@
-import { css, Link, query, useDialogStack } from '@vertz/ui';
+import { Link, css, query, token, useDialogStack } from '@vertz/ui';
 import { api } from '../api/client';
 import { Button } from '../components/button';
 import { CreateProjectDialog } from '../components/create-project-dialog';
@@ -8,10 +8,19 @@ import type { Project } from '../lib/types';
 import { emptyStateStyles } from '../styles/components';
 
 const styles = css({
-  container: ['p:6'],
-  header: ['flex', 'items:center', 'justify:between', 'mb:6'],
-  title: ['font:xl', 'font:bold', 'text:foreground'],
-  grid: ['grid', 'grid-cols:1', 'gap:3'],
+  container: { padding: token.spacing[6] },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: token.spacing[6],
+  },
+  title: {
+    fontSize: token.font.size.xl,
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+  },
+  grid: { display: 'grid', gridTemplateColumns: '1', gap: token.spacing[3] },
 });
 
 export function ProjectsPage() {

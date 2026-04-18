@@ -1,4 +1,4 @@
-import { css, query, useDialogStack, useParams } from '@vertz/ui';
+import { css, query, token, useDialogStack, useParams } from '@vertz/ui';
 import { api } from '../api/client';
 import { Button } from '../components/button';
 import { CreateIssueDialog } from '../components/create-issue-dialog';
@@ -9,11 +9,30 @@ import { STATUSES } from '../lib/issue-config';
 import type { Issue, IssueStatus } from '../lib/types';
 
 const styles = css({
-  container: ['p:6'],
-  header: ['flex', 'items:center', 'justify:between', 'mb:4'],
-  title: ['font:lg', 'font:semibold', 'text:foreground'],
-  board: ['flex', 'gap:4', 'pb:4', 'overflow-hidden'],
-  error: ['text:sm', 'text:destructive', 'py:8', 'text:center'],
+  container: { padding: token.spacing[6] },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: token.spacing[4],
+  },
+  title: {
+    fontSize: token.font.size.lg,
+    fontWeight: token.font.weight.semibold,
+    color: token.color.foreground,
+  },
+  board: {
+    display: 'flex',
+    gap: token.spacing[4],
+    paddingBottom: token.spacing[4],
+    overflow: 'hidden',
+  },
+  error: {
+    fontSize: token.font.size.sm,
+    color: token.color.destructive,
+    paddingBlock: token.spacing[8],
+    textAlign: 'center',
+  },
 });
 
 export function ProjectBoardPage() {

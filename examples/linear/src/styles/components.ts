@@ -6,7 +6,7 @@
  * App-specific styles (layout, empty state, loading skeletons) are defined here.
  */
 
-import { css, keyframes } from '@vertz/ui';
+import { css, keyframes, token } from '@vertz/ui';
 import { themeStyles } from './theme';
 
 // ── Re-export theme styles for easy consumption ─────────────
@@ -19,27 +19,52 @@ export const dialogStyles = themeStyles.dialog;
 // ── Form styles (app-specific extensions) ───────────────────
 
 export const formStyles = css({
-  field: ['flex', 'flex-col', 'gap:1', 'mb:4'],
-  select: [
-    'w:full',
-    'px:3',
-    'py:2',
-    'rounded:md',
-    'border:1',
-    'border:border',
-    'bg:background',
-    'text:foreground',
-    'text:sm',
-  ],
-  error: ['text:xs', 'text:destructive', 'mt:1'],
+  field: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[1],
+    marginBottom: token.spacing[4],
+  },
+  select: {
+    width: '100%',
+    paddingInline: token.spacing[3],
+    paddingBlock: token.spacing[2],
+    borderRadius: token.radius.md,
+    borderWidth: '1px',
+    borderColor: token.color.border,
+    backgroundColor: token.color.background,
+    color: token.color.foreground,
+    fontSize: token.font.size.sm,
+  },
+  error: {
+    fontSize: token.font.size.xs,
+    color: token.color.destructive,
+    marginTop: token.spacing[1],
+  },
 });
 
 // ── Empty state ─────────────────────────────────────────────
 
 export const emptyStateStyles = css({
-  container: ['flex', 'flex-col', 'items:center', 'justify:center', 'py:12', 'text:center'],
-  title: ['font:lg', 'font:semibold', 'text:foreground', 'mb:1'],
-  description: ['text:sm', 'text:muted-foreground', 'mb:4'],
+  container: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBlock: token.spacing[12],
+    textAlign: 'center',
+  },
+  title: {
+    fontSize: token.font.size.lg,
+    fontWeight: token.font.weight.semibold,
+    color: token.color.foreground,
+    marginBottom: token.spacing[1],
+  },
+  description: {
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    marginBottom: token.spacing[4],
+  },
 });
 
 // ── Loading skeleton ────────────────────────────────────────
@@ -50,10 +75,26 @@ const shimmer = keyframes('linear-shimmer', {
 });
 
 export const skeletonStyles = css({
-  bone: ['rounded:md', 'bg:muted'],
-  card: ['rounded:md', 'bg:muted', 'h:20', 'mb:2'],
-  line: ['rounded:sm', 'bg:muted', 'h:4', 'mb:2'],
-  lineShort: ['rounded:sm', 'bg:muted', 'h:4', 'w:2/3', 'mb:2'],
+  bone: { borderRadius: token.radius.md, backgroundColor: token.color.muted },
+  card: {
+    borderRadius: token.radius.md,
+    backgroundColor: token.color.muted,
+    height: token.spacing[20],
+    marginBottom: token.spacing[2],
+  },
+  line: {
+    borderRadius: token.radius.sm,
+    backgroundColor: token.color.muted,
+    height: token.spacing[4],
+    marginBottom: token.spacing[2],
+  },
+  lineShort: {
+    borderRadius: token.radius.sm,
+    backgroundColor: token.color.muted,
+    height: token.spacing[4],
+    width: '66.666667%',
+    marginBottom: token.spacing[2],
+  },
 });
 
 export const skeletonAnimation = {
@@ -66,20 +107,37 @@ export const skeletonAnimation = {
 // ── Error fallback ──────────────────────────────────────────
 
 export const errorFallbackStyles = css({
-  container: ['flex', 'flex-col', 'items:center', 'justify:center', 'py:12', 'text:center'],
-  title: ['font:lg', 'font:semibold', 'text:destructive', 'mb:2'],
-  message: ['text:sm', 'text:muted-foreground', 'mb:4', 'max-w:md'],
-  retryButton: [
-    'px:4',
-    'py:2',
-    'rounded:md',
-    'bg:primary',
-    'text:primary-foreground',
-    'text:sm',
-    'font:medium',
-    'cursor:pointer',
-    'border:0',
-    'transition:colors',
-    'hover:bg:primary/90',
-  ],
+  container: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBlock: token.spacing[12],
+    textAlign: 'center',
+  },
+  title: {
+    fontSize: token.font.size.lg,
+    fontWeight: token.font.weight.semibold,
+    color: token.color.destructive,
+    marginBottom: token.spacing[2],
+  },
+  message: {
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+    marginBottom: token.spacing[4],
+    maxWidth: '28rem',
+  },
+  retryButton: {
+    paddingInline: token.spacing[4],
+    paddingBlock: token.spacing[2],
+    borderRadius: token.radius.md,
+    backgroundColor: token.color.primary,
+    color: token.color['primary-foreground'],
+    fontSize: token.font.size.sm,
+    fontWeight: token.font.weight.medium,
+    cursor: 'pointer',
+    borderWidth: '0px',
+    transition: 'colors',
+    '&:hover': { backgroundColor: 'color-mix(in oklch, var(--color-primary) 90%, transparent)' },
+  },
 });

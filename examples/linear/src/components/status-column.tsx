@@ -1,14 +1,46 @@
-import { css, Link } from '@vertz/ui';
+import { Link, css, token } from '@vertz/ui';
 import type { Issue } from '../lib/types';
 import { IssueCard } from './issue-card';
 
 const styles = css({
-  column: ['flex', 'flex-col', 'min-w:64', 'w:64', 'shrink-0'],
-  columnHeader: ['flex', 'items:center', 'gap:2', 'px:2', 'py:2', 'mb:2'],
-  columnTitle: ['text:xs', 'font:semibold', 'text:muted-foreground', 'uppercase', 'tracking:wide'],
-  columnCount: ['text:xs', 'text:muted-foreground', 'bg:muted', 'rounded:full', 'px:2', 'py:0.5'],
-  columnBody: ['flex', 'flex-col', 'gap:2', 'flex-1'],
-  empty: ['text:xs', 'text:muted-foreground', 'px:2', 'py:4', 'text:center'],
+  column: {
+    display: 'flex',
+    flexDirection: 'column',
+    minWidth: token.spacing[64],
+    width: token.spacing[64],
+    flexShrink: '0',
+  },
+  columnHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[2],
+    paddingInline: token.spacing[2],
+    paddingBlock: token.spacing[2],
+    marginBottom: token.spacing[2],
+  },
+  columnTitle: {
+    fontSize: token.font.size.xs,
+    fontWeight: token.font.weight.semibold,
+    color: token.color['muted-foreground'],
+    textTransform: 'uppercase',
+    letterSpacing: 'wide',
+  },
+  columnCount: {
+    fontSize: token.font.size.xs,
+    color: token.color['muted-foreground'],
+    backgroundColor: token.color.muted,
+    borderRadius: token.radius.full,
+    paddingInline: token.spacing[2],
+    paddingBlock: token.spacing['0.5'],
+  },
+  columnBody: { display: 'flex', flexDirection: 'column', gap: token.spacing[2], flex: '1 1 0%' },
+  empty: {
+    fontSize: token.font.size.xs,
+    color: token.color['muted-foreground'],
+    paddingInline: token.spacing[2],
+    paddingBlock: token.spacing[4],
+    textAlign: 'center',
+  },
 });
 
 interface StatusColumnProps {

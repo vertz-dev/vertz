@@ -11,22 +11,46 @@
  */
 
 import { MoonIcon, SunIcon } from '@vertz/icons';
-import { css, useContext } from '@vertz/ui';
+import { css, token, useContext } from '@vertz/ui';
 import { SettingsContext } from '../lib/settings-context';
 import { formStyles } from '../styles/components';
 
 const settingsStyles = css({
-  page: ['max-w:lg', 'mx:auto'],
-  title: ['font:2xl', 'font:bold', 'text:foreground', 'mb:6'],
-  section: ['mb:8'],
-  sectionTitle: ['font:lg', 'font:semibold', 'text:foreground', 'mb:4'],
-  themeGrid: ['grid', 'grid-cols:2', 'gap:4'],
-  themeCard: ['p:4', 'rounded:lg', 'border:2', 'cursor:pointer', 'transition:all'],
-  themeCardActive: ['border:primary'],
-  themeCardInactive: ['border:border'],
-  previewBox: ['p:3', 'rounded:md', 'mb:2'],
-  previewText: ['text:sm'],
-  savedMsg: ['text:sm', 'text:accent-foreground', 'mt:2'],
+  page: { maxWidth: '32rem', marginInline: 'auto' },
+  title: {
+    fontSize: token.font.size['2xl'],
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+    marginBottom: token.spacing[6],
+  },
+  section: { marginBottom: token.spacing[8] },
+  sectionTitle: {
+    fontSize: token.font.size.lg,
+    fontWeight: token.font.weight.semibold,
+    color: token.color.foreground,
+    marginBottom: token.spacing[4],
+  },
+  themeGrid: { display: 'grid', gridTemplateColumns: '2', gap: token.spacing[4] },
+  themeCard: {
+    padding: token.spacing[4],
+    borderRadius: token.radius.lg,
+    borderWidth: '2px',
+    cursor: 'pointer',
+    transition: 'all',
+  },
+  themeCardActive: { borderColor: token.color.primary },
+  themeCardInactive: { borderColor: token.color.border },
+  previewBox: {
+    padding: token.spacing[3],
+    borderRadius: token.radius.md,
+    marginBottom: token.spacing[2],
+  },
+  previewText: { fontSize: token.font.size.sm },
+  savedMsg: {
+    fontSize: token.font.size.sm,
+    color: token.color['accent-foreground'],
+    marginTop: token.spacing[2],
+  },
 });
 
 /**

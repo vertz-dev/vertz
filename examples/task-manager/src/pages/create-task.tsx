@@ -7,12 +7,17 @@
  * - Navigation after successful form submission
  */
 
-import { css, useRouter } from '@vertz/ui';
+import { css, token, useRouter } from '@vertz/ui';
 import { TaskForm } from '../components/task-form';
 
 const pageStyles = css({
-  page: ['max-w:lg', 'mx:auto'],
-  title: ['font:2xl', 'font:bold', 'text:foreground', 'mb:6'],
+  page: { maxWidth: '32rem', marginInline: 'auto' },
+  title: {
+    fontSize: token.font.size['2xl'],
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+    marginBottom: token.spacing[6],
+  },
 });
 
 /**
