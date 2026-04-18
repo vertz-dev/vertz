@@ -1,27 +1,43 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { TOKENS_ENTITY, TOKENS_SCHEMA, TOKENS_UI } from './highlighted-code';
 import { TokenLines } from './token-lines';
 
 const s = css({
-  section: ['py:24', 'px:6'],
-  container: ['max-w:4xl', 'mx:auto'],
-  label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:4', 'text:center', 'text:gray.500'],
-  heading: ['font:4xl', 'mb:12', 'text:center'],
-  stepList: ['flex', 'flex-col', 'gap:8'],
-  stepHeader: ['flex', 'items:center', 'gap:3', 'mb:3'],
-  stepLabel: ['font:xs', 'weight:semibold'],
-  stepTitle: ['font:sm', 'text:gray.200'],
-  codeBlock: [
-    'border:1',
-    'rounded:lg',
-    'p:6',
-    'font:sm',
-    'leading:relaxed',
-    'shadow:2xl',
-    'bg:gray.950',
-    'text:gray.300',
-    { '&': [{ 'overflow-x': 'auto' }] },
-  ],
+  section: { paddingBlock: token.spacing[24], paddingInline: token.spacing[6] },
+  container: { maxWidth: '56rem', marginInline: 'auto' },
+  label: {
+    fontSize: token.font.size.xs,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    marginBottom: token.spacing[4],
+    textAlign: 'center',
+    color: token.color.gray[500],
+  },
+  heading: {
+    fontSize: token.font.size['4xl'],
+    marginBottom: token.spacing[12],
+    textAlign: 'center',
+  },
+  stepList: { display: 'flex', flexDirection: 'column', gap: token.spacing[8] },
+  stepHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[3],
+    marginBottom: token.spacing[3],
+  },
+  stepLabel: { fontSize: token.font.size.xs, fontWeight: token.font.weight.semibold },
+  stepTitle: { fontSize: token.font.size.sm, color: token.color.gray[200] },
+  codeBlock: {
+    borderWidth: '1px',
+    borderRadius: token.radius.lg,
+    padding: token.spacing[6],
+    fontSize: token.font.size.sm,
+    lineHeight: token.font.lineHeight.relaxed,
+    boxShadow: token.shadow['2xl'],
+    backgroundColor: token.color.gray[950],
+    color: token.color.gray[300],
+    '&': { overflowX: 'auto' },
+  },
 });
 
 const STEPS = [

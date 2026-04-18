@@ -1,55 +1,57 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 const PROMPT_TEXT = 'Build a full-stack to-do app using docs.vertz.dev';
 
 const s = css({
-  wrapper: ['flex', 'flex-col', 'gap:2', 'w:full'],
-  labelRow: ['flex', 'items:center', 'gap:2'],
-  label: ['font:xs', 'text:gray.500'],
-  copyIcon: [
-    'cursor:pointer',
-    {
-      '&': {
-        background: 'none',
-        border: 'none',
-        padding: '0',
-        display: 'inline-flex',
-        'align-items': 'center',
-        outline: 'none',
-      },
+  wrapper: { display: 'flex', flexDirection: 'column', gap: token.spacing[2], width: '100%' },
+  labelRow: { display: 'flex', alignItems: 'center', gap: token.spacing[2] },
+  label: { fontSize: token.font.size.xs, color: token.color.gray[500] },
+  copyIcon: {
+    cursor: 'pointer',
+    '&': {
+      background: 'none',
+      border: 'none',
+      padding: '0',
+      display: 'inline-flex',
+      alignItems: 'center',
+      outline: 'none',
     },
-  ],
-  prompt: [
-    'flex',
-    'items:center',
-    'gap:3',
-    'py:2.5',
-    'px:4',
-    'border:1',
-    'w:full',
-    {
-      '&': {
-        'background-color': '#1C1B1A',
-        'border-color': '#2A2826',
-        'border-radius': '2px',
-        color: '#D4D0C8',
-      },
+  },
+  prompt: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[3],
+    paddingBlock: token.spacing['2.5'],
+    paddingInline: token.spacing[4],
+    borderWidth: '1px',
+    width: '100%',
+    '&': {
+      backgroundColor: '#1C1B1A',
+      borderColor: '#2A2826',
+      borderRadius: '2px',
+      color: '#D4D0C8',
     },
-  ],
-  promptPrefix: ['font:sm', 'text:gray.500', { '&': { 'white-space': 'nowrap' } }],
-  promptText: ['font:sm', 'text:gray.400', { '&': { flex: '1', 'font-style': 'italic' } }],
-  promptHighlight: [
-    'weight:semibold',
-    'text:gray.200',
-    {
-      '&': {
-        'font-style': 'normal',
-        'text-decoration': 'underline',
-        'text-underline-offset': '3px',
-        'text-decoration-color': '#52525b',
-      },
+  },
+  promptPrefix: {
+    fontSize: token.font.size.sm,
+    color: token.color.gray[500],
+    '&': { whiteSpace: 'nowrap' },
+  },
+  promptText: {
+    fontSize: token.font.size.sm,
+    color: token.color.gray[400],
+    '&': { flex: '1', fontStyle: 'italic' },
+  },
+  promptHighlight: {
+    fontWeight: token.font.weight.semibold,
+    color: token.color.gray[200],
+    '&': {
+      fontStyle: 'normal',
+      textDecoration: 'underline',
+      textUnderlineOffset: '3px',
+      textDecorationColor: '#52525b',
     },
-  ],
+  },
 });
 
 function TerminalIcon() {

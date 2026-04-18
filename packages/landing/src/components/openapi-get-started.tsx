@@ -1,33 +1,39 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 const s = css({
-  section: ['py:24', 'px:6'],
-  container: [
-    'max-w:4xl',
-    'mx:auto',
-    'grid',
-    'gap:12',
-    'items:center',
-    { '@media (min-width: 768px)': { 'grid-template-columns': '1fr 1fr' } },
-  ],
-  heading: ['font:4xl', 'mb:6'],
-  desc: ['font:lg', 'mb:4'],
-  links: ['flex', 'flex-col', 'gap:2', 'mt:6'],
-  link: [
-    'font:xs',
-    'uppercase',
-    'tracking:wider',
-    'transition:colors',
-    { '&:hover': { color: '#E8E4DC' } },
-  ],
-  terminal: [
-    'p:6',
-    'font:sm',
-    'border:1',
-    { '&': { 'overflow-x': 'auto', 'border-radius': '2px' } },
-  ],
-  terminalLine: ['mb:2'],
-  successLine: ['mt:4'],
+  section: { paddingBlock: token.spacing[24], paddingInline: token.spacing[6] },
+  container: {
+    maxWidth: '56rem',
+    marginInline: 'auto',
+    display: 'grid',
+    gap: token.spacing[12],
+    alignItems: 'center',
+    '@media (min-width: 768px)': { gridTemplateColumns: '1fr 1fr' },
+  },
+  heading: { fontSize: token.font.size['4xl'], marginBottom: token.spacing[6] },
+  desc: { fontSize: token.font.size.lg, marginBottom: token.spacing[4] },
+  links: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: token.spacing[2],
+    marginTop: token.spacing[6],
+  },
+  link: {
+    fontSize: token.font.size.xs,
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+    '&:hover': { color: '#E8E4DC' },
+  },
+  terminal: {
+    padding: token.spacing[6],
+    fontSize: token.font.size.sm,
+    borderWidth: '1px',
+    '&': { overflowX: 'auto', borderRadius: '2px' },
+  },
+  terminalLine: { marginBottom: token.spacing[2] },
+  successLine: { marginTop: token.spacing[4] },
 });
 
 export function OpenAPIGetStarted() {

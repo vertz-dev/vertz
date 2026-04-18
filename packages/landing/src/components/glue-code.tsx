@@ -1,33 +1,45 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { TOKENS_GLUE_SCHEMA, TOKENS_GLUE_UI } from './highlighted-code';
 import { TokenLines } from './token-lines';
 
 const s = css({
-  section: ['py:24', 'px:6'],
-  wrapper: ['max-w:4xl', 'mx:auto'],
-  label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:12', 'text:center', 'text:gray.500'],
-  grid: [
-    'grid',
-    'gap:8',
-    'items:start',
-    { '&': { 'min-width': '0' } },
-    { '@media (min-width: 768px)': { 'grid-template-columns': '1fr 1fr' } },
-  ],
+  section: { paddingBlock: token.spacing[24], paddingInline: token.spacing[6] },
+  wrapper: { maxWidth: '56rem', marginInline: 'auto' },
+  label: {
+    fontSize: token.font.size.xs,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    marginBottom: token.spacing[12],
+    textAlign: 'center',
+    color: token.color.gray[500],
+  },
+  grid: {
+    display: 'grid',
+    gap: token.spacing[8],
+    alignItems: 'flex-start',
+    '&': { minWidth: '0' },
+    '@media (min-width: 768px)': { gridTemplateColumns: '1fr 1fr' },
+  },
   gridItem: [{ '&': { 'min-width': '0' } }],
-  columnLabel: ['font:xs', 'uppercase', 'tracking:wide', 'mb:4'],
-  codeBlock: [
-    'border:1',
-    'rounded:lg',
-    'p:6',
-    'font:sm',
-    'leading:relaxed',
-    'bg:gray.950',
-    { '&': { 'overflow-x': 'auto' } },
-  ],
-  commentColor: ['text:gray.500'],
-  fileColor: ['text:gray.400'],
-  descColor: ['text:gray.400'],
-  caption: ['font:sm', 'mt:4', 'text:center'],
+  columnLabel: {
+    fontSize: token.font.size.xs,
+    textTransform: 'uppercase',
+    letterSpacing: '0.025em',
+    marginBottom: token.spacing[4],
+  },
+  codeBlock: {
+    borderWidth: '1px',
+    borderRadius: token.radius.lg,
+    padding: token.spacing[6],
+    fontSize: token.font.size.sm,
+    lineHeight: token.font.lineHeight.relaxed,
+    backgroundColor: token.color.gray[950],
+    '&': { overflowX: 'auto' },
+  },
+  commentColor: { color: token.color.gray[500] },
+  fileColor: { color: token.color.gray[400] },
+  descColor: { color: token.color.gray[400] },
+  caption: { fontSize: token.font.size.sm, marginTop: token.spacing[4], textAlign: 'center' },
 });
 
 const OLD_STACK = [

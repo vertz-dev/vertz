@@ -1,102 +1,88 @@
-import { css, Island } from '@vertz/ui';
+import { Island, css, token } from '@vertz/ui';
 
 // ── Styles ──────────────────────────────────────────────────
 
 const s = css({
-  section: ['py:24', 'px:6'],
-  container: ['max-w:5xl', 'mx:auto', { '&': { overflow: 'hidden' } }],
-  label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:4', 'text:center'],
-  heading: [
-    'font:2xl',
-    'mb:4',
-    'text:center',
-    { '@media (min-width: 768px)': { 'font-size': '2.25rem' } },
-  ],
-  subtitle: [
-    'text:center',
-    'mb:16',
-    'max-w:2xl',
-    'mx:auto',
-    'font:sm',
-    { '@media (min-width: 768px)': { 'font-size': '1rem' } },
-  ],
-  layout: [
-    'grid',
-    'gap:8',
-    {
-      '&': { overflow: 'hidden' },
-      '@media (min-width: 768px)': {
-        'grid-template-columns': '200px 1fr',
-      },
+  section: { paddingBlock: token.spacing[24], paddingInline: token.spacing[6] },
+  container: { maxWidth: '64rem', marginInline: 'auto', '&': { overflow: 'hidden' } },
+  label: {
+    fontSize: token.font.size.xs,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    marginBottom: token.spacing[4],
+    textAlign: 'center',
+  },
+  heading: {
+    fontSize: token.font.size['2xl'],
+    marginBottom: token.spacing[4],
+    textAlign: 'center',
+    '@media (min-width: 768px)': { fontSize: '2.25rem' },
+  },
+  subtitle: {
+    textAlign: 'center',
+    marginBottom: token.spacing[16],
+    maxWidth: '42rem',
+    marginInline: 'auto',
+    fontSize: token.font.size.sm,
+    '@media (min-width: 768px)': { fontSize: '1rem' },
+  },
+  layout: {
+    display: 'grid',
+    gap: token.spacing[8],
+    '&': { overflow: 'hidden' },
+    '@media (min-width: 768px)': { gridTemplateColumns: '200px 1fr' },
+  },
+  nav: {
+    display: 'flex',
+    gap: token.spacing[1],
+    marginBottom: token.spacing[6],
+    '&': { overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' },
+    '&::-webkit-scrollbar': { display: 'none' },
+    '@media (min-width: 768px)': { flexDirection: 'column', marginBottom: '0', gap: '0' },
+  },
+  navBtn: {
+    paddingBlock: token.spacing[2],
+    paddingInline: token.spacing[3],
+    fontSize: token.font.size.xs,
+    cursor: 'pointer',
+    '&': {
+      background: 'none',
+      border: 'none',
+      textAlign: 'left',
+      whiteSpace: 'nowrap',
+      outline: 'none',
+      fontFamily: 'var(--font-sans)',
+      transition: 'color 0.2s, background 0.2s',
+      borderRadius: '2px',
+      flexShrink: '0',
     },
-  ],
-  nav: [
-    'flex',
-    'gap:1',
-    'mb:6',
-    {
-      '&': {
-        'overflow-x': 'auto',
-        '-webkit-overflow-scrolling': 'touch',
-        'scrollbar-width': 'none',
-      },
-      '&::-webkit-scrollbar': { display: 'none' },
-      '@media (min-width: 768px)': {
-        'flex-direction': 'column',
-        'margin-bottom': '0',
-        gap: '0',
-      },
+    '@media (min-width: 768px)': {
+      borderRadius: '0',
+      whiteSpace: 'normal',
+      fontSize: '0.875rem',
+      padding: '0.75rem 1rem',
     },
-  ],
-  navBtn: [
-    'py:2',
-    'px:3',
-    'font:xs',
-    'cursor:pointer',
-    {
-      '&': {
-        background: 'none',
-        border: 'none',
-        'text-align': 'left',
-        'white-space': 'nowrap',
-        outline: 'none',
-        'font-family': 'var(--font-sans)',
-        transition: 'color 0.2s, background 0.2s',
-        'border-radius': '2px',
-        'flex-shrink': '0',
-      },
-      '@media (min-width: 768px)': {
-        'border-radius': '0',
-        'white-space': 'normal',
-        'font-size': '0.875rem',
-        padding: '0.75rem 1rem',
-      },
-    },
-  ],
+  },
   content: [{ '&': { display: 'grid', position: 'relative', 'min-width': '0' } }],
-  page: ['flex', 'flex-col', 'gap:6', { '&': { 'min-width': '0' } }],
-  pageTag: ['font:xs', 'tracking:widest', 'uppercase'],
-  pageTitle: [
-    'font:xl',
-    {
-      '@media (min-width: 768px)': { 'font-size': '1.875rem' },
-    },
-  ],
-  pageDesc: [
-    'font:sm',
-    'leading:relaxed',
-    { '@media (min-width: 768px)': { 'font-size': '1rem' } },
-  ],
-  codeWrap: [
-    'p:4',
-    'border:1',
-    'font:xs',
-    'leading:relaxed',
-    {
-      '&': { 'overflow-x': 'auto' },
-      '@media (min-width: 768px)': { padding: '1.5rem', 'font-size': '0.875rem' },
-    },
-  ],
+  page: { display: 'flex', flexDirection: 'column', gap: token.spacing[6], '&': { minWidth: '0' } },
+  pageTag: { fontSize: token.font.size.xs, letterSpacing: '0.1em', textTransform: 'uppercase' },
+  pageTitle: {
+    fontSize: token.font.size.xl,
+    '@media (min-width: 768px)': { fontSize: '1.875rem' },
+  },
+  pageDesc: {
+    fontSize: token.font.size.sm,
+    lineHeight: token.font.lineHeight.relaxed,
+    '@media (min-width: 768px)': { fontSize: '1rem' },
+  },
+  codeWrap: {
+    padding: token.spacing[4],
+    borderWidth: '1px',
+    fontSize: token.font.size.xs,
+    lineHeight: token.font.lineHeight.relaxed,
+    '&': { overflowX: 'auto' },
+    '@media (min-width: 768px)': { padding: '1.5rem', fontSize: '0.875rem' },
+  },
 });
 
 // ── Token color shorthand ───────────────────────────────────

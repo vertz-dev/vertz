@@ -1,34 +1,44 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 const s = css({
-  section: ['py:24', 'px:6'],
-  container: ['max-w:4xl', 'mx:auto'],
-  label: [
-    'font:xs',
-    'tracking:widest',
-    'uppercase',
-    'mb:4',
-    'text:center',
-    { '&': { color: '#6B6560' } },
-  ],
-  heading: ['font:4xl', 'mb:4', 'text:center'],
-  subtitle: ['text:center', 'mb:12', 'max-w:xl', 'mx:auto', { '&': { color: '#9C9690' } }],
-  list: ['flex', 'flex-col'],
-  row: [
-    'gap:4',
-    'items:center',
-    'px:6',
-    'py:4',
-    { '@media (max-width: 639px)': { display: 'flex', 'flex-wrap': 'wrap' } },
-    { '@media (min-width: 640px)': { display: 'grid', 'grid-template-columns': '1fr 1.5fr 1fr' } },
-  ],
-  pkg: ['font:sm'],
-  what: ['font:sm', { '&': { color: '#B8A080' } }],
-  replaces: [
-    'font:xs',
-    { '&': { color: '#4A4540' } },
-    { '@media (min-width: 640px)': { 'text-align': 'right' } },
-  ],
+  section: { paddingBlock: token.spacing[24], paddingInline: token.spacing[6] },
+  container: { maxWidth: '56rem', marginInline: 'auto' },
+  label: {
+    fontSize: token.font.size.xs,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    marginBottom: token.spacing[4],
+    textAlign: 'center',
+    '&': { color: '#6B6560' },
+  },
+  heading: {
+    fontSize: token.font.size['4xl'],
+    marginBottom: token.spacing[4],
+    textAlign: 'center',
+  },
+  subtitle: {
+    textAlign: 'center',
+    marginBottom: token.spacing[12],
+    maxWidth: '36rem',
+    marginInline: 'auto',
+    '&': { color: '#9C9690' },
+  },
+  list: { display: 'flex', flexDirection: 'column' },
+  row: {
+    gap: token.spacing[4],
+    alignItems: 'center',
+    paddingInline: token.spacing[6],
+    paddingBlock: token.spacing[4],
+    '@media (max-width: 639px)': { display: 'flex', flexWrap: 'wrap' },
+    '@media (min-width: 640px)': { display: 'grid', gridTemplateColumns: '1fr 1.5fr 1fr' },
+  },
+  pkg: { fontSize: token.font.size.sm },
+  what: { fontSize: token.font.size.sm, '&': { color: '#B8A080' } },
+  replaces: {
+    fontSize: token.font.size.xs,
+    '&': { color: '#4A4540' },
+    '@media (min-width: 640px)': { textAlign: 'right' },
+  },
 });
 
 const LAYERS = [

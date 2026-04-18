@@ -1,13 +1,23 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 const s = css({
-  section: ['py:24', 'px:6'],
-  container: ['max-w:2xl', 'mx:auto'],
-  label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:12', 'text:center'],
-  list: ['flex', 'flex-col'],
-  item: ['py:6', 'border-b:1'],
-  question: ['weight:semibold', 'mb:2', 'text:gray.200'],
-  answer: ['leading:relaxed', 'text:gray.400'],
+  section: { paddingBlock: token.spacing[24], paddingInline: token.spacing[6] },
+  container: { maxWidth: '42rem', marginInline: 'auto' },
+  label: {
+    fontSize: token.font.size.xs,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    marginBottom: token.spacing[12],
+    textAlign: 'center',
+  },
+  list: { display: 'flex', flexDirection: 'column' },
+  item: { paddingBlock: token.spacing[6], borderBottomWidth: '1px' },
+  question: {
+    fontWeight: token.font.weight.semibold,
+    marginBottom: token.spacing[2],
+    color: token.color.gray[200],
+  },
+  answer: { lineHeight: token.font.lineHeight.relaxed, color: token.color.gray[400] },
 });
 
 const QUESTIONS = [

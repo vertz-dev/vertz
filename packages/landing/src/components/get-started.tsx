@@ -1,26 +1,26 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 
 const s = css({
-  section: ['py:24', 'px:6'],
-  container: [
-    'max-w:4xl',
-    'mx:auto',
-    'grid',
-    'gap:12',
-    'items:center',
-    { '@media (min-width: 768px)': { 'grid-template-columns': '1fr 1fr' } },
-  ],
-  heading: ['font:4xl', 'mb:6'],
-  desc: ['font:lg', 'mb:4'],
-  terminal: [
-    'p:6',
-    'font:sm',
-    'border:1',
-    { '&': { 'overflow-x': 'auto', 'border-radius': '2px' } },
-  ],
-  terminalLine: ['mb:2'],
+  section: { paddingBlock: token.spacing[24], paddingInline: token.spacing[6] },
+  container: {
+    maxWidth: '56rem',
+    marginInline: 'auto',
+    display: 'grid',
+    gap: token.spacing[12],
+    alignItems: 'center',
+    '@media (min-width: 768px)': { gridTemplateColumns: '1fr 1fr' },
+  },
+  heading: { fontSize: token.font.size['4xl'], marginBottom: token.spacing[6] },
+  desc: { fontSize: token.font.size.lg, marginBottom: token.spacing[4] },
+  terminal: {
+    padding: token.spacing[6],
+    fontSize: token.font.size.sm,
+    borderWidth: '1px',
+    '&': { overflowX: 'auto', borderRadius: '2px' },
+  },
+  terminalLine: { marginBottom: token.spacing[2] },
   terminalCmd: [],
-  successLine: ['mt:4'],
+  successLine: { marginTop: token.spacing[4] },
   success: [],
 });
 

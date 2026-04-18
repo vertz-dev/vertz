@@ -1,54 +1,61 @@
-import { css, Island } from '@vertz/ui';
+import { Island, css, token } from '@vertz/ui';
 
 const s = css({
-  section: ['py:24', 'px:6'],
-  container: ['max-w:5xl', 'mx:auto'],
-  label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:4', 'text:center'],
-  heading: ['font:4xl', 'mb:4', 'text:center'],
-  subtitle: ['text:center', 'mb:12', 'max-w:xl', 'mx:auto'],
-  tabBar: [
-    'flex',
-    'justify:center',
-    'gap:1',
-    'mb:10',
-    'p:1',
-    'mx:auto',
-    {
-      '&': {
-        'border-radius': '2px',
-        background: '#1C1B1A',
-        border: '1px solid #2A2826',
-        width: 'fit-content',
-      },
+  section: { paddingBlock: token.spacing[24], paddingInline: token.spacing[6] },
+  container: { maxWidth: '64rem', marginInline: 'auto' },
+  label: {
+    fontSize: token.font.size.xs,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    marginBottom: token.spacing[4],
+    textAlign: 'center',
+  },
+  heading: {
+    fontSize: token.font.size['4xl'],
+    marginBottom: token.spacing[4],
+    textAlign: 'center',
+  },
+  subtitle: {
+    textAlign: 'center',
+    marginBottom: token.spacing[12],
+    maxWidth: '36rem',
+    marginInline: 'auto',
+  },
+  tabBar: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: token.spacing[1],
+    marginBottom: token.spacing[10],
+    padding: token.spacing[1],
+    marginInline: 'auto',
+    '&': {
+      borderRadius: '2px',
+      background: '#1C1B1A',
+      border: '1px solid #2A2826',
+      width: 'fit-content',
     },
-  ],
-  tab: [
-    'py:2',
-    'px:4',
-    'font:xs',
-    'tracking:wide',
-    'cursor:pointer',
-    'transition:colors',
-    {
-      '&': {
-        background: 'none',
-        border: 'none',
-        outline: 'none',
-        'border-radius': '2px',
-      },
-    },
-  ],
+  },
+  tab: {
+    paddingBlock: token.spacing[2],
+    paddingInline: token.spacing[4],
+    fontSize: token.font.size.xs,
+    letterSpacing: '0.025em',
+    cursor: 'pointer',
+    transition:
+      'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+    '&': { background: 'none', border: 'none', outline: 'none', borderRadius: '2px' },
+  },
   panelWrap: [{ '&': { display: 'grid' } }],
   panel: [],
-  card: ['p:6', 'border:1'],
-  barGroup: ['flex', 'flex-col', 'gap:3'],
-  barRow: ['flex', 'flex-col', 'gap:1'],
-  barLabel: ['flex', 'justify:between', 'items:center'],
-  barName: ['font:xs'],
-  barValue: ['font:xs'],
-  barTrack: ['relative'],
+  card: { padding: token.spacing[6], borderWidth: '1px' },
+  barGroup: { display: 'flex', flexDirection: 'column', gap: token.spacing[3] },
+  barRow: { display: 'flex', flexDirection: 'column', gap: token.spacing[1] },
+  barLabel: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  barName: { fontSize: token.font.size.xs },
+  barValue: { fontSize: token.font.size.xs },
+  barTrack: { position: 'relative' },
   barFill: [],
-  footnote: ['font:xs', 'text:center', 'mt:8'],
+  footnote: { fontSize: token.font.size.xs, textAlign: 'center', marginTop: token.spacing[8] },
 });
 
 // ── Placeholder benchmark data ──────────────────────────────
