@@ -137,13 +137,16 @@ export type {
   ColumnBuilder,
   ColumnMetadata,
   DecimalMeta,
+  DefaultMeta,
   EnumMeta,
   FormatMeta,
   InferColumnType,
   JsonbValidator,
   NumericColumnBuilder,
+  SerialMeta,
   StringColumnBuilder,
   VarcharMeta,
+  VectorMeta,
 } from './schema/column';
 export { defineAnnotations } from './schema/define-annotations';
 export type { RegisteredEnum } from './schema/enum-registry';
@@ -163,16 +166,18 @@ export type {
   SelectOption,
   UpdateInput,
 } from './schema/inference';
-export type { ModelDef } from './schema/model';
+export type { ModelDef, ValidateOneRelationFKs } from './schema/model';
 export type { ModelSchemas, SchemaLike } from './schema/model-schemas';
 export { createRegistry } from './schema/registry';
-export type { RelationDef } from './schema/relation';
+export type { ManyRelationDef, RelationDef, ThroughDef } from './schema/relation';
 export type {
+  ColumnRecord,
   IndexDef,
   IndexOptions,
   IndexType,
   MarkAsPrimary,
   TableDef,
+  TableOptions,
   TableOptionsWithPK,
 } from './schema/table';
 export type {
