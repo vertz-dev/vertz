@@ -12,6 +12,8 @@ import type {
 } from './types';
 import { toPascalCase } from './utils/naming';
 
+const PATH_PARAM_RE = /:([a-zA-Z][a-zA-Z0-9_]*)/g;
+
 export function adaptIR(appIR: AppIR): CodegenIR {
   // Collect named schemas
   const rawSchemas = appIR.schemas.filter((s) => s.isNamed && s.jsonSchema);
@@ -309,15 +311,41 @@ export function adaptIR(appIR: AppIR): CodegenIR {
   const services: CodegenServiceModule[] = (appIR.services ?? []).map((svc) => {
     const svcPascal = toPascalCase(svc.name);
     const actions: CodegenServiceAction[] = svc.actions
-      .filter((a) => svc.access[a.name] !== 'false')
+      .filter((a) => svc.access[a.name] === 'function')
       .map((a) => {
+        const actionPascal = toPascalCase(a.name);
         const rawPath = a.path ?? `/${svc.name}/${a.name}`;
         const actionPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+        const pathParams = [...actionPath.matchAll(PATH_PARAM_RE)].map((m) => m[1] ?? '');
+
+        const inputFields =
+          a.body?.kind === 'inline'
+            ? (a.body as InlineSchemaRef).resolvedFields?.map((f) => ({
+                name: f.name,
+                tsType: f.tsType,
+                optional: f.optional,
+              }))
+            : undefined;
+
+        const outputFields =
+          a.response?.kind === 'inline'
+            ? (a.response as InlineSchemaRef).resolvedFields?.map((f) => ({
+                name: f.name,
+                tsType: f.tsType,
+                optional: f.optional,
+              }))
+            : undefined;
+
         return {
           name: a.name,
           method: a.method,
           path: actionPath,
           operationId: `${a.name}${svcPascal}`,
+          inputSchema: a.body ? `${actionPascal}${svcPascal}Input` : undefined,
+          outputSchema: a.response ? `${actionPascal}${svcPascal}Output` : undefined,
+          pathParams: pathParams.length > 0 ? pathParams : undefined,
+          resolvedInputFields: inputFields,
+          resolvedOutputFields: outputFields,
         };
       });
 
