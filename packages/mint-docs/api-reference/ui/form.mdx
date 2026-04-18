@@ -91,6 +91,20 @@ Access any field by name on the form instance (e.g., `taskForm.title`). Each fie
 
 ---
 
+## FormData coercion
+
+Before validation, `form()` coerces each `FormData` string into the type declared by the body schema:
+
+- `s.boolean()` — checkbox checked → `true`; absent (unchecked) → `false`; explicit `"false"`/`"0"`/`"off"` → `false`.
+- `s.number()` / `s.bigint()` — numeric strings → numbers; empty strings dropped so `optional()`/`default()` apply.
+- `s.date()` — parseable strings → `Date`.
+- `s.string()` — never coerced (even when the value looks numeric).
+- `s.array(<primitive>)` — multiple values for the same `name` produce an array of the leaf type.
+
+Use plain `s.boolean()` / `s.number()` / `s.date()` in form schemas — `s.coerce.*` is not required. See the [Forms guide — FormData coercion](/guides/ui/forms#formdata-coercion) for the full table.
+
+---
+
 ## Progressive enhancement
 
 The `action` and `method` properties enable the form to work without JavaScript. When JS is available, `onSubmit` intercepts the submission and handles it client-side with validation.
