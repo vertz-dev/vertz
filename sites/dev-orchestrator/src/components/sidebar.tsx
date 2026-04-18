@@ -1,26 +1,69 @@
-import { BotIcon, LayoutDashboardIcon, NetworkIcon } from "@vertz/icons";
-import { css } from '@vertz/ui';
+import { BotIcon, LayoutDashboardIcon, NetworkIcon } from '@vertz/icons';
+import { css, token } from '@vertz/ui';
 import { useRouter } from '@vertz/ui/router';
 
 const s = css({
-  sidebar: ['flex', 'flex-col', 'min-h:screen', 'bg:card', 'border-r:1', 'border:border', { '&': { width: '220px' } }],
-  brand: ['p:4', 'text:sm', 'font:bold', 'text:foreground'],
+  sidebar: [
+    'flex',
+    'flex-col',
+    'min-h:screen',
+    'bg:card',
+    'border-r:1',
+    'border:border',
+    { '&': { width: '220px' } },
+  ],
+  brand: {
+    padding: token.spacing[4],
+    fontSize: token.font.size.sm,
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+  },
   separator: ['bg:border', 'mx:4', { '&': { height: '1px' } }],
   nav: ['flex', 'flex-col', 'p:3', { '&': { gap: '2px' } }],
   navItem: [
-    'flex', 'items:center', 'gap:2', 'px:3', 'py:2', 'rounded:md', 'text:sm',
-    'text:muted-foreground', 'w:full', 'cursor:pointer', 'text:left',
+    'flex',
+    'items:center',
+    'gap:2',
+    'px:3',
+    'py:2',
+    'rounded:md',
+    'text:sm',
+    'text:muted-foreground',
+    'w:full',
+    'cursor:pointer',
+    'text:left',
     { '&': { background: 'transparent', border: 'none' } },
   ],
   navItemActive: [
-    'flex', 'items:center', 'gap:2', 'px:3', 'py:2', 'rounded:md', 'text:sm',
-    'text:foreground', 'bg:secondary', 'font:medium', 'w:full', 'cursor:pointer', 'text:left',
+    'flex',
+    'items:center',
+    'gap:2',
+    'px:3',
+    'py:2',
+    'rounded:md',
+    'text:sm',
+    'text:foreground',
+    'bg:secondary',
+    'font:medium',
+    'w:full',
+    'cursor:pointer',
+    'text:left',
     { '&': { border: 'none' } },
   ],
   footer: ['p:4', 'text:muted-foreground', { '&': { 'margin-top': 'auto', 'font-size': '11px' } }],
   kbd: [
-    'bg:background', 'text:muted-foreground', 'border:1', 'border:border',
-    { '&': { 'font-size': '10px', padding: '1px 4px', 'border-radius': '3px', 'margin-left': 'auto' } },
+    'bg:background',
+    'text:muted-foreground',
+    'border:1',
+    'border:border',
+    {
+      '&': {
+        'font-size': '10px',
+        padding: '1px 4px',
+        'border-radius': '3px',
+        'margin-left': 'auto',
+      },
+    },
   ],
 });
 

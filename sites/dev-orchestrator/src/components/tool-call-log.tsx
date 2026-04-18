@@ -1,24 +1,29 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import type { ToolCallLogProps } from './tool-call-log-utils';
 import { formatToolDuration } from './tool-call-log-utils';
 
 export type { ToolCallRecord, ToolCallLogProps } from './tool-call-log-utils';
 
 const s = css({
-  list: ['flex', 'flex-col', 'gap:1'],
-  item: ['border:1', 'border:border', 'rounded:md', 'overflow:hidden'],
-  header: [
-    'flex',
-    'items:center',
-    'gap:2',
-    'py:2',
-    'px:3',
-    'text:xs',
-    'font:medium',
-    'text:foreground',
-    'bg:secondary',
-    'cursor:pointer',
-  ],
+  list: { display: 'flex', flexDirection: 'column', gap: token.spacing[1] },
+  item: {
+    borderWidth: '1px',
+    borderColor: token.color.border,
+    borderRadius: token.radius.md,
+    overflow: 'hidden',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[2],
+    paddingBlock: token.spacing[2],
+    paddingInline: token.spacing[3],
+    fontSize: token.font.size.xs,
+    fontWeight: token.font.weight.medium,
+    color: token.color.foreground,
+    backgroundColor: token.color.secondary,
+    cursor: 'pointer',
+  },
   duration: ['text:xs', 'text:muted-foreground', { '&': { 'margin-left': 'auto' } }],
   details: [
     'py:2',
@@ -27,16 +32,28 @@ const s = css({
     'text:foreground',
     'border-t:1',
     'border:border',
-    { '&': { 'font-family': 'monospace', 'white-space': 'pre-wrap', 'word-break': 'break-word', 'line-height': '1.4' } },
+    {
+      '&': {
+        'font-family': 'monospace',
+        'white-space': 'pre-wrap',
+        'word-break': 'break-word',
+        'line-height': '1.4',
+      },
+    },
   ],
-  label: ['text:muted-foreground', 'font:semibold', 'uppercase', { '&': { 'font-size': '10px', 'margin-bottom': '4px' } }],
+  label: [
+    'text:muted-foreground',
+    'font:semibold',
+    'uppercase',
+    { '&': { 'font-size': '10px', 'margin-bottom': '4px' } },
+  ],
   labelSpaced: [
     'text:muted-foreground',
     'font:semibold',
     'uppercase',
     { '&': { 'font-size': '10px', 'margin-bottom': '4px', 'margin-top': '8px' } },
   ],
-  empty: ['text:sm', 'text:muted-foreground'],
+  empty: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
 });
 
 export default function ToolCallLog({ calls }: ToolCallLogProps) {

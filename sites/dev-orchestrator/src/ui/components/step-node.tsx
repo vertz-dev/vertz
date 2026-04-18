@@ -1,4 +1,4 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { statusBadge, statusBadgeColor } from './live-overlay-utils';
 import type { StepNodeProps } from './step-node-utils';
 import { stepNodeBackground, stepNodeBorderColor } from './step-node-utils';
@@ -22,8 +22,12 @@ const s = css({
       },
     },
   ],
-  name: ['text:sm', 'font:semibold', 'text:foreground'],
-  agent: ['text:xs', 'text:muted-foreground'],
+  name: {
+    fontSize: token.font.size.sm,
+    fontWeight: token.font.weight.semibold,
+    color: token.color.foreground,
+  },
+  agent: { fontSize: token.font.size.xs, color: token.color['muted-foreground'] },
   icon: ['text:center', { '&': { 'font-size': '16px', width: '20px' } }],
   badge: [
     'absolute',
@@ -61,7 +65,12 @@ export default function StepNode({ name, type, agent, selected, status, onClick 
       className={s.node}
       style={dynamicStyle}
       onClick={onClick}
-      onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
+      onKeyDown={(e: KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick?.();
+        }
+      }}
       role="button"
       tabIndex={0}
     >
@@ -71,7 +80,9 @@ export default function StepNode({ name, type, agent, selected, status, onClick 
         {agent && <div className={s.agent}>{agent}</div>}
       </div>
       {badge && (
-        <span className={s.badge} style={{ background: badgeColor }}>{badge}</span>
+        <span className={s.badge} style={{ background: badgeColor }}>
+          {badge}
+        </span>
       )}
     </div>
   );

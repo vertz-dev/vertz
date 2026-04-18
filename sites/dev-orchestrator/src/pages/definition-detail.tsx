@@ -1,4 +1,4 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { query } from '@vertz/ui/query';
 import { useParams, useRouter } from '@vertz/ui/router';
 import type { WorkflowRun } from '../api/services/workflows';
@@ -11,7 +11,7 @@ import { resolveSelectedAgent, toggleStep } from './definition-detail-utils';
 
 const s = css({
   page: ['flex', 'gap:6', { '&': { 'max-width': '1200px' } }],
-  main: ['flex-1', 'flex', 'flex-col', 'gap:4'],
+  main: { flex: '1 1 0%', display: 'flex', flexDirection: 'column', gap: token.spacing[4] },
   heading: ['text:foreground', 'font:bold', 'm:0', { '&': { 'font-size': '24px' } }],
   backBtn: [
     'inline-flex',
@@ -28,17 +28,37 @@ const s = css({
     'flex-col',
     'gap:3',
     'shrink-0',
-    { '&': { width: '320px', 'border-left': '1px solid var(--color-border)', 'padding-left': '20px' } },
+    {
+      '&': {
+        width: '320px',
+        'border-left': '1px solid var(--color-border)',
+        'padding-left': '20px',
+      },
+    },
   ],
   panelTitle: ['font:semibold', 'text:foreground', { '&': { 'font-size': '16px' } }],
   closeBtn: [
     'absolute',
     'text:muted-foreground',
     'cursor:pointer',
-    { '&': { top: '0', right: '0', background: 'none', border: 'none', 'font-size': '18px', padding: '4px 8px' } },
+    {
+      '&': {
+        top: '0',
+        right: '0',
+        background: 'none',
+        border: 'none',
+        'font-size': '18px',
+        padding: '4px 8px',
+      },
+    },
   ],
-  label: ['font:semibold', 'text:muted-foreground', 'uppercase', { '&': { 'font-size': '11px', 'margin-bottom': '4px' } }],
-  value: ['text:sm', 'text:foreground'],
+  label: [
+    'font:semibold',
+    'text:muted-foreground',
+    'uppercase',
+    { '&': { 'font-size': '11px', 'margin-bottom': '4px' } },
+  ],
+  value: { fontSize: token.font.size.sm, color: token.color.foreground },
   prompt: [
     'text:xs',
     'text:foreground',
@@ -56,10 +76,14 @@ const s = css({
     },
   ],
   tools: ['flex', 'flex-wrap', { '&': { gap: '4px' } }],
-  toolBadge: ['text:xs', 'rounded:full', 'bg:secondary', { '&': { padding: '2px 8px', color: 'var(--color-secondary-foreground)' } }],
-  loading: ['text:muted-foreground', 'text:sm'],
+  toolBadge: [
+    'text:xs',
+    'rounded:full',
+    'bg:secondary',
+    { '&': { padding: '2px 8px', color: 'var(--color-secondary-foreground)' } },
+  ],
+  loading: { color: token.color['muted-foreground'], fontSize: token.font.size.sm },
 });
-
 
 export default function DefinitionDetailPage() {
   const { name } = useParams<'/definitions/:name'>();
@@ -68,10 +92,7 @@ export default function DefinitionDetailPage() {
 
   let sseEvents: StepProgressEvent[] = [];
 
-  const defQuery = query(
-    () => sdk.definitions.get({ name }),
-    { key: `definition-${name}` },
-  );
+  const defQuery = query(() => sdk.definitions.get({ name }), { key: `definition-${name}` });
 
   // Check for an active run of this definition
   const activeRunQuery = query(
@@ -133,7 +154,9 @@ export default function DefinitionDetailPage() {
         <div className={s.panel}>
           <button
             className={s.closeBtn}
-            onClick={() => { selectedStep = undefined; }}
+            onClick={() => {
+              selectedStep = undefined;
+            }}
             aria-label="Close panel"
           >
             ×
@@ -162,7 +185,9 @@ export default function DefinitionDetailPage() {
               <div className={s.label}>Tools ({selectedAgent()!.tools.length})</div>
               <div className={s.tools}>
                 {selectedAgent()!.tools.map((tool) => (
-                  <span key={tool} className={s.toolBadge}>{tool}</span>
+                  <span key={tool} className={s.toolBadge}>
+                    {tool}
+                  </span>
                 ))}
               </div>
             </div>

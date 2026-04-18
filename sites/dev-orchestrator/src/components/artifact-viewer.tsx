@@ -1,11 +1,16 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import type { ArtifactViewerProps } from './artifact-viewer-utils';
 import { isMarkdown } from './artifact-viewer-utils';
 
 export type { ArtifactViewerProps } from './artifact-viewer-utils';
 
 const s = css({
-  card: ['border:1', 'border:border', 'rounded:lg', 'overflow:hidden'],
+  card: {
+    borderWidth: '1px',
+    borderColor: token.color.border,
+    borderRadius: token.radius.lg,
+    overflow: 'hidden',
+  },
   header: [
     'py:2',
     'px:3',
@@ -23,7 +28,14 @@ const s = css({
     'text:foreground',
     'bg:secondary',
     'm:0',
-    { '&': { 'line-height': '1.5', 'font-family': 'monospace', 'white-space': 'pre-wrap', 'word-break': 'break-word' } },
+    {
+      '&': {
+        'line-height': '1.5',
+        'font-family': 'monospace',
+        'white-space': 'pre-wrap',
+        'word-break': 'break-word',
+      },
+    },
   ],
 });
 
@@ -33,11 +45,7 @@ export default function ArtifactViewer({ path, content, type }: ArtifactViewerPr
   return (
     <div className={s.card}>
       <div className={s.header}>{path}</div>
-      {markdown ? (
-        <div className={s.body}>{content}</div>
-      ) : (
-        <pre className={s.pre}>{content}</pre>
-      )}
+      {markdown ? <div className={s.body}>{content}</div> : <pre className={s.pre}>{content}</pre>}
     </div>
   );
 }

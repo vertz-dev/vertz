@@ -1,4 +1,4 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { query } from '@vertz/ui/query';
 import { useParams, useRouter } from '@vertz/ui/router';
 import type { WorkflowRun } from '../api/services/workflows';
@@ -10,7 +10,12 @@ import { WORKFLOW_STEPS, stepStatus } from './workflow-detail-utils';
 
 const s = css({
   page: ['flex', 'flex-col', 'gap:6', { '&': { 'max-width': '960px' } }],
-  heading: ['text:2xl', 'font:bold', 'text:foreground', 'm:0'],
+  heading: {
+    fontSize: token.font.size['2xl'],
+    fontWeight: token.font.weight.bold,
+    color: token.color.foreground,
+    margin: token.spacing[0],
+  },
   meta: ['text:sm', 'text:muted-foreground', { '&': { margin: '4px 0 0' } }],
   timeline: ['flex', 'flex-col', { '&': { gap: '0px' } }],
   btn: [
@@ -19,25 +24,54 @@ const s = css({
     'rounded:md',
     'bg:primary',
     'cursor:pointer',
-    { '&': { height: '32px', padding: '0 14px', border: 'none', color: 'var(--color-primary-foreground)' } },
+    {
+      '&': {
+        height: '32px',
+        padding: '0 14px',
+        border: 'none',
+        color: 'var(--color-primary-foreground)',
+      },
+    },
   ],
-  approveRow: ['flex', 'items:center', 'gap:3', 'py:2', 'px:4'],
-  loading: ['text:sm', 'text:muted-foreground'],
-  error: ['text:sm', 'text:destructive'],
-  actions: ['flex', 'gap:2', 'items:center'],
+  approveRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[3],
+    paddingBlock: token.spacing[2],
+    paddingInline: token.spacing[4],
+  },
+  loading: { fontSize: token.font.size.sm, color: token.color['muted-foreground'] },
+  error: { fontSize: token.font.size.sm, color: token.color.destructive },
+  actions: { display: 'flex', gap: token.spacing[2], alignItems: 'center' },
   cancelBtn: [
     'text:sm',
     'rounded:md',
     'cursor:pointer',
     'font:medium',
-    { '&': { height: '32px', padding: '0 14px', border: '1px solid hsl(0, 84%, 60%)', background: 'transparent', color: 'hsl(0, 84%, 60%)' } },
+    {
+      '&': {
+        height: '32px',
+        padding: '0 14px',
+        border: '1px solid hsl(0, 84%, 60%)',
+        background: 'transparent',
+        color: 'hsl(0, 84%, 60%)',
+      },
+    },
   ],
   retryBtn: [
     'text:sm',
     'rounded:md',
     'cursor:pointer',
     'font:medium',
-    { '&': { height: '32px', padding: '0 14px', border: '1px solid var(--color-primary)', background: 'transparent', color: 'var(--color-primary)' } },
+    {
+      '&': {
+        height: '32px',
+        padding: '0 14px',
+        border: '1px solid var(--color-primary)',
+        background: 'transparent',
+        color: 'var(--color-primary)',
+      },
+    },
   ],
 });
 
@@ -49,10 +83,7 @@ export default function WorkflowDetailPage() {
   let retrying = false;
   let sseEvents: StepProgressEvent[] = [];
 
-  const workflowQuery = query(
-    () => sdk.workflows.get({ id }),
-    { key: `workflow-${id}` },
-  );
+  const workflowQuery = query(() => sdk.workflows.get({ id }), { key: `workflow-${id}` });
 
   // SSE live updates — close on page teardown
   const stream = createWorkflowStream(id);

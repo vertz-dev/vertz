@@ -1,16 +1,32 @@
-import { css } from '@vertz/ui';
+import { css, token } from '@vertz/ui';
 import { useRouter } from '@vertz/ui/router';
 import type { BreadcrumbSegment } from './breadcrumbs-utils';
 import { buildBreadcrumbs } from './breadcrumbs-utils';
 
 const s = css({
-  nav: ['flex', 'items:center', 'gap:1', 'text:sm', 'text:muted-foreground'],
+  nav: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: token.spacing[1],
+    fontSize: token.font.size.sm,
+    color: token.color['muted-foreground'],
+  },
   link: [
-    'text:muted-foreground', 'text:sm', 'cursor:pointer',
+    'text:muted-foreground',
+    'text:sm',
+    'cursor:pointer',
     { '&': { background: 'none', border: 'none', padding: '0', 'text-decoration': 'none' } },
   ],
-  current: ['text:foreground', 'text:sm', 'font:medium'],
-  separator: ['text:muted-foreground', 'text:xs', 'select-none'],
+  current: {
+    color: token.color.foreground,
+    fontSize: token.font.size.sm,
+    fontWeight: token.font.weight.medium,
+  },
+  separator: {
+    color: token.color['muted-foreground'],
+    fontSize: token.font.size.xs,
+    userSelect: 'none',
+  },
 });
 
 export function Breadcrumbs({ pathname }: { pathname: string }) {
@@ -24,10 +40,13 @@ export function Breadcrumbs({ pathname }: { pathname: string }) {
         return (
           <span key={seg.href}>
             {i > 0 && <span className={s.separator}> / </span>}
-            {isLast
-              ? <span className={s.current}>{seg.label}</span>
-              : <button className={s.link} onClick={() => navigate({ to: seg.href })}>{seg.label}</button>
-            }
+            {isLast ? (
+              <span className={s.current}>{seg.label}</span>
+            ) : (
+              <button className={s.link} onClick={() => navigate({ to: seg.href })}>
+                {seg.label}
+              </button>
+            )}
           </span>
         );
       })}
