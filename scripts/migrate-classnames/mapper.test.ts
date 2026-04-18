@@ -379,6 +379,90 @@ describe('mapShorthand — ring', () => {
   });
 });
 
+describe('mapShorthand — raw aliases', () => {
+  it('expands transition:colors to the color-props list with timing', () => {
+    const result = mapShorthand('transition:colors');
+    expect(result.pseudo).toBeNull();
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]!.cssKey).toBe('transition');
+    expect(result.entries[0]!.valueExpr).toMatch(/^'color 150ms cubic-bezier/);
+    expect(result.entries[0]!.valueExpr).toContain('background-color');
+    expect(result.entries[0]!.valueExpr).toContain('stroke');
+  });
+
+  it('expands transition:all to all + timing', () => {
+    expect(mapShorthand('transition:all')).toEqual({
+      entries: [{ cssKey: 'transition', valueExpr: "'all 150ms cubic-bezier(0.4, 0, 0.2, 1)'" }],
+      pseudo: null,
+    });
+  });
+
+  it('expands transition:shadow to box-shadow + timing', () => {
+    expect(mapShorthand('transition:shadow')).toEqual({
+      entries: [
+        { cssKey: 'transition', valueExpr: "'box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1)'" },
+      ],
+      pseudo: null,
+    });
+  });
+
+  it('expands tracking:tight to letterSpacing + -0.025em', () => {
+    expect(mapShorthand('tracking:tight')).toEqual({
+      entries: [{ cssKey: 'letterSpacing', valueExpr: "'-0.025em'" }],
+      pseudo: null,
+    });
+  });
+
+  it('expands tracking:wider to letterSpacing + 0.05em', () => {
+    expect(mapShorthand('tracking:wider')).toEqual({
+      entries: [{ cssKey: 'letterSpacing', valueExpr: "'0.05em'" }],
+      pseudo: null,
+    });
+  });
+
+  it('expands grid-cols:3 to gridTemplateColumns + repeat()', () => {
+    expect(mapShorthand('grid-cols:3')).toEqual({
+      entries: [{ cssKey: 'gridTemplateColumns', valueExpr: "'repeat(3, minmax(0, 1fr))'" }],
+      pseudo: null,
+    });
+  });
+
+  it('expands aspect:square to aspectRatio + 1 / 1', () => {
+    expect(mapShorthand('aspect:square')).toEqual({
+      entries: [{ cssKey: 'aspectRatio', valueExpr: "'1 / 1'" }],
+      pseudo: null,
+    });
+  });
+
+  it('expands aspect:video to aspectRatio + 16 / 9', () => {
+    expect(mapShorthand('aspect:video')).toEqual({
+      entries: [{ cssKey: 'aspectRatio', valueExpr: "'16 / 9'" }],
+      pseudo: null,
+    });
+  });
+
+  it('resolves top:4 via spacing scale', () => {
+    expect(mapShorthand('top:4')).toEqual({
+      entries: [{ cssKey: 'top', valueExpr: 'token.spacing[4]' }],
+      pseudo: null,
+    });
+  });
+
+  it('resolves inset:8 via spacing scale', () => {
+    expect(mapShorthand('inset:8')).toEqual({
+      entries: [{ cssKey: 'inset', valueExpr: 'token.spacing[8]' }],
+      pseudo: null,
+    });
+  });
+
+  it('falls back to quoted raw value for top:0 (valid CSS zero)', () => {
+    expect(mapShorthand('top:0')).toEqual({
+      entries: [{ cssKey: 'top', valueExpr: 'token.spacing[0]' }],
+      pseudo: null,
+    });
+  });
+});
+
 describe('mapShorthand — errors', () => {
   it('throws on unknown shorthand', () => {
     expect(() => mapShorthand('bogus:whatever')).toThrow(/unknown/i);

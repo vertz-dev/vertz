@@ -159,6 +159,42 @@ function mapValueForType(
   }
 }
 
+const TRANSITION_TIMING = '150ms cubic-bezier(0.4, 0, 0.2, 1)';
+const TRANSITION_COLOR_PROPS = [
+  'color',
+  'background-color',
+  'border-color',
+  'outline-color',
+  'text-decoration-color',
+  'fill',
+  'stroke',
+];
+const TRANSITION_MAP: Record<string, string> = {
+  none: 'none',
+  all: `all ${TRANSITION_TIMING}`,
+  colors: TRANSITION_COLOR_PROPS.map((p) => `${p} ${TRANSITION_TIMING}`).join(', '),
+  shadow: `box-shadow ${TRANSITION_TIMING}`,
+  transform: `transform ${TRANSITION_TIMING}`,
+  opacity: `opacity ${TRANSITION_TIMING}`,
+};
+
+const TRACKING_MAP: Record<string, string> = {
+  tighter: '-0.05em',
+  tight: '-0.025em',
+  normal: '0em',
+  wide: '0.025em',
+  wider: '0.05em',
+  widest: '0.1em',
+};
+
+const ASPECT_MAP: Record<string, string> = {
+  square: '1 / 1',
+  video: '16 / 9',
+  photo: '4 / 3',
+};
+
+const POSITION_PROPERTIES = new Set(['inset', 'top', 'right', 'bottom', 'left']);
+
 function mapRaw(value: string, property: string): string {
   if (
     property === 'border-r' ||
@@ -168,7 +204,38 @@ function mapRaw(value: string, property: string): string {
   ) {
     const num = Number(value);
     if (!Number.isNaN(num)) return quote(`${num}px`);
+    return quote(value);
   }
+
+  if (property === 'transition') {
+    const mapped = TRANSITION_MAP[value];
+    if (mapped !== undefined) return quote(mapped);
+    return quote(value);
+  }
+
+  if (property === 'tracking') {
+    const mapped = TRACKING_MAP[value];
+    if (mapped !== undefined) return quote(mapped);
+    return quote(value);
+  }
+
+  if (property === 'grid-cols') {
+    const num = Number(value);
+    if (!Number.isNaN(num) && num > 0) return quote(`repeat(${num}, minmax(0, 1fr))`);
+    return quote(value);
+  }
+
+  if (property === 'aspect') {
+    const mapped = ASPECT_MAP[value];
+    if (mapped !== undefined) return quote(mapped);
+    return quote(value);
+  }
+
+  if (POSITION_PROPERTIES.has(property)) {
+    if (SPACING_SCALE[value] !== undefined) return spacingAccess(value);
+    return quote(value);
+  }
+
   return quote(value);
 }
 
