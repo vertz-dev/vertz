@@ -2574,12 +2574,17 @@ mod tests {
             &server_path,
             r#"
             const handler = async (request) => {
+                // Mirrors the @anthropic-ai/sdk browser-detection heuristic:
+                // an SDK constructor throws if (window && document) are both visible.
+                const sdkDetectsBrowser =
+                    typeof window !== 'undefined' && typeof document !== 'undefined';
                 const report = {
                     window: typeof window,
                     document: typeof document,
                     location: typeof location,
                     history: typeof history,
                     HTMLElement: typeof HTMLElement,
+                    sdkDetectsBrowser,
                 };
                 return new Response(JSON.stringify(report), {
                     status: 200,
@@ -2648,6 +2653,11 @@ mod tests {
         assert_eq!(
             report["HTMLElement"], "undefined",
             "HTMLElement leaked: {}",
+            report
+        );
+        assert_eq!(
+            report["sdkDetectsBrowser"], false,
+            "SDK browser-detection heuristic (`typeof window !== 'undefined' && typeof document !== 'undefined'`) must be false in handler context: {}",
             report
         );
     }

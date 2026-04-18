@@ -1,5 +1,5 @@
 ---
-'@vertz/cli-runtime': patch
+'@vertz/runtime': patch
 ---
 
 fix(runtime): clean Node-like env for server handlers

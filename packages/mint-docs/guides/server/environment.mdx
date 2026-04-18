@@ -71,17 +71,28 @@ export default service('ai', {
 ```
 
 <Warning>
-  If you see older guides suggesting `dangerouslyAllowBrowser: true` for Vertz handlers, remove it.
-  That flag disables a safety check that prevents API keys from leaking into client bundles — it is
-  not needed in a server handler and leaves you exposed if the same file is ever imported by client
-  code.
+  If any examples or workarounds you've seen use `dangerouslyAllowBrowser: true` in a Vertz handler,
+  remove it. That flag disables a safety check that prevents API keys from leaking into client
+  bundles — it is not needed in a server handler and leaves you exposed if the same file is ever
+  imported by client code.
 </Warning>
 
 ## SSR vs. handlers
 
 During server-side rendering (SSR) of a page, Vertz transiently installs a DOM shim (`document`, `window`, etc.) so the same components that run in the browser can build HTML on the server. That shim is scoped to the render — it is installed before the framework begins rendering the matched route and removed immediately after.
 
-Handler code (entity actions, service actions, middleware, auth resolvers, route loaders, etc.) always runs **outside** that scope. A handler triggered by an API request, a form submission, or a fetch-interception during SSR never sees the shim: `typeof window === 'undefined'` is a stable invariant in handler code.
+Handler code (entity actions, service actions, middleware, auth resolvers, etc.) invoked through the top-level HTTP/API dispatch path runs **outside** that scope. A handler triggered by a direct request from the browser to `/api/...`, a form submission, or any non-SSR entry point sees `typeof window === 'undefined'`.
+
+### One edge case: handlers invoked via `fetch('/api/...')` during SSR
+
+If an SSR render itself calls `fetch('/api/...')` (for example, a loader or query that runs on the server), the internal fetch interceptor dispatches that request to the handler **in-place**, while the DOM shim is still installed for the ongoing render. In that path, the handler transiently sees `window` / `document` / `location`.
+
+For the SDK-detection problem this is usually harmless — loaders and queries typically read data and don't construct `@anthropic-ai/sdk` or `openai` clients. But if you need a guaranteed-clean environment (e.g. you instantiate an SDK inside a handler that is also reachable from SSR), prefer:
+
+- constructing the SDK client at module scope instead of per-request, or
+- keeping SDK construction in actions that are only called from the client (form submissions, button clicks) rather than SSR loaders.
+
+The direct `/api/...` request path — which is how form submissions and client-side `fetch` calls reach handlers in production — always sees the clean environment.
 
 ## Migrating from older workarounds
 
