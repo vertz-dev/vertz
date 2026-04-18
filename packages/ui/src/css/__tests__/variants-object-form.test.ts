@@ -48,21 +48,6 @@ describe('variants() — object form', () => {
     });
   });
 
-  describe('Given a mix of array base and object variants (transient interop)', () => {
-    describe('When both shapes appear in the same config', () => {
-      it('Then each block compiles via its own path', () => {
-        const card = variants({
-          base: ['p:4'],
-          variants: {
-            tone: { muted: { color: 'var(--color-muted-foreground)' } },
-          },
-        });
-        expect(typeof card({ tone: 'muted' })).toBe('string');
-        expect(card.css).toContain('color: var(--color-muted-foreground)');
-      });
-    });
-  });
-
   describe('Given two variants() calls with reordered keys in the block', () => {
     describe('When the object has the same properties in different order', () => {
       it('Then produces equivalent class names (hash stable)', () => {

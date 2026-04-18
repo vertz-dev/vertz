@@ -113,12 +113,28 @@ export function compileTheme(theme: Theme, options?: CompileThemeOptions): Compi
     }
   }
 
+  // Validate: detect CSS custom property name collisions across namespaces.
+  // e.g., `primary: { foreground: '#fff' }` and `'primary-foreground': { DEFAULT: '#eee' }`
+  // would both produce `--color-primary-foreground`, silently overwriting each other.
+  const seenVars = new Map<string, string>();
+  const recordVar = (varName: string, path: string) => {
+    const prev = seenVars.get(varName);
+    if (prev !== undefined && prev !== path) {
+      throw new Error(
+        `Color token collision: '${prev}' and '${path}' both produce CSS variable '${varName}'. ` +
+          `Rename one to avoid silent overrides.`,
+      );
+    }
+    seenVars.set(varName, path);
+  };
+
   // Process color tokens
   for (const [name, values] of Object.entries(theme.colors)) {
     for (const [key, value] of Object.entries(values)) {
       if (key === 'DEFAULT') {
         // Contextual token: default value goes in :root
         const varName = `--color-${name}`;
+        recordVar(varName, name);
         rootVars.push(`  ${varName}: ${sanitizeCssValue(value)};`);
         tokenPaths.push(name);
       } else if (key.startsWith('_')) {
@@ -131,8 +147,10 @@ export function compileTheme(theme: Theme, options?: CompileThemeOptions): Compi
       } else {
         // Raw token shade (e.g., 500, 600)
         const varName = `--color-${name}-${key}`;
+        const path = `${name}.${key}`;
+        recordVar(varName, path);
         rootVars.push(`  ${varName}: ${sanitizeCssValue(value)};`);
-        tokenPaths.push(`${name}.${key}`);
+        tokenPaths.push(path);
       }
     }
   }

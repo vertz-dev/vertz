@@ -75,17 +75,22 @@ This is a true foundation layer that could be extracted as a standalone package.
 
 The CSS module (`css/`) has excellent architecture:
 
-- **`token-tables.ts`**: Single source of truth for all CSS tokens (spacing, colors, shadows, etc.)
-- **`token-resolver.ts`**: Token resolution with validation
-- **`shorthand-parser.ts`**: Parses shorthand like `p:4` → `padding: 1rem`
-- **`variants.ts`**: Type-safe variant system inspired by Stitches/CVA
+- **`css.ts`**: Object-form `css()` entry point that accepts a `StyleBlock` per class — camelCase CSS properties, raw values, and `token.*` references
+- **`token.ts`**: Typed `token` proxy that resolves to CSS custom properties (e.g., `token.color.primary[500]` → `var(--color-primary-500)`). Declaration-merge friendly for user theme augmentation
+- **`theme.ts`**: Theme definition and compilation pipeline (defines the custom properties that `token.*` resolves against)
+- **`variants.ts`**: Type-safe variant system inspired by Stitches/CVA, built on the same `StyleBlock` primitive as `css()`
 
 The `variants()` function provides excellent TypeScript inference:
 
 ```ts
 const button = variants({
-  base: ['flex', 'rounded:md'],
-  variants: { intent: { primary: ['bg:blue.500'], secondary: ['bg:gray.100'] } },
+  base: { display: 'flex', borderRadius: token.radius.md },
+  variants: {
+    intent: {
+      primary: { backgroundColor: token.color.blue[500] },
+      secondary: { backgroundColor: token.color.gray[100] },
+    },
+  },
   compoundVariants: [...]
 });
 // TypeScript knows: button({ intent: 'primary' | 'secondary' })
@@ -148,23 +153,22 @@ src/runtime/
 
 Then have `component/context.ts` import from `runtime/context-scope.ts`. This keeps context as a runtime concept while `Context<T>` with its `Provider` API remains in the component module.
 
-### 2. CSS Token Tables in Internals (MEDIUM IMPACT)
+### 2. Token Helper as the Public Token Surface (MEDIUM IMPACT)
 
-**Issue:** Token tables are exported from `internals` for compiler use:
+**Status:** The legacy string-shorthand token scales (`SPACING_SCALE`, `FONT_SIZE_SCALE`, `PROPERTY_MAP`) and the `shorthand-parser.ts` / `token-resolver.ts` modules have been deleted. The public surface is now the `token` helper re-exported from `@vertz/ui` and typed via module augmentation (`VertzThemeColors`, `VertzThemeSpacing`, `VertzThemeFonts`).
 
-```typescript
-// internals.ts
-export {
-  SPACING_SCALE, FONT_SIZE_SCALE, PROPERTY_MAP, ...
-} from './css/token-tables';
+User code only needs `import { css, token } from '@vertz/ui'`. No `internals` access is required for styling. Theme authors extend the typed surface with:
+
+```ts
+declare module '@vertz/ui' {
+  interface VertzThemeColors { background: string; primary: string; /* ... */ }
+}
 ```
-
-While this is intentional (compiler needs access), it exposes implementation details that could change.
 
 **Recommendation:**
 
-- Consider a `@vertz/ui/tokens` subpath for stable token access
-- Document token stability guarantees in `token-tables.ts` header
+- Keep `token`, `css`, `variants`, and `globalCss` as the sole styling entry points on `@vertz/ui`
+- Document theme augmentation guarantees prominently in `token.ts` header
 
 ### 3. JSX Runtime Duplication (MEDIUM IMPACT)
 
@@ -269,8 +273,8 @@ This can produce unexpected cache collisions if two different thunks stringify t
    - Files: `src/runtime/signal-types.ts`
 
 4. **Document token stability guarantees**
-   - Add header comment to `token-tables.ts`
-   - Consider `@vertz/ui/tokens` subpath for public token access
+   - Add a header comment to `css/token.ts` covering the augmentation contract
+   - Document which `token.*` namespaces have SemVer guarantees and which are theme-specific
    - Timeline: 0.5 days
 
 ### Priority: LOW
@@ -343,11 +347,11 @@ test/         ← imports router
 
 ### What's Not Extensible
 
-| Feature                    | Limitation                     |
-| -------------------------- | ------------------------------ |
-| Effect disposal            | Internal `_dispose()` method   |
-| Custom reactive containers | No factory pattern exported    |
-| Token scale customization  | Hardcoded in `token-tables.ts` |
+| Feature                    | Limitation                                                                       |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| Effect disposal            | Internal `_dispose()` method                                                     |
+| Custom reactive containers | No factory pattern exported                                                      |
+| Token scale customization  | Theme-defined via `defineTheme()` + module augmentation of `VertzTheme*` types   |
 
 ---
 

@@ -179,6 +179,18 @@ describe('compileTheme()', () => {
     expect(() => compileTheme(theme)).not.toThrow();
   });
 
+  it('throws when a shade produces a CSS var that collides with another namespace DEFAULT', () => {
+    const theme = defineTheme({
+      colors: {
+        primary: { foreground: '#fff' },
+        'primary-foreground': { DEFAULT: '#eee' },
+      },
+    });
+    expect(() => compileTheme(theme)).toThrow(
+      /Color token collision.*--color-primary-foreground/,
+    );
+  });
+
   it('accepts kebab-case color token keys', () => {
     const theme = defineTheme({
       colors: {

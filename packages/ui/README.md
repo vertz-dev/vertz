@@ -184,11 +184,20 @@ function UserProfile() {
 ### `css` — Scoped Styles
 
 ```tsx
-import { css } from '@vertz/ui/css';
+import { css, token } from '@vertz/ui';
 
 const styles = css({
-  card: ['p:4', 'bg:white', 'rounded:lg', 'shadow:md'],
-  title: ['font:xl', 'weight:bold', 'mb:2'],
+  card: {
+    padding: token.spacing[4],
+    backgroundColor: 'white',
+    borderRadius: token.radius.lg,
+    boxShadow: 'var(--shadow-md)',
+  },
+  title: {
+    fontSize: token.font.size.xl,
+    fontWeight: token.font.weight.bold,
+    marginBottom: token.spacing[2],
+  },
 });
 
 function Card({ title, children }) {
@@ -204,18 +213,31 @@ function Card({ title, children }) {
 ### `variants` — Typed Variants
 
 ```tsx
-import { variants } from '@vertz/ui/css';
+import { variants, token } from '@vertz/ui';
 
 const button = variants({
-  base: ['px:4', 'py:2', 'rounded:md', 'font:medium'],
+  base: {
+    paddingInline: token.spacing[4],
+    paddingBlock: token.spacing[2],
+    borderRadius: token.radius.md,
+    fontWeight: token.font.weight.medium,
+  },
   variants: {
     intent: {
-      primary: ['bg:blue.600', 'text:white'],
-      secondary: ['bg:gray.100', 'text:gray.800'],
+      primary: { backgroundColor: token.color.blue[600], color: 'white' },
+      secondary: { backgroundColor: token.color.gray[100], color: token.color.gray[800] },
     },
     size: {
-      sm: ['px:2', 'py:1', 'text:sm'],
-      lg: ['px:6', 'py:3', 'text:lg'],
+      sm: {
+        paddingInline: token.spacing[2],
+        paddingBlock: token.spacing[1],
+        fontSize: token.font.size.sm,
+      },
+      lg: {
+        paddingInline: token.spacing[6],
+        paddingBlock: token.spacing[3],
+        fontSize: token.font.size.lg,
+      },
     },
   },
   defaultVariants: { intent: 'primary', size: 'md' },
@@ -226,13 +248,23 @@ function Button({ intent, size, children }) {
 }
 ```
 
-### `s` — Inline Dynamic Styles
+### Inline Dynamic Styles
+
+Use a camelCase object on the JSX `style` attribute for truly dynamic values:
 
 ```tsx
-import { s } from '@vertz/ui/css';
+import { token } from '@vertz/ui';
 
 function ProgressBar({ percent }) {
-  return <div style={s([`w:${percent}%`, 'bg:green.500', 'h:4'])} />;
+  return (
+    <div
+      style={{
+        width: `${percent}%`,
+        backgroundColor: token.color.green[500],
+        height: token.spacing[4],
+      }}
+    />
+  );
 }
 ```
 
@@ -662,7 +694,7 @@ onMount(() => {
 | --------------- | --------------------------------------------------------- |
 | `css`           | Create scoped styles                                      |
 | `variants`      | Create typed variant styles                               |
-| `s`             | Inline dynamic styles                                     |
+| `token`         | Typed helper that resolves to theme CSS custom properties |
 | `defineTheme`   | Define a theme                                            |
 | `compileTheme`  | Compile a theme to CSS                                    |
 | `ThemeProvider` | Provide a theme to descendants                            |

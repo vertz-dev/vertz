@@ -18,10 +18,16 @@ import { createHighlighter } from 'shiki';
 
 // ---------- code snippets ----------
 
-const CODE_COUNTER = `import { css } from 'vertz/ui';
+const CODE_COUNTER = `import { css, token } from 'vertz/ui';
 
 const styles = css({
-  button: ['px:4', 'py:2', 'rounded:md', 'bg:blue-600', 'text:white']
+  button: {
+    paddingInline: token.spacing[4],
+    paddingBlock: token.spacing[2],
+    borderRadius: token.radius.md,
+    backgroundColor: token.color.blue[600],
+    color: 'white',
+  },
 });
 
 export function Counter() {
@@ -66,20 +72,37 @@ return (
   </form>
 );`;
 
-const CODE_CSS = `import { variants } from 'vertz/ui';
+const CODE_CSS = `import { variants, token } from 'vertz/ui';
 
 const button = variants({
-  base: ['rounded:md', 'font:semibold'],
+  base: {
+    borderRadius: token.radius.md,
+    fontWeight: token.font.weight.semibold,
+  },
   variants: {
     intent: {
-      primary: ['bg:blue-600', 'text:white'],
-      ghost: ['hover:bg:surface', 'text:zinc-300']
+      primary: {
+        backgroundColor: token.color.blue[600],
+        color: 'white',
+      },
+      ghost: {
+        color: token.color.zinc[300],
+        '&:hover': { backgroundColor: token.color.surface },
+      },
     },
     size: {
-      sm: ['px:3', 'py:1.5', 'text:sm'],
-      md: ['px:4', 'py:2', 'text:base']
-    }
-  }
+      sm: {
+        paddingInline: token.spacing[3],
+        paddingBlock: token.spacing[1.5],
+        fontSize: token.font.size.sm,
+      },
+      md: {
+        paddingInline: token.spacing[4],
+        paddingBlock: token.spacing[2],
+        fontSize: token.font.size.base,
+      },
+    },
+  },
 });
 
 // Usage: button({ intent: 'primary', size: 'md' })`;
