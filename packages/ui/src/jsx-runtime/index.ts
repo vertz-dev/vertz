@@ -16,6 +16,7 @@ import type { Ref } from '../component/refs';
 import type { FormValues } from '../dom/form-on-change';
 import { styleObjectToString } from '../dom/style';
 import { isSVGTag, normalizeSVGAttr, SVG_NS } from '../dom/svg-tags';
+import type { TrustedHTML } from '../trusted-html';
 import type { CSSProperties } from './css-properties';
 
 /**
@@ -42,6 +43,30 @@ export namespace JSX {
     children?: unknown;
     className?: string;
     style?: string | CSSProperties;
+    /**
+     * Inject raw HTML as the element's content. The string is inserted
+     * WITHOUT escaping — callers are responsible for ensuring the value
+     * is trusted markup. Use `trusted(html)` from `@vertz/ui` to mark a
+     * string as trusted.
+     *
+     * Mutually exclusive with `children`. Not valid on void elements
+     * (`<img>`, `<br>`, `<input>`, etc.).
+     */
+    innerHTML?: string | TrustedHTML | null;
+  }
+
+  /**
+   * HTML attributes for void elements — elements that cannot have
+   * children or innerHTML (e.g. `<img>`, `<br>`, `<input>`).
+   */
+  export interface VoidHTMLAttributes {
+    [key: string]: unknown;
+    className?: string;
+    style?: string | CSSProperties;
+    /** Void elements cannot have children. */
+    children?: never;
+    /** Void elements cannot have innerHTML. */
+    innerHTML?: never;
   }
 
   /**
@@ -54,8 +79,9 @@ export namespace JSX {
     onChange?: (values: FormValues) => void;
   }
 
-  /** Attributes for `<input>` elements with debounce support. */
-  export interface InputHTMLAttributes extends HTMLAttributes {
+  /** Attributes for `<input>` elements with debounce support.
+   * `<input>` is a void element — it cannot have children or innerHTML. */
+  export interface InputHTMLAttributes extends VoidHTMLAttributes {
     /** Debounce delay in ms for the form-level onChange callback.
      * Only effective inside a `<form onChange={...}>`. */
     debounce?: number;
@@ -95,6 +121,19 @@ export namespace JSX {
     input: InputHTMLAttributes;
     textarea: TextareaHTMLAttributes;
     select: SelectHTMLAttributes;
+    // Void elements — cannot have children or innerHTML
+    img: VoidHTMLAttributes;
+    br: VoidHTMLAttributes;
+    hr: VoidHTMLAttributes;
+    area: VoidHTMLAttributes;
+    base: VoidHTMLAttributes;
+    col: VoidHTMLAttributes;
+    embed: VoidHTMLAttributes;
+    link: VoidHTMLAttributes;
+    meta: VoidHTMLAttributes;
+    source: VoidHTMLAttributes;
+    track: VoidHTMLAttributes;
+    wbr: VoidHTMLAttributes;
     [key: string]: HTMLAttributes | undefined;
   }
 }
@@ -144,7 +183,7 @@ function jsxImpl(
   }
 
   // Tag is a string → create a DOM element
-  const { children, ref: refProp, ...attrs } = props || {};
+  const { children, ref: refProp, innerHTML, ...attrs } = props || {};
   const svg = isSVGTag(tag);
   const element = svg ? document.createElementNS(SVG_NS, tag) : document.createElement(tag);
 
@@ -188,7 +227,23 @@ function jsxImpl(
     }
   }
 
-  applyChildren(element, children);
+  if (innerHTML !== undefined) {
+    const hasChildren =
+      children != null &&
+      children !== false &&
+      children !== true &&
+      !(Array.isArray(children) && children.length === 0);
+    if (hasChildren) {
+      const tagName = typeof tag === 'string' ? tag : 'Component';
+      throw new Error(
+        `<${tagName}> has both 'innerHTML={…}' and children. ` +
+          `innerHTML replaces children — remove one.`,
+      );
+    }
+    element.innerHTML = innerHTML == null ? '' : String(innerHTML);
+  } else {
+    applyChildren(element, children);
+  }
 
   // Set IDL properties after children are in the DOM
   for (const [key, value] of deferredIdl) {
