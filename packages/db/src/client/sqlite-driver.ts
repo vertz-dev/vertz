@@ -93,9 +93,7 @@ function readSqlType(entry: string | ColumnSchemaEntry): string {
   return typeof entry === 'string' ? entry : entry.sqlType;
 }
 
-function readValidator(
-  entry: string | ColumnSchemaEntry,
-): JsonbValidator<unknown> | undefined {
+function readValidator(entry: string | ColumnSchemaEntry): JsonbValidator<unknown> | undefined {
   return typeof entry === 'string' ? undefined : entry.validator;
 }
 

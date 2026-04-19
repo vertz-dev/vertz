@@ -80,9 +80,7 @@ describe('Feature: d.jsonb<T>() SQLite parity', () => {
     describe('When a jsonb TEXT cell contains malformed JSON', () => {
       it('Then a read surfaces JsonbParseError with table + column context (driver level)', async () => {
         mockD1AllReturns({ results: [{ id: 'x', meta: 'not-json' }] }, async (mock) => {
-          const schema: TableSchemaRegistry = new Map([
-            ['install', { id: 'text', meta: 'jsonb' }],
-          ]);
+          const schema: TableSchemaRegistry = new Map([['install', { id: 'text', meta: 'jsonb' }]]);
           const driver = createSqliteDriver(mock.d1, schema);
           let err: unknown;
           try {

@@ -394,7 +394,9 @@ await sqliteDb.install.list({
 On SQLite, fetch with `list()` and filter in application code, or switch dialects.
 
 <Tip>
-Inline the `where` object in your query call for the best TypeScript diagnostic. Building `where` indirectly into a variable widens the dialect type and bypasses the compile-time gate — the runtime throw still catches the problem, but the error happens later.
+  Inline the `where` object in your query call for the best TypeScript diagnostic. Building `where`
+  indirectly into a variable widens the dialect type and bypasses the compile-time gate — the
+  runtime throw still catches the problem, but the error happens later.
 </Tip>
 
 ## Multi-tenancy

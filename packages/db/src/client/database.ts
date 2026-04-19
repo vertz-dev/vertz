@@ -285,10 +285,7 @@ type TypedCreateManyOptions<TEntry extends ModelEntry> = {
 };
 
 /** Options for update — typed per-table. */
-type TypedUpdateOptions<
-  TEntry extends ModelEntry,
-  TDialect extends DialectName = DialectName,
-> = {
+type TypedUpdateOptions<TEntry extends ModelEntry, TDialect extends DialectName = DialectName> = {
   readonly where: FilterType<EntryColumns<TEntry>, TDialect>;
   readonly data: UpdateInput<EntryTable<TEntry>>;
   readonly select?: SelectOption<EntryColumns<TEntry>>;
@@ -304,10 +301,7 @@ type TypedUpdateManyOptions<
 };
 
 /** Options for upsert — typed per-table. */
-type TypedUpsertOptions<
-  TEntry extends ModelEntry,
-  TDialect extends DialectName = DialectName,
-> = {
+type TypedUpsertOptions<TEntry extends ModelEntry, TDialect extends DialectName = DialectName> = {
   readonly where: FilterType<EntryColumns<TEntry>, TDialect>;
   readonly create: InsertInput<EntryTable<TEntry>>;
   readonly update: UpdateInput<EntryTable<TEntry>>;
@@ -315,10 +309,7 @@ type TypedUpsertOptions<
 };
 
 /** Options for delete — typed per-table. */
-type TypedDeleteOptions<
-  TEntry extends ModelEntry,
-  TDialect extends DialectName = DialectName,
-> = {
+type TypedDeleteOptions<TEntry extends ModelEntry, TDialect extends DialectName = DialectName> = {
   readonly where: FilterType<EntryColumns<TEntry>, TDialect>;
   readonly select?: SelectOption<EntryColumns<TEntry>>;
 };
@@ -332,10 +323,7 @@ type TypedDeleteManyOptions<
 };
 
 /** Options for count — typed per-table. */
-type TypedCountOptions<
-  TEntry extends ModelEntry,
-  TDialect extends DialectName = DialectName,
-> = {
+type TypedCountOptions<TEntry extends ModelEntry, TDialect extends DialectName = DialectName> = {
   readonly where?: FilterType<EntryColumns<TEntry>, TDialect>;
 };
 

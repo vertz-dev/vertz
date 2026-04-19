@@ -78,8 +78,7 @@ type JsonbColumnKeys<TColumns extends ColumnRecord> = {
  * Resolves to `never` when there are no JSONB columns, preserving the
  * strict key set of `FilterType`.
  */
-type JsonbPathKey<TColumns extends ColumnRecord> =
-  `${JsonbColumnKeys<TColumns>}->${string}`;
+type JsonbPathKey<TColumns extends ColumnRecord> = `${JsonbColumnKeys<TColumns>}->${string}`;
 
 /**
  * Value type for a path-shaped JSONB key. Postgres admits an untyped operand

@@ -127,8 +127,7 @@ export function toReadError(error: unknown, query?: string): ReadError {
       columnType: error.columnType,
       cause: error,
     };
-    const withTable =
-      error.table !== undefined ? { ...variant, table: error.table } : variant;
+    const withTable = error.table !== undefined ? { ...variant, table: error.table } : variant;
     return error.column !== undefined ? { ...withTable, column: error.column } : withTable;
   }
   if (error instanceof JsonbValidationError) {

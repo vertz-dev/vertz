@@ -330,9 +330,7 @@ describe('sqlite-driver', () => {
       mockPrepared.all.mockResolvedValue({
         results: [{ id: 1, meta: '{"displayName":"Acme"}' }],
       });
-      const schema: TableSchemaRegistry = new Map([
-        ['installs', { id: 'integer', meta: 'jsonb' }],
-      ]);
+      const schema: TableSchemaRegistry = new Map([['installs', { id: 'integer', meta: 'jsonb' }]]);
       const driver = createSqliteDriver(mockD1, schema);
       const result = await driver.query('SELECT * FROM installs');
       expect(result).toEqual([{ id: 1, meta: { displayName: 'Acme' } }]);
@@ -340,9 +338,7 @@ describe('sqlite-driver', () => {
 
     it('enriches JsonbParseError with table and column on corrupt data', async () => {
       mockPrepared.all.mockResolvedValue({ results: [{ id: 1, meta: 'not json' }] });
-      const schema: TableSchemaRegistry = new Map([
-        ['installs', { id: 'integer', meta: 'jsonb' }],
-      ]);
+      const schema: TableSchemaRegistry = new Map([['installs', { id: 'integer', meta: 'jsonb' }]]);
       const driver = createSqliteDriver(mockD1, schema);
       await expect(driver.query('SELECT * FROM installs')).rejects.toMatchObject({
         name: 'JsonbParseError',
