@@ -21,6 +21,22 @@ describe('serializeQueryKey', () => {
     });
   });
 
+  describe('Given a tuple containing only null', () => {
+    describe('When serialized', () => {
+      test('then null serializes as the JSON literal', () => {
+        expect(serializeQueryKey([null])).toBe('[null]');
+      });
+    });
+  });
+
+  describe('Given a tuple containing a bigint', () => {
+    describe('When serialized', () => {
+      test('then it throws naming the offending position', () => {
+        expect(() => serializeQueryKey([1n])).toThrowError(/index 0/);
+      });
+    });
+  });
+
   describe('Given two tuple keys containing the same object with reordered keys', () => {
     describe('When serialized', () => {
       test('then both produce the same string', () => {

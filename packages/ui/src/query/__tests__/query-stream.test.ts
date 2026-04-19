@@ -69,13 +69,14 @@ describe('query() — stream sources', () => {
 
   describe('Given refetchInterval and a stream thunk together', () => {
     describe('When the query is constructed', () => {
-      test('then construction throws a usage error naming both options', async () => {
+      test('then construction throws a usage error naming both options', () => {
         async function* s() {
           yield 1;
         }
-        // refetchInterval is incompatible with stream sources.
-        // The throw fires inside the first effect tick, so we need to flush
-        // microtasks to surface it.
+        // The stream-classification + mutual-exclusion check both run inside
+        // lifecycleEffect's first tick, which is invoked synchronously when
+        // query() installs the effect.  So the throw is observable directly
+        // from the construction expression — no microtask flush needed.
         const constructQuery = () => {
           // The stream-overload type omits refetchInterval; cast to bypass for the runtime test.
           query(() => s() as AsyncIterable<number>, {
@@ -102,6 +103,27 @@ describe('query() — stream sources', () => {
         expect(q.loading.value).toBe(false);
         expect(q.data.value).toEqual([]);
         expect(q.error.value).toBeUndefined();
+      });
+    });
+  });
+
+  describe('Given a signal-aware stream thunk', () => {
+    describe('When the query is constructed', () => {
+      test('then the thunk receives a real AbortSignal it can subscribe to', async () => {
+        let receivedSignal: AbortSignal | undefined;
+        async function* echo(signal?: AbortSignal) {
+          receivedSignal = signal;
+          // Subscribing must not throw — proves we got a real AbortSignal,
+          // not undefined.  (Phase 2 wires real abort on dispose; Phase 1
+          // just needs the contract that signal-aware thunks don't crash.)
+          signal?.addEventListener('abort', () => {});
+          yield 'tick';
+        }
+        const q = query((sig) => echo(sig), { key: 'signal-test' });
+        await flushPromises();
+        expect(receivedSignal).toBeInstanceOf(AbortSignal);
+        expect(receivedSignal?.aborted).toBe(false);
+        expect(q.data.value).toEqual(['tick']);
       });
     });
   });

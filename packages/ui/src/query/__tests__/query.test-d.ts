@@ -290,6 +290,12 @@ query(
   { key: 'with-signal' },
 );
 
+// Zero-arg stream thunk also compiles (signal is optional)
+const _zeroArgStream: QueryStreamResult<AgentEvent> = query(() => makeStream(), {
+  key: 'zero-arg',
+});
+void _zeroArgStream;
+
 // Stream result data is NOT typed as T | undefined
 declare const _wrongData: AgentEvent | undefined;
 // @ts-expect-error - stream data is AgentEvent[], not AgentEvent | undefined

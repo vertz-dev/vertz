@@ -338,13 +338,21 @@ export function query<T, E = unknown>(
    * - `null` → skip fetch (thunk says "not ready")
    * - `QueryDescriptor` → decompose into promise + key + entity metadata
    * - `Promise<T>` → existing fetch behavior
+   * - `AsyncIterable<T>` → stream pump (Phase 1)
+   *
+   * The optional `signal` is passed to the thunk's first parameter — stream
+   * thunks consume it for cancellation; promise / descriptor thunks ignore it.
+   * Phase 1 always passes a never-aborted signal so signal-aware thunks don't
+   * crash on `signal.addEventListener(...)`. Phase 2 wires real abort.
    */
-  function callThunkWithCapture(): QueryDescriptor<T, E> | Promise<T> | null {
+  function callThunkWithCapture(
+    signal?: AbortSignal,
+  ): QueryDescriptor<T, E> | Promise<T> | AsyncIterable<T> | null {
     const captured: unknown[] = [];
     const prevCb = setReadValueCallback((v) => captured.push(v));
-    let result: QueryDescriptor<T, E> | Promise<T> | null;
+    let result: QueryDescriptor<T, E> | Promise<T> | AsyncIterable<T> | null;
     try {
-      result = thunk();
+      result = (thunk as (s?: AbortSignal) => typeof result)(signal);
     } finally {
       setReadValueCallback(prevCb);
     }
@@ -367,6 +375,11 @@ export function query<T, E = unknown>(
   const reconnecting: Signal<boolean> = signal<boolean>(false);
   let streamMode = false;
   let streamPumpStarted = false;
+  // Phase 1 placeholder controller: never aborted.  Stream thunks that wire
+  // signal.addEventListener('abort', ...) won't crash; thunks that ignore the
+  // signal are unaffected.  Phase 2 replaces this with per-pump controllers
+  // that abort on dispose / refetch.
+  const streamController: AbortController = new AbortController();
 
   // Entity-backed source switcher: when entityMeta is present,
   // data reads from EntityStore instead of rawData.
@@ -1004,7 +1017,9 @@ export function query<T, E = unknown>(
     // signals read by the thunk are captured as effect dependencies.
     // callThunkWithCapture also records the actual signal values to
     // produce a deterministic cache key based on dependency values.
-    const raw = callThunkWithCapture();
+    // Pass the (Phase 1: never-aborted) stream controller's signal so
+    // signal-aware stream thunks don't crash on signal.addEventListener.
+    const raw = callThunkWithCapture(streamController.signal);
 
     // Null return: thunk says "not ready" — skip fetch, deps are tracked.
     if (raw === null) {
@@ -1039,8 +1054,18 @@ export function query<T, E = unknown>(
         rawData.value = [] as unknown as T;
         loading.value = true;
         idle.value = true;
+        reconnecting.value = false;
       });
-      void pumpStream(raw as AsyncIterable<unknown>);
+      // Defensive .catch on the fire-and-forget — pumpStream's try/catch
+      // already converts iterator errors into error.value writes, so the
+      // outer promise should never reject in practice.  This guard prevents
+      // pathological iterables (whose .next() returns rejected non-Promise
+      // values) from surfacing as unhandled rejections in test runners.
+      pumpStream(raw as AsyncIterable<unknown>).catch((err: unknown) => {
+        error.value = err;
+        if (loading.peek()) loading.value = false;
+        if (idle.peek()) idle.value = false;
+      });
       isFirst = false;
       return;
     }
