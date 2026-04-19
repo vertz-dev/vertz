@@ -173,3 +173,22 @@ const bigDb = createDb({
 // tsgo compile time would balloon or fail here.
 void bigDb.m01.list({ where: { title: 'x' } });
 void bigDb.m20.list({ where: { title: 'y' } });
+
+// ---------------------------------------------------------------------------
+// Gate also fires through aggregate() — TDialect threads into
+// TypedAggregateArgs so `where` on an aggregate call is gated the same way
+// as `where` on a list() call.
+// ---------------------------------------------------------------------------
+
+void sqliteDb.install.aggregate({
+  _count: true,
+  where: {
+    // @ts-expect-error — JsonbPathFilter_Error_Requires_Dialect_Postgres_On_SQLite_Use_list_And_Filter_In_JS
+    'meta->displayName': { eq: 'Acme' },
+  },
+});
+
+void pgDb.install.aggregate({
+  _count: true,
+  where: { 'meta->displayName': { eq: 'Acme' } },
+});

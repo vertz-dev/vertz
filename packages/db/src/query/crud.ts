@@ -10,6 +10,7 @@
 
 import type { Dialect } from '../dialect';
 import { defaultPostgresDialect } from '../dialect';
+import type { DialectName } from '../dialect/types';
 import { NotFoundError } from '../errors/db-error';
 import { generateId } from '../id/generators';
 import type { ColumnBuilder, ColumnMetadata } from '../schema/column';
@@ -86,8 +87,11 @@ function assertNonEmptyWhere(where: Record<string, unknown>, operation: string):
 // Find queries
 // ---------------------------------------------------------------------------
 
-export interface GetArgs<TColumns extends ColumnRecord = ColumnRecord> {
-  readonly where?: FilterType<TColumns>;
+export interface GetArgs<
+  TColumns extends ColumnRecord = ColumnRecord,
+  TDialect extends DialectName = DialectName,
+> {
+  readonly where?: FilterType<TColumns, TDialect>;
   readonly select?: SelectOption<TColumns>;
   readonly orderBy?: OrderByType<TColumns>;
 }
@@ -134,8 +138,11 @@ export async function getOrThrow<TColumns extends ColumnRecord, T>(
   return row;
 }
 
-export interface ListArgs<TColumns extends ColumnRecord = ColumnRecord> {
-  readonly where?: FilterType<TColumns>;
+export interface ListArgs<
+  TColumns extends ColumnRecord = ColumnRecord,
+  TDialect extends DialectName = DialectName,
+> {
+  readonly where?: FilterType<TColumns, TDialect>;
   readonly select?: SelectOption<TColumns>;
   readonly orderBy?: OrderByType<TColumns>;
   readonly limit?: number;
@@ -357,8 +364,11 @@ export async function createManyAndReturn<TColumns extends ColumnRecord, T>(
 // Update queries
 // ---------------------------------------------------------------------------
 
-export interface UpdateArgs<TColumns extends ColumnRecord = ColumnRecord> {
-  readonly where: FilterType<TColumns>;
+export interface UpdateArgs<
+  TColumns extends ColumnRecord = ColumnRecord,
+  TDialect extends DialectName = DialectName,
+> {
+  readonly where: FilterType<TColumns, TDialect>;
   readonly data: UpdateInput<TableDef<TColumns>>;
   readonly select?: SelectOption<TColumns>;
 }
@@ -414,8 +424,11 @@ export async function update<TColumns extends ColumnRecord, T>(
   return mapRow<T>(res.rows[0] as Record<string, unknown>);
 }
 
-export interface UpdateManyArgs<TColumns extends ColumnRecord = ColumnRecord> {
-  readonly where: FilterType<TColumns>;
+export interface UpdateManyArgs<
+  TColumns extends ColumnRecord = ColumnRecord,
+  TDialect extends DialectName = DialectName,
+> {
+  readonly where: FilterType<TColumns, TDialect>;
   readonly data: UpdateInput<TableDef<TColumns>>;
 }
 
@@ -469,8 +482,11 @@ export async function updateMany<TColumns extends ColumnRecord>(
 // Upsert
 // ---------------------------------------------------------------------------
 
-export interface UpsertArgs<TColumns extends ColumnRecord = ColumnRecord> {
-  readonly where: FilterType<TColumns>;
+export interface UpsertArgs<
+  TColumns extends ColumnRecord = ColumnRecord,
+  TDialect extends DialectName = DialectName,
+> {
+  readonly where: FilterType<TColumns, TDialect>;
   readonly create: InsertInput<TableDef<TColumns>>;
   readonly update: UpdateInput<TableDef<TColumns>>;
   readonly select?: SelectOption<TColumns>;
@@ -547,8 +563,11 @@ export async function upsert<TColumns extends ColumnRecord, T>(
 // Delete queries
 // ---------------------------------------------------------------------------
 
-export interface DeleteArgs<TColumns extends ColumnRecord = ColumnRecord> {
-  readonly where: FilterType<TColumns>;
+export interface DeleteArgs<
+  TColumns extends ColumnRecord = ColumnRecord,
+  TDialect extends DialectName = DialectName,
+> {
+  readonly where: FilterType<TColumns, TDialect>;
   readonly select?: SelectOption<TColumns>;
 }
 
@@ -578,8 +597,11 @@ export async function deleteOne<TColumns extends ColumnRecord, T>(
   return mapRow<T>(res.rows[0] as Record<string, unknown>);
 }
 
-export interface DeleteManyArgs<TColumns extends ColumnRecord = ColumnRecord> {
-  readonly where: FilterType<TColumns>;
+export interface DeleteManyArgs<
+  TColumns extends ColumnRecord = ColumnRecord,
+  TDialect extends DialectName = DialectName,
+> {
+  readonly where: FilterType<TColumns, TDialect>;
 }
 
 /**

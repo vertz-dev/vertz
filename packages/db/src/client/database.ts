@@ -440,12 +440,12 @@ export interface ModelDelegate<
   count(options?: TypedCountOptions<TEntry, TDialect>): Promise<Result<number, ReadError>>;
 
   /** Run aggregation functions on a table. */
-  aggregate<TArgs extends agg.TypedAggregateArgs<TEntry>>(
+  aggregate<TArgs extends agg.TypedAggregateArgs<TEntry, TDialect>>(
     options: TArgs,
   ): Promise<Result<agg.AggregateResult<EntryColumns<TEntry>, TArgs>, ReadError>>;
 
   /** Group rows by columns and apply aggregation functions. */
-  groupBy<TArgs extends agg.TypedGroupByArgs<TEntry>>(
+  groupBy<TArgs extends agg.TypedGroupByArgs<TEntry, TDialect>>(
     options: TArgs,
   ): Promise<Result<agg.GroupByResult<EntryColumns<TEntry>, TArgs>[], ReadError>>;
 }

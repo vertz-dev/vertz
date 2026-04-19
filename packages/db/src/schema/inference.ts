@@ -1,6 +1,6 @@
 import type { DialectName } from '../dialect/types';
 import type { ColumnBuilder, InferColumnType } from './column';
-import type { JsonbPathFilterGuard } from './jsonb-filter-brand';
+import type { JsonbPathFilter_Error_Requires_Dialect_Postgres_On_SQLite_Use_list_And_Filter_In_JS } from './jsonb-filter-brand';
 import type { RelationDef } from './relation';
 import type {
   AllAnnotations,
@@ -89,8 +89,8 @@ type JsonbPathKey<TColumns extends ColumnRecord> =
  * quotes the key verbatim in diagnostics.
  */
 type JsonbPathValue<TDialect extends DialectName> = TDialect extends 'postgres'
-  ? unknown | ComparisonOperators<unknown>
-  : JsonbPathFilterGuard;
+  ? ComparisonOperators<unknown> | string | number | boolean | null
+  : JsonbPathFilter_Error_Requires_Dialect_Postgres_On_SQLite_Use_list_And_Filter_In_JS;
 
 /**
  * FilterType<TColumns, TDialect> — typed where clause, dialect-conditional.
@@ -371,10 +371,11 @@ export interface FindOptions<
   TColumns extends ColumnRecord = ColumnRecord,
   TRelations extends RelationsRecord = RelationsRecord,
   TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>,
+  TDialect extends DialectName = DialectName,
 > {
   select?: SelectOption<TColumns>;
-  include?: IncludeOption<TRelations, TModels>;
-  where?: FilterType<TColumns>;
+  include?: IncludeOption<TRelations, TModels, TDialect>;
+  where?: FilterType<TColumns, TDialect>;
   orderBy?: OrderByType<TColumns>;
 }
 

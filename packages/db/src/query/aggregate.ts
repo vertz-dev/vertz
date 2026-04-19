@@ -5,6 +5,7 @@
  * Generates parameterized SQL for aggregation functions.
  */
 
+import type { DialectName } from '../dialect/types';
 import type { InferColumnType } from '../schema/column';
 import type { FilterType, ModelEntry, NumericColumnKeys } from '../schema/inference';
 import type { ColumnRecord, TableDef } from '../schema/table';
@@ -196,8 +197,11 @@ type EntryColumns<TEntry extends ModelEntry> = TEntry['table']['_columns'];
  * - `_avg` and `_sum` are restricted to numeric columns.
  * - `_min`, `_max`, `_count` accept any column.
  */
-export type TypedAggregateArgs<TEntry extends ModelEntry> = {
-  readonly where?: FilterType<EntryColumns<TEntry>>;
+export type TypedAggregateArgs<
+  TEntry extends ModelEntry,
+  TDialect extends DialectName = DialectName,
+> = {
+  readonly where?: FilterType<EntryColumns<TEntry>, TDialect>;
   readonly _avg?: { readonly [K in NumericColumnKeys<EntryColumns<TEntry>>]?: true };
   readonly _sum?: { readonly [K in NumericColumnKeys<EntryColumns<TEntry>>]?: true };
   readonly _min?: { readonly [K in keyof EntryColumns<TEntry>]?: true };
@@ -317,12 +321,15 @@ export type GroupByResult<TColumns extends ColumnRecord, TArgs> = Prettify<
  * - `_avg` and `_sum` are restricted to numeric columns.
  * - `_min`, `_max`, `_count` accept any column.
  */
-export type TypedGroupByArgs<TEntry extends ModelEntry> = {
+export type TypedGroupByArgs<
+  TEntry extends ModelEntry,
+  TDialect extends DialectName = DialectName,
+> = {
   readonly by: readonly (
     | (keyof EntryColumns<TEntry> & string)
     | GroupByExpression<keyof EntryColumns<TEntry> & string>
   )[];
-  readonly where?: FilterType<EntryColumns<TEntry>>;
+  readonly where?: FilterType<EntryColumns<TEntry>, TDialect>;
   readonly _count?: true | { readonly [K in keyof EntryColumns<TEntry>]?: true };
   readonly _avg?: { readonly [K in NumericColumnKeys<EntryColumns<TEntry>>]?: true };
   readonly _sum?: { readonly [K in NumericColumnKeys<EntryColumns<TEntry>>]?: true };
