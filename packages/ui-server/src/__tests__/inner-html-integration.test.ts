@@ -9,12 +9,14 @@ afterAll(() => {
 });
 
 // Imports must follow happy-dom registration so that @vertz/ui's auto-detected
-// DOM adapter picks up the real DOM rather than failing.
+// DOM adapter picks up the real DOM rather than failing. `toVNode` and
+// `renderToHTML` come from the same `@vertz/ui-server` entry so that they share
+// the bundled `SSRElement` class identity — `toVNode`'s `instanceof SSRElement`
+// check would fall through otherwise.
 import { mount, signal } from '@vertz/ui';
 import { __element, __html } from '@vertz/ui/internals';
+import { renderToHTML, toVNode } from '@vertz/ui-server';
 import { compile } from '../compiler/native-compiler';
-import { toVNode } from '../dom-shim';
-import { renderToHTML } from '../render-to-html';
 
 describe('Feature: innerHTML across SSR + hydration + reactive update', () => {
   let root: HTMLElement;

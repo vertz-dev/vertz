@@ -26,6 +26,7 @@ export {
 export { loadAotManifest } from './aot-manifest-loader';
 export { renderAssetTags } from './asset-pipeline';
 export { inlineCriticalCss } from './critical-css';
+export { toVNode } from './dom-shim';
 export { detectFallbackFont, extractFontMetrics } from './font-metrics';
 export { HeadCollector, renderHeadToHtml } from './head';
 export { serializeToHtml } from './html-serializer';
