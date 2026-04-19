@@ -1,5 +1,101 @@
 # @vertz/native-compiler
 
+## 0.2.73
+
+### Patch Changes
+
+- [#2830](https://github.com/vertz-dev/vertz/pull/2830) [`35eb962`](https://github.com/vertz-dev/vertz/commit/35eb9622670fa498e3846ab4bcaa064d1caece6c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(compiler): transform JSX inside `.map()` callbacks with destructured params
+
+  Previously, when a `.map()` callback used destructuring in its parameter
+  list, the JSX inside the callback was emitted verbatim, causing a
+  `SyntaxError: Unexpected token '<'` in the browser.
+
+  ```tsx
+  const entries: [string, string][] = [
+    ["a", "Alpha"],
+    ["b", "Beta"],
+  ];
+  <div>
+    {entries.map(([key, label]) => (
+      <button key={key}>{label}</button>
+    ))}
+  </div>;
+  ```
+
+  The list classifier bailed to the generic-expression path whenever the
+  first parameter wasn't a plain `BindingIdentifier`. It now accepts any
+  binding pattern (array or object destructuring) and preserves the raw
+  pattern source in the emitted render / key functions.
+
+  Closes #2817.
+
+- [#2828](https://github.com/vertz-dev/vertz/pull/2828) [`0c0cf38`](https://github.com/vertz-dev/vertz/commit/0c0cf38dfee14ce7763e5b051360ed4fa6e796db) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(compiler): don't reactify ternaries inside callback bodies in JSX branches
+
+  When a conditional's non-JSX branch contained a nested callback with its
+  own ternary (e.g., `onPick={(v) => selected = v ? env.id : null}`), the
+  JSX compiler would lift that inner ternary out of its closure, rewriting
+  it as `__conditional(() => v, () => env.id, () => null)` at the call site.
+  This produced a runtime `ReferenceError: v is not defined` because the
+  callback parameter `v` no longer existed in the outer scope.
+
+  The branch-level `ConditionalSpanFinder` now stops descending into
+  function/arrow-function bodies that are strictly nested inside the target
+  branch span, so imperative ternaries inside callbacks stay in place while
+  genuine JSX-level nested ternaries (`a ? <X/> : b ? <Y/> : <Z/>`) keep
+  their reactive `__conditional` wrapping.
+
+  Closes #2816.
+
+- [#2827](https://github.com/vertz-dev/vertz/pull/2827) [`7e80041`](https://github.com/vertz-dev/vertz/commit/7e80041df6d5708fb54177edeef8bd211e368c7c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(compiler,ui): wrap multi-child component children in a DocumentFragment
+
+  Previously, a component with multiple JSX children compiled to
+  `Component({ children: () => [a, b] })`. Consumers such as
+  `Context.Provider`, `Suspense`, and `ErrorBoundary` call `children()` and
+  expect a single node — they got an array instead, which downstream
+  `appendChild` calls rejected. This affected any component that treats
+  `children` as a renderable slot, so code like
+
+  ```tsx
+  <RouterContext.Provider value={router}>
+    <aside>…</aside>
+    <main>…</main>
+  </RouterContext.Provider>
+  ```
+
+  crashed at mount with a generic
+  `TypeError: Failed to execute 'appendChild' on 'Node': parameter 1 is not of type 'Node'.`
+
+  The compiler now emits a `DocumentFragment`-returning thunk for
+  multi-child components, mirroring how `<>…</>` fragments are already
+  handled. `Context.Provider` also wraps any hand-written array result in a
+  `DocumentFragment` as a defensive fallback, replacing the previous
+  dev-only throw (which was unreliable in the browser because
+  `process.env.NODE_ENV` is not polyfilled).
+
+  Closes #2821.
+
+- [#2833](https://github.com/vertz-dev/vertz/pull/2833) [`5223868`](https://github.com/vertz-dev/vertz/commit/5223868cb3001349065cc246e0ca8a03ad9356f4) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(jsx): honor `defaultValue` / `defaultChecked` on `<input>` and `<textarea>`
+
+  The React-style uncontrolled-initial-value props were silently dropped:
+
+  ```tsx
+  <textarea defaultValue="Hello world" />  // rendered empty
+  <input defaultValue="initial" />          // rendered empty
+  <input type="checkbox" defaultChecked /> // rendered unchecked
+  ```
+
+  Both have no HTML content attribute, so the compiler's fallback to
+  `setAttribute("defaultValue", ...)` was a no-op in the browser.
+
+  The native compiler and the test-time JSX runtime now route these through
+  the IDL property path (`el.defaultValue = "..."`, `el.defaultChecked = true`),
+  matching how `value` / `checked` are already handled. The SSR DOM shim
+  serializes them to the correct initial HTML — `value="..."` for `<input>`,
+  text content for `<textarea>`, and the `checked` attribute for
+  `<input type="checkbox">` — so the value is visible before hydration.
+
+  Closes #2820.
+
 ## 0.2.72
 
 ### Patch Changes

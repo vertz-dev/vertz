@@ -1,5 +1,97 @@
 # @vertz/runtime
 
+## 0.2.73
+
+### Patch Changes
+
+- [#2831](https://github.com/vertz-dev/vertz/pull/2831) [`3969cf2`](https://github.com/vertz-dev/vertz/commit/3969cf2592cb0c7fdcd9197901088a8cf1d11f18) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): enrich compile errors from the file watcher with real diagnostics
+
+  The file-watcher loop in the dev server reported build errors as generic
+  `Compilation failed: <path>` strings with no compiler message, source
+  span, or code snippet. The `/__vertz_errors` WebSocket, the
+  `/__vertz_ai/errors` JSON endpoint, and the MCP `error_update` events
+  all exposed this degraded shape, forcing developers (and LLM agents) to
+  reverse-engineer compiler behavior by reading transpiled output.
+
+  The module-server request path already extracted structured diagnostics
+  (message, line, column, snippet, suggestion). That logic is now extracted
+  into `build_compile_error()` in `errors::categories` and shared with the
+  file-watcher loop, which previously used a brittle string-match on the
+  generated error module. Compile errors surfaced by both paths now carry
+  the real diagnostic from the compiler.
+
+  Closes #2818.
+
+- [#2839](https://github.com/vertz-dev/vertz/pull/2839) [`ce18308`](https://github.com/vertz-dev/vertz/commit/ce1830887abf53733d314bdf2ebeb1325cdb9f64) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): point TS2339 on `ImportMeta.hot` at the `vertz/client` tsconfig fix
+
+  When TypeScript reports `Property 'hot' does not exist on type 'ImportMeta'`
+  — the common symptom of a tsconfig missing the `vertz/client` type
+  augmentation — the dev server now appends a Vertz-specific hint with the
+  exact fix and a link to `https://vertz.dev/guides/hmr-types`.
+
+  The hint only fires for the `'hot'` + `'ImportMeta'` shape, so other
+  TS2339 errors keep the generic suggestion. Set `VTZ_NO_HMR_HINT=1` to
+  suppress the hint if you don't want it.
+
+  Closes #2814.
+
+- [#2823](https://github.com/vertz-dev/vertz/pull/2823) [`15b29a6`](https://github.com/vertz-dev/vertz/commit/15b29a63416b616a10827fc3b1b5f6177370e71b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(runtime): clean Node-like env for server handlers
+
+  Server handlers (entity actions, service actions, middleware, auth resolvers,
+  route loaders) now run in a Workers-compatible context that does **not**
+  expose `window`, `document`, `location`, `history`, or other DOM globals.
+  Only SSR render runs under a scoped DOM shim, which is installed before the
+  matched route renders and removed immediately after.
+
+  This means third-party SDKs that gate on `typeof window !== 'undefined'`
+  (like `@anthropic-ai/sdk`, `openai`, and `stripe`) work in server handlers
+  without `dangerouslyAllowBrowser: true`:
+
+  ```ts
+  import Anthropic from "@anthropic-ai/sdk";
+  import { service } from "vertz/server";
+
+  export default service("ai", {
+    actions: {
+      summarize: {
+        handler: async ({ text }) => {
+          const client = new Anthropic({
+            apiKey: process.env.ANTHROPIC_API_KEY!,
+          });
+          // no `dangerouslyAllowBrowser: true` needed
+          return client.messages.create({
+            /* ... */
+          });
+        },
+      },
+    },
+  });
+  ```
+
+  Closes #2760.
+
+- [#2833](https://github.com/vertz-dev/vertz/pull/2833) [`5223868`](https://github.com/vertz-dev/vertz/commit/5223868cb3001349065cc246e0ca8a03ad9356f4) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(jsx): honor `defaultValue` / `defaultChecked` on `<input>` and `<textarea>`
+
+  The React-style uncontrolled-initial-value props were silently dropped:
+
+  ```tsx
+  <textarea defaultValue="Hello world" />  // rendered empty
+  <input defaultValue="initial" />          // rendered empty
+  <input type="checkbox" defaultChecked /> // rendered unchecked
+  ```
+
+  Both have no HTML content attribute, so the compiler's fallback to
+  `setAttribute("defaultValue", ...)` was a no-op in the browser.
+
+  The native compiler and the test-time JSX runtime now route these through
+  the IDL property path (`el.defaultValue = "..."`, `el.defaultChecked = true`),
+  matching how `value` / `checked` are already handled. The SSR DOM shim
+  serializes them to the correct initial HTML — `value="..."` for `<input>`,
+  text content for `<textarea>`, and the `checked` attribute for
+  `<input type="checkbox">` — so the value is visible before hydration.
+
+  Closes #2820.
+
 ## 0.2.72
 
 ### Patch Changes
