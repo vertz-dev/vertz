@@ -124,14 +124,14 @@ happens — the LLM never sees the crash.
 The framework performs **two** atomic writes per tool-call step, plus
 one at end-of-turn for trailing text. Crash outcomes:
 
-| Crash window | Store state | Resume behavior |
-|---|---|---|
-| Before the first persisted write | no new messages for this turn | No orphan. Next LLM call starts fresh from prior state. |
-| Between write #1 (assistant + user + toolCalls) and handler dispatch | assistant-with-toolCalls persisted, no tool_results | Orphan. For each call: if `safeToRetry`, re-invoke; else surface `ToolDurabilityError`. |
-| During handler dispatch | same as above | Same behavior. The framework cannot distinguish "handler never started" from "handler ran + result lost" without `safeToRetry`. |
-| Between handlers and write #2 | same as above | Same behavior. |
-| Mid-write #2 | atomic — either all tool_results present or none | Either case is well-defined. |
-| After write #2 | full step committed | No orphan. Loop resumes normally. |
+| Crash window                                                         | Store state                                         | Resume behavior                                                                                                                 |
+| -------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Before the first persisted write                                     | no new messages for this turn                       | No orphan. Next LLM call starts fresh from prior state.                                                                         |
+| Between write #1 (assistant + user + toolCalls) and handler dispatch | assistant-with-toolCalls persisted, no tool_results | Orphan. For each call: if `safeToRetry`, re-invoke; else surface `ToolDurabilityError`.                                         |
+| During handler dispatch                                              | same as above                                       | Same behavior. The framework cannot distinguish "handler never started" from "handler ran + result lost" without `safeToRetry`. |
+| Between handlers and write #2                                        | same as above                                       | Same behavior.                                                                                                                  |
+| Mid-write #2                                                         | atomic — either all tool_results present or none    | Either case is well-defined.                                                                                                    |
+| After write #2                                                       | full step committed                                 | No orphan. Loop resumes normally.                                                                                               |
 
 Non-`safeToRetry` tools that crash in the middle windows are
 **intentionally** pessimistic: the framework cannot know if your side
