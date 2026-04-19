@@ -286,6 +286,12 @@ export async function createLocalSqliteDriver(
 
   const db = await resolveLocalSqliteDatabase(dbPath);
 
+  // Enforce FK constraints declared in CREATE TABLE. SQLite's upstream default
+  // is OFF; bun:sqlite / better-sqlite3 happen to compile with it ON, but
+  // relying on that would silently regress autoApply FK enforcement on any
+  // backend that ships with the library's default.
+  db.exec('PRAGMA foreign_keys = ON');
+
   // Enable WAL mode for file-based paths (not :memory:)
   if (dbPath !== ':memory:') {
     db.exec('PRAGMA journal_mode = WAL');

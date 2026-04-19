@@ -412,4 +412,129 @@ describe('createDb with local SQLite (path option)', () => {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // autoApply DDL: UNIQUE indexes, FOREIGN KEYs, enum CHECK constraints (#2848)
+  // ---------------------------------------------------------------------------
+
+  describe('Given a table with a non-inline UNIQUE index', () => {
+    const tenantsTable = d.table('tenants', {
+      id: d.uuid().primary({ generate: 'cuid' }),
+      name: d.text(),
+    });
+    const installsTable = d.table(
+      'installs',
+      {
+        id: d.uuid().primary({ generate: 'cuid' }),
+        tenantId: d.uuid(),
+        provider: d.text(),
+      },
+      { indexes: [d.index(['tenantId', 'provider'], { unique: true })] },
+    );
+    const tenantsModel = d.model(tenantsTable);
+    const installsModel = d.model(installsTable);
+
+    describe('When inserting a duplicate (tenantId, provider) pair via autoApply', () => {
+      it('Then the UNIQUE INDEX rejects the duplicate', async () => {
+        const db = createDb({
+          models: { tenants: tenantsModel, installs: installsModel },
+          dialect: 'sqlite',
+          path: ':memory:',
+          migrations: { autoApply: true },
+        });
+
+        const tenant = await db.tenants.create({ data: { name: 'Acme' } });
+        expect(tenant.ok).toBe(true);
+        if (!tenant.ok) throw new Error('create tenant failed');
+
+        const first = await db.installs.create({
+          data: { tenantId: tenant.data.id, provider: 'github' },
+        });
+        expect(first.ok).toBe(true);
+
+        const duplicate = await db.installs.create({
+          data: { tenantId: tenant.data.id, provider: 'github' },
+        });
+        expect(duplicate.ok).toBe(false);
+
+        const different = await db.installs.create({
+          data: { tenantId: tenant.data.id, provider: 'slack' },
+        });
+        expect(different.ok).toBe(true);
+      });
+    });
+  });
+
+  describe('Given a table whose model declares d.ref.one() to another table', () => {
+    const orgsTable = d.table('orgs', {
+      id: d.uuid().primary({ generate: 'cuid' }),
+      name: d.text(),
+    });
+    const membersTable = d.table('members', {
+      id: d.uuid().primary({ generate: 'cuid' }),
+      orgId: d.uuid(),
+      email: d.text(),
+    });
+    const orgsModel = d.model(orgsTable);
+    const membersModel = d.model(membersTable, {
+      org: d.ref.one(() => orgsTable, 'orgId'),
+    });
+
+    describe('When inserting a row whose FK column points to a non-existent parent row', () => {
+      it('Then the FOREIGN KEY constraint rejects the orphan insert', async () => {
+        const db = createDb({
+          models: { orgs: orgsModel, members: membersModel },
+          dialect: 'sqlite',
+          path: ':memory:',
+          migrations: { autoApply: true },
+        });
+
+        const org = await db.orgs.create({ data: { name: 'Acme' } });
+        expect(org.ok).toBe(true);
+
+        const orphan = await db.members.create({
+          data: { orgId: 'does-not-exist', email: 'nobody@example.com' },
+        });
+        expect(orphan.ok).toBe(false);
+      });
+    });
+  });
+
+  describe('Given a table with two d.enum() columns', () => {
+    const ticketsTable = d.table('tickets', {
+      id: d.uuid().primary({ generate: 'cuid' }),
+      title: d.text(),
+      priority: d.enum('ticket_priority', ['low', 'high']).default('low'),
+      status: d.enum('ticket_status', ['open', 'closed']).default('open'),
+    });
+    const ticketsModel = d.model(ticketsTable);
+
+    describe('When inserting rows that violate each enum independently', () => {
+      it('Then both CHECK constraints are enforced', async () => {
+        const db = createDb({
+          models: { tickets: ticketsModel },
+          dialect: 'sqlite',
+          path: ':memory:',
+          migrations: { autoApply: true },
+        });
+
+        const valid = await db.tickets.create({
+          data: { title: 'Broken login', priority: 'high', status: 'open' },
+        });
+        expect(valid.ok).toBe(true);
+
+        const badStatus = await db.tickets.create({
+          // @ts-expect-error — 'slonk' is not in the enum literal union
+          data: { title: 'Ghost status', priority: 'high', status: 'slonk' },
+        });
+        expect(badStatus.ok).toBe(false);
+
+        const badPriority = await db.tickets.create({
+          // @ts-expect-error — 'mega' is not in the enum literal union
+          data: { title: 'Ghost priority', priority: 'mega', status: 'open' },
+        });
+        expect(badPriority.ok).toBe(false);
+      });
+    });
+  });
 });

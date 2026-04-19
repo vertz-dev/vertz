@@ -1,3 +1,4 @@
+import type { ModelEntry } from '../schema/inference';
 import type { ModelDef } from '../schema/model';
 import type { RelationDef } from '../schema/relation';
 import type { ColumnRecord, IndexType, TableDef } from '../schema/table';
@@ -54,7 +55,26 @@ export interface SchemaSnapshot {
   rls?: import('./rls-snapshot').RlsSnapshot;
 }
 
-function isModelDef(v: unknown): v is ModelDef {
+/**
+ * Convert a raw column default value into a SQL expression string, matching the
+ * format produced by `introspectPostgres` / `introspectSqlite`.
+ *
+ * - Strings are wrapped in single quotes with internal quotes doubled (`'foo''bar'`).
+ * - The special sentinel `'now'` becomes `now()` (dialect-specific translation
+ *   happens at emit time in the sql-generator).
+ * - Numbers and booleans are stringified via `String()`.
+ */
+function formatDefaultExpr(value: unknown): string {
+  if (value === 'now') return 'now()';
+  if (typeof value === 'string') {
+    return `'${value.replace(/'/g, "''")}'`;
+  }
+  return String(value);
+}
+
+type SnapshotEntry = TableDef<ColumnRecord> | ModelDef | ModelEntry;
+
+function isModelLike(v: unknown): v is ModelDef | ModelEntry {
   return (
     v !== null &&
     typeof v === 'object' &&
@@ -64,12 +84,12 @@ function isModelDef(v: unknown): v is ModelDef {
   );
 }
 
-function resolveTable(entry: TableDef<ColumnRecord> | ModelDef): TableDef<ColumnRecord> {
-  return isModelDef(entry) ? entry.table : entry;
+function resolveTable(entry: SnapshotEntry): TableDef<ColumnRecord> {
+  return isModelLike(entry) ? entry.table : entry;
 }
 
-function resolveRelations(entry: TableDef<ColumnRecord> | ModelDef): Record<string, RelationDef> {
-  return isModelDef(entry) ? entry.relations : {};
+function resolveRelations(entry: SnapshotEntry): Record<string, RelationDef> {
+  return isModelLike(entry) ? entry.relations : {};
 }
 
 function findPkColumns(table: TableDef<ColumnRecord>): string[] {
@@ -117,7 +137,7 @@ function deriveForeignKeys(
   return foreignKeys;
 }
 
-export function createSnapshot(entries: (TableDef<ColumnRecord> | ModelDef)[]): SchemaSnapshot {
+export function createSnapshot(entries: SnapshotEntry[]): SchemaSnapshot {
   const snapshot: SchemaSnapshot = {
     version: 1,
     tables: {},
@@ -132,16 +152,22 @@ export function createSnapshot(entries: (TableDef<ColumnRecord> | ModelDef)[]): 
 
     for (const [colName, col] of Object.entries(table._columns)) {
       const meta = col._meta;
+      // Enum columns: carry the enum name as the type so downstream consumers
+      // (sql-generator, codegen) can resolve it against snapshot.enums.
+      const columnType = meta.enumName ?? meta.sqlType;
       const colSnap: ColumnSnapshot = {
-        type: meta.sqlType,
+        type: columnType,
         nullable: meta.nullable,
         primary: meta.primary,
         unique: meta.unique,
       };
 
       if (meta.hasDefault && meta.defaultValue !== undefined) {
-        const rawDefault = String(meta.defaultValue);
-        colSnap.default = rawDefault === 'now' ? 'now()' : rawDefault;
+        colSnap.default = formatDefaultExpr(meta.defaultValue);
+      } else if (meta.isAutoUpdate) {
+        // autoUpdate() implies a DEFAULT of current-time for the initial INSERT.
+        // Subsequent UPDATEs are handled by query-layer injection (see query/helpers.ts).
+        colSnap.default = 'now()';
       }
 
       const annotationNames = meta._annotations ? Object.keys(meta._annotations) : [];

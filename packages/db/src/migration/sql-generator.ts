@@ -3,7 +3,7 @@ import type { ColumnTypeMeta } from '../dialect/types';
 import { defaultPostgresDialect } from '../dialect';
 import { camelToSnake } from '../sql/casing';
 import type { DiffChange } from './differ';
-import type { ColumnSnapshot, TableSnapshot } from './snapshot';
+import type { ColumnSnapshot, IndexSnapshot, SchemaSnapshot, TableSnapshot } from './snapshot';
 import { validateColumns, validateIndexes } from './validate-indexes';
 
 /**
@@ -125,10 +125,26 @@ function columnDef(
   }
 
   if (col.default !== undefined) {
-    parts.push(`DEFAULT ${col.default}`);
+    parts.push(`DEFAULT ${renderDefaultExpr(col.default, dialect)}`);
   }
 
   return parts.join(' ');
+}
+
+/**
+ * Translate a dialect-agnostic default expression (as stored in the snapshot)
+ * into dialect-specific SQL. SQLite has no `now()` function — we use
+ * `datetime('now')` — and stores booleans as integers.
+ */
+function renderDefaultExpr(expr: string, dialect: Dialect): string {
+  if (dialect.name === 'sqlite') {
+    if (expr === 'now()' || expr.toUpperCase() === 'CURRENT_TIMESTAMP') {
+      return `(${dialect.now()})`;
+    }
+    if (expr === 'true') return '1';
+    if (expr === 'false') return '0';
+  }
+  return expr;
 }
 
 /**
@@ -153,6 +169,114 @@ function normalizeColumnType(type: string): string {
     VARCHAR: 'varchar',
   };
   return typeMap[typeUpper] || type.toLowerCase();
+}
+
+/**
+ * Build a CREATE TABLE statement (optionally `IF NOT EXISTS`) including
+ * column defs, table-level PRIMARY KEY, and inline FOREIGN KEY constraints.
+ */
+function buildCreateTableSql(
+  tableName: string,
+  table: TableSnapshot,
+  dialect: Dialect,
+  enums: Record<string, string[]> | undefined,
+  ifNotExists: boolean,
+): string {
+  const snakeTable = camelToSnake(tableName);
+  const cols: string[] = [];
+  const primaryKeys: string[] = [];
+
+  for (const [colName, col] of Object.entries(table.columns)) {
+    cols.push(`  ${columnDef(colName, col, dialect, enums)}`);
+    if (col.primary) {
+      primaryKeys.push(`"${camelToSnake(colName)}"`);
+    }
+  }
+
+  if (primaryKeys.length > 0) {
+    cols.push(`  PRIMARY KEY (${primaryKeys.join(', ')})`);
+  }
+
+  for (const fk of table.foreignKeys) {
+    const fkCol = camelToSnake(fk.column);
+    const fkTarget = camelToSnake(fk.targetTable);
+    const fkTargetCol = camelToSnake(fk.targetColumn);
+    cols.push(`  FOREIGN KEY ("${fkCol}") REFERENCES "${fkTarget}" ("${fkTargetCol}")`);
+  }
+
+  const prefix = ifNotExists ? 'CREATE TABLE IF NOT EXISTS' : 'CREATE TABLE';
+  return `${prefix} "${snakeTable}" (\n${cols.join(',\n')}\n);`;
+}
+
+/**
+ * Build a CREATE INDEX statement (optionally `IF NOT EXISTS`) for a snapshot
+ * index entry. Applies dialect-specific USING / WITH / WHERE clauses.
+ */
+function buildCreateIndexSql(
+  tableName: string,
+  idx: IndexSnapshot,
+  dialect: Dialect,
+  ifNotExists: boolean,
+): string {
+  const snakeTable = camelToSnake(tableName);
+  const idxColsStr = idx.opclass
+    ? idx.columns.map((c) => `"${camelToSnake(c)}" ${idx.opclass}`).join(', ')
+    : idx.columns.map((c) => `"${camelToSnake(c)}"`).join(', ');
+  const idxName =
+    idx.name ?? `idx_${snakeTable}_${idx.columns.map((c) => camelToSnake(c)).join('_')}`;
+  const unique = idx.unique ? 'UNIQUE ' : '';
+  const using = idx.type && dialect.name === 'postgres' ? ` USING ${idx.type}` : '';
+  const withParts: string[] = [];
+  if (idx.m != null) withParts.push(`m = ${idx.m}`);
+  if (idx.efConstruction != null) withParts.push(`ef_construction = ${idx.efConstruction}`);
+  if (idx.lists != null) withParts.push(`lists = ${idx.lists}`);
+  const withClause = withParts.length > 0 ? ` WITH (${withParts.join(', ')})` : '';
+  const where = idx.where ? ` WHERE ${idx.where}` : '';
+  const prefix = ifNotExists ? `CREATE ${unique}INDEX IF NOT EXISTS` : `CREATE ${unique}INDEX`;
+  return `${prefix} "${idxName}" ON "${snakeTable}"${using} (${idxColsStr})${withClause}${where};`;
+}
+
+/**
+ * Generate idempotent bootstrap DDL from a schema snapshot.
+ *
+ * Emits `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS` statements
+ * for every table in the snapshot, including table-level PRIMARY KEY, inline
+ * FOREIGN KEY constraints, and CHECK constraints for enum columns (SQLite).
+ *
+ * Each statement is returned separately so drivers that prepare statements
+ * individually (like bun:sqlite) can execute them one at a time.
+ */
+export function generateBootstrapSql(
+  snapshot: SchemaSnapshot,
+  dialect: Dialect = defaultPostgresDialect,
+): string[] {
+  const statements: string[] = [];
+  const enums = snapshot.enums;
+  const emittedEnumTypes = new Set<string>();
+
+  for (const [tableName, table] of Object.entries(snapshot.tables)) {
+    // Postgres: emit CREATE TYPE ... AS ENUM before the table that references it.
+    if (dialect.name === 'postgres') {
+      for (const col of Object.values(table.columns)) {
+        if (!isEnumType(col, enums)) continue;
+        const enumSnakeName = camelToSnake(col.type);
+        if (emittedEnumTypes.has(enumSnakeName)) continue;
+        const values = getEnumValues(col, enums);
+        if (values.length === 0) continue;
+        const valuesStr = values.map((v) => `'${escapeSqlString(v)}'`).join(', ');
+        statements.push(`CREATE TYPE "${enumSnakeName}" AS ENUM (${valuesStr});`);
+        emittedEnumTypes.add(enumSnakeName);
+      }
+    }
+
+    statements.push(buildCreateTableSql(tableName, table, dialect, enums, true));
+
+    for (const idx of table.indexes) {
+      statements.push(buildCreateIndexSql(tableName, idx, dialect, true));
+    }
+  }
+
+  return statements;
 }
 
 /**
