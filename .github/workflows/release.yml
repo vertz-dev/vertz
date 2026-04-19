@@ -382,9 +382,18 @@ jobs:
           NPM_CONFIG_PROVENANCE: true
           LEFTHOOK: '0'
 
+      # Only touch GitHub releases when this run actually published packages
+      # to npm. On non-publishing runs (e.g. an unrelated commit lands on main
+      # while a "Version Packages" PR is still open), `scripts/version.sh`
+      # still bumps `version.txt` locally via changesets/action, which used to
+      # trip this step into creating a premature `v${VERSION}` release with
+      # only the fallback `vtz-linux-x64` binary — and marking it "latest".
+      # That is #2860 bug 1.
       - name: Upload binaries to GitHub Release
+        if: steps.changesets.outputs.published == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
           VERSION=$(cat version.txt)
           TAG="v${VERSION}"
@@ -403,18 +412,40 @@ jobs:
             exit 0
           fi
 
+          # Decide whether we should claim the "latest" pointer. If a newer
+          # v-prefixed semver release already holds it (e.g. a parallel
+          # release run for a later version finished first), refuse to
+          # regress the pointer. That is #2860 bug 2.
+          CURRENT_LATEST=$(gh api "repos/$REPO/releases/latest" --jq .tag_name 2>/dev/null || echo "")
+          MAKE_LATEST="true"
+          if [[ "$CURRENT_LATEST" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] && [ "$CURRENT_LATEST" != "$TAG" ]; then
+            TAG_VER="${TAG#v}"
+            LATEST_VER="${CURRENT_LATEST#v}"
+            HIGHEST=$(printf '%s\n%s\n' "$LATEST_VER" "$TAG_VER" | sort -V | tail -1)
+            if [ "$HIGHEST" != "$TAG_VER" ]; then
+              echo "::notice::A newer release ($CURRENT_LATEST) already holds 'latest' — not regressing to $TAG."
+              MAKE_LATEST="false"
+            fi
+          fi
+
           if gh release view "$TAG" &>/dev/null; then
             echo "Release $TAG exists, replacing binary assets..."
             for asset in "${ASSETS[@]}"; do
               gh release delete-asset "$TAG" "$asset" --yes 2>/dev/null || true
             done
             gh release upload "$TAG" "${ASSETS[@]}"
-            # Mark as latest so install.sh can find binaries via releases/latest
-            gh release edit "$TAG" --latest
           else
             gh release create "$TAG" \
               --title "$TAG" \
               --generate-notes \
-              --latest \
               "${ASSETS[@]}"
+          fi
+
+          # `gh release create` defaults `make_latest` to true, so we must
+          # explicitly PATCH it either way to honor the semver guard above.
+          RELEASE_ID=$(gh api "repos/$REPO/releases/tags/$TAG" --jq .id)
+          gh api --method PATCH "repos/$REPO/releases/$RELEASE_ID" \
+            -f "make_latest=$MAKE_LATEST" > /dev/null
+          if [ "$MAKE_LATEST" = "true" ]; then
+            echo "Marked $TAG as latest."
           fi
