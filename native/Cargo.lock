@@ -6388,7 +6388,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vertz-compiler"
-version = "0.2.71"
+version = "0.2.74"
 dependencies = [
  "napi",
  "napi-build",
@@ -6398,7 +6398,7 @@ dependencies = [
 
 [[package]]
 name = "vertz-compiler-core"
-version = "0.2.71"
+version = "0.2.74"
 dependencies = [
  "oxc_allocator",
  "oxc_ast",
@@ -6420,7 +6420,7 @@ checksum = "5c3082ca00d5a5ef149bb8b555a72ae84c9c59f7250f013ac822ac2e49b19c64"
 
 [[package]]
 name = "vtz"
-version = "0.2.71"
+version = "0.2.74"
 dependencies = [
  "arboard",
  "async-stream",
