@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from '@vertz/test';
-import { resetDefaultQueryCache } from '../query';
+import { signal as createSignal } from '../../runtime/signal';
+import { QueryDisposedReason, resetDefaultQueryCache } from '../query';
 import { query } from '../query';
 
 /**
@@ -143,6 +144,175 @@ describe('query() — stream sources', () => {
         await flushPromises();
         expect(q1.data.value).toEqual([1]);
         expect(q2.data.value).toEqual([1]);
+      });
+    });
+  });
+
+  // ─── Phase 2: lifecycle ──────────────────────────────────────────
+
+  describe('Given an iterator that respects AbortSignal', () => {
+    describe('When dispose() is called mid-iteration', () => {
+      test('then the signal aborts with QueryDisposedReason and no further yields land', async () => {
+        let abortFired = false;
+        let receivedSignal: AbortSignal | undefined;
+        async function* infinite(signal?: AbortSignal) {
+          receivedSignal = signal;
+          signal?.addEventListener('abort', () => {
+            abortFired = true;
+          });
+          let i = 0;
+          while (true) {
+            if (signal?.aborted) return;
+            yield { id: String(i++) };
+            await new Promise((r) => setTimeout(r, 10));
+          }
+        }
+        const q = query((sig) => infinite(sig), { key: 'abort-test' });
+
+        // Pump for ~25ms — should land at least 2 items.
+        for (let i = 0; i < 30; i++) {
+          vi.advanceTimersByTime(1);
+          await Promise.resolve();
+        }
+        const before = q.data.value.length;
+        expect(before).toBeGreaterThan(0);
+
+        q.dispose();
+
+        // Drain a few more pumps — no further items should land.
+        for (let i = 0; i < 60; i++) {
+          vi.advanceTimersByTime(1);
+          await Promise.resolve();
+        }
+        expect(abortFired).toBe(true);
+        expect(receivedSignal?.aborted).toBe(true);
+        expect(receivedSignal?.reason).toBeInstanceOf(QueryDisposedReason);
+        expect(q.data.value.length).toBe(before);
+      });
+    });
+  });
+
+  describe('Given a stream that has yielded once', () => {
+    describe('When refetch() is called', () => {
+      test('then data resets to [] and reconnecting flips true until next yield', async () => {
+        let resolveNext: (() => void) | undefined;
+        let invocation = 0;
+        async function* slowStream() {
+          invocation++;
+          const tag = invocation;
+          yield { id: `${tag}-1` };
+          // Wait until externally released so refetch can observe reconnecting=true
+          // before the next yield lands.
+          await new Promise<void>((r) => {
+            resolveNext = r;
+          });
+          yield { id: `${tag}-2` };
+        }
+        const q = query(() => slowStream(), { key: 'refetch-test' });
+
+        await flushPromises();
+        expect(q.data.value.map((x) => x.id)).toEqual(['1-1']);
+        expect(q.reconnecting.value).toBe(false);
+
+        q.refetch();
+
+        // After refetch: data reset, reconnecting true, new iterator constructed.
+        expect(q.data.value).toEqual([]);
+        expect(q.reconnecting.value).toBe(true);
+
+        // Release any stranded await on the first iterator (it was aborted but
+        // its pending Promise still needs to resolve so the test runner doesn't
+        // hold a reference).
+        resolveNext?.();
+        resolveNext = undefined;
+
+        await flushPromises();
+        // Second invocation produced its first item — reconnecting cleared.
+        expect(q.data.value.map((x) => x.id)).toEqual(['2-1']);
+        expect(q.reconnecting.value).toBe(false);
+        // Release the second iterator so the test exits cleanly.
+        resolveNext?.();
+        await flushPromises();
+        expect(q.data.value.map((x) => x.id)).toEqual(['2-1', '2-2']);
+        expect(q.reconnecting.value).toBe(false);
+      });
+    });
+  });
+
+  describe('Given a stream backed by a reactive sessionId', () => {
+    describe('When the sessionId changes', () => {
+      test('then the previous iterator aborts and a new one starts for the new id', async () => {
+        const sessionId = createSignal('s1');
+        const opened: string[] = [];
+        const aborted: string[] = [];
+        async function* streamFor(id: string, signal?: AbortSignal) {
+          opened.push(id);
+          signal?.addEventListener('abort', () => {
+            aborted.push(id);
+          });
+          yield { id: `${id}-msg-1` };
+        }
+        const q = query((sig) => streamFor(sessionId.value, sig), { key: 'reactive-key' });
+        await flushPromises();
+        expect(opened).toEqual(['s1']);
+        expect(q.data.value.map((x) => x.id)).toEqual(['s1-msg-1']);
+
+        sessionId.value = 's2';
+        await flushPromises();
+
+        expect(aborted).toEqual(['s1']);
+        expect(opened).toEqual(['s1', 's2']);
+        expect(q.data.value.map((x) => x.id)).toEqual(['s2-msg-1']);
+      });
+    });
+  });
+
+  describe('Given a stream that ignores the abort signal', () => {
+    describe('When dispose() is called', () => {
+      test('then yields stop landing in data anyway (defensive: pump checks signal between yields)', async () => {
+        // Producer doesn't subscribe to signal — yields freely until completion.
+        async function* leaky() {
+          for (let i = 0; i < 5; i++) {
+            yield { id: String(i) };
+            await new Promise((r) => setTimeout(r, 5));
+          }
+        }
+        const q = query(() => leaky(), { key: 'leaky-test' });
+        // Let one item land.
+        for (let i = 0; i < 8; i++) {
+          vi.advanceTimersByTime(1);
+          await Promise.resolve();
+        }
+        const before = q.data.value.length;
+        expect(before).toBeGreaterThan(0);
+
+        q.dispose();
+
+        // Drain remaining producer yields — none should land in data.
+        for (let i = 0; i < 60; i++) {
+          vi.advanceTimersByTime(1);
+          await Promise.resolve();
+        }
+        expect(q.data.value.length).toBe(before);
+      });
+    });
+  });
+
+  describe('Given a thunk that swaps source type between runs', () => {
+    describe('When deps change so the thunk returns Promise after AsyncIterable', () => {
+      test('then refetch throws QueryStreamMisuseError naming the swap', async () => {
+        let mode: 'stream' | 'promise' = 'stream';
+        async function* s() {
+          yield 1;
+        }
+        const q = query(
+          () =>
+            mode === 'stream' ? s() : (Promise.resolve(2) as unknown as AsyncIterable<number>),
+          { key: 'swap-test' },
+        );
+        await flushPromises();
+        mode = 'promise';
+        expect(() => q.refetch()).toThrowError(/source-type/i);
       });
     });
   });
