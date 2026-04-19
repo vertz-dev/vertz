@@ -63,6 +63,7 @@
               "guides/ui/styling",
               "guides/ui/routing",
               "guides/ui/data-fetching",
+              "guides/ui/live-data",
               "guides/ui/auto-field-selection",
               "guides/ui/forms",
               "guides/ui/auth",
