@@ -137,6 +137,19 @@ async fn test_inspect_brk_unblocks_after_debugger_connects() {
         .unbounded_send(r#"{"id":2,"method":"Debugger.enable"}"#.to_string())
         .unwrap();
 
+    // Spawn a task that collects every outbound message for diagnostics.
+    let outbound_log: std::sync::Arc<std::sync::Mutex<Vec<String>>> =
+        std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let log_clone = outbound_log.clone();
+    tokio::spawn(async move {
+        use futures::StreamExt;
+        let mut rx = outbound_rx;
+        while let Some(msg) = rx.next().await {
+            let preview: String = msg.content.chars().take(200).collect();
+            log_clone.lock().unwrap().push(preview);
+        }
+    });
+
     // Send Debugger.resume periodically until the isolate initializes.
     // break_on_next_statement pauses V8 at the first statement; Debugger.resume
     // unblocks it. Sending resume repeatedly handles the race between V8
@@ -156,8 +169,17 @@ async fn test_inspect_brk_unblocks_after_debugger_connects() {
     .await
     .unwrap_or(false);
 
-    // Keep channels alive so V8 doesn't see them close mid-test.
-    let _keep_alive = (inbound_tx, outbound_rx);
+    // Keep inbound_tx alive so V8 doesn't see the session close mid-test.
+    let _keep_alive = inbound_tx;
+
+    if !initialized {
+        let log = outbound_log.lock().unwrap();
+        eprintln!("--- V8 outbound messages ({} total) ---", log.len());
+        for (i, msg) in log.iter().enumerate() {
+            eprintln!("[{}] {}", i, msg);
+        }
+        eprintln!("--- end outbound ---");
+    }
 
     assert!(
         initialized,
