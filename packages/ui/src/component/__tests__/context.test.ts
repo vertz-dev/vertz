@@ -191,13 +191,69 @@ describe('createContext / useContext', () => {
     expect(result).toBe('blue');
   });
 
-  test('JSX pattern: multi-child array throws in dev mode', () => {
+  test('JSX pattern: multi-child array is wrapped in a DocumentFragment', () => {
+    // Fix #2821: multiple children (from hand-written callers passing an array)
+    // are wrapped in a DocumentFragment so the consumer receives a single Node,
+    // not an array. The compiler emits a DocumentFragment-returning thunk for
+    // multi-child JSX, so this path only runs for hand-written calls.
     const Ctx = createContext('val');
     const span1 = document.createElement('span');
     const span2 = document.createElement('span');
-    expect(() => {
-      Ctx.Provider({ value: 'v', children: () => [span1, span2] as unknown });
-    }).toThrow(/single root/i);
+    const result = Ctx.Provider({
+      value: 'v',
+      children: () => [span1, span2] as unknown,
+    }) as unknown as DocumentFragment;
+    expect(result).toBeInstanceOf(DocumentFragment);
+    expect(result.childNodes.length).toBe(2);
+    expect(result.childNodes[0]).toBe(span1);
+    expect(result.childNodes[1]).toBe(span2);
+  });
+
+  test('JSX pattern: array children coerce primitives to text nodes', () => {
+    const Ctx = createContext('val');
+    const span = document.createElement('span');
+    const result = Ctx.Provider({
+      value: 'v',
+      children: () => [span, 'hello', null, undefined, false, 42] as unknown,
+    }) as unknown as DocumentFragment;
+    expect(result).toBeInstanceOf(DocumentFragment);
+    // null/undefined/boolean are skipped; primitives become text nodes.
+    expect(result.childNodes.length).toBe(3);
+    expect(result.childNodes[0]).toBe(span);
+    expect(result.childNodes[1].textContent).toBe('hello');
+    expect(result.childNodes[2].textContent).toBe('42');
+  });
+
+  test('JSX pattern: direct (non-thunk) array children wrap in a DocumentFragment', () => {
+    // The JSX runtime can emit `children: [a, b]` directly (not wrapped in a
+    // thunk). The fragment-wrapping fallback must handle that path too.
+    const Ctx = createContext('val');
+    const span1 = document.createElement('span');
+    const span2 = document.createElement('span');
+    const result = Ctx.Provider({
+      value: 'v',
+      children: [span1, span2] as unknown,
+    }) as unknown as DocumentFragment;
+    expect(result).toBeInstanceOf(DocumentFragment);
+    expect(result.childNodes.length).toBe(2);
+    expect(result.childNodes[0]).toBe(span1);
+    expect(result.childNodes[1]).toBe(span2);
+  });
+
+  test('JSX pattern: nested arrays and thunks flatten via resolveChildren', () => {
+    const Ctx = createContext('val');
+    const span1 = document.createElement('span');
+    const span2 = document.createElement('span');
+    const span3 = document.createElement('span');
+    const result = Ctx.Provider({
+      value: 'v',
+      children: () => [span1, [span2, () => span3]] as unknown,
+    }) as unknown as DocumentFragment;
+    expect(result).toBeInstanceOf(DocumentFragment);
+    expect(result.childNodes.length).toBe(3);
+    expect(result.childNodes[0]).toBe(span1);
+    expect(result.childNodes[1]).toBe(span2);
+    expect(result.childNodes[2]).toBe(span3);
   });
 
   test('JSX pattern: fragment child works (single DocumentFragment node)', () => {
