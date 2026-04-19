@@ -1,5 +1,66 @@
 # @vertz/ui-auth
 
+## 0.2.20
+
+### Patch Changes
+
+- [#2795](https://github.com/vertz-dev/vertz/pull/2795) [`8bed545`](https://github.com/vertz-dev/vertz/commit/8bed5454aeeec6c374ceb43bccc92841442d87da) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - refactor(ui): drop shorthand-string CSS API in favour of object-form `css()` +
+  `token.*`
+
+  The array-form `css()` API is gone. `css()` and `variants()` now accept only
+  object-form `StyleBlock` trees:
+
+  ```tsx
+  // Before
+  css({ card: ["bg:background", "p:4", "rounded:lg"] });
+
+  // After
+  css({
+    card: {
+      backgroundColor: token.color.background,
+      padding: token.spacing[4],
+      borderRadius: token.radius.lg,
+    },
+  });
+  ```
+
+  Removed from the public API: `StyleEntry`, `StyleValue`, `UtilityClass`, `s`,
+  `parseShorthand`, `resolveToken`, `ShorthandParseError`, `TokenResolveError`,
+  `InlineStyleError`, `isKnownProperty`, `isValidColorToken`, and all
+  token-table helpers.
+
+  The Rust compiler (`@vertz/native-compiler`) is smaller: the array-form
+  shorthand parser, the 1,900-line token tables, and the diagnostic pass that
+  validated shorthand strings have all been deleted. Only object-form extraction
+  remains.
+
+  Closes #1988.
+
+- [#2791](https://github.com/vertz-dev/vertz/pull/2791) [`36a459d`](https://github.com/vertz-dev/vertz/commit/36a459d191d732370cb4020533c7f8494622f1b5) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(ui): add `innerHTML` JSX prop for raw HTML injection
+
+  Vertz now supports rendering raw HTML via an `innerHTML` prop on any HTML
+  host element — the equivalent of React's `dangerouslySetInnerHTML`, but
+  spelled as a single plain prop:
+
+  ```tsx
+  <div innerHTML={trustedMarkup} />
+  ```
+
+  The value is inserted verbatim. Callers are responsible for trust and
+  sanitization; a `trusted()` helper is exported from `@vertz/ui` for
+  marking already-sanitized values. The compiler rejects the React spelling
+  (`dangerouslySetInnerHTML`) with a clear error (E0762), blocks pairing
+  with children (E0761), and forbids the prop on SVG elements (E0764).
+  The prop is reactive — bound signals update the element in place — and
+  safe across SSR + hydration (server content is preserved until after
+  hydration completes).
+
+  Closes #2761.
+
+- Updated dependencies [[`d8e23a1`](https://github.com/vertz-dev/vertz/commit/d8e23a13049afb0a8611c63081bf799dc9790f77), [`8bed545`](https://github.com/vertz-dev/vertz/commit/8bed5454aeeec6c374ceb43bccc92841442d87da), [`e2db646`](https://github.com/vertz-dev/vertz/commit/e2db646ea254b60c9bec01d51400c1c46c328c98), [`8d8976d`](https://github.com/vertz-dev/vertz/commit/8d8976dd3d2d2475f37d0df79f8477fd3f58395f), [`36a459d`](https://github.com/vertz-dev/vertz/commit/36a459d191d732370cb4020533c7f8494622f1b5)]:
+  - @vertz/ui@0.2.72
+  - @vertz/icons@0.2.72
+
 ## 0.2.19
 
 ### Patch Changes

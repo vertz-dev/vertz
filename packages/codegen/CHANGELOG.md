@@ -1,5 +1,33 @@
 # @vertz/codegen
 
+## 0.2.72
+
+### Patch Changes
+
+- [#2774](https://github.com/vertz-dev/vertz/pull/2774) [`8493aee`](https://github.com/vertz-dev/vertz/commit/8493aee0c1157a2a0f78b2579e29e1fbd70e629e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(codegen): generate typed SDK for services (#2759)
+
+  `vtz codegen` now emits fully typed SDKs for `service()` definitions, not just
+  entities. The compiler walks `action({ body, response })` schemas via the
+  `SchemaLike<T>.parse()` contract and surfaces the resolved field shapes on
+  the IR. The codegen pipeline then emits:
+
+  - `types/services/{name}.ts` — `${ActionPascal}${ServicePascal}Input` /
+    `Output` interfaces with TS_TYPE_MAP (date → string for JSON transport).
+  - `services/{name}.ts` — SDK with `(body: InputType)` signatures and
+    `client.<method><OutputType>()` calls. Falls back to `unknown` when a
+    schema can't be resolved.
+
+  Callers like `api.ai.parse({ projectId, message })` now get full compile-time
+  type safety, preserving SSR integration, caching, and optimistic updates
+  without falling back to raw `fetch()`.
+
+  Also includes a deny-by-default access filter: service actions with no
+  `access` entry resolved to `'function'` are now excluded from generated
+  SDKs (previously they leaked through).
+
+- Updated dependencies [[`8493aee`](https://github.com/vertz-dev/vertz/commit/8493aee0c1157a2a0f78b2579e29e1fbd70e629e)]:
+  - @vertz/compiler@0.2.72
+
 ## 0.2.71
 
 ### Patch Changes

@@ -1,5 +1,57 @@
 # @vertz/theme-shadcn
 
+## 0.2.72
+
+### Patch Changes
+
+- [#2806](https://github.com/vertz-dev/vertz/pull/2806) [`37b9ce7`](https://github.com/vertz-dev/vertz/commit/37b9ce76537f1c405388654f8af08ab91c649ad8) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(theme-shadcn): dialog stack panel and title render in dark-mode foreground color
+
+  `useDialogStack().confirm()` and other stack-rendered dialogs had unreadable
+  black title text on dark backgrounds because the global CSS for the
+  `dialog[data-dialog-wrapper]` panel did not set `color` explicitly. Native
+  `<dialog>` elements render in the top layer and do not inherit `body` color,
+  so the panel must set `color: var(--color-foreground)` — the same fix the
+  scoped `Dialog.Panel` already applies. The title rule now also sets the
+  foreground color explicitly as a defense-in-depth.
+
+  Closes #2756.
+
+- [#2795](https://github.com/vertz-dev/vertz/pull/2795) [`8bed545`](https://github.com/vertz-dev/vertz/commit/8bed5454aeeec6c374ceb43bccc92841442d87da) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - refactor(ui): drop shorthand-string CSS API in favour of object-form `css()` +
+  `token.*`
+
+  The array-form `css()` API is gone. `css()` and `variants()` now accept only
+  object-form `StyleBlock` trees:
+
+  ```tsx
+  // Before
+  css({ card: ["bg:background", "p:4", "rounded:lg"] });
+
+  // After
+  css({
+    card: {
+      backgroundColor: token.color.background,
+      padding: token.spacing[4],
+      borderRadius: token.radius.lg,
+    },
+  });
+  ```
+
+  Removed from the public API: `StyleEntry`, `StyleValue`, `UtilityClass`, `s`,
+  `parseShorthand`, `resolveToken`, `ShorthandParseError`, `TokenResolveError`,
+  `InlineStyleError`, `isKnownProperty`, `isValidColorToken`, and all
+  token-table helpers.
+
+  The Rust compiler (`@vertz/native-compiler`) is smaller: the array-form
+  shorthand parser, the 1,900-line token tables, and the diagnostic pass that
+  validated shorthand strings have all been deleted. Only object-form extraction
+  remains.
+
+  Closes #1988.
+
+- Updated dependencies [[`d8e23a1`](https://github.com/vertz-dev/vertz/commit/d8e23a13049afb0a8611c63081bf799dc9790f77), [`8bed545`](https://github.com/vertz-dev/vertz/commit/8bed5454aeeec6c374ceb43bccc92841442d87da), [`e2db646`](https://github.com/vertz-dev/vertz/commit/e2db646ea254b60c9bec01d51400c1c46c328c98), [`8d8976d`](https://github.com/vertz-dev/vertz/commit/8d8976dd3d2d2475f37d0df79f8477fd3f58395f), [`36a459d`](https://github.com/vertz-dev/vertz/commit/36a459d191d732370cb4020533c7f8494622f1b5)]:
+  - @vertz/ui@0.2.72
+  - @vertz/ui-primitives@0.2.72
+
 ## 0.2.71
 
 ### Patch Changes
