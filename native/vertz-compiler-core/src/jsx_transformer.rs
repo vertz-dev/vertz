@@ -2010,6 +2010,7 @@ fn find_conditional_in_span(
         target_start: start,
         target_end: end,
         result: None,
+        function_depth: 0,
     };
     for stmt in &program.body {
         finder.visit_statement(stmt);
@@ -2024,11 +2025,22 @@ struct ConditionalSpanFinder {
     target_start: u32,
     target_end: u32,
     result: Option<ConditionalSpanInfo>,
+    /// Depth of nested function/arrow bodies we're currently inside.
+    /// A ternary found while `function_depth > 0` belongs to imperative code
+    /// inside a callback (e.g., `onPick={(v) => selected = v ? x : null}`) —
+    /// it must NOT be reactified as a JSX-level conditional, or the callback
+    /// parameter would be hoisted out of scope (issue #2816).
+    function_depth: u32,
 }
 
 impl<'c> Visit<'c> for ConditionalSpanFinder {
     fn visit_conditional_expression(&mut self, cond: &ConditionalExpression<'c>) {
         if self.result.is_some() {
+            return;
+        }
+        // Skip ternaries inside nested callback bodies — see `function_depth` doc.
+        if self.function_depth > 0 {
+            oxc_ast_visit::walk::walk_conditional_expression(self, cond);
             return;
         }
         let span = cond.span;
@@ -2046,6 +2058,40 @@ impl<'c> Visit<'c> for ConditionalSpanFinder {
             return;
         }
         oxc_ast_visit::walk::walk_conditional_expression(self, cond);
+    }
+
+    fn visit_function(&mut self, func: &Function<'c>, flags: oxc_syntax::scope::ScopeFlags) {
+        let nested = self.is_strictly_inside_target(func.span.start, func.span.end);
+        if nested {
+            self.function_depth += 1;
+        }
+        oxc_ast_visit::walk::walk_function(self, func, flags);
+        if nested {
+            self.function_depth -= 1;
+        }
+    }
+
+    fn visit_arrow_function_expression(&mut self, arrow: &ArrowFunctionExpression<'c>) {
+        let nested = self.is_strictly_inside_target(arrow.span.start, arrow.span.end);
+        if nested {
+            self.function_depth += 1;
+        }
+        oxc_ast_visit::walk::walk_arrow_function_expression(self, arrow);
+        if nested {
+            self.function_depth -= 1;
+        }
+    }
+}
+
+impl ConditionalSpanFinder {
+    /// A function is a "nested scope" only when it sits strictly inside the
+    /// target branch span. A function that contains (or equals) the target is
+    /// the surrounding component — we're walking through it to reach the
+    /// branch, not crossing into a new callback.
+    fn is_strictly_inside_target(&self, start: u32, end: u32) -> bool {
+        start >= self.target_start
+            && end <= self.target_end
+            && (start > self.target_start || end < self.target_end)
     }
 }
 
@@ -4887,6 +4933,42 @@ export function App() {
         let html_offset = result.find("__html(__el0, () => x)").unwrap();
         assert!(class_offset < html_offset, "class before html: {result}");
         assert!(click_offset < html_offset, "click before html: {result}");
+    }
+
+    /// Issue #2816: inline callback params must not leak out of their closure.
+    /// A ternary inside an arrow function body (e.g., `(v) => selected = v ? x : null`)
+    /// must NOT be reactified into `__conditional(() => v, ...)` at the call site —
+    /// that hoists `v` out of scope and produces `ReferenceError: v is not defined`.
+    #[test]
+    fn ternary_inside_callback_body_is_not_reactified() {
+        let result = transform(
+            r#"export function App(props) {
+    let selected = null;
+    return (
+      <div>
+        {props.collapsed ? null : props.items.map((env) => (
+          <Row key={env.id} onPick={(v) => { selected = v ? env.id : null; }} />
+        ))}
+      </div>
+    );
+}"#,
+        );
+        // Must NOT lift the callback-body ternary into a __conditional wrapper.
+        assert!(
+            !result.contains("__conditional(() => v,"),
+            "inline callback param `v` was hoisted out of its closure: {result}"
+        );
+        // The callback body must stay intact (the ternary stays inside the arrow).
+        assert!(
+            result.contains("v ? env.id : null"),
+            "callback body lost its ternary: {result}"
+        );
+        // The outer map call must still be rendered (the whole false branch must
+        // not get replaced by the inner ternary).
+        assert!(
+            result.contains("__listValue(") || result.contains("props.items.map"),
+            "outer items.map was lost: {result}"
+        );
     }
 
     /// `<pre innerHTML />` (no value) is not reachable from TypeScript — the
