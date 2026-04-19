@@ -223,8 +223,115 @@ void _descriptorThunkData;
 const _descriptorThunkError: CustomError | undefined = descriptorThunk.error;
 void _descriptorThunkError;
 
-// @ts-expect-error - thunk must return Promise, QueryDescriptor, or null — not a raw value
+// @ts-expect-error - thunk must return Promise, QueryDescriptor, AsyncIterable, or null — not a raw value
 query(() => 42);
 
-// @ts-expect-error - thunk must return Promise, QueryDescriptor, or null — not a string
+// @ts-expect-error - thunk must return Promise, QueryDescriptor, AsyncIterable, or null — not a string
 query(() => 'hello');
+
+// ─── query() — stream overload (AsyncIterable source) ────────────
+
+import type { QueryStreamOptions, QueryStreamResult } from '../query';
+
+interface AgentEvent {
+  id: string;
+  text: string;
+}
+
+declare function makeStream(): AsyncIterable<AgentEvent>;
+
+// Stream overload returns QueryStreamResult<T> — data is T[], not T | undefined
+const streamResult: QueryStreamResult<AgentEvent> = query(() => makeStream(), {
+  key: 'stream-key',
+});
+
+// data is AgentEvent[] (always-array, never undefined)
+const _streamData: AgentEvent[] = streamResult.data;
+void _streamData;
+
+// reconnecting replaces revalidating on stream queries
+const _reconnecting: boolean = streamResult.reconnecting;
+void _reconnecting;
+
+// loading / error / idle still present
+const _streamLoading: boolean = streamResult.loading;
+const _streamError: unknown = streamResult.error;
+const _streamIdle: boolean = streamResult.idle;
+void _streamLoading;
+void _streamError;
+void _streamIdle;
+
+// Stream overload requires `key`
+// @ts-expect-error - key is required for stream queries
+query(() => makeStream(), {});
+
+// Stream overload accepts tuple keys
+const _tupleKey: QueryStreamResult<AgentEvent> = query(() => makeStream(), {
+  key: ['session', 'abc', 'messages'] as const,
+});
+void _tupleKey;
+
+// QueryStreamOptions does not have refetchInterval
+const _streamOpts: QueryStreamOptions = {
+  key: 'k',
+  // @ts-expect-error - refetchInterval is not part of QueryStreamOptions
+  refetchInterval: 1000,
+};
+void _streamOpts;
+
+// Stream thunk receives an optional AbortSignal
+query(
+  (signal) => {
+    // signal is AbortSignal | undefined
+    const _isAborted: boolean | undefined = signal?.aborted;
+    void _isAborted;
+    return makeStream();
+  },
+  { key: 'with-signal' },
+);
+
+// Zero-arg stream thunk also compiles (signal is optional)
+const _zeroArgStream: QueryStreamResult<AgentEvent> = query(() => makeStream(), {
+  key: 'zero-arg',
+});
+void _zeroArgStream;
+
+// Stream result data is NOT typed as T | undefined
+declare const _wrongData: AgentEvent | undefined;
+// @ts-expect-error - stream data is AgentEvent[], not AgentEvent | undefined
+const _bad: AgentEvent | undefined = streamResult.data;
+void _bad;
+void _wrongData;
+
+// Promise overload result still has data: T | undefined (regression check)
+const _promiseRegression = query(() => Promise.resolve('a'));
+const _promiseData: string | undefined = _promiseRegression.data;
+void _promiseData;
+
+// Phase 3: Promise overload accepts (signal?: AbortSignal) too
+const _promiseWithSignal = query((signal: AbortSignal | undefined) => {
+  const _isAborted: boolean | undefined = signal?.aborted;
+  void _isAborted;
+  return Promise.resolve(42);
+});
+const _promiseSignalData: number | undefined = _promiseWithSignal.data;
+void _promiseSignalData;
+
+// fromWebSocket / fromEventSource: generic-typed yields
+import { fromEventSource, fromWebSocket } from '../sources';
+
+interface Tick {
+  ts: number;
+  px: number;
+}
+const _wsStream = query((signal) => fromWebSocket<Tick>('wss://x/ticks', signal as AbortSignal), {
+  key: 'tick-stream',
+});
+const _wsData: Tick[] = _wsStream.data;
+void _wsData;
+
+const _esStream = query((signal) => fromEventSource<Tick>('https://x/sse', signal as AbortSignal), {
+  key: 'sse-stream',
+});
+const _esData: Tick[] = _esStream.data;
+void _esData;
