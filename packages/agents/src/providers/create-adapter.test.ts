@@ -13,6 +13,7 @@ afterEach(() => {
   process.env.CLOUDFLARE_ACCOUNT_ID = originalEnv.CLOUDFLARE_ACCOUNT_ID;
   process.env.CLOUDFLARE_API_TOKEN = originalEnv.CLOUDFLARE_API_TOKEN;
   process.env.MINIMAX_API_KEY = originalEnv.MINIMAX_API_KEY;
+  process.env.ANTHROPIC_API_KEY = originalEnv.ANTHROPIC_API_KEY;
 });
 
 // ---------------------------------------------------------------------------
@@ -44,6 +45,22 @@ describe('createAdapter()', () => {
 
         const adapter = createAdapter({
           config: { provider: 'minimax', model: 'test' },
+          tools: {},
+        });
+
+        expect(adapter).toBeDefined();
+        expect(typeof adapter.chat).toBe('function');
+      });
+    });
+  });
+
+  describe('Given provider is "anthropic"', () => {
+    describe('When createAdapter is called', () => {
+      it('Then returns an Anthropic adapter', () => {
+        process.env.ANTHROPIC_API_KEY = 'key';
+
+        const adapter = createAdapter({
+          config: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
           tools: {},
         });
 
