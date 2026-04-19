@@ -112,16 +112,14 @@ pub fn cache_key(task_name: &str, package: Option<&str>, platform: &str, hash: &
 }
 
 /// Generate restore key prefixes for fallback matching.
+///
+/// Fallback is scoped to the same `(task, package)` pair. A broader
+/// task-only fallback would let one package's build tarball be restored
+/// into another package's working directory, silently corrupting `dist/`.
 pub fn restore_keys(task_name: &str, package: Option<&str>, platform: &str) -> Vec<String> {
     match package {
-        Some(pkg) => vec![
-            format!("pipe-v1-{platform}-{task_name}-{pkg}-"),
-            format!("pipe-v1-{platform}-{task_name}-"),
-        ],
-        None => vec![
-            format!("pipe-v1-{platform}-{task_name}-root-"),
-            format!("pipe-v1-{platform}-{task_name}-"),
-        ],
+        Some(pkg) => vec![format!("pipe-v1-{platform}-{task_name}-{pkg}-")],
+        None => vec![format!("pipe-v1-{platform}-{task_name}-root-")],
     }
 }
 
@@ -696,19 +694,84 @@ mod tests {
     // -- restore keys --
 
     #[test]
-    fn restore_keys_package() {
+    fn restore_keys_package_scoped_to_same_package() {
+        // Fallback must only match entries from the SAME package.
+        // A task-only fallback (no package) would let one package's build
+        // tarball overwrite another package's dist on restore.
         let keys = restore_keys("build", Some("@vertz/ui"), "darwin-aarch64");
-        assert_eq!(keys.len(), 2);
+        assert_eq!(keys.len(), 1);
         assert_eq!(keys[0], "pipe-v1-darwin-aarch64-build-@vertz/ui-");
-        assert_eq!(keys[1], "pipe-v1-darwin-aarch64-build-");
     }
 
     #[test]
-    fn restore_keys_root() {
+    fn restore_keys_root_scoped_to_root() {
         let keys = restore_keys("lint", None, "linux-x86_64");
-        assert_eq!(keys.len(), 2);
+        assert_eq!(keys.len(), 1);
         assert_eq!(keys[0], "pipe-v1-linux-x86_64-lint-root-");
-        assert_eq!(keys[1], "pipe-v1-linux-x86_64-lint-");
+    }
+
+    #[tokio::test]
+    async fn fallback_never_matches_other_package_entry() {
+        // Regression: `restore_keys` used to include a package-less fallback
+        // (`pipe-v1-{platform}-{task}-`) that matched ANY package's entry.
+        // When @vertz/ci's build key missed, the scheduler warm-restored
+        // @vertz/test's build tarball into @vertz/ci's working dir, silently
+        // corrupting packages/ci/dist/ with @vertz/test's dist files.
+        let (_dir, cache_dir) = test_cache_dir();
+        let cache = LocalCache::new(cache_dir, None);
+
+        // Another package's prior build cache exists.
+        cache
+            .put(
+                "pipe-v1-darwin-aarch64-build-@vertz/test-abc123",
+                b"other-package-data",
+            )
+            .await
+            .unwrap();
+
+        // Look up @vertz/ci's build key (miss).
+        let restore = restore_keys("build", Some("@vertz/ci"), "darwin-aarch64");
+        let result = cache
+            .get("pipe-v1-darwin-aarch64-build-@vertz/ci-def456", &restore)
+            .await
+            .unwrap();
+
+        assert!(
+            result.is_none(),
+            "fallback must not match a different package's entry (got {:?})",
+            result.map(|(k, _)| k),
+        );
+    }
+
+    #[tokio::test]
+    async fn fallback_matches_same_package_with_different_hash() {
+        // Counterpart to `fallback_never_matches_other_package_entry`: prove the
+        // narrow per-package prefix still serves its purpose — restoring a prior
+        // build tarball for the same (task, package) when only the input hash
+        // changed.
+        let (_dir, cache_dir) = test_cache_dir();
+        let cache = LocalCache::new(cache_dir, None);
+
+        cache
+            .put(
+                "pipe-v1-darwin-aarch64-build-@vertz/ci-old-hash",
+                b"prior-ci-build",
+            )
+            .await
+            .unwrap();
+
+        let restore = restore_keys("build", Some("@vertz/ci"), "darwin-aarch64");
+        let result = cache
+            .get("pipe-v1-darwin-aarch64-build-@vertz/ci-new-hash", &restore)
+            .await
+            .unwrap();
+
+        let (matched_key, data) = result.expect("same-package fallback should hit");
+        assert_eq!(
+            matched_key,
+            "pipe-v1-darwin-aarch64-build-@vertz/ci-old-hash"
+        );
+        assert_eq!(&data[..], b"prior-ci-build");
     }
 
     // -- platform string --
