@@ -67,14 +67,6 @@ const healthService = service('health', {
 // Type flow: EntityDefinition<TModel> → EntityTestProxy<TModel>
 // ---------------------------------------------------------------------------
 
-// NOTE: tsgo currently collapses `entity()`'s TModel inference to the generic
-// ModelDef default (see #2815), so `client.entity(todosEntity)` flows as
-// `EntityTestProxy<ModelDef>` instead of the concrete model. The tests below
-// verify the type flow end-to-end by annotating the proxy with the concrete
-// model the developer already has in scope — mirroring how apps consume the
-// API. When #2815 lands, the annotation can be dropped to exercise pure
-// inference.
-
 describe('Type flow: entity proxy', () => {
   it('entity proxy get() returns typed response body', () => {
     const server = createServer({
@@ -82,8 +74,11 @@ describe('Type flow: entity proxy', () => {
       _entityDbFactory: mockEntityDb,
     });
     const client = createTestClient(server);
-    const todos: EntityTestProxy<typeof todosModel> = client.entity(todosEntity);
-    void todos;
+    const todos = client.entity(todosEntity);
+
+    // Positive: inferred proxy is assignable to the concrete typed proxy.
+    const _proxy: EntityTestProxy<typeof todosModel> = todos;
+    void _proxy;
   });
 
   it('create() input is typed to $create_input', async () => {
@@ -92,10 +87,16 @@ describe('Type flow: entity proxy', () => {
       _entityDbFactory: mockEntityDb,
     });
     const client = createTestClient(server);
-    const todos: EntityTestProxy<typeof todosModel> = client.entity(todosEntity);
+    const todos = client.entity(todosEntity);
 
     // @ts-expect-error — missing required 'title' field
     todos.create({});
+
+    // @ts-expect-error — wrong type for title
+    todos.create({ title: 123 });
+
+    // Positive: valid input is accepted
+    todos.create({ title: 'buy milk' });
   });
 
   it('entity() rejects non-EntityDefinition argument', () => {
@@ -105,13 +106,11 @@ describe('Type flow: entity proxy', () => {
     });
     const client = createTestClient(server);
 
-    // Verify the constraint at the type level: the concrete `{ name }` shape
-    // must not match the EntityDefinition interface, which has many more
-    // required fields.
-    type HasKind<T> = T extends { readonly kind: 'entity' } ? true : false;
-    const hasKind: HasKind<{ name: 'fake' }> = false;
-    void hasKind;
-    void client;
+    // @ts-expect-error — bare { name } is not an EntityDefinition
+    client.entity({ name: 'fake' });
+
+    // @ts-expect-error — plain objects without the EntityDefinition shape are rejected
+    client.entity({});
   });
 });
 
