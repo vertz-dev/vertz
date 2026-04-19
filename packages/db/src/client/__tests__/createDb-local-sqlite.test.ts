@@ -500,16 +500,17 @@ describe('createDb with local SQLite (path option)', () => {
     });
   });
 
-  describe('Given a table with a d.enum() column', () => {
+  describe('Given a table with two d.enum() columns', () => {
     const ticketsTable = d.table('tickets', {
       id: d.uuid().primary({ generate: 'cuid' }),
       title: d.text(),
+      priority: d.enum('ticket_priority', ['low', 'high']).default('low'),
       status: d.enum('ticket_status', ['open', 'closed']).default('open'),
     });
     const ticketsModel = d.model(ticketsTable);
 
-    describe('When inserting a row with a value outside the declared enum values', () => {
-      it('Then the CHECK constraint rejects the invalid value', async () => {
+    describe('When inserting rows that violate each enum independently', () => {
+      it('Then both CHECK constraints are enforced', async () => {
         const db = createDb({
           models: { tickets: ticketsModel },
           dialect: 'sqlite',
@@ -518,15 +519,21 @@ describe('createDb with local SQLite (path option)', () => {
         });
 
         const valid = await db.tickets.create({
-          data: { title: 'Broken login', status: 'open' },
+          data: { title: 'Broken login', priority: 'high', status: 'open' },
         });
         expect(valid.ok).toBe(true);
 
-        const invalid = await db.tickets.create({
+        const badStatus = await db.tickets.create({
           // @ts-expect-error — 'slonk' is not in the enum literal union
-          data: { title: 'Ghost status', status: 'slonk' },
+          data: { title: 'Ghost status', priority: 'high', status: 'slonk' },
         });
-        expect(invalid.ok).toBe(false);
+        expect(badStatus.ok).toBe(false);
+
+        const badPriority = await db.tickets.create({
+          // @ts-expect-error — 'mega' is not in the enum literal union
+          data: { title: 'Ghost priority', priority: 'mega', status: 'open' },
+        });
+        expect(badPriority.ok).toBe(false);
       });
     });
   });
