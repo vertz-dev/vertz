@@ -80,23 +80,70 @@ async fn fetch_latest_version(
     Ok(version.to_string())
 }
 
+/// Outcome of comparing the installed version against a target version.
+#[derive(Debug, PartialEq, Eq)]
+pub enum UpdateDecision {
+    /// Versions are equal — nothing to do.
+    UpToDate,
+    /// Target is newer, or the user explicitly opted into a downgrade.
+    Proceed,
+    /// Target is older than what's installed and the user did not pass `--version`.
+    /// The updater must refuse to silently downgrade.
+    RefuseDowngrade,
+}
+
+/// Pure decision: should `self-update` replace the binary?
+///
+/// `explicit_target` is `true` when the user passed `--version <v>`. An explicit older
+/// version proceeds (intentional downgrade); an implicit older version (i.e. the GitHub
+/// "latest" endpoint returned something lower than what's installed) is refused.
+pub fn decide_update(
+    current: &str,
+    target: &str,
+    explicit_target: bool,
+) -> Result<UpdateDecision, Box<dyn std::error::Error>> {
+    let current_ver = node_semver::Version::parse(current)
+        .map_err(|e| format!("invalid installed version {:?}: {}", current, e))?;
+    let target_ver = node_semver::Version::parse(target)
+        .map_err(|e| format!("invalid target version {:?}: {}", target, e))?;
+
+    if target_ver == current_ver {
+        return Ok(UpdateDecision::UpToDate);
+    }
+    if target_ver < current_ver && !explicit_target {
+        return Ok(UpdateDecision::RefuseDowngrade);
+    }
+    Ok(UpdateDecision::Proceed)
+}
+
 /// Download and replace the current binary from GitHub Releases.
 ///
 /// If `target_version` is `None`, the latest release is fetched from the GitHub API.
-/// If the resolved version matches the current version, prints a message and returns.
+/// Refuses to downgrade unless the user passed `--version` explicitly.
 pub async fn self_update(target_version: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
     let old_version = current_version();
     let client = reqwest::Client::new();
 
-    // Resolve target version
+    let explicit_target = target_version.is_some();
     let new_version = match target_version {
         Some(v) => v.strip_prefix('v').unwrap_or(v).to_string(),
         None => fetch_latest_version(&client).await?,
     };
 
-    if new_version == old_version {
-        println!("Already up to date.");
-        return Ok(());
+    match decide_update(old_version, &new_version, explicit_target)? {
+        UpdateDecision::UpToDate => {
+            println!("Already up to date.");
+            return Ok(());
+        }
+        UpdateDecision::RefuseDowngrade => {
+            eprintln!(
+                "Latest release ({}) is older than the installed version ({}). \
+                 Refusing to downgrade. Pass `--version {}` to force.",
+                new_version, old_version, new_version,
+            );
+            return Ok(());
+        }
+        UpdateDecision::Proceed => {}
     }
 
     let bin = binary_name().map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
@@ -315,5 +362,48 @@ mod tests {
     #[test]
     fn test_github_api_url_constant() {
         assert_eq!(GITHUB_API_URL, "https://api.github.com");
+    }
+
+    #[test]
+    fn decide_update_same_version_is_up_to_date() {
+        let decision = decide_update("0.2.74", "0.2.74", false).unwrap();
+        assert!(matches!(decision, UpdateDecision::UpToDate));
+    }
+
+    #[test]
+    fn decide_update_newer_target_proceeds() {
+        let decision = decide_update("0.2.73", "0.2.74", false).unwrap();
+        assert!(matches!(decision, UpdateDecision::Proceed));
+    }
+
+    #[test]
+    fn decide_update_implicit_older_target_refuses_downgrade() {
+        // Latest from GitHub is older than what's installed → must refuse.
+        let decision = decide_update("0.2.74", "0.2.73", false).unwrap();
+        assert!(
+            matches!(decision, UpdateDecision::RefuseDowngrade),
+            "implicit downgrade must be refused, got {:?}",
+            decision
+        );
+    }
+
+    #[test]
+    fn decide_update_explicit_older_target_proceeds() {
+        // User passed --version explicitly → allow downgrade.
+        let decision = decide_update("0.2.74", "0.2.73", true).unwrap();
+        assert!(matches!(decision, UpdateDecision::Proceed));
+    }
+
+    #[test]
+    fn decide_update_rejects_invalid_target_tag() {
+        // Per-package tags like `vertz@0.2.73` should not parse as semver.
+        let result = decide_update("0.2.74", "vertz@0.2.73", false);
+        assert!(result.is_err(), "non-semver target must be rejected");
+    }
+
+    #[test]
+    fn decide_update_rejects_invalid_current_version() {
+        let result = decide_update("not-a-version", "0.2.74", false);
+        assert!(result.is_err(), "non-semver current must be rejected");
     }
 }
