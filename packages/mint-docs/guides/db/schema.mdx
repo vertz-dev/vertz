@@ -350,6 +350,53 @@ d.jsonb<{ tags: string[]; priority: number }>();
 d.jsonb<Settings>(settingsSchema);
 ```
 
+### JSONB across dialects
+
+`d.jsonb<T>()` round-trips through both Postgres and SQLite (including Cloudflare D1) without any `JSON.parse` at the call site:
+
+- **Postgres:** native `JSONB` type. `postgres.js` parses values automatically on read.
+- **SQLite / D1:** stored as `TEXT`. Vertz parses JSON on read and stringifies plain objects / arrays on write. Everything non-JSON (`Date`, typed arrays, `Buffer`, `Map`, `Set`, `URL`, `RegExp`, class instances) passes through to the driver unchanged — no silent `JSON.stringify(new Map())` → `{}` corruption.
+
+If a validator is supplied, it runs on the parsed value on reads. A failed parse or a rejected validator surfaces via the existing error-as-value Result API:
+
+```ts
+const result = await db.install.list({});
+if (!result.ok) {
+  if (result.error.code === 'JSONB_PARSE_ERROR') {
+    // result.error.table, result.error.column, result.error.columnType
+  }
+  if (result.error.code === 'JSONB_VALIDATION_ERROR') {
+    // result.error.table, result.error.column, result.error.value
+  }
+}
+```
+
+### JSONB filter operators are dialect-conditional
+
+Path-based filters (`where: { 'meta->field': ... }`) are **Postgres-only**:
+
+```ts
+// Postgres — compiles and runs
+await pgDb.install.list({
+  where: { 'meta->displayName': { eq: 'Acme' } },
+});
+
+// SQLite — TypeScript rejects the shape at compile time:
+await sqliteDb.install.list({
+  where: {
+    // Error: 'meta->displayName' does not exist in type
+    //   'JsonbPathFilter_Error_Requires_Dialect_Postgres_On_SQLite_Use_list_And_Filter_In_JS'.
+    'meta->displayName': { eq: 'Acme' },
+  },
+});
+```
+
+On SQLite, fetch with `list()` and filter in application code, or switch dialects.
+
+<Tip>
+Inline the `where` object in your query call for the best TypeScript diagnostic. Building `where` indirectly into a variable widens the dialect type and bypasses the compile-time gate — the runtime throw still catches the problem, but the error happens later.
+</Tip>
+
 ## Multi-tenancy
 
 Declare the tenant root by calling `.tenant()` on the root table definition. The framework automatically derives all tenant scoping from the relation graph — no per-model configuration needed.
