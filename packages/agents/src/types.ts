@@ -168,7 +168,6 @@ export interface AgentLoopConfig {
   readonly maxIterations: number;
   readonly onStuck?: OnStuckBehavior;
   readonly stuckThreshold?: number;
-  readonly checkpointInterval?: number;
   readonly tokenBudget?: import('./loop/react-loop').TokenBudgetConfig;
   readonly diminishingReturns?: import('./loop/react-loop').DiminishingReturnsConfig;
   readonly maxToolConcurrency?: number;

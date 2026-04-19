@@ -262,6 +262,34 @@ export async function run(
     },
   };
 
+  // Durable execution is active when the caller pairs a durable store with
+  // a sessionId. In that mode, we persist per-step via appendMessagesAtomic
+  // instead of a single end-of-run flush.
+  const durable = hasStore(options) && sessionId !== undefined && !isMemoryStore(options.store);
+  const durableStore = durable ? options.store : null;
+
+  let writtenByLoop = 0;
+
+  function buildSession(): AgentSession {
+    const now = new Date().toISOString();
+    return {
+      id: sessionId!,
+      agentName: agentDef.name,
+      userId,
+      tenantId,
+      state: JSON.stringify(ctx.state),
+      createdAt: existingCreatedAt ?? now,
+      updatedAt: now,
+    };
+  }
+
+  // Under durable execution, the new turn's user message is persisted
+  // alongside the FIRST persistStep write (bundled atomically). That way,
+  // if the LLM call fails before any step runs, nothing lands in the store
+  // and readers observe the session at its pre-turn state.
+  let userPersisted = false;
+  const newUserMessage: Message = { role: 'user', content: message };
+
   // Run the ReAct loop
   const result = await reactLoop({
     llm,
@@ -271,12 +299,20 @@ export async function run(
     maxIterations: agentDef.loop.maxIterations,
     stuckThreshold: agentDef.loop.stuckThreshold,
     toolContext: { agentId, agentName: agentDef.name, agents },
-    checkpointInterval: agentDef.loop.checkpointInterval,
     previousMessages,
     tokenBudget: agentDef.loop.tokenBudget,
     diminishingReturns: agentDef.loop.diminishingReturns,
     maxToolConcurrency: agentDef.loop.maxToolConcurrency,
     contextCompression: agentDef.loop.contextCompression,
+    persistStep:
+      durable && durableStore
+        ? async ({ newMessages }) => {
+            const batch = userPersisted ? [...newMessages] : [newUserMessage, ...newMessages];
+            userPersisted = true;
+            await durableStore.appendMessagesAtomic(sessionId!, batch, buildSession());
+            writtenByLoop += batch.length;
+          }
+        : undefined,
   });
 
   // Lifecycle: onComplete or onStuck
@@ -332,36 +368,53 @@ export async function run(
     const { store } = options;
 
     if (result.status !== 'error') {
-      const now = new Date().toISOString();
-      const createdAt = existingCreatedAt ?? now;
+      if (durable && durableStore) {
+        // Compute what reactLoop produced NEW in this turn (skipping system
+        // prompt and any pre-existing resumed messages).
+        const newSinceResume = result.messages
+          .filter((m) => m.role !== 'system')
+          .slice(previousMessages?.length ?? 0);
 
-      const session: AgentSession = {
-        id: sessionId,
-        agentName: agentDef.name,
-        userId,
-        tenantId,
-        state: JSON.stringify(ctx.state),
-        createdAt,
-        updatedAt: now,
-      };
+        // Already persisted by persistStep: writtenByLoop messages plus the
+        // user message if it was bundled into the first persist.
+        const alreadyPersisted = (userPersisted ? 0 : 0) + writtenByLoop + (userPersisted ? 1 : 0);
+        // Unpersisted tail: user message (if loop never called persistStep)
+        // plus any trailing text-only assistant response.
+        const tail = userPersisted ? newSinceResume.slice(alreadyPersisted) : newSinceResume; // includes the user message
+        if (tail.length > 0) {
+          await durableStore.appendMessagesAtomic(sessionId, [...tail], buildSession());
+        } else {
+          // No tail to flush, but session.state may have changed via
+          // onComplete — bump the session row so readers see final state.
+          await durableStore.saveSession(buildSession());
+        }
 
-      await store.saveSession(session);
+        // Prune messages if maxStoredMessages is set
+        const maxStored = options.maxStoredMessages;
+        if (maxStored !== undefined) {
+          await durableStore.pruneMessages(sessionId, maxStored);
+        }
+      } else {
+        // Non-durable legacy path: saveSession + appendMessages at end.
+        const session = buildSession();
+        await store.saveSession(session);
 
-      // Persist new messages (exclude system prompts)
-      const newMessages = result.messages.filter((m) => m.role !== 'system');
-      // If resuming, only persist messages from this turn (not the loaded ones)
-      const messagesToPersist = previousMessages
-        ? newMessages.slice(previousMessages.length)
-        : newMessages;
+        // Persist new messages (exclude system prompts)
+        const newMessages = result.messages.filter((m) => m.role !== 'system');
+        // If resuming, only persist messages from this turn (not the loaded ones)
+        const messagesToPersist = previousMessages
+          ? newMessages.slice(previousMessages.length)
+          : newMessages;
 
-      if (messagesToPersist.length > 0) {
-        await store.appendMessages(sessionId, [...messagesToPersist]);
-      }
+        if (messagesToPersist.length > 0) {
+          await store.appendMessages(sessionId, [...messagesToPersist]);
+        }
 
-      // Prune messages if maxStoredMessages is set
-      const maxStored = options.maxStoredMessages;
-      if (maxStored !== undefined) {
-        await store.pruneMessages(sessionId, maxStored);
+        // Prune messages if maxStoredMessages is set
+        const maxStored = options.maxStoredMessages;
+        if (maxStored !== undefined) {
+          await store.pruneMessages(sessionId, maxStored);
+        }
       }
     }
 

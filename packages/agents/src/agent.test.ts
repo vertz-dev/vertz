@@ -48,7 +48,6 @@ describe('agent()', () => {
             maxIterations: 50,
             onStuck: 'escalate',
             stuckThreshold: 5,
-            checkpointInterval: 10,
           },
         });
 
@@ -56,7 +55,6 @@ describe('agent()', () => {
           maxIterations: 50,
           onStuck: 'escalate',
           stuckThreshold: 5,
-          checkpointInterval: 10,
         });
       });
     });
@@ -76,7 +74,6 @@ describe('agent()', () => {
           maxIterations: 20,
           onStuck: 'stop',
           stuckThreshold: 3,
-          checkpointInterval: 5,
         });
       });
     });

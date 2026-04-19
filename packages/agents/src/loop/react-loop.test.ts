@@ -237,15 +237,14 @@ describe('reactLoop()', () => {
     });
   });
 
-  describe('Given a checkpoint callback', () => {
-    describe('When checkpointInterval iterations pass', () => {
-      it('Then calls the checkpoint callback at the right intervals', async () => {
+  describe('Given persistStep callback', () => {
+    describe('When the loop runs multiple tool-call steps', () => {
+      it('Then fires twice per step: once for assistant-with-tool-calls, once for tool-results', async () => {
         const noop = makeTool('noop', () => ({}));
-        const checkpoints: number[] = [];
+        const phases: Array<'assistant-with-tool-calls' | 'tool-results'> = [];
+        const writtenCounts: number[] = [];
 
         const llm = mockLLM([
-          { toolCalls: [{ name: 'noop', arguments: {} }] },
-          { toolCalls: [{ name: 'noop', arguments: {} }] },
           { toolCalls: [{ name: 'noop', arguments: {} }] },
           { toolCalls: [{ name: 'noop', arguments: {} }] },
           { text: 'Done.' },
@@ -258,13 +257,62 @@ describe('reactLoop()', () => {
           userMessage: 'Do stuff',
           maxIterations: 10,
           toolContext: TEST_TOOL_CONTEXT,
-          checkpointInterval: 2,
-          onCheckpoint(iteration, _messages) {
-            checkpoints.push(iteration);
+          async persistStep({ phase, newMessages }) {
+            phases.push(phase);
+            writtenCounts.push(newMessages.length);
           },
         });
 
-        expect(checkpoints).toEqual([2, 4]);
+        expect(phases).toEqual([
+          'assistant-with-tool-calls',
+          'tool-results',
+          'assistant-with-tool-calls',
+          'tool-results',
+        ]);
+        expect(writtenCounts).toEqual([1, 1, 1, 1]);
+      });
+    });
+
+    describe('When the loop ends with a text-only response (no tool calls)', () => {
+      it('Then persistStep is NOT fired for that step', async () => {
+        const phases: string[] = [];
+        const llm = mockLLM([{ text: 'Just text.' }]);
+
+        await reactLoop({
+          llm,
+          tools: {},
+          systemPrompt: 'x',
+          userMessage: 'y',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+          async persistStep({ phase }) {
+            phases.push(phase);
+          },
+        });
+
+        expect(phases).toEqual([]);
+      });
+    });
+
+    describe('When persistStep rejects', () => {
+      it('Then the error propagates out of the loop', async () => {
+        const noop = makeTool('noop', () => ({}));
+        const llm = mockLLM([{ toolCalls: [{ name: 'noop', arguments: {} }] }, { text: 'Done.' }]);
+
+        await expect(
+          reactLoop({
+            llm,
+            tools: { noop },
+            systemPrompt: 'x',
+            userMessage: 'y',
+            maxIterations: 10,
+            toolContext: TEST_TOOL_CONTEXT,
+            async persistStep() {
+              // eslint-disable-next-line vertz-rules/no-throw-plain-error -- test sentinel
+              throw new Error('simulated persist failure');
+            },
+          }),
+        ).rejects.toThrow('simulated persist failure');
       });
     });
   });

@@ -15,7 +15,6 @@ const DEFAULT_LOOP: AgentLoopConfig = {
   maxIterations: 20,
   onStuck: 'stop',
   stuckThreshold: 3,
-  checkpointInterval: 5,
 };
 
 const DEFAULT_PROMPT: AgentPromptConfig = {};

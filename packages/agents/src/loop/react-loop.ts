@@ -117,10 +117,22 @@ export interface ReactLoopOptions {
   readonly maxIterations: number;
   readonly stuckThreshold?: number;
   readonly toolContext: ToolContext;
-  readonly checkpointInterval?: number;
-  readonly onCheckpoint?: (iteration: number, messages: readonly Message[]) => void;
   /** Pre-existing conversation messages (from a resumed session). Injected between system prompt and new user message. */
   readonly previousMessages?: readonly Message[];
+  /**
+   * Called at step boundaries when the caller wants durable-per-step writes.
+   * Fires twice per tool-call step: once right after the assistant message
+   * with toolCalls is pushed, once after all tool_result messages for the
+   * step are pushed. `newMessages` is the new messages added for that write
+   * (not the entire conversation).
+   *
+   * If the callback rejects, the error propagates out of the loop — callers
+   * simulate crashes that way.
+   */
+  readonly persistStep?: (args: {
+    readonly phase: 'assistant-with-tool-calls' | 'tool-results';
+    readonly newMessages: readonly Message[];
+  }) => Promise<void>;
   /** Token budget configuration. */
   readonly tokenBudget?: TokenBudgetConfig;
   /** Diminishing returns detection. */
@@ -151,12 +163,11 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
     maxIterations,
     stuckThreshold,
     toolContext,
-    checkpointInterval,
-    onCheckpoint,
     previousMessages,
     tokenBudget,
     diminishingReturns,
     contextCompression,
+    persistStep,
   } = options;
 
   const messages: Message[] = [
@@ -311,7 +322,7 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
     }
 
     // LLM requested tool calls — store them on the assistant message for protocol fidelity
-    messages.push({
+    const assistantWithToolCalls: Message = {
       role: 'assistant',
       content: response.text || `[Calling ${response.toolCalls.map((tc) => tc.name).join(', ')}]`,
       toolCalls: response.toolCalls.map((tc) => ({
@@ -319,10 +330,22 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
         name: tc.name,
         arguments: tc.arguments,
       })),
-    });
+    };
+    messages.push(assistantWithToolCalls);
+
+    // Durable-write phase A: assistant-with-toolCalls is now in memory — persist
+    // it before dispatching any handlers. If persistStep throws, the loop aborts
+    // with nothing in the store yet (crash before write #1 in the design taxonomy).
+    if (persistStep) {
+      await persistStep({
+        phase: 'assistant-with-tool-calls',
+        newMessages: [assistantWithToolCalls],
+      });
+    }
 
     let hadSuccessfulToolCall = false;
     const maxConcurrency = options.maxToolConcurrency ?? 5;
+    const toolResultsThisStep: Message[] = [];
 
     // Track tool call counts for summary
     for (const tc of response.toolCalls) {
@@ -344,6 +367,7 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
         );
         for (const r of results) {
           messages.push(r.message);
+          toolResultsThisStep.push(r.message);
           if (r.success) hadSuccessfulToolCall = true;
         }
       } else {
@@ -351,9 +375,20 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
         for (const toolCall of batch.calls) {
           const r = await executeToolCall(toolCall, tools, iteration, toolContext);
           messages.push(r.message);
+          toolResultsThisStep.push(r.message);
           if (r.success) hadSuccessfulToolCall = true;
         }
       }
+    }
+
+    // Durable-write phase B: all tool_result messages for this step are now
+    // in memory — commit them atomically so a crash after this point leaves
+    // the store consistent (no orphan on resume).
+    if (persistStep && toolResultsThisStep.length > 0) {
+      await persistStep({
+        phase: 'tool-results',
+        newMessages: toolResultsThisStep,
+      });
     }
 
     // Track progress for stuck detection
@@ -366,11 +401,6 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
     // Check stuck threshold
     if (stuckThreshold && consecutiveNoProgress >= stuckThreshold) {
       return buildResult('stuck', '');
-    }
-
-    // Checkpoint callback
-    if (checkpointInterval && onCheckpoint && iteration % checkpointInterval === 0) {
-      onCheckpoint(iteration, messages);
     }
   }
 
