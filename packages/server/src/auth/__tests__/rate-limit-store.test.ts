@@ -41,10 +41,29 @@ describe('InMemoryRateLimitStore', () => {
     expect(result.allowed).toBe(true);
   });
 
-  it('disposes cleanup interval', () => {
+  it('dispose is idempotent', () => {
     const s = new InMemoryRateLimitStore();
     s.dispose();
-    s.dispose(); // double dispose is safe
+    s.dispose();
+  });
+
+  it('does not schedule a setInterval at construction time', () => {
+    // Regression for #2851 — a background setInterval in the constructor keeps
+    // the V8 event loop alive and prevents the API isolate from completing
+    // module evaluation, making `createServer({ auth })` hang.
+    const originalSetInterval = globalThis.setInterval;
+    let scheduled = false;
+    globalThis.setInterval = ((...args: Parameters<typeof setInterval>) => {
+      scheduled = true;
+      return originalSetInterval(...args);
+    }) as typeof setInterval;
+    try {
+      const s = new InMemoryRateLimitStore();
+      expect(scheduled).toBe(false);
+      s.dispose();
+    } finally {
+      globalThis.setInterval = originalSetInterval;
+    }
   });
 
   it('tracks separate keys independently', async () => {

@@ -11,12 +11,11 @@ const CLEANUP_INTERVAL_MS = 60_000;
 export class InMemorySessionStore implements SessionStore {
   private sessions = new Map<string, StoredSession>();
   private currentTokens = new Map<string, AuthTokens>();
-  private cleanupTimer: ReturnType<typeof setInterval>;
+  private lastCleanupAt = 0;
   private maxSessionsPerUser: number;
 
   constructor(maxSessionsPerUser: number = DEFAULT_MAX_SESSIONS_PER_USER) {
     this.maxSessionsPerUser = maxSessionsPerUser;
-    this.cleanupTimer = setInterval(() => this.cleanup(), CLEANUP_INTERVAL_MS);
   }
 
   async createSession(data: {
@@ -26,6 +25,7 @@ export class InMemorySessionStore implements SessionStore {
     userAgent: string;
     expiresAt: Date;
   }): Promise<StoredSession> {
+    this.maybeCleanup(new Date());
     // Enforce max sessions per user — revoke oldest on overflow
     const activeSessions = await this.listActiveSessions(data.userId);
     if (activeSessions.length >= this.maxSessionsPerUser) {
@@ -66,6 +66,7 @@ export class InMemorySessionStore implements SessionStore {
       currentTokens?: AuthTokens;
     },
   ): Promise<StoredSession> {
+    this.maybeCleanup(new Date());
     // Enforce max sessions per user — revoke oldest on overflow
     const activeSessions = await this.listActiveSessions(data.userId);
     if (activeSessions.length >= this.maxSessionsPerUser) {
@@ -181,11 +182,18 @@ export class InMemorySessionStore implements SessionStore {
   }
 
   dispose(): void {
-    clearInterval(this.cleanupTimer);
+    this.sessions.clear();
+    this.currentTokens.clear();
   }
 
-  private cleanup(): void {
-    const now = new Date();
+  private maybeCleanup(now: Date): void {
+    const nowMs = now.getTime();
+    if (nowMs - this.lastCleanupAt < CLEANUP_INTERVAL_MS) return;
+    this.lastCleanupAt = nowMs;
+    this.cleanup(now);
+  }
+
+  private cleanup(now: Date = new Date()): void {
     for (const [id, session] of this.sessions) {
       if (session.expiresAt < now || session.revokedAt) {
         this.sessions.delete(id);
