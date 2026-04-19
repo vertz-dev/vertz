@@ -7,7 +7,7 @@ import type {
   ToolCall,
   ToolCallSummaryEntry,
 } from './loop/react-loop';
-import { reactLoop } from './loop/react-loop';
+import { executeToolCall, reactLoop } from './loop/react-loop';
 import {
   MemoryStoreNotDurableError,
   SessionAccessDeniedError,
@@ -15,7 +15,13 @@ import {
 } from './stores/errors';
 import { isMemoryStore } from './stores/memory-store';
 import type { AgentSession, AgentStore } from './stores/types';
-import type { AgentContext, AgentDefinition, ToolDefinition, ToolProvider } from './types';
+import type {
+  AgentContext,
+  AgentDefinition,
+  ToolContext,
+  ToolDefinition,
+  ToolProvider,
+} from './types';
 
 // ---------------------------------------------------------------------------
 // Run options — discriminated union
@@ -235,34 +241,10 @@ export async function run(
         initialState = structuredClone(agentDef.initialState);
       }
 
-      // Load previous messages (excluding system prompts)
+      // Load previous messages (excluding system prompts). Resume detection
+      // happens later, after ctx + resolvedTools are built (so safeToRetry
+      // tools can be re-invoked with full toolContext).
       previousMessages = await store.loadMessages(sessionId);
-
-      // Resume detection: if the last assistant message has toolCalls and
-      // any tool_result is missing, the previous run crashed between the
-      // pre-dispatch write and the post-dispatch write. Persist synthetic
-      // ToolDurabilityError tool_results for the missing ids so the loop
-      // resumes with a consistent conversation. (Phase 3 of #2835.)
-      const orphan = findOrphanAssistantWithToolCalls(previousMessages);
-      if (orphan && !isMemoryStore(store)) {
-        const now = new Date().toISOString();
-        const syntheticResults: Message[] = orphan.missingToolCalls.map((tc) => ({
-          role: 'tool',
-          content: serializeToolDurabilityError(new ToolDurabilityError(tc.id ?? '', tc.name)),
-          toolCallId: tc.id ?? '',
-          toolName: tc.name,
-        }));
-        await store.appendMessagesAtomic(sessionId, syntheticResults, {
-          id: sessionId,
-          agentName: agentDef.name,
-          userId,
-          tenantId,
-          state: JSON.stringify(initialState),
-          createdAt: existingCreatedAt ?? now,
-          updatedAt: now,
-        });
-        previousMessages = [...previousMessages, ...syntheticResults];
-      }
     } else {
       // Create new session
       sessionId = generateSessionId();
@@ -345,6 +327,45 @@ export async function run(
       createdAt: existingCreatedAt ?? now,
       updatedAt: now,
     };
+  }
+
+  // Resume detection (Phases 3 + 4 of #2835): if the loaded history ends in
+  // an assistant-with-toolCalls with unmatched tool_result ids, the previous
+  // run crashed between write #1 and write #2. For each missing call, either:
+  //   - the tool declares `safeToRetry: true` → re-invoke its handler and
+  //     persist the real result (the side effect, if any, was safe to retry);
+  //   - otherwise → surface a synthetic ToolDurabilityError tool_result so
+  //     the LLM decides recovery in-band.
+  if (durable && durableStore && previousMessages) {
+    const orphan = findOrphanAssistantWithToolCalls(previousMessages);
+    if (orphan) {
+      const toolContextForResume: ToolContext = {
+        agentId,
+        agentName: agentDef.name,
+        agents,
+      };
+      const resumeResults: Message[] = [];
+      for (const missing of orphan.missingToolCalls) {
+        const toolDef = resolvedTools[missing.name];
+        if (toolDef?.safeToRetry) {
+          const result = await executeToolCall(missing, resolvedTools, 0, toolContextForResume);
+          resumeResults.push(result.message);
+        } else {
+          resumeResults.push({
+            role: 'tool',
+            content: serializeToolDurabilityError(
+              new ToolDurabilityError(missing.id ?? '', missing.name),
+            ),
+            toolCallId: missing.id ?? '',
+            toolName: missing.name,
+          });
+        }
+      }
+      if (resumeResults.length > 0) {
+        await durableStore.appendMessagesAtomic(sessionId!, resumeResults, buildSession());
+        previousMessages = [...previousMessages, ...resumeResults];
+      }
+    }
   }
 
   // Under durable execution, the new turn's user message is persisted

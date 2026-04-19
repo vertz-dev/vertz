@@ -25,6 +25,7 @@ export function tool<TInput, TOutput>(
     output: config.output as SchemaAny,
     handler: config.handler,
     parallel: config.parallel,
+    safeToRetry: config.safeToRetry,
   };
 
   return deepFreeze(def);

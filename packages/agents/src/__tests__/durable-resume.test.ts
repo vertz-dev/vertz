@@ -144,6 +144,86 @@ describe('Feature: durable tool execution', () => {
     });
   });
 
+  describe('Given a safeToRetry tool + crash before tool_result persisted', () => {
+    it('Then resume re-invokes the handler automatically (no ToolDurabilityError)', async () => {
+      let getIssueCallCount = 0;
+
+      const getIssue = tool({
+        description: 'Fetch an issue',
+        input: s.object({ id: s.string() }),
+        output: s.object({ title: s.string() }),
+        safeToRetry: true,
+      });
+
+      const safeAgent = agent('safe-agent', {
+        state: s.object({}),
+        initialState: {},
+        tools: { getIssue },
+        model: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+        loop: { maxIterations: 5 },
+      });
+
+      const store = sqliteStore({ path: ':memory:' });
+      await store.saveSession({
+        id: 'sess_safe_test',
+        agentName: 'safe-agent',
+        userId: null,
+        tenantId: null,
+        state: '{}',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      const llm = mockLLM([
+        {
+          text: 'Fetching.',
+          toolCalls: [{ id: 'call_a', name: 'getIssue', arguments: { id: 'ISSUE-1' } }],
+        },
+        { text: 'Got it.' },
+      ]);
+
+      const crashingStore = crashAfterToolResults(store);
+      const toolProvider = {
+        async getIssue({ id }: { id: string }) {
+          getIssueCallCount++;
+          return { title: `Issue ${id}` };
+        },
+      };
+
+      await expect(
+        run(safeAgent, {
+          message: 'Fetch ISSUE-1.',
+          sessionId: 'sess_safe_test',
+          store: crashingStore,
+          llm,
+          tools: toolProvider,
+        }),
+      ).rejects.toThrow(/simulated crash/);
+
+      expect(getIssueCallCount).toBe(1);
+
+      const llm2 = mockLLM([{ text: 'Got it.' }]);
+      const result = await run(safeAgent, {
+        message: 'Fetch ISSUE-1.',
+        sessionId: 'sess_safe_test',
+        store, // healthy now
+        llm: llm2,
+        tools: toolProvider,
+      });
+
+      expect(result.status).toBe('complete');
+      expect(getIssueCallCount).toBe(2); // ← the point: RE-INVOKED on resume
+
+      // No ToolDurabilityError surfaced — the resumed result is the real one.
+      const messages = await store.loadMessages('sess_safe_test');
+      const toolMsg = messages.find((m) => m.role === 'tool' && m.toolCallId === 'call_a');
+      expect(toolMsg).toBeDefined();
+      const parsed = JSON.parse(toolMsg!.content) as { title?: string; kind?: string };
+      expect(parsed.kind).toBeUndefined(); // not a durability error
+      expect(parsed.title).toBe('Issue ISSUE-1');
+    });
+  });
+
   describe('Given store + sessionId is the memory store', () => {
     describe('When run() is called', () => {
       it('Then entry throws MemoryStoreNotDurableError before any LLM call', async () => {
@@ -178,13 +258,22 @@ describe('Feature: durable tool execution', () => {
   });
 
   describe('Type-level', () => {
-    it('rejects tool config fields that do not exist yet', () => {
+    it('accepts safeToRetry as an optional boolean', () => {
       tool({
         description: 'x',
         input: s.object({}),
         output: s.object({}),
-        // @ts-expect-error — `safeToRetry` does not exist on ToolConfig yet (Phase 4 adds it)
         safeToRetry: true,
+      });
+    });
+
+    it('rejects safeToRetry with a non-boolean value', () => {
+      tool({
+        description: 'x',
+        input: s.object({}),
+        output: s.object({}),
+        // @ts-expect-error — safeToRetry must be boolean, not string
+        safeToRetry: 'yes',
       });
     });
   });

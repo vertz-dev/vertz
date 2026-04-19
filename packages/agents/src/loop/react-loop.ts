@@ -467,13 +467,13 @@ function partitionToolCalls(
   return batches;
 }
 
-interface ToolCallResult {
+export interface ToolCallResult {
   message: Message;
   success: boolean;
 }
 
 /** Execute a single tool call and return the result message + success flag. */
-async function executeToolCall(
+export async function executeToolCall(
   toolCall: ToolCall,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tools have varying types
   tools: Record<string, ToolDefinition<any, any>>,

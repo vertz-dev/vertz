@@ -34,6 +34,17 @@ export interface ToolConfig<
   readonly handler?: (input: TInput, ctx: ToolContext) => TOutput | Promise<TOutput>;
   /** When true, this tool can execute concurrently with other parallel tools. Default: false. */
   readonly parallel?: boolean;
+  /**
+   * When true, the framework may re-invoke this tool's handler during session
+   * resume if the previous attempt's `tool_result` was not persisted.
+   *
+   * Set ONLY on pure-read tools or handlers that are safe to execute twice.
+   * The default (`undefined`/`false`) assumes side effects and surfaces a
+   * `ToolDurabilityError` tool_result on orphan detection instead of
+   * retrying — the LLM decides recovery. This is distinct from HTTP/network
+   * retry: `safeToRetry` only controls resume replay.
+   */
+  readonly safeToRetry?: boolean;
 }
 
 /**
@@ -92,6 +103,8 @@ export interface ToolDefinition<TInput = unknown, TOutput = unknown> {
   readonly handler?: (input: TInput, ctx: ToolContext) => TOutput | Promise<TOutput>;
   /** When true, this tool can execute concurrently with other parallel tools. */
   readonly parallel?: boolean;
+  /** When true, the framework may re-invoke this handler on session resume. */
+  readonly safeToRetry?: boolean;
 }
 
 // ---------------------------------------------------------------------------
