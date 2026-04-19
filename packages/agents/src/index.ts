@@ -58,6 +58,8 @@ export type { AgentSession, AgentStore, ListSessionsFilter } from './stores/type
 export { memoryStore } from './stores/memory-store';
 export { sqliteStore } from './stores/sqlite-store';
 export type { SqliteStoreOptions } from './stores/sqlite-store';
+export { d1Store } from './stores/d1-store';
+export type { D1Binding, D1PreparedStatement, D1Result, D1StoreOptions } from './stores/d1-store';
 export { SessionNotFoundError, SessionAccessDeniedError } from './stores/errors';
 
 // Workflow

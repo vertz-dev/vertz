@@ -308,10 +308,11 @@ const second = await run(greeter, {
 
 ### Available stores
 
-| Store         | Import          | Description                       |
-| ------------- | --------------- | --------------------------------- |
-| `memoryStore` | `@vertz/agents` | In-memory, for testing and dev.   |
-| `sqliteStore` | `@vertz/agents` | SQLite-backed via `vertz:sqlite`. |
+| Store         | Import          | Description                                                                   |
+| ------------- | --------------- | ----------------------------------------------------------------------------- |
+| `memoryStore` | `@vertz/agents` | In-memory, for testing and dev.                                               |
+| `sqliteStore` | `@vertz/agents` | SQLite-backed via `vertz:sqlite`.                                             |
+| `d1Store`     | `@vertz/agents` | Cloudflare D1 — pass `{ binding: env.DB }`. Tables are created on first call. |
 
 ### Session options
 
