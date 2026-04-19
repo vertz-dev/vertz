@@ -1,3 +1,5 @@
+import { JsonbParseError } from '../errors';
+
 /**
  * Converts JavaScript values to SQLite-compatible values.
  * SQLite doesn't have native boolean or date types, so we need to convert them.
@@ -12,7 +14,17 @@ export function toSqliteValue(value: unknown): unknown {
   if (value instanceof Date) {
     return value.toISOString();
   }
+  if (isPlainJsonPayload(value)) {
+    return JSON.stringify(value);
+  }
   return value;
+}
+
+function isPlainJsonPayload(value: unknown): boolean {
+  if (value === null || typeof value !== 'object') return false;
+  if (Array.isArray(value)) return true;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
 }
 
 /**
@@ -33,6 +45,13 @@ export function fromSqliteValue(value: unknown, columnType: string): unknown {
     typeof value === 'string'
   ) {
     return new Date(value);
+  }
+  if ((columnType === 'jsonb' || columnType === 'json') && typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch (cause) {
+      throw new JsonbParseError({ columnType, cause });
+    }
   }
   return value;
 }

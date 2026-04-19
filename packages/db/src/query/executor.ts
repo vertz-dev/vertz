@@ -7,6 +7,7 @@
  * 3. Return typed QueryResult
  */
 
+import { DbError } from '../errors/db-error';
 import { type PgErrorInput, parsePgError } from '../errors/pg-parser';
 
 export interface ExecutorResult<T> {
@@ -41,6 +42,12 @@ export async function executeQuery<T>(
   try {
     return await queryFn<T>(sql, params);
   } catch (error: unknown) {
+    // Pass typed framework errors through unchanged — pg-parser's default
+    // branch would otherwise repackage them into UnknownDbError, destroying
+    // the caller's ability to discriminate on the original class/code.
+    if (error instanceof DbError) {
+      throw error;
+    }
     if (isPgError(error)) {
       throw parsePgError(error, sql);
     }

@@ -61,6 +61,23 @@ export const d: {
   timestamp(): ColumnBuilder<Date, DefaultMeta<'timestamp with time zone'>>;
   date(): ColumnBuilder<string, DefaultMeta<'date'>>;
   time(): ColumnBuilder<string, DefaultMeta<'time'>>;
+  /**
+   * JSONB column — stores a typed payload.
+   *
+   * - **Postgres:** native JSONB type. Supports path filters (`'meta->k'`) and
+   *   array operators; both are available at the type level.
+   * - **SQLite / Cloudflare D1:** stored as TEXT. On reads, values are
+   *   automatically `JSON.parse`d into `T`. On writes, plain objects/arrays
+   *   are automatically `JSON.stringify`d.
+   *
+   * Path-based filters (`where: { 'meta->k': ... }`) are Postgres-only. On
+   * SQLite, fetch with `list()` and filter in application code. Inline the
+   * `where` object for the best TS diagnostic when the gate triggers.
+   *
+   * An optional `validator` runs on the parsed value when rows are read, and
+   * surfaces `JsonbValidationError` through the existing Result machinery on
+   * failure.
+   */
   jsonb<T = unknown>(
     schemaOrOpts?: SchemaLike<T> | { validator: JsonbValidator<T> },
   ): ColumnBuilder<T, DefaultMeta<'jsonb'>>;

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, mock } from '@vertz/test';
+import { JsonbParseError, JsonbValidationError } from '../../errors';
 import { createColumn } from '../../schema/column';
 import type { ModelEntry } from '../../schema/inference';
 import { createTable } from '../../schema/table';
@@ -321,6 +322,80 @@ describe('sqlite-driver', () => {
       const result = await driver.query('SELECT * FROM "users" WHERE id = ?', [1]);
 
       expect(result).toEqual([{ id: 1, active: true }]);
+    });
+  });
+
+  describe('jsonb parse + validator wiring', () => {
+    it('parses jsonb TEXT cells into objects', async () => {
+      mockPrepared.all.mockResolvedValue({
+        results: [{ id: 1, meta: '{"displayName":"Acme"}' }],
+      });
+      const schema: TableSchemaRegistry = new Map([['installs', { id: 'integer', meta: 'jsonb' }]]);
+      const driver = createSqliteDriver(mockD1, schema);
+      const result = await driver.query('SELECT * FROM installs');
+      expect(result).toEqual([{ id: 1, meta: { displayName: 'Acme' } }]);
+    });
+
+    it('enriches JsonbParseError with table and column on corrupt data', async () => {
+      mockPrepared.all.mockResolvedValue({ results: [{ id: 1, meta: 'not json' }] });
+      const schema: TableSchemaRegistry = new Map([['installs', { id: 'integer', meta: 'jsonb' }]]);
+      const driver = createSqliteDriver(mockD1, schema);
+      await expect(driver.query('SELECT * FROM installs')).rejects.toMatchObject({
+        name: 'JsonbParseError',
+        table: 'installs',
+        column: 'meta',
+      });
+    });
+
+    it('runs validator on parsed value when present', async () => {
+      mockPrepared.all.mockResolvedValue({
+        results: [{ id: 1, meta: '{"displayName":"Acme"}' }],
+      });
+      const parse = mock((v: unknown) => v);
+      const schema: TableSchemaRegistry = new Map([
+        ['installs', { id: 'integer', meta: { sqlType: 'jsonb', validator: { parse } } }],
+      ]);
+      const driver = createSqliteDriver(mockD1, schema);
+      await driver.query('SELECT * FROM installs');
+      expect(parse).toHaveBeenCalledWith({ displayName: 'Acme' });
+    });
+
+    it('throws JsonbValidationError when validator rejects', async () => {
+      mockPrepared.all.mockResolvedValue({
+        results: [{ id: 1, meta: '{"bad":true}' }],
+      });
+      const schema: TableSchemaRegistry = new Map([
+        [
+          'installs',
+          {
+            id: 'integer',
+            meta: {
+              sqlType: 'jsonb',
+              validator: {
+                parse: (_v: unknown) => {
+                  throw new TypeError('nope');
+                },
+              },
+            },
+          },
+        ],
+      ]);
+      const driver = createSqliteDriver(mockD1, schema);
+      await expect(driver.query('SELECT * FROM installs')).rejects.toBeInstanceOf(
+        JsonbValidationError,
+      );
+    });
+
+    it('skips validator when value is null', async () => {
+      mockPrepared.all.mockResolvedValue({ results: [{ id: 1, meta: null }] });
+      const parse = mock((v: unknown) => v);
+      const schema: TableSchemaRegistry = new Map([
+        ['installs', { id: 'integer', meta: { sqlType: 'jsonb', validator: { parse } } }],
+      ]);
+      const driver = createSqliteDriver(mockD1, schema);
+      const result = await driver.query<{ id: number; meta: unknown }>('SELECT * FROM installs');
+      expect(parse).not.toHaveBeenCalled();
+      expect(result).toEqual([{ id: 1, meta: null }]);
     });
   });
 

@@ -1,6 +1,8 @@
 export type {
   CheckConstraintErrorOptions,
   ForeignKeyErrorOptions,
+  JsonbParseErrorOptions,
+  JsonbValidationErrorOptions,
   NotNullErrorOptions,
   UniqueConstraintErrorOptions,
 } from './db-error';
@@ -11,6 +13,8 @@ export {
   DbError,
   type DbErrorJson,
   ForeignKeyError,
+  JsonbParseError,
+  JsonbValidationError,
   NotFoundError,
   NotNullError,
   UniqueConstraintError,

@@ -10,9 +10,18 @@
 
 export type { IdStrategy } from '../id/generators';
 
+/**
+ * The set of dialects Vertz supports at the type level.
+ *
+ * Discriminated-union narrowing on this literal at `createDb` call sites is
+ * how downstream types (notably `FilterType`) gate dialect-specific filter
+ * operators.
+ */
+export type DialectName = 'postgres' | 'sqlite';
+
 export interface Dialect {
   /** Dialect name. */
-  readonly name: 'postgres' | 'sqlite';
+  readonly name: DialectName;
 
   /**
    * Parameter placeholder: $1, $2 (postgres) or ? (sqlite).
