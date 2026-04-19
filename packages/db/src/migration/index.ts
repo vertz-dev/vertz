@@ -39,5 +39,5 @@ export type {
 export { createSnapshot } from './snapshot';
 export { NodeSnapshotStorage } from './snapshot-storage';
 export type { SqlGeneratorContext } from './sql-generator';
-export { generateMigrationSql, generateRollbackSql } from './sql-generator';
+export { generateBootstrapSql, generateMigrationSql, generateRollbackSql } from './sql-generator';
 export type { SnapshotStorage } from './storage';
