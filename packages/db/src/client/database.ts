@@ -246,7 +246,7 @@ type TypedGetOptions<
   readonly where?: FilterType<EntryColumns<TEntry>, TDialect>;
   readonly select?: SelectOption<EntryColumns<TEntry>>;
   readonly orderBy?: OrderByType<EntryColumns<TEntry>>;
-  readonly include?: IncludeOption<EntryRelations<TEntry>, TModels, TDialect>;
+  readonly include?: IncludeOption<EntryRelations<TEntry>, TModels, [], TDialect>;
 };
 
 /** Options for list / listAndCount — typed per-table. */
@@ -264,7 +264,7 @@ type TypedListOptions<
   readonly cursor?: Record<string, unknown>;
   /** Number of rows to take (used with cursor). Aliases `limit` when cursor is present. */
   readonly take?: number;
-  readonly include?: IncludeOption<EntryRelations<TEntry>, TModels, TDialect>;
+  readonly include?: IncludeOption<EntryRelations<TEntry>, TModels, [], TDialect>;
 };
 
 /** Options for create — typed per-table. */
@@ -920,12 +920,18 @@ function buildQueryMethod(qfn: QueryFn) {
  * idle connections are closed after 30 seconds. Set `idleTimeout` explicitly
  * to override (value in milliseconds, e.g., `60000` for 60s).
  */
-export function createDb<
-  TModels extends Record<string, ModelEntry>,
-  TDialect extends DialectName = DialectName,
->(
-  options: CreateDbOptions<TModels> & { readonly dialect?: TDialect },
-): DatabaseClient<TModels, TDialect> {
+export function createDb<TModels extends Record<string, ModelEntry>>(
+  options: CreateDbSqlitePathOptions<TModels> | CreateDbSqliteD1Options<TModels>,
+): DatabaseClient<TModels, 'sqlite'>;
+export function createDb<TModels extends Record<string, ModelEntry>>(
+  options: CreateDbPostgresOptions<TModels>,
+): DatabaseClient<TModels, 'postgres'>;
+export function createDb<TModels extends Record<string, ModelEntry>>(
+  options: CreateDbOptions<TModels>,
+): DatabaseClient<TModels>;
+export function createDb<TModels extends Record<string, ModelEntry>>(
+  options: CreateDbOptions<TModels>,
+): DatabaseClient<TModels> {
   const { models, log, dialect } = options;
 
   // Validate reserved model names

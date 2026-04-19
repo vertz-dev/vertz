@@ -262,11 +262,11 @@ export type FindModelRelations<
 type NestedInclude<
   TModels extends Record<string, ModelEntry>,
   TTable extends TableDef<ColumnRecord>,
-  TDialect extends DialectName,
   _Depth extends readonly unknown[],
+  TDialect extends DialectName,
 > = [FindModelByTable<TModels, TTable>] extends [never]
   ? Record<string, unknown>
-  : IncludeOption<FindModelRelations<TModels, TTable>, TModels, TDialect, [..._Depth, unknown]>;
+  : IncludeOption<FindModelRelations<TModels, TTable>, TModels, [..._Depth, unknown], TDialect>;
 
 /**
  * The shape of include options for a given relations record.
@@ -285,8 +285,8 @@ type NestedInclude<
 export type IncludeOption<
   TRelations extends RelationsRecord,
   TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>,
-  TDialect extends DialectName = DialectName,
   _Depth extends readonly unknown[] = [],
+  TDialect extends DialectName = DialectName,
 > = _Depth['length'] extends 3
   ? Record<string, unknown>
   : {
@@ -298,7 +298,7 @@ export type IncludeOption<
                 where?: FilterType<TCols, TDialect>;
                 orderBy?: OrderByType<TCols>;
                 limit?: number;
-                include?: NestedInclude<TModels, RelationTarget<TRelations[K]>, TDialect, _Depth>;
+                include?: NestedInclude<TModels, RelationTarget<TRelations[K]>, _Depth, TDialect>;
               }
             : never);
     };
@@ -374,7 +374,7 @@ export interface FindOptions<
   TDialect extends DialectName = DialectName,
 > {
   select?: SelectOption<TColumns>;
-  include?: IncludeOption<TRelations, TModels, TDialect>;
+  include?: IncludeOption<TRelations, TModels, [], TDialect>;
   where?: FilterType<TColumns, TDialect>;
   orderBy?: OrderByType<TColumns>;
 }

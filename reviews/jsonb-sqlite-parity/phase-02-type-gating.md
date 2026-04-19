@@ -60,3 +60,20 @@ With default `TDialect = DialectName` (union), `JsonbPathValue` distributes to `
 CHANGES REQUESTED
 
 The feature's core promise — "self-describing TS diagnostic on SQLite misuse" — is not delivered as advertised (B1). The gate has widespread holes through default generics (B2, B3) that let the natural Postgres code path through on SQLite at the type level, leaving the runtime throw as the only real enforcement. Runtime backstop at `sql/where.ts:102-108` does fire, so this is not a correctness regression — but the design doc's Phase B success criteria are not met. Fix B1 (diagnostic location) and at minimum one of B2/B3 (the internal-FilterType leak OR the default-generic leak) before merging.
+
+---
+
+## Re-review @ 0604e1c8d
+
+- **B1 — RESOLVED.** Reproduced by flipping `@ts-expect-error` lines in `jsonb-filter-gate.test-d.ts`. TS now emits:
+  `'eq' does not exist in type 'JsonbPathFilter_Error_Requires_Dialect_Postgres_On_SQLite_Use_list_And_Filter_In_JS'`
+  on all three negative sites (direct, nested-include, aggregate). Recovery sentence is in the diagnostic. The `unique symbol` brand + named `interface` (not `type` alias wrapping `never`) is the correct fix — TS retains the interface name because the optional `?` no longer collapses it to `undefined`.
+- **B2 — RESOLVED.** `grep 'FilterType<[^,>]+>'` (1-arg form) returns zero matches across `packages/db/src`. All CRUD, aggregate, FindOptions, and ModelDelegate sites now thread `TDialect`. New aggregate positive+negative tests lock the gate in.
+- **B3 — ACCEPTED as documented caveat.** `DatabaseClient<TModels>` still defaults to `DialectName`, so the widened-annotation case bypasses the type gate. Author's call is reasonable: changing the default breaks every existing `Db<...>` reference in user code, and the runtime throw at `sql/where.ts:102-108` catches the slip. Same equivalence class as `const dialect: DialectName = '…'`. Not a blocker.
+- **S1 — RESOLVED.** Probed `FilterType<C, 'postgres'>` with `{ 'meta->x': { foo: 1 } }` — TS rejects with "'foo' does not exist in type 'ComparisonOperators<unknown>'". Operand no longer absorbs-anything.
+- **S2 (array ops) — acknowledged, tracked in #2868.**
+- **types/adapter.ts scope cut — acknowledged.** `EntityDbAdapter` ripple into `@vertz/server` is real. Fine as a follow-up; surface in the feature PR description.
+
+Typecheck wall: 0.25s. No regressions.
+
+**Updated verdict: APPROVED.**
