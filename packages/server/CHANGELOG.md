@@ -1,5 +1,31 @@
 # @vertz/server
 
+## 0.2.74
+
+### Patch Changes
+
+- [#2857](https://github.com/vertz-dev/vertz/pull/2857) [`c566a44`](https://github.com/vertz-dev/vertz/commit/c566a445bd0d46e7341a7b3b082c0a0daac96a65) Thanks [@matheuspoleza](https://github.com/matheuspoleza)! - fix(server): auth stores no longer keep the API isolate event loop alive
+
+  `InMemoryRateLimitStore` and `InMemorySessionStore` scheduled a 60s cleanup
+  `setInterval` in their constructors. When `createServer({ auth })` ran at
+  module top-level inside the `vtz dev` API V8 isolate, the pending timer
+  prevented `load_side_module`'s `run_event_loop()` from draining, so module
+  evaluation never completed and the 10s init watchdog fired — returning
+  HTTP 503 "API isolate failed to initialize" for every request.
+
+  Cleanup is now piggybacked on `check()` / `createSession()` and runs at
+  most once per `CLEANUP_INTERVAL_MS`. No background timer → no event loop
+  leak. Behavior is unchanged: stale entries still expire within ~60s of the
+  next store access.
+
+  Closes #2851.
+
+- Updated dependencies [[`b37301c`](https://github.com/vertz-dev/vertz/commit/b37301c4e18b628e1740e8bf96552348d3aad354)]:
+  - @vertz/db@0.2.74
+  - @vertz/core@0.2.74
+  - @vertz/errors@0.2.74
+  - @vertz/schema@0.2.74
+
 ## 0.2.73
 
 ### Patch Changes
