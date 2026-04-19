@@ -1,5 +1,24 @@
 # vertz
 
+## 0.2.75
+
+### Patch Changes
+
+- Updated dependencies [[`d0a9a2f`](https://github.com/vertz-dev/vertz/commit/d0a9a2fd27c2c69b5cddd4e5eca822915336ba53), [`84c68fc`](https://github.com/vertz-dev/vertz/commit/84c68fc7672891b6e65cdcd3096c872a1141a044)]:
+  - @vertz/db@0.2.75
+  - @vertz/fetch@0.2.75
+  - @vertz/ui@0.2.75
+  - @vertz/cli@0.2.75
+  - @vertz/cloudflare@0.2.75
+  - @vertz/errors@0.2.75
+  - @vertz/schema@0.2.75
+  - @vertz/server@0.2.75
+  - @vertz/testing@0.2.75
+  - @vertz/tui@0.2.75
+  - @vertz/ui-primitives@0.2.75
+  - @vertz/ui-server@0.2.75
+  - @vertz/ui-auth@0.2.20
+
 ## 0.2.74
 
 ### Patch Changes
