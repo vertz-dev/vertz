@@ -416,3 +416,36 @@ run(testAgent, { message: 'hi', llm: testLlm, userId: null, tenantId: null });
 
 // @ts-expect-error — userId must be string | null, not number
 run(testAgent, { message: 'hi', llm: testLlm, userId: 42 });
+
+// ---------------------------------------------------------------------------
+// Public entry: `d1Store` and its supporting types are reachable from
+// `@vertz/agents`. These live in `./index.ts` so accidental removal shows up
+// as a compile error here (proving the public type surface stays stable).
+// ---------------------------------------------------------------------------
+// eslint-disable-next-line no-duplicate-imports -- namespace import keeps this block self-contained
+import type { AgentStore, D1Binding, D1PreparedStatement, D1Result, D1StoreOptions } from './index';
+// eslint-disable-next-line no-duplicate-imports
+import { d1Store } from './index';
+
+// D1StoreOptions must accept a D1Binding.
+const _d1Options: D1StoreOptions = {
+  binding: {} as D1Binding,
+};
+void _d1Options;
+
+// D1Binding.prepare returns a namable D1PreparedStatement.
+const _stmt: D1PreparedStatement = {} as D1Binding extends { prepare(q: string): infer S }
+  ? S
+  : never;
+void _stmt;
+
+// batch returns an array of D1Result<unknown>.
+const _results: D1Result<unknown>[] = [];
+void _results;
+
+// d1Store returns an AgentStore — the public interface agents code operates on.
+const _d1StoreInstance: AgentStore = d1Store({ binding: {} as D1Binding });
+void _d1StoreInstance;
+
+// @ts-expect-error — options.binding is required
+d1Store({});

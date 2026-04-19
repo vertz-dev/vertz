@@ -12,14 +12,16 @@ export interface D1Binding {
   batch(statements: D1PreparedStatement[]): Promise<D1Result<unknown>[]>;
 }
 
-interface D1PreparedStatement {
+/** Minimal D1 prepared-statement shape — matches Cloudflare's `D1PreparedStatement`. */
+export interface D1PreparedStatement {
   bind(...values: unknown[]): D1PreparedStatement;
   all<T = Record<string, unknown>>(): Promise<D1Result<T>>;
   run(): Promise<D1Result<unknown>>;
   first<T = Record<string, unknown>>(): Promise<T | null>;
 }
 
-interface D1Result<T> {
+/** Minimal D1 result shape — matches Cloudflare's `D1Result`. */
+export interface D1Result<T> {
   results: T[];
   success: boolean;
 }
@@ -127,8 +129,10 @@ function rowToMessage(row: MessageRow): Message {
  * Cloudflare D1-backed store for agent sessions and messages.
  * Uses the raw D1 binding (not @vertz/db wrapper).
  *
+ * Available from both the main entry and the Cloudflare subpath:
+ *
  * ```ts
- * import { d1Store } from '@vertz/agents/cloudflare';
+ * import { d1Store } from '@vertz/agents';
  * const store = d1Store({ binding: env.DB });
  * ```
  */

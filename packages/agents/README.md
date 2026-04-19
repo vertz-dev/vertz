@@ -122,6 +122,32 @@ const result = await run(researcher, {
 
 **Available stores:** `memoryStore()`, `sqliteStore()`, `d1Store()` (Cloudflare D1)
 
+### Cloudflare D1 (Workers / Durable Objects)
+
+Use `d1Store` from the Worker `env` binding for durable session storage:
+
+```typescript
+import { d1Store, run } from '@vertz/agents';
+
+export default {
+  async fetch(request: Request, env: { DB: D1Database }) {
+    const store = d1Store({ binding: env.DB });
+
+    const result = await run(researcher, {
+      message: 'Find recent papers on transformer architectures',
+      llm: adapter,
+      store,
+      userId: 'user-123',
+      sessionId: request.headers.get('x-session-id') ?? undefined,
+    });
+
+    return Response.json(result);
+  },
+};
+```
+
+The D1 store lazily creates its `agent_sessions` / `agent_messages` tables on first use — no migration step required.
+
 ## Workflows
 
 Chain multiple agents into typed, multi-step workflows with approval gates.
@@ -176,7 +202,7 @@ import { createAgentRunner } from '@vertz/agents';
 const runner = createAgentRunner({
   agents: { researcher, greeter },
   llm: adapter,
-  store: d1Store(env.DB),
+  store: d1Store({ binding: env.DB }),
 });
 ```
 
