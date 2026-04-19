@@ -112,4 +112,104 @@ describe('globalCss()', () => {
     expect(result.css).toContain('body {');
     expect(result.css).toContain('html {');
   });
+
+  it('emits @keyframes with from/to frame selectors', () => {
+    const result = globalCss({
+      '@keyframes spin': {
+        from: { transform: 'rotate(0deg)' },
+        to: { transform: 'rotate(360deg)' },
+      },
+    });
+
+    expect(result.css).toContain('@keyframes spin {');
+    expect(result.css).toContain('from {');
+    expect(result.css).toContain('to {');
+    expect(result.css).toContain('transform: rotate(0deg);');
+    expect(result.css).toContain('transform: rotate(360deg);');
+  });
+
+  it('emits @keyframes with percentage frames and camelCase properties', () => {
+    const result = globalCss({
+      '@keyframes pulse': {
+        '0%': { opacity: '1' },
+        '50%': { opacity: '0.5', backgroundColor: 'red' },
+        '100%': { opacity: '1' },
+      },
+    });
+
+    expect(result.css).toContain('@keyframes pulse {');
+    expect(result.css).toContain('0% {');
+    expect(result.css).toContain('50% {');
+    expect(result.css).toContain('100% {');
+    expect(result.css).toContain('background-color: red;');
+  });
+
+  it('emits @media with nested selector blocks', () => {
+    const result = globalCss({
+      '@media (min-width: 768px)': {
+        body: { fontSize: '18px' },
+        html: { height: '100%' },
+      },
+    });
+
+    expect(result.css).toBe(
+      '@media (min-width: 768px) {\n' +
+        '  body {\n' +
+        '    font-size: 18px;\n' +
+        '  }\n' +
+        '  html {\n' +
+        '    height: 100%;\n' +
+        '  }\n' +
+        '}',
+    );
+  });
+
+  it('emits @supports with nested selector blocks', () => {
+    const result = globalCss({
+      '@supports (display: grid)': {
+        body: { display: 'grid' },
+      },
+    });
+
+    expect(result.css).toBe(
+      '@supports (display: grid) {\n' + '  body {\n' + '    display: grid;\n' + '  }\n' + '}',
+    );
+  });
+
+  it('skips null and undefined property values', () => {
+    const result = globalCss({
+      body: {
+        margin: '0',
+        // @ts-expect-error — test runtime resilience to null/undefined values.
+        padding: null,
+        // @ts-expect-error — test runtime resilience to null/undefined values.
+        color: undefined,
+      },
+    });
+
+    expect(result.css).toContain('margin: 0;');
+    expect(result.css).not.toContain('padding');
+    expect(result.css).not.toContain('color');
+  });
+
+  it('wraps @keyframes frames inside the at-rule (not as siblings)', () => {
+    const result = globalCss({
+      '@keyframes spin': {
+        from: { transform: 'rotate(0deg)' },
+        to: { transform: 'rotate(360deg)' },
+      },
+    });
+
+    // Structural check: the at-rule opens once, then frames, then closes once.
+    expect(result.css).toBe(
+      '@keyframes spin {\n' +
+        '  from {\n' +
+        '    transform: rotate(0deg);\n' +
+        '  }\n' +
+        '  to {\n' +
+        '    transform: rotate(360deg);\n' +
+        '  }\n' +
+        '}',
+    );
+  });
 });

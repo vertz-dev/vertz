@@ -236,6 +236,24 @@ const reset = globalCss({
 // reset.css → compiled global CSS string
 ```
 
+### Nested at-rules
+
+`@keyframes`, `@media`, and `@supports` accept a nested block — the inner
+keys are frame selectors (`from`, `to`, `0%`–`100%`) or regular selectors,
+and their values are CSS declarations.
+
+```ts
+globalCss({
+  '@keyframes spin': {
+    from: { transform: 'rotate(0deg)' },
+    to: { transform: 'rotate(360deg)' },
+  },
+  '@media (min-width: 768px)': {
+    body: { fontSize: '18px' },
+  },
+});
+```
+
 ### Signature
 
 ```ts
@@ -244,9 +262,9 @@ function globalCss(input: GlobalCSSInput): GlobalCSSOutput;
 
 ### Parameters
 
-| Parameter | Type                                     | Description                                  |
-| --------- | ---------------------------------------- | -------------------------------------------- |
-| `input`   | `Record<string, Record<string, string>>` | Object mapping selectors to CSS declarations |
+| Parameter | Type             | Description                                                                                              |
+| --------- | ---------------- | -------------------------------------------------------------------------------------------------------- |
+| `input`   | `GlobalCSSInput` | Selector → block. Block is CSS declarations or (for at-rules) a map of nested selectors to declarations. |
 
 ### Returns
 
@@ -332,7 +350,10 @@ type StyleBlock = {
   [property: string]: string | number | StyleBlock;
 };
 
-type GlobalCSSInput = Record<string, Record<string, string>>;
+type NestedSelectorBlock = { [selector: string]: CamelCSSDeclarations };
+type GlobalStyleBlock = CamelCSSDeclarations | NestedSelectorBlock;
+type GlobalCSSInput = Record<string, GlobalStyleBlock>;
+
 interface GlobalCSSOutput {
   css: string;
 }

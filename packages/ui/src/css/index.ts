@@ -41,7 +41,12 @@ export type {
 export { compileFonts, font } from './font';
 export type { GoogleFontOptions } from './google-font';
 export { googleFont } from './google-font';
-export type { GlobalCSSInput, GlobalCSSOutput } from './global-css';
+export type {
+  GlobalCSSInput,
+  GlobalCSSOutput,
+  GlobalStyleBlock,
+  NestedSelectorBlock,
+} from './global-css';
 export { globalCss } from './global-css';
 export { keyframes } from './keyframes';
 export { type ColorPalette, palettes } from './palettes';
