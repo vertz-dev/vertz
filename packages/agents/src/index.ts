@@ -65,6 +65,7 @@ export {
   SessionAccessDeniedError,
   SessionNotFoundError,
 } from './stores/errors';
+export { ToolDurabilityError } from './errors';
 
 // Workflow
 export type {

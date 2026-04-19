@@ -1,8 +1,10 @@
+import { ToolDurabilityError, serializeToolDurabilityError } from './errors';
 import type {
   LLMAdapter,
   LoopResult,
   Message,
   TokenUsageSummary,
+  ToolCall,
   ToolCallSummaryEntry,
 } from './loop/react-loop';
 import { reactLoop } from './loop/react-loop';
@@ -93,6 +95,42 @@ function generateSessionId(): string {
 
 function hasStore(opts: RunOptions): opts is RunOptionsWithStore {
   return opts.store !== undefined;
+}
+
+/**
+ * Scan the loaded message history for an "orphaned" assistant-with-toolCalls —
+ * an assistant message whose tool_call ids are not all matched by tool_result
+ * messages that come after it. Returns the missing tool_calls, or null if the
+ * history is consistent.
+ */
+function findOrphanAssistantWithToolCalls(
+  messages: readonly Message[],
+): { missingToolCalls: ToolCall[] } | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]!;
+    if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0) {
+      const laterToolResultIds = new Set(
+        messages
+          .slice(i + 1)
+          .filter(
+            (x): x is Message & { toolCallId: string } =>
+              x.role === 'tool' && typeof x.toolCallId === 'string',
+          )
+          .map((x) => x.toolCallId),
+      );
+      const missing = m.toolCalls.filter(
+        (tc): tc is ToolCall & { id: string } =>
+          typeof tc.id === 'string' && tc.id.length > 0 && !laterToolResultIds.has(tc.id),
+      );
+      return missing.length > 0 ? { missingToolCalls: [...missing] } : null;
+    }
+    if (m.role !== 'tool') {
+      // Reached a non-tool, non-assistant row (typically `user`) without
+      // finding an assistant-with-toolCalls closer to the tail → no orphan.
+      break;
+    }
+  }
+  return null;
 }
 
 /**
@@ -199,6 +237,32 @@ export async function run(
 
       // Load previous messages (excluding system prompts)
       previousMessages = await store.loadMessages(sessionId);
+
+      // Resume detection: if the last assistant message has toolCalls and
+      // any tool_result is missing, the previous run crashed between the
+      // pre-dispatch write and the post-dispatch write. Persist synthetic
+      // ToolDurabilityError tool_results for the missing ids so the loop
+      // resumes with a consistent conversation. (Phase 3 of #2835.)
+      const orphan = findOrphanAssistantWithToolCalls(previousMessages);
+      if (orphan && !isMemoryStore(store)) {
+        const now = new Date().toISOString();
+        const syntheticResults: Message[] = orphan.missingToolCalls.map((tc) => ({
+          role: 'tool',
+          content: serializeToolDurabilityError(new ToolDurabilityError(tc.id ?? '', tc.name)),
+          toolCallId: tc.id ?? '',
+          toolName: tc.name,
+        }));
+        await store.appendMessagesAtomic(sessionId, syntheticResults, {
+          id: sessionId,
+          agentName: agentDef.name,
+          userId,
+          tenantId,
+          state: JSON.stringify(initialState),
+          createdAt: existingCreatedAt ?? now,
+          updatedAt: now,
+        });
+        previousMessages = [...previousMessages, ...syntheticResults];
+      }
     } else {
       // Create new session
       sessionId = generateSessionId();
