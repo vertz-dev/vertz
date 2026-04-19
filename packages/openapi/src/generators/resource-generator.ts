@@ -33,7 +33,17 @@ function generateResourceFile(resource: ParsedResource, componentNames: Set<stri
   const { resourceImports, componentImports } = collectTypeImports(resource, componentNames);
 
   // Imports
-  lines.push("import type { FetchClient, FetchResponse } from '@vertz/fetch';");
+  const importNames = ['FetchClient', 'FetchResponse'];
+  const valueImportNames: string[] = [];
+  const hasStreaming = resource.operations.some((op) => op.streamingFormat);
+  if (hasStreaming) {
+    importNames.push('StreamDescriptor');
+    valueImportNames.push('createStreamDescriptor');
+  }
+  lines.push(`import type { ${importNames.join(', ')} } from '@vertz/fetch';`);
+  if (valueImportNames.length > 0) {
+    lines.push(`import { ${valueImportNames.join(', ')} } from '@vertz/fetch';`);
+  }
   if (componentImports.size > 0) {
     const sorted = [...componentImports].sort();
     lines.push(`import type { ${sorted.join(', ')} } from '../types/components';`);
@@ -156,10 +166,8 @@ function buildParams(op: ParsedOperation): string {
     parts.push(`query?: ${queryName}`);
   }
 
-  // Signal param for streaming operations
-  if (op.streamingFormat) {
-    parts.push('options?: { signal?: AbortSignal }');
-  }
+  // No `signal` arg for streaming methods — the descriptor's _stream(signal)
+  // factory takes the signal from query() at consumption time.
 
   return parts.join(', ');
 }
@@ -167,7 +175,7 @@ function buildParams(op: ParsedOperation): string {
 function buildReturnType(op: ParsedOperation): string {
   if (op.streamingFormat) {
     const typeName = deriveStreamingTypeName(op);
-    return `AsyncGenerator<${typeName}>`;
+    return `StreamDescriptor<${typeName}>`;
   }
 
   if (op.responseStatus === 204) return 'Promise<FetchResponse<void>>';
@@ -215,15 +223,23 @@ function buildCall(op: ParsedOperation): string {
 function buildStreamingCall(op: ParsedOperation): string {
   const typeName = deriveStreamingTypeName(op);
   const path = buildPath(op);
-  const props: string[] = [
+  const innerProps: string[] = [
     `method: '${op.method}'`,
     `path: ${path}`,
     `format: '${op.streamingFormat}'`,
   ];
-  if (op.requestBody) props.push('body');
-  if (op.queryParams.length > 0) props.push('query');
-  props.push('signal: options?.signal');
-  return `client.requestStream<${typeName}>({ ${props.join(', ')} })`;
+  if (op.requestBody) innerProps.push('body');
+  if (op.queryParams.length > 0) innerProps.push('query');
+  innerProps.push('signal');
+  const innerCall = `client.requestStream<${typeName}>({ ${innerProps.join(', ')} })`;
+  // createStreamDescriptor's 4th arg is used for cache-key derivation.
+  // Pass query when present so two queries with different params produce
+  // distinct keys (parity with REST descriptor key derivation).
+  // Body is intentionally not in the key — it would require stable JSON
+  // serialization and most stream consumers use GET with query params.
+  // POST stream consumers with distinct bodies should use distinct paths.
+  const keyArg = op.queryParams.length > 0 ? ', query' : '';
+  return `createStreamDescriptor('${op.method}', ${path}, (signal) => ${innerCall}${keyArg})`;
 }
 
 function deriveStreamingTypeName(op: ParsedOperation): string {

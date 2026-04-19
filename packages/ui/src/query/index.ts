@@ -1,5 +1,5 @@
-export type { QueryDescriptor } from '@vertz/fetch';
-export { isQueryDescriptor } from '@vertz/fetch';
+export type { QueryDescriptor, StreamDescriptor } from '@vertz/fetch';
+export { createStreamDescriptor, isQueryDescriptor, isStreamDescriptor } from '@vertz/fetch';
 export type { CacheStore } from './cache';
 export { MemoryCache } from './cache';
 export { invalidate, invalidateTenantQueries } from './invalidate';

@@ -1,8 +1,10 @@
 import {
   type EntityQueryMeta,
   isQueryDescriptor,
+  isStreamDescriptor,
   type QueryDescriptor,
   type Result,
+  type StreamDescriptor,
 } from '@vertz/fetch';
 import { isBrowser } from '../env/is-browser';
 import { isNavPrefetchActive } from '../router/server-nav';
@@ -202,6 +204,11 @@ export function resetDefaultQueryCache(): void {
  * @param options - Optional configuration.
  * @returns A QueryResult with reactive signals for data, loading, and error.
  */
+// Stream-descriptor overload — `options?: never` is load-bearing: it makes
+// the second argument a compile error if anything is passed, preventing the
+// function-thunk overload from being a silent fallback for
+// `query(descriptor, { key })`.  The descriptor carries its own _key.
+export function query<T>(descriptor: StreamDescriptor<T>, options?: never): QueryStreamResult<T>;
 export function query<T>(
   thunk: (signal?: AbortSignal) => AsyncIterable<T> | null,
   options: QueryStreamOptions,
@@ -221,9 +228,26 @@ export function query<T>(
 export function query<T, E = unknown>(
   source:
     | QueryDescriptor<T, E>
-    | ((signal?: AbortSignal) => QueryDescriptor<T, E> | Promise<T> | AsyncIterable<T> | null),
+    | StreamDescriptor<T>
+    | ((
+        signal?: AbortSignal,
+      ) => QueryDescriptor<T, E> | Promise<T> | AsyncIterable<T> | StreamDescriptor<T> | null),
   rawOptions: QueryOptions<T> | QueryStreamOptions = {},
 ): QueryResult<T, E> | QueryStreamResult<T> {
+  // StreamDescriptor early-return — passes through the existing function-thunk
+  // path with the descriptor's _key as the cache key.  Mirrors the
+  // QueryDescriptor early-return below.
+  if (isStreamDescriptor<T>(source)) {
+    if (rawOptions !== undefined && Object.keys(rawOptions).length > 0) {
+      throw new QueryStreamMisuseError(
+        'query(): a StreamDescriptor carries its own cache key (_key). ' +
+          'Pass the descriptor alone — `query(descriptor)`, not `query(descriptor, opts)`.',
+      );
+    }
+    return query((signal?: AbortSignal) => source._stream(signal as AbortSignal), {
+      key: source._key,
+    }) as QueryStreamResult<T>;
+  }
   // Normalize options: tuple keys get serialized to strings so the rest of the
   // function can treat options uniformly as QueryOptions<T>.  The original
   // tuple is preserved on the local var so the stream-mode mutual-exclusion
@@ -979,7 +1003,15 @@ export function query<T, E = unknown>(
         // Thunk says "not ready" mid-stream — keep current pump running.
         return;
       }
-      if (!isAsyncIterable(next)) {
+      // Accept both an AsyncIterable directly OR a StreamDescriptor (descriptor-
+      // in-thunk pattern).  For descriptors, unwrap to the inner factory.
+      let nextIterable: AsyncIterable<unknown> | undefined;
+      if (isStreamDescriptor<T>(next)) {
+        nextIterable = next._stream(newController.signal) as AsyncIterable<unknown>;
+      } else if (isAsyncIterable(next)) {
+        nextIterable = next as AsyncIterable<unknown>;
+      }
+      if (nextIterable === undefined) {
         throw new QueryStreamMisuseError(
           'query() was first invoked with an AsyncIterable source and is locked to stream mode. The most recent thunk call returned a non-AsyncIterable value. Conditional source-type swaps are not supported — split the work into two queries with distinct keys, or normalize both branches to one source shape.',
         );
@@ -1002,7 +1034,7 @@ export function query<T, E = unknown>(
         idle.value = false;
         error.value = undefined;
       });
-      pumpStream(next as AsyncIterable<unknown>, newController.signal).catch((err: unknown) => {
+      pumpStream(nextIterable, newController.signal).catch((err: unknown) => {
         if (newController.signal.aborted) return;
         error.value = err;
         if (loading.peek()) loading.value = false;
@@ -1146,11 +1178,23 @@ export function query<T, E = unknown>(
       return;
     }
 
+    // Descriptor-in-thunk: `query(() => streamDescriptor)`.  Unwrap to the
+    // descriptor's iterable factory and use its _key in place of options.key.
+    // Mirrors the existing `query(() => queryDescriptor)` pattern.
+    let streamIterable: AsyncIterable<unknown> | undefined;
+    let streamKeyOverride: string | undefined;
+    if (isStreamDescriptor<T>(raw)) {
+      streamIterable = raw._stream(probeController.signal) as AsyncIterable<unknown>;
+      streamKeyOverride = raw._key;
+    } else if (isAsyncIterable(raw)) {
+      streamIterable = raw as AsyncIterable<unknown>;
+    }
+
     // Stream classification (Phase 2).  AsyncIterable sources route to a
     // dedicated pump owning its own AbortController.  Re-runs of this effect
     // (reactive-key change, refetch) are handled by the streamMode branch at
     // the top of the effect, which aborts the previous pump before re-classifying.
-    if (isAsyncIterable(raw)) {
+    if (streamIterable !== undefined) {
       // Source-type lock: if a previous classification settled on a different
       // mode, refuse to swap.
       if (firstClassifiedMode && firstClassifiedMode !== 'stream') {
@@ -1165,11 +1209,19 @@ export function query<T, E = unknown>(
           'query(): `refetchInterval` cannot be used together with a stream (AsyncIterable) source. Polling and streaming are mutually exclusive.',
         );
       }
-      // Streams require an explicit key.
-      if (!options.key) {
+      // Streams require an explicit key.  A descriptor-in-thunk supplies its
+      // own _key (streamKeyOverride); a bare AsyncIterable thunk requires
+      // options.key.
+      const effectiveKey = streamKeyOverride ?? options.key;
+      if (!effectiveKey) {
         throw new QueryStreamMisuseError(
           'query(): a stream (AsyncIterable) source requires an explicit `key` option.',
         );
+      }
+      // For descriptor-in-thunk, install the derived key so cache lookups,
+      // invalidate(), and refetch all use the descriptor's identity.
+      if (streamKeyOverride && !options.key) {
+        (options as { key?: string }).key = streamKeyOverride;
       }
       streamMode = true;
       firstClassifiedMode = 'stream';
@@ -1184,7 +1236,7 @@ export function query<T, E = unknown>(
         reconnecting.value = false;
         error.value = undefined;
       });
-      pumpStream(raw as AsyncIterable<unknown>, probeController.signal).catch((err: unknown) => {
+      pumpStream(streamIterable, probeController.signal).catch((err: unknown) => {
         if (probeController.signal.aborted) return;
         error.value = err;
         if (loading.peek()) loading.value = false;

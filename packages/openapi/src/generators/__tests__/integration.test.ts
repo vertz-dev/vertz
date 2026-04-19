@@ -397,19 +397,19 @@ describe('generateAll — streaming integration', () => {
     return generateAll(spec);
   }
 
-  it('SSE endpoint generates AsyncGenerator with requestStream call', () => {
+  it('SSE endpoint generates StreamDescriptor with requestStream call', () => {
     const files = parseAndGenerate();
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('AsyncGenerator<TaskEvent>');
+    expect(tasksFile!.content).toContain('StreamDescriptor<TaskEvent>');
+    expect(tasksFile!.content).toContain("createStreamDescriptor('GET',");
     expect(tasksFile!.content).toContain('client.requestStream<TaskEvent>');
     expect(tasksFile!.content).toContain("format: 'sse'");
-    expect(tasksFile!.content).toContain('signal: options?.signal');
   });
 
-  it('NDJSON endpoint generates AsyncGenerator with ndjson format', () => {
+  it('NDJSON endpoint generates StreamDescriptor with ndjson format', () => {
     const files = parseAndGenerate();
     const logsFile = files.find((f) => f.path === 'resources/logs.ts');
-    expect(logsFile!.content).toContain('AsyncGenerator<LogEntry>');
+    expect(logsFile!.content).toContain('StreamDescriptor<LogEntry>');
     expect(logsFile!.content).toContain("format: 'ndjson'");
   });
 
@@ -421,10 +421,10 @@ describe('generateAll — streaming integration', () => {
     expect(logsFile!.content).toContain('body, signal');
   });
 
-  it('SSE with no schema generates AsyncGenerator<unknown>', () => {
+  it('SSE with no schema generates StreamDescriptor<unknown>', () => {
     const files = parseAndGenerate();
     const eventsFile = files.find((f) => f.path === 'resources/events.ts');
-    expect(eventsFile!.content).toContain('AsyncGenerator<unknown>');
+    expect(eventsFile!.content).toContain('StreamDescriptor<unknown>');
     expect(eventsFile!.content).toContain('client.requestStream<unknown>');
   });
 
@@ -434,10 +434,8 @@ describe('generateAll — streaming integration', () => {
     // Standard JSON method
     expect(tasksFile!.content).toContain('list: (): Promise<FetchResponse<TaskList>>');
     expect(tasksFile!.content).toContain("client.get('/tasks')");
-    // Streaming method with Stream suffix
-    expect(tasksFile!.content).toContain(
-      'listStream: (options?: { signal?: AbortSignal }): AsyncGenerator<TaskEvent>',
-    );
+    // Streaming method with Stream suffix — now returns a StreamDescriptor
+    expect(tasksFile!.content).toContain('listStream: (): StreamDescriptor<TaskEvent>');
     expect(tasksFile!.content).toContain('client.requestStream<TaskEvent>');
   });
 
@@ -453,7 +451,7 @@ describe('generateAll — streaming integration', () => {
     // Standard method (dual content JSON variant)
     expect(tasksFile!.content).toContain('Promise<FetchResponse<TaskList>>');
     // Streaming method
-    expect(tasksFile!.content).toContain('AsyncGenerator<TaskEvent>');
+    expect(tasksFile!.content).toContain('StreamDescriptor<TaskEvent>');
   });
 });
 

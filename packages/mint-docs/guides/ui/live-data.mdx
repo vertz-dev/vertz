@@ -3,7 +3,40 @@ title: Live Data (Streams)
 description: 'Feed AsyncIterable sources — agent events, WebSockets, SSE — into query()'
 ---
 
-`query()` accepts an `AsyncIterable<T>` source in addition to promises and SDK descriptors. Each yield appends to a reactive `data: T[]` array — perfect for chat transcripts, agent runs, log tails, live dashboards, presence streams, anything where data arrives over time.
+`query()` consumes streaming endpoints the same way it consumes REST endpoints — pass an SDK call that returns a `StreamDescriptor<T>`, and the data accumulates in a reactive array. For ad-hoc / hand-rolled iterables (a `WebSocket`, an `EventSource`, an `agent.stream()`), pass a function thunk with an explicit `key`.
+
+## Two ways to consume a stream
+
+### 1. Generated SDK methods (recommended)
+
+`@vertz/openapi` emits stream endpoints as `StreamDescriptor`s. The call site is identical to a REST endpoint:
+
+```tsx
+import { query } from '@vertz/ui';
+import { sdk } from './generated';
+
+export function DeployFeed() {
+  const events = query(sdk.events.stream({ topic: 'deploys' }));
+
+  return (
+    <div>
+      {events.loading && <Spinner />}
+      {events.error && <ErrorBanner error={events.error} />}
+      {events.data.map((e) => (
+        <Event key={e.id} event={e} />
+      ))}
+    </div>
+  );
+}
+```
+
+The descriptor carries its own `_key` (derived from method + path + args, identical to REST descriptors), so cache identity and dedup work the same way they do for `query(api.tasks.list({ page: 1 }))`. No manual key, no wrapper thunk.
+
+Note: `invalidate(descriptor)` operates on entity-backed REST queries today and is not yet supported for stream descriptors. To restart a stream manually, call `events.refetch()` on the result.
+
+### 2. Function thunks (escape hatch for ad-hoc iterables)
+
+When the source isn't a generated SDK method — e.g., a raw WebSocket, a hand-rolled async generator, an SDK from outside `@vertz/openapi` — use the function-thunk overload with an explicit `key`:
 
 ```tsx
 import { query, fromWebSocket } from '@vertz/ui';
@@ -13,18 +46,11 @@ export function TickerWidget() {
     (signal) => fromWebSocket<TickEvent>('wss://stream.example/ticks', signal),
     { key: 'ticks' },
   );
-
-  return (
-    <div>
-      {ticks.loading && <Spinner />}
-      {ticks.error && <ErrorBanner error={ticks.error} />}
-      {ticks.data.map((t) => (
-        <Tick key={t.ts} tick={t} />
-      ))}
-    </div>
-  );
+  // ...
 }
 ```
+
+Use thunks when the iterable's identity can't be expressed as a `method:path?args` string. Use descriptors otherwise.
 
 ## When to reach for it
 
@@ -141,6 +167,7 @@ This is intentionally a minimal v1. The following are non-goals — recipes belo
 - **No reducer / select hooks.** Produce the merged shape inside your iterator (next recipe).
 - **No multi-tenant re-auth on stream queries.** Component remount on auth change is the contract — the iterator does not re-validate tokens mid-flight.
 - **No source-type swap inside one query.** A thunk that returns an `AsyncIterable` on Tuesday and a `Promise` on Wednesday throws — split into two queries with distinct keys.
+- **No shared entity-store with REST queries.** A `query(api.tasks.list())` and a `query(sdk.tasks.events())` for the same entity type **don't share cache state**. If you mutate a task via the REST API, the optimistic update flows into the REST query immediately — but the stream's `data` array only updates when the server pushes the change back through the stream. For mixed REST + stream rendering of the same entity, invalidate the REST query manually when stream events arrive (or treat the stream as authoritative and skip the REST query for that entity).
 
 ## Recipes
 

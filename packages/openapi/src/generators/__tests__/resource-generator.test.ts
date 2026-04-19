@@ -698,7 +698,7 @@ describe('generateResources', () => {
     expect(tasksFile!.content).toContain('search: (): Promise<FetchResponse<unknown[]>>');
   });
 
-  it('generates AsyncGenerator return type for SSE streaming operation', () => {
+  it('generates StreamDescriptor return type for SSE streaming operation', () => {
     const resources: ParsedResource[] = [
       makeResource({
         operations: [
@@ -723,11 +723,14 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('AsyncGenerator<TaskEvent>');
+    expect(tasksFile!.content).toContain('StreamDescriptor<TaskEvent>');
+    expect(tasksFile!.content).toContain("createStreamDescriptor('GET',");
     expect(tasksFile!.content).toContain("format: 'sse'");
     expect(tasksFile!.content).toContain('client.requestStream<TaskEvent>');
-    expect(tasksFile!.content).toContain("method: 'GET'");
-    expect(tasksFile!.content).toContain('signal: options?.signal');
+    // Signal is threaded through the descriptor's _stream factory, not via
+    // a separate options arg.
+    expect(tasksFile!.content).toContain('(signal) =>');
+    expect(tasksFile!.content).not.toContain('options?: { signal');
   });
 
   it('generates NDJSON streaming operation with format: ndjson', () => {
@@ -755,7 +758,7 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('AsyncGenerator<LogEntry>');
+    expect(tasksFile!.content).toContain('StreamDescriptor<LogEntry>');
     expect(tasksFile!.content).toContain("format: 'ndjson'");
   });
 
@@ -789,13 +792,13 @@ describe('generateResources', () => {
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
     expect(tasksFile!.content).toContain(
-      'search: (body: LogSearchInput, options?: { signal?: AbortSignal }): AsyncGenerator<LogEntry>',
+      'search: (body: LogSearchInput): StreamDescriptor<LogEntry>',
     );
     expect(tasksFile!.content).toContain("method: 'POST'");
     expect(tasksFile!.content).toContain('body, signal');
   });
 
-  it('generates AsyncGenerator<unknown> when streaming response has no schema', () => {
+  it('generates StreamDescriptor<unknown> when streaming response has no schema', () => {
     const resources: ParsedResource[] = [
       makeResource({
         operations: [
@@ -816,7 +819,7 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('AsyncGenerator<unknown>');
+    expect(tasksFile!.content).toContain('StreamDescriptor<unknown>');
     expect(tasksFile!.content).toContain('client.requestStream<unknown>');
   });
 
@@ -850,7 +853,7 @@ describe('generateResources', () => {
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
     // Should use the clean methodName-based event type name
-    expect(tasksFile!.content).toContain('AsyncGenerator<StreamBrandDraftEvent>');
+    expect(tasksFile!.content).toContain('StreamDescriptor<StreamBrandDraftEvent>');
     expect(tasksFile!.content).not.toContain('WebOrganizations');
   });
 
@@ -912,7 +915,7 @@ describe('generateResources', () => {
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
     expect(tasksFile!.content).toContain(
-      'search: (body: LogSearchInput, query?: SearchQuery, options?: { signal?: AbortSignal }): AsyncGenerator<LogEntry>',
+      'search: (body: LogSearchInput, query?: SearchQuery): StreamDescriptor<LogEntry>',
     );
     expect(tasksFile!.content).toContain('body, query, signal');
   });
@@ -949,10 +952,8 @@ describe('generateResources', () => {
     // Standard JSON method
     expect(tasksFile!.content).toContain('list: (): Promise<FetchResponse<TaskList>>');
     expect(tasksFile!.content).toContain("client.get('/tasks')");
-    // Streaming method with Stream suffix
-    expect(tasksFile!.content).toContain(
-      'listStream: (options?: { signal?: AbortSignal }): AsyncGenerator<TaskEvent>',
-    );
+    // Streaming method with Stream suffix — now returns a StreamDescriptor
+    expect(tasksFile!.content).toContain('listStream: (): StreamDescriptor<TaskEvent>');
     expect(tasksFile!.content).toContain('client.requestStream<TaskEvent>');
   });
 
@@ -1029,7 +1030,7 @@ describe('generateResources', () => {
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
     expect(tasksFile!.content).toContain(
-      'streamFiltered: (query?: StreamFilteredQuery, options?: { signal?: AbortSignal }): AsyncGenerator<Event>',
+      'streamFiltered: (query?: StreamFilteredQuery): StreamDescriptor<Event>',
     );
     expect(tasksFile!.content).toContain('query, signal');
   });
