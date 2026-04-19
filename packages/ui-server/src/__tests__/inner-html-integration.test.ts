@@ -12,8 +12,8 @@ afterAll(() => {
 // DOM adapter picks up the real DOM rather than failing.
 import { mount, signal } from '@vertz/ui';
 import { __element, __html } from '@vertz/ui/internals';
+import { toVNode } from '@vertz/ui-server';
 import { compile } from '../compiler/native-compiler';
-import { toVNode } from '../dom-shim';
 import { renderToHTML } from '../render-to-html';
 
 describe('Feature: innerHTML across SSR + hydration + reactive update', () => {

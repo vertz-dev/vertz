@@ -14,7 +14,8 @@
 import { describe, expect, it } from '@vertz/test';
 import { query } from '@vertz/ui';
 import { __styleStr as styleObjectToString } from '@vertz/ui/internals';
-import { installDomShim, toVNode } from '../dom-shim';
+import { toVNode } from '@vertz/ui-server';
+import { installDomShim } from '../dom-shim';
 import { escapeAttr, escapeHtml, serializeToHtml } from '../html-serializer';
 import { ssrStorage } from '../ssr-context';
 import { createRequestContext, type SSRModule } from '../ssr-shared';
