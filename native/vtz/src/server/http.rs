@@ -3,7 +3,9 @@ use crate::compiler::pipeline::CompilationPipeline;
 use crate::config::ServerConfig;
 use crate::deps::linked::{discover_linked_packages, WatchTarget};
 use crate::errors::broadcaster::ErrorBroadcaster;
-use crate::errors::categories::{extract_snippet, refine_error_line, DevError, ErrorCategory};
+use crate::errors::categories::{
+    build_compile_error, extract_snippet, refine_error_line, DevError, ErrorCategory,
+};
 use crate::hmr::recovery::RestartTriggers;
 use crate::hmr::websocket::HmrHub;
 use crate::runtime::persistent_isolate::{
@@ -1757,28 +1759,19 @@ pub async fn start_server_with_lifecycle(
                                         let compile_result = watcher_state.pipeline
                                             .compile_for_browser(&change.path);
 
-                                        // Check if compilation produced an error module
-                                        if compile_result.code.contains("console.error(`[vertz] Compilation error:") {
-                                            // Read the source to provide a snippet
+                                        // Report any structured compilation diagnostics
+                                        if !compile_result.errors.is_empty() {
                                             let source = std::fs::read_to_string(&change.path)
                                                 .unwrap_or_default();
-                                            let snippet = if !source.is_empty() {
-                                                Some(extract_snippet(&source, 1, 3))
-                                            } else {
-                                                None
-                                            };
-
-                                            let mut error = DevError::build(
-                                                format!("Compilation failed: {}", file_str)
-                                            ).with_file(file_str.clone());
-
-                                            if let Some(s) = snippet {
-                                                error = error.with_snippet(s);
+                                            if let Some(error) = build_compile_error(
+                                                &compile_result.errors,
+                                                &file_str,
+                                                &source,
+                                            ) {
+                                                watcher_state.error_broadcaster
+                                                    .report_error(error)
+                                                    .await;
                                             }
-
-                                            watcher_state.error_broadcaster
-                                                .report_error(error)
-                                                .await;
 
                                             continue;
                                         }
