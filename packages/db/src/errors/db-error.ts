@@ -199,6 +199,66 @@ export class NotFoundError extends DbError {
 }
 
 // ---------------------------------------------------------------------------
+// JsonbParseError — JSONB TEXT cell on SQLite/D1 could not be parsed
+// ---------------------------------------------------------------------------
+
+export interface JsonbParseErrorOptions {
+  readonly columnType: string;
+  readonly table?: string;
+  readonly column?: string;
+  readonly cause?: unknown;
+}
+
+export class JsonbParseError extends DbError {
+  readonly code = 'JSONB_PARSE_ERROR' as const;
+  override readonly table: string | undefined;
+  readonly column: string | undefined;
+  readonly columnType: string;
+
+  constructor(options: JsonbParseErrorOptions) {
+    const location =
+      options.table !== undefined && options.column !== undefined
+        ? `${options.table}.${options.column}`
+        : (options.column ?? '<unknown column>');
+    super(`Failed to parse ${options.columnType} value at ${location}`);
+    this.table = options.table;
+    this.column = options.column;
+    this.columnType = options.columnType;
+    if (options.cause !== undefined) {
+      (this as { cause?: unknown }).cause = options.cause;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// JsonbValidationError — validator rejected the parsed JSONB value on read
+// ---------------------------------------------------------------------------
+
+export interface JsonbValidationErrorOptions {
+  readonly table: string;
+  readonly column: string;
+  readonly value: unknown;
+  readonly cause?: unknown;
+}
+
+export class JsonbValidationError extends DbError {
+  readonly code = 'JSONB_VALIDATION_ERROR' as const;
+  override readonly table: string;
+  readonly column: string;
+  readonly value: unknown;
+
+  constructor(options: JsonbValidationErrorOptions) {
+    super(`Validator rejected value at ${options.table}.${options.column}`);
+    this.table = options.table;
+    this.column = options.column;
+    this.value = options.value;
+    if (options.cause !== undefined) {
+      (this as { cause?: unknown }).cause = options.cause;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // ConnectionError
 // ---------------------------------------------------------------------------
 

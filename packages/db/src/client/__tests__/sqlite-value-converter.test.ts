@@ -1,4 +1,5 @@
 import { describe, expect, it } from '@vertz/test';
+import { JsonbParseError } from '../../errors';
 import { fromSqliteValue, toSqliteValue } from '../sqlite-value-converter';
 
 describe('toSqliteValue', () => {
@@ -26,6 +27,72 @@ describe('toSqliteValue', () => {
 
   it('passes through null unchanged', () => {
     expect(toSqliteValue(null)).toBe(null);
+  });
+
+  it('stringifies plain objects to JSON', () => {
+    expect(toSqliteValue({ a: 1, b: 'x' })).toBe('{"a":1,"b":"x"}');
+  });
+
+  it('stringifies arrays to JSON', () => {
+    expect(toSqliteValue([1, 2, 3])).toBe('[1,2,3]');
+  });
+
+  it('stringifies null-prototype objects to JSON', () => {
+    const obj = Object.create(null) as Record<string, unknown>;
+    obj.a = 1;
+    expect(toSqliteValue(obj)).toBe('{"a":1}');
+  });
+
+  it('passes through Date unchanged as ISO (not stringified as object)', () => {
+    const date = new Date('2024-01-15T10:30:00.000Z');
+    expect(toSqliteValue(date)).toBe('2024-01-15T10:30:00.000Z');
+  });
+
+  it('passes through Uint8Array unchanged (not JSON-stringified)', () => {
+    const buf = new Uint8Array([1, 2, 3]);
+    expect(toSqliteValue(buf)).toBe(buf);
+  });
+
+  it('passes through Int32Array unchanged', () => {
+    const arr = new Int32Array([1, 2]);
+    expect(toSqliteValue(arr)).toBe(arr);
+  });
+
+  it('passes through ArrayBuffer unchanged', () => {
+    const buf = new ArrayBuffer(8);
+    expect(toSqliteValue(buf)).toBe(buf);
+  });
+
+  it('passes through Map unchanged (JSON.stringify would silently corrupt it)', () => {
+    const m = new Map<string, number>([['a', 1]]);
+    expect(toSqliteValue(m)).toBe(m);
+  });
+
+  it('passes through Set unchanged', () => {
+    const s = new Set([1, 2, 3]);
+    expect(toSqliteValue(s)).toBe(s);
+  });
+
+  it('passes through URL unchanged', () => {
+    const u = new URL('https://vertz.dev');
+    expect(toSqliteValue(u)).toBe(u);
+  });
+
+  it('passes through RegExp unchanged', () => {
+    const re = /abc/;
+    expect(toSqliteValue(re)).toBe(re);
+  });
+
+  it('passes through class instances unchanged', () => {
+    class Widget {
+      constructor(public n: number) {}
+    }
+    const w = new Widget(1);
+    expect(toSqliteValue(w)).toBe(w);
+  });
+
+  it('passes through undefined unchanged', () => {
+    expect(toSqliteValue(undefined)).toBe(undefined);
   });
 });
 
@@ -74,5 +141,25 @@ describe('fromSqliteValue', () => {
   it('passes through undefined values', () => {
     expect(fromSqliteValue(undefined, 'text')).toBe(undefined);
     expect(fromSqliteValue(undefined, 'boolean')).toBe(undefined);
+  });
+
+  it('parses JSON string to object for jsonb columns', () => {
+    expect(fromSqliteValue('{"a":1}', 'jsonb')).toEqual({ a: 1 });
+  });
+
+  it('parses JSON string to object for json columns', () => {
+    expect(fromSqliteValue('{"b":2}', 'json')).toEqual({ b: 2 });
+  });
+
+  it('parses JSON arrays for jsonb columns', () => {
+    expect(fromSqliteValue('[1,2,3]', 'jsonb')).toEqual([1, 2, 3]);
+  });
+
+  it('passes through null unchanged for jsonb columns', () => {
+    expect(fromSqliteValue(null, 'jsonb')).toBe(null);
+  });
+
+  it('throws JsonbParseError on invalid JSON for jsonb columns', () => {
+    expect(() => fromSqliteValue('not json', 'jsonb')).toThrow(JsonbParseError);
   });
 });
