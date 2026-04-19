@@ -1,5 +1,6 @@
 import { err, ok, type Result } from '@vertz/schema';
 import { type Dialect, defaultPostgresDialect, defaultSqliteDialect } from '../dialect';
+import type { DialectName } from '../dialect/types';
 import { type ReadError, toReadError, toWriteError, type WriteError } from '../errors';
 import * as agg from '../query/aggregate';
 import * as crud from '../query/crud';
@@ -240,19 +241,21 @@ type EntryColumns<TEntry extends ModelEntry> = EntryTable<TEntry>['_columns'];
 type TypedGetOptions<
   TEntry extends ModelEntry,
   TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>,
+  TDialect extends DialectName = DialectName,
 > = {
-  readonly where?: FilterType<EntryColumns<TEntry>>;
+  readonly where?: FilterType<EntryColumns<TEntry>, TDialect>;
   readonly select?: SelectOption<EntryColumns<TEntry>>;
   readonly orderBy?: OrderByType<EntryColumns<TEntry>>;
-  readonly include?: IncludeOption<EntryRelations<TEntry>, TModels>;
+  readonly include?: IncludeOption<EntryRelations<TEntry>, TModels, TDialect>;
 };
 
 /** Options for list / listAndCount — typed per-table. */
 type TypedListOptions<
   TEntry extends ModelEntry,
   TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>,
+  TDialect extends DialectName = DialectName,
 > = {
-  readonly where?: FilterType<EntryColumns<TEntry>>;
+  readonly where?: FilterType<EntryColumns<TEntry>, TDialect>;
   readonly select?: SelectOption<EntryColumns<TEntry>>;
   readonly orderBy?: OrderByType<EntryColumns<TEntry>>;
   readonly limit?: number;
@@ -261,7 +264,7 @@ type TypedListOptions<
   readonly cursor?: Record<string, unknown>;
   /** Number of rows to take (used with cursor). Aliases `limit` when cursor is present. */
   readonly take?: number;
-  readonly include?: IncludeOption<EntryRelations<TEntry>, TModels>;
+  readonly include?: IncludeOption<EntryRelations<TEntry>, TModels, TDialect>;
 };
 
 /** Options for create — typed per-table. */
@@ -282,40 +285,58 @@ type TypedCreateManyOptions<TEntry extends ModelEntry> = {
 };
 
 /** Options for update — typed per-table. */
-type TypedUpdateOptions<TEntry extends ModelEntry> = {
-  readonly where: FilterType<EntryColumns<TEntry>>;
+type TypedUpdateOptions<
+  TEntry extends ModelEntry,
+  TDialect extends DialectName = DialectName,
+> = {
+  readonly where: FilterType<EntryColumns<TEntry>, TDialect>;
   readonly data: UpdateInput<EntryTable<TEntry>>;
   readonly select?: SelectOption<EntryColumns<TEntry>>;
 };
 
 /** Options for updateMany — typed per-table. */
-type TypedUpdateManyOptions<TEntry extends ModelEntry> = {
-  readonly where: FilterType<EntryColumns<TEntry>>;
+type TypedUpdateManyOptions<
+  TEntry extends ModelEntry,
+  TDialect extends DialectName = DialectName,
+> = {
+  readonly where: FilterType<EntryColumns<TEntry>, TDialect>;
   readonly data: UpdateInput<EntryTable<TEntry>>;
 };
 
 /** Options for upsert — typed per-table. */
-type TypedUpsertOptions<TEntry extends ModelEntry> = {
-  readonly where: FilterType<EntryColumns<TEntry>>;
+type TypedUpsertOptions<
+  TEntry extends ModelEntry,
+  TDialect extends DialectName = DialectName,
+> = {
+  readonly where: FilterType<EntryColumns<TEntry>, TDialect>;
   readonly create: InsertInput<EntryTable<TEntry>>;
   readonly update: UpdateInput<EntryTable<TEntry>>;
   readonly select?: SelectOption<EntryColumns<TEntry>>;
 };
 
 /** Options for delete — typed per-table. */
-type TypedDeleteOptions<TEntry extends ModelEntry> = {
-  readonly where: FilterType<EntryColumns<TEntry>>;
+type TypedDeleteOptions<
+  TEntry extends ModelEntry,
+  TDialect extends DialectName = DialectName,
+> = {
+  readonly where: FilterType<EntryColumns<TEntry>, TDialect>;
   readonly select?: SelectOption<EntryColumns<TEntry>>;
 };
 
 /** Options for deleteMany — typed per-table. */
-type TypedDeleteManyOptions<TEntry extends ModelEntry> = {
-  readonly where: FilterType<EntryColumns<TEntry>>;
+type TypedDeleteManyOptions<
+  TEntry extends ModelEntry,
+  TDialect extends DialectName = DialectName,
+> = {
+  readonly where: FilterType<EntryColumns<TEntry>, TDialect>;
 };
 
 /** Options for count — typed per-table. */
-type TypedCountOptions<TEntry extends ModelEntry> = {
-  readonly where?: FilterType<EntryColumns<TEntry>>;
+type TypedCountOptions<
+  TEntry extends ModelEntry,
+  TDialect extends DialectName = DialectName,
+> = {
+  readonly where?: FilterType<EntryColumns<TEntry>, TDialect>;
 };
 
 // ---------------------------------------------------------------------------
@@ -326,9 +347,10 @@ type TypedCountOptions<TEntry extends ModelEntry> = {
 export interface ModelDelegate<
   TEntry extends ModelEntry,
   TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>,
+  TDialect extends DialectName = DialectName,
 > {
   /** Get a single row or null. */
-  get<TOptions extends TypedGetOptions<TEntry, TModels>>(
+  get<TOptions extends TypedGetOptions<TEntry, TModels, TDialect>>(
     options?: TOptions,
   ): Promise<
     Result<
@@ -338,21 +360,21 @@ export interface ModelDelegate<
   >;
 
   /** Get a single row or return NotFoundError. */
-  getOrThrow<TOptions extends TypedGetOptions<TEntry, TModels>>(
+  getOrThrow<TOptions extends TypedGetOptions<TEntry, TModels, TDialect>>(
     options?: TOptions,
   ): Promise<
     Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>, TModels>, ReadError>
   >;
 
   /** List multiple rows. */
-  list<TOptions extends TypedListOptions<TEntry, TModels>>(
+  list<TOptions extends TypedListOptions<TEntry, TModels, TDialect>>(
     options?: TOptions,
   ): Promise<
     Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>, TModels>[], ReadError>
   >;
 
   /** List multiple rows with total count. */
-  listAndCount<TOptions extends TypedListOptions<TEntry, TModels>>(
+  listAndCount<TOptions extends TypedListOptions<TEntry, TModels, TDialect>>(
     options?: TOptions,
   ): Promise<
     Result<
@@ -384,7 +406,7 @@ export interface ModelDelegate<
   >;
 
   /** Update matching rows and return the first. */
-  update<TOptions extends TypedUpdateOptions<TEntry>>(
+  update<TOptions extends TypedUpdateOptions<TEntry, TDialect>>(
     options: TOptions,
   ): Promise<
     Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>, TModels>, WriteError>
@@ -392,18 +414,18 @@ export interface ModelDelegate<
 
   /** Update matching rows and return the count. */
   updateMany(
-    options: TypedUpdateManyOptions<TEntry>,
+    options: TypedUpdateManyOptions<TEntry, TDialect>,
   ): Promise<Result<{ count: number }, WriteError>>;
 
   /** Insert or update a row. */
-  upsert<TOptions extends TypedUpsertOptions<TEntry>>(
+  upsert<TOptions extends TypedUpsertOptions<TEntry, TDialect>>(
     options: TOptions,
   ): Promise<
     Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>, TModels>, WriteError>
   >;
 
   /** Delete a matching row and return it. */
-  delete<TOptions extends TypedDeleteOptions<TEntry>>(
+  delete<TOptions extends TypedDeleteOptions<TEntry, TDialect>>(
     options: TOptions,
   ): Promise<
     Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>, TModels>, WriteError>
@@ -411,11 +433,11 @@ export interface ModelDelegate<
 
   /** Delete matching rows and return the count. */
   deleteMany(
-    options: TypedDeleteManyOptions<TEntry>,
+    options: TypedDeleteManyOptions<TEntry, TDialect>,
   ): Promise<Result<{ count: number }, WriteError>>;
 
   /** Count rows matching an optional filter. */
-  count(options?: TypedCountOptions<TEntry>): Promise<Result<number, ReadError>>;
+  count(options?: TypedCountOptions<TEntry, TDialect>): Promise<Result<number, ReadError>>;
 
   /** Run aggregation functions on a table. */
   aggregate<TArgs extends agg.TypedAggregateArgs<TEntry>>(
@@ -454,8 +476,11 @@ export interface DatabaseInternals<TModels extends Record<string, ModelEntry>> {
  *
  * Auto-commits on success, auto-rolls-back on error.
  */
-export type TransactionClient<TModels extends Record<string, ModelEntry>> = {
-  readonly [K in keyof TModels]: ModelDelegate<TModels[K], TModels>;
+export type TransactionClient<
+  TModels extends Record<string, ModelEntry>,
+  TDialect extends DialectName = DialectName,
+> = {
+  readonly [K in keyof TModels]: ModelDelegate<TModels[K], TModels, TDialect>;
 } & {
   /** Execute a raw SQL query within the transaction. */
   query<T = Record<string, unknown>>(
@@ -468,8 +493,11 @@ export type TransactionClient<TModels extends Record<string, ModelEntry>> = {
 // Model delegates are mapped from the models registry keys.
 // ---------------------------------------------------------------------------
 
-export type DatabaseClient<TModels extends Record<string, ModelEntry>> = {
-  readonly [K in keyof TModels]: ModelDelegate<TModels[K], TModels>;
+export type DatabaseClient<
+  TModels extends Record<string, ModelEntry>,
+  TDialect extends DialectName = DialectName,
+> = {
+  readonly [K in keyof TModels]: ModelDelegate<TModels[K], TModels, TDialect>;
 } & {
   /** Execute a raw SQL query via the sql tagged template. */
   query<T = Record<string, unknown>>(
@@ -481,7 +509,7 @@ export type DatabaseClient<TModels extends Record<string, ModelEntry>> = {
    * All operations on the `tx` client are atomic — auto-commits on success,
    * auto-rolls-back if the callback throws.
    */
-  transaction<T>(fn: (tx: TransactionClient<TModels>) => Promise<T>): Promise<T>;
+  transaction<T>(fn: (tx: TransactionClient<TModels, TDialect>) => Promise<T>): Promise<T>;
 
   /** Close all pool connections. */
   close(): Promise<void>;
@@ -892,9 +920,12 @@ function buildQueryMethod(qfn: QueryFn) {
  * idle connections are closed after 30 seconds. Set `idleTimeout` explicitly
  * to override (value in milliseconds, e.g., `60000` for 60s).
  */
-export function createDb<TModels extends Record<string, ModelEntry>>(
-  options: CreateDbOptions<TModels>,
-): DatabaseClient<TModels> {
+export function createDb<
+  TModels extends Record<string, ModelEntry>,
+  TDialect extends DialectName = DialectName,
+>(
+  options: CreateDbOptions<TModels> & { readonly dialect?: TDialect },
+): DatabaseClient<TModels, TDialect> {
   const { models, log, dialect } = options;
 
   // Validate reserved model names

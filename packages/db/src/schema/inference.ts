@@ -1,4 +1,6 @@
+import type { DialectName } from '../dialect/types';
 import type { ColumnBuilder, InferColumnType } from './column';
+import type { JsonbPathFilterGuard } from './jsonb-filter-brand';
 import type { RelationDef } from './relation';
 import type {
   AllAnnotations,
@@ -60,16 +62,59 @@ type IsNullable<C> =
     : false;
 
 /**
- * FilterType<TColumns> — typed where clause.
- *
- * Each key maps to either:
- * - A direct value (shorthand for `{ eq: value }`)
- * - An object with typed filter operators
+ * Extract column keys whose underlying SQL type is `'jsonb'` or `'json'`.
+ * Used to synthesize path-shaped filter keys (`'col->field'`) on Postgres.
  */
-export type FilterType<TColumns extends ColumnRecord> = {
-  [K in keyof TColumns]?:
-    | InferColumnType<TColumns[K]>
-    | ColumnFilterOperators<InferColumnType<TColumns[K]>, IsNullable<TColumns[K]>>;
+type JsonbColumnKeys<TColumns extends ColumnRecord> = {
+  [K in keyof TColumns]: TColumns[K] extends ColumnBuilder<unknown, infer M>
+    ? M extends { readonly sqlType: 'jsonb' } | { readonly sqlType: 'json' }
+      ? K & string
+      : never
+    : never;
+}[keyof TColumns];
+
+/**
+ * Path-shaped JSONB key template like `'meta->displayName'`.
+ * Resolves to `never` when there are no JSONB columns, preserving the
+ * strict key set of `FilterType`.
+ */
+type JsonbPathKey<TColumns extends ColumnRecord> =
+  `${JsonbColumnKeys<TColumns>}->${string}`;
+
+/**
+ * Value type for a path-shaped JSONB key. Postgres admits an untyped operand
+ * (the payload `T` can't be statically resolved without a typed path builder;
+ * follow-up in #2868). Other dialects resolve to a keyed-never brand whose
+ * key name IS the recovery sentence — TypeScript's excess-property check
+ * quotes the key verbatim in diagnostics.
+ */
+type JsonbPathValue<TDialect extends DialectName> = TDialect extends 'postgres'
+  ? unknown | ComparisonOperators<unknown>
+  : JsonbPathFilterGuard;
+
+/**
+ * FilterType<TColumns, TDialect> — typed where clause, dialect-conditional.
+ *
+ * Each key is one of:
+ * - A column name mapping to a value (shorthand for `{ eq: value }`) or
+ *   an object with typed filter operators.
+ * - A path-shaped JSONB key (`'meta->field'`) on Postgres. On SQLite the
+ *   same key accepts only a keyed-never brand whose name reads as the
+ *   recovery sentence, so assigning `{ 'meta->k': { eq: 'v' } }` fails
+ *   with that sentence in the diagnostic.
+ *
+ * Array operators (`arrayContains`, etc.) are runtime-only today and not
+ * yet part of the TS surface — tracked as a follow-up in #2868.
+ */
+export type FilterType<
+  TColumns extends ColumnRecord,
+  TDialect extends DialectName = DialectName,
+> = {
+  [K in keyof TColumns | JsonbPathKey<TColumns>]?: K extends keyof TColumns
+    ?
+        | InferColumnType<TColumns[K]>
+        | ColumnFilterOperators<InferColumnType<TColumns[K]>, IsNullable<TColumns[K]>>
+    : JsonbPathValue<TDialect>;
 };
 
 // ---------------------------------------------------------------------------
@@ -217,10 +262,11 @@ export type FindModelRelations<
 type NestedInclude<
   TModels extends Record<string, ModelEntry>,
   TTable extends TableDef<ColumnRecord>,
+  TDialect extends DialectName,
   _Depth extends readonly unknown[],
 > = [FindModelByTable<TModels, TTable>] extends [never]
   ? Record<string, unknown>
-  : IncludeOption<FindModelRelations<TModels, TTable>, TModels, [..._Depth, unknown]>;
+  : IncludeOption<FindModelRelations<TModels, TTable>, TModels, TDialect, [..._Depth, unknown]>;
 
 /**
  * The shape of include options for a given relations record.
@@ -239,6 +285,7 @@ type NestedInclude<
 export type IncludeOption<
   TRelations extends RelationsRecord,
   TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>,
+  TDialect extends DialectName = DialectName,
   _Depth extends readonly unknown[] = [],
 > = _Depth['length'] extends 3
   ? Record<string, unknown>
@@ -248,10 +295,10 @@ export type IncludeOption<
         | (RelationTarget<TRelations[K]> extends TableDef<infer TCols>
             ? {
                 select?: { [C in keyof TCols]?: true };
-                where?: FilterType<TCols>;
+                where?: FilterType<TCols, TDialect>;
                 orderBy?: OrderByType<TCols>;
                 limit?: number;
-                include?: NestedInclude<TModels, RelationTarget<TRelations[K]>, _Depth>;
+                include?: NestedInclude<TModels, RelationTarget<TRelations[K]>, TDialect, _Depth>;
               }
             : never);
     };
