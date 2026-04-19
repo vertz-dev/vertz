@@ -1,5 +1,12 @@
 # create-vertz
 
+## 0.2.73
+
+### Patch Changes
+
+- Updated dependencies [[`a06aaae`](https://github.com/vertz-dev/vertz/commit/a06aaae48e5e5612c36b4dd29dd6e0adebdc776a)]:
+  - @vertz/create-vertz-app@0.2.73
+
 ## 0.2.72
 
 ### Patch Changes

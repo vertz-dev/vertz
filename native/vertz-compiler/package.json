@@ -1,6 +1,6 @@
 {
   "name": "@vertz/native-compiler",
-  "version": "0.2.72",
+  "version": "0.2.73",
   "description": "Native Rust compiler for Vertz (signal transforms, JSX, CSS)",
   "license": "MIT",
   "repository": {
@@ -27,10 +27,10 @@
     "test:parity": "ls vertz-compiler.*.node 1>/dev/null 2>&1 && bun test __tests__/parity/ || echo 'Skipping parity tests'"
   },
   "optionalDependencies": {
-    "@vertz/native-compiler-darwin-arm64": "0.2.72",
-    "@vertz/native-compiler-darwin-x64": "0.2.72",
-    "@vertz/native-compiler-linux-x64": "0.2.72",
-    "@vertz/native-compiler-linux-arm64": "0.2.72"
+    "@vertz/native-compiler-darwin-arm64": "0.2.73",
+    "@vertz/native-compiler-darwin-x64": "0.2.73",
+    "@vertz/native-compiler-linux-x64": "0.2.73",
+    "@vertz/native-compiler-linux-arm64": "0.2.73"
   },
   "devDependencies": {
     "@vertz/test": "workspace:*"
