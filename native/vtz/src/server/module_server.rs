@@ -9,7 +9,9 @@ use crate::compiler::pipeline::CompilationPipeline;
 use crate::deps::prebundle;
 use crate::deps::resolve;
 use crate::errors::broadcaster::ErrorBroadcaster;
-use crate::errors::categories::{extract_snippet, DevError, ErrorCategory};
+use crate::errors::categories::{
+    build_compile_error, extract_snippet, parse_location_from_message, DevError, ErrorCategory,
+};
 use crate::errors::suggestions;
 use crate::hmr::websocket::HmrHub;
 use crate::ipc_permissions::IpcPermissions;
@@ -158,39 +160,13 @@ pub async fn handle_source_file(
         // Read source for code snippet extraction
         let source = std::fs::read_to_string(&file_path).unwrap_or_default();
 
-        // Use the first error with location info for the primary error
-        let primary = &result.errors[0];
-        let error_msg = &primary.message;
-
-        let suggestion = suggestions::suggest_build_fix(error_msg);
-        let mut error = DevError::build(error_msg).with_file(&file_str);
-
-        // Set line/column from structured compiler diagnostics
-        if let (Some(line), Some(col)) = (primary.line, primary.column) {
-            error = error.with_location(line, col);
-            if !source.is_empty() {
-                error = error.with_snippet(extract_snippet(&source, line, 3));
-            }
-        } else if !source.is_empty() {
-            // No location info — try to parse from error message "at file:line:col"
-            let (parsed_line, parsed_col) = parse_location_from_message(error_msg);
-            if let Some(line) = parsed_line {
-                error = error.with_location(line, parsed_col.unwrap_or(1));
-                error = error.with_snippet(extract_snippet(&source, line, 3));
-            } else {
-                error = error.with_snippet(extract_snippet(&source, 1, 3));
-            }
+        if let Some(error) = build_compile_error(&result.errors, &file_str, &source) {
+            // Report asynchronously (don't block the response)
+            let broadcaster = state.error_broadcaster.clone();
+            tokio::spawn(async move {
+                broadcaster.report_error(error).await;
+            });
         }
-
-        if let Some(s) = suggestion {
-            error = error.with_suggestion(s);
-        }
-
-        // Report asynchronously (don't block the response)
-        let broadcaster = state.error_broadcaster.clone();
-        tokio::spawn(async move {
-            broadcaster.report_error(error).await;
-        });
     } else {
         // Compilation succeeded — update module graph with imports
         let source = std::fs::read_to_string(&file_path).unwrap_or_default();
@@ -821,50 +797,6 @@ pub async fn handle_page_route(
         .unwrap()
 }
 
-/// Parse line and column from error messages containing "at file:line:col" or ":line:col".
-fn parse_location_from_message(message: &str) -> (Option<u32>, Option<u32>) {
-    // Pattern: "... at /path/to/file.tsx:10:5" or "...:10:5"
-    // Look for the last occurrence of :<digits>:<digits> or :<digits>
-    let bytes = message.as_bytes();
-    let len = bytes.len();
-    let mut i = len;
-
-    // Scan backwards for :<digits>:<digits> pattern
-    while i > 0 {
-        i -= 1;
-        if bytes[i] == b':' {
-            // Try to read digits after this colon
-            let col_start = i + 1;
-            let mut j = col_start;
-            while j < len && bytes[j].is_ascii_digit() {
-                j += 1;
-            }
-            if j > col_start {
-                let col: u32 = message[col_start..j].parse().unwrap_or(0);
-                if col > 0 {
-                    // Look for another colon before this one with digits (the line number)
-                    if i > 0 {
-                        let mut k = i - 1;
-                        while k > 0 && bytes[k].is_ascii_digit() {
-                            k -= 1;
-                        }
-                        if bytes[k] == b':' && k + 1 < i {
-                            let line: u32 = message[k + 1..i].parse().unwrap_or(0);
-                            if line > 0 {
-                                return (Some(line), Some(col));
-                            }
-                        }
-                    }
-                    // Only found one number — treat as line
-                    return (Some(col), None);
-                }
-            }
-        }
-    }
-
-    (None, None)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1036,34 +968,6 @@ mod tests {
             .unwrap();
         let html = String::from_utf8(body.to_vec()).unwrap();
         assert!(html.contains("<script type=\"module\" src=\"/src/app.tsx\"></script>"));
-    }
-
-    #[test]
-    fn test_parse_location_line_and_column() {
-        let (line, col) = parse_location_from_message("Unexpected token at /src/app.tsx:10:5");
-        assert_eq!(line, Some(10));
-        assert_eq!(col, Some(5));
-    }
-
-    #[test]
-    fn test_parse_location_no_location() {
-        let (line, col) = parse_location_from_message("Unexpected token");
-        assert_eq!(line, None);
-        assert_eq!(col, None);
-    }
-
-    #[test]
-    fn test_parse_location_line_only() {
-        let (line, col) = parse_location_from_message("Error at line :42");
-        assert_eq!(line, Some(42));
-        assert_eq!(col, None);
-    }
-
-    #[test]
-    fn test_parse_location_large_numbers() {
-        let (line, col) = parse_location_from_message("error:150:23");
-        assert_eq!(line, Some(150));
-        assert_eq!(col, Some(23));
     }
 
     // ── Auto-install tests ─────────────────────────────────────────
@@ -1375,37 +1279,6 @@ mod tests {
 
         let result = resolve_in_bun_cache("@scope/pkg/dist/index.js", tmp.path());
         assert!(result.is_some());
-    }
-
-    // ── parse_location_from_message edge cases ──────────────────────
-
-    #[test]
-    fn test_parse_location_multiple_colons() {
-        let (line, col) = parse_location_from_message("Error in file.tsx:5:10 and more text");
-        assert_eq!(line, Some(5));
-        assert_eq!(col, Some(10));
-    }
-
-    #[test]
-    fn test_parse_location_colon_no_digits() {
-        let (line, col) = parse_location_from_message("Error: something went wrong");
-        assert_eq!(line, None);
-        assert_eq!(col, None);
-    }
-
-    #[test]
-    fn test_parse_location_empty() {
-        let (line, col) = parse_location_from_message("");
-        assert_eq!(line, None);
-        assert_eq!(col, None);
-    }
-
-    #[test]
-    fn test_parse_location_only_colon_zero() {
-        // :0 is not valid (> 0 check)
-        let (line, col) = parse_location_from_message("at :0");
-        assert_eq!(line, None);
-        assert_eq!(col, None);
     }
 
     // ── resolve_in_workspace_node_modules with symlinks ─────────────

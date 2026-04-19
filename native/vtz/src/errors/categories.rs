@@ -212,6 +212,89 @@ pub fn extract_snippet(source: &str, error_line: u32, context_lines: u32) -> Str
     snippet
 }
 
+/// Parse line and column from error messages containing "at file:line:col" or ":line:col".
+///
+/// Scans backwards for a `:<digits>:<digits>` pattern (or a single `:<digits>` for
+/// line-only). Used as a fallback when the compiler returns a diagnostic without
+/// structured line/column info but encodes the location in the message string.
+pub fn parse_location_from_message(message: &str) -> (Option<u32>, Option<u32>) {
+    let bytes = message.as_bytes();
+    let len = bytes.len();
+    let mut i = len;
+
+    while i > 0 {
+        i -= 1;
+        if bytes[i] == b':' {
+            let col_start = i + 1;
+            let mut j = col_start;
+            while j < len && bytes[j].is_ascii_digit() {
+                j += 1;
+            }
+            if j > col_start {
+                let col: u32 = message[col_start..j].parse().unwrap_or(0);
+                if col > 0 {
+                    if i > 0 {
+                        let mut k = i - 1;
+                        while k > 0 && bytes[k].is_ascii_digit() {
+                            k -= 1;
+                        }
+                        if bytes[k] == b':' && k + 1 < i {
+                            let line: u32 = message[k + 1..i].parse().unwrap_or(0);
+                            if line > 0 {
+                                return (Some(line), Some(col));
+                            }
+                        }
+                    }
+                    return (Some(col), None);
+                }
+            }
+        }
+    }
+
+    (None, None)
+}
+
+/// Build a `DevError` (build category) from compiler diagnostics.
+///
+/// Takes the first entry in `errors`, extracts message + line/column, and attaches
+/// a code snippet and fix suggestion. Falls back to parsing the location from the
+/// message text, then to a line-1 snippet, when the diagnostic lacks structured
+/// location info.
+///
+/// Returns `None` when `errors` is empty.
+pub fn build_compile_error(
+    errors: &[crate::compiler::pipeline::CompileError],
+    file_path: &str,
+    source: &str,
+) -> Option<DevError> {
+    let primary = errors.first()?;
+    let message = &primary.message;
+    let suggestion = crate::errors::suggestions::suggest_build_fix(message);
+
+    let mut error = DevError::build(message).with_file(file_path);
+
+    if let (Some(line), Some(col)) = (primary.line, primary.column) {
+        error = error.with_location(line, col);
+        if !source.is_empty() {
+            error = error.with_snippet(extract_snippet(source, line, 3));
+        }
+    } else if !source.is_empty() {
+        let (parsed_line, parsed_col) = parse_location_from_message(message);
+        if let Some(line) = parsed_line {
+            error = error.with_location(line, parsed_col.unwrap_or(1));
+            error = error.with_snippet(extract_snippet(source, line, 3));
+        } else {
+            error = error.with_snippet(extract_snippet(source, 1, 3));
+        }
+    }
+
+    if let Some(s) = suggestion {
+        error = error.with_suggestion(s);
+    }
+
+    Some(error)
+}
+
 /// Refine an approximate source line by searching for the error text.
 ///
 /// When source map resolution returns a nearby line (not exact), this function
@@ -739,5 +822,151 @@ mod tests {
         assert_eq!(state.errors_for(ErrorCategory::Build).len(), 2);
         assert_eq!(state.errors_for(ErrorCategory::Runtime).len(), 1);
         assert_eq!(state.errors_for(ErrorCategory::Resolve).len(), 0);
+    }
+
+    // ── parse_location_from_message tests ──
+
+    #[test]
+    fn test_parse_location_line_and_column() {
+        let (line, col) = parse_location_from_message("Unexpected token at /src/app.tsx:10:5");
+        assert_eq!(line, Some(10));
+        assert_eq!(col, Some(5));
+    }
+
+    #[test]
+    fn test_parse_location_no_location() {
+        let (line, col) = parse_location_from_message("Unexpected token");
+        assert_eq!(line, None);
+        assert_eq!(col, None);
+    }
+
+    #[test]
+    fn test_parse_location_line_only() {
+        let (line, col) = parse_location_from_message("Error at line :42");
+        assert_eq!(line, Some(42));
+        assert_eq!(col, None);
+    }
+
+    #[test]
+    fn test_parse_location_large_numbers() {
+        let (line, col) = parse_location_from_message("error:150:23");
+        assert_eq!(line, Some(150));
+        assert_eq!(col, Some(23));
+    }
+
+    #[test]
+    fn test_parse_location_multiple_colons() {
+        let (line, col) = parse_location_from_message("Error in file.tsx:5:10 and more text");
+        assert_eq!(line, Some(5));
+        assert_eq!(col, Some(10));
+    }
+
+    #[test]
+    fn test_parse_location_colon_no_digits() {
+        let (line, col) = parse_location_from_message("Error: something went wrong");
+        assert_eq!(line, None);
+        assert_eq!(col, None);
+    }
+
+    #[test]
+    fn test_parse_location_empty() {
+        let (line, col) = parse_location_from_message("");
+        assert_eq!(line, None);
+        assert_eq!(col, None);
+    }
+
+    #[test]
+    fn test_parse_location_only_colon_zero() {
+        let (line, col) = parse_location_from_message("at :0");
+        assert_eq!(line, None);
+        assert_eq!(col, None);
+    }
+
+    // ── build_compile_error tests ──
+
+    use crate::compiler::pipeline::CompileError;
+
+    #[test]
+    fn test_build_compile_error_empty_returns_none() {
+        let result = build_compile_error(&[], "/src/app.tsx", "");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_build_compile_error_uses_structured_line_column() {
+        let errors = vec![CompileError {
+            message: "Unexpected token".into(),
+            line: Some(3),
+            column: Some(7),
+        }];
+        let source = "line1\nline2\nconst x = ;\nline4\nline5";
+        let err = build_compile_error(&errors, "/src/app.tsx", source).unwrap();
+
+        assert_eq!(err.category, ErrorCategory::Build);
+        assert_eq!(err.message, "Unexpected token");
+        assert_eq!(err.file.as_deref(), Some("/src/app.tsx"));
+        assert_eq!(err.line, Some(3));
+        assert_eq!(err.column, Some(7));
+        let snippet = err.code_snippet.expect("snippet present");
+        assert!(
+            snippet.contains(">    3 | const x = ;"),
+            "snippet should mark line 3: {}",
+            snippet,
+        );
+    }
+
+    #[test]
+    fn test_build_compile_error_falls_back_to_parsed_location() {
+        let errors = vec![CompileError {
+            message: "Error in app.tsx:2:4".into(),
+            line: None,
+            column: None,
+        }];
+        let source = "line1\nbad line here\nline3";
+        let err = build_compile_error(&errors, "/src/app.tsx", source).unwrap();
+
+        assert_eq!(err.line, Some(2));
+        assert_eq!(err.column, Some(4));
+        let snippet = err.code_snippet.expect("snippet present");
+        assert!(snippet.contains(">    2 | bad line here"));
+    }
+
+    #[test]
+    fn test_build_compile_error_falls_back_to_line_one_snippet() {
+        let errors = vec![CompileError {
+            message: "Syntax error".into(),
+            line: None,
+            column: None,
+        }];
+        let source = "line1\nline2\nline3";
+        let err = build_compile_error(&errors, "/src/app.tsx", source).unwrap();
+
+        assert_eq!(err.line, None);
+        assert_eq!(err.column, None);
+        let snippet = err.code_snippet.expect("snippet present");
+        assert!(snippet.contains(">    1 | line1"));
+    }
+
+    #[test]
+    fn test_build_compile_error_skips_snippet_when_source_empty() {
+        let errors = vec![CompileError {
+            message: "Syntax error".into(),
+            line: None,
+            column: None,
+        }];
+        let err = build_compile_error(&errors, "/src/app.tsx", "").unwrap();
+        assert!(err.code_snippet.is_none());
+    }
+
+    #[test]
+    fn test_build_compile_error_attaches_suggestion_when_available() {
+        // "Cannot find module" triggers a suggestion from suggestions::suggest_build_fix
+        let errors = vec![CompileError {
+            message: "Cannot find module './missing'".into(),
+            line: Some(1),
+            column: Some(1),
+        }];
+        let err = build_compile_error(&errors, "/src/app.tsx", "import './missing';").unwrap();
+        assert!(err.suggestion.is_some(), "expected a fix suggestion");
     }
 }
