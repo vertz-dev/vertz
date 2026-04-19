@@ -1,5 +1,6 @@
 import type { UnwrapSignals } from '../runtime/signal-types';
 import { getSSRContext } from '../ssr/ssr-render-context';
+import { resolveChildren, type ChildValue } from './children';
 
 export type { UnwrapSignals } from '../runtime/signal-types';
 
@@ -237,15 +238,24 @@ export function createContext<T>(defaultValue?: T, __stableId?: string): Context
         // Children may be a thunk (compiler output) or a raw value
         // (JSX runtime / test code). Handle both.
         const result = typeof children === 'function' ? children() : children;
-        if (
-          typeof process !== 'undefined' &&
-          process.env.NODE_ENV !== 'production' &&
-          Array.isArray(result)
-        ) {
-          throw new Error(
-            'Context.Provider JSX children must have a single root element. ' +
-              'Wrap multiple children in a fragment: <><Child1 /><Child2 /></>',
-          );
+        // Multi-child components compile to a DocumentFragment-returning thunk,
+        // so `result` is always a single Node. If a hand-written caller passes
+        // an array (including nested arrays or thunks), flatten it into a
+        // DocumentFragment so the Provider stays usable — the consumer expects
+        // a single node, not an array. Fixes #2821.
+        if (Array.isArray(result)) {
+          const frag = document.createDocumentFragment();
+          // resolveChildren already flattens nested arrays, invokes thunks, and
+          // coerces primitives to text nodes. Booleans aren't in its contract,
+          // so filter them here (React/JSX convention is to render nothing for
+          // `true`/`false`).
+          const filtered = (result as unknown[]).filter(
+            (v) => typeof v !== 'boolean',
+          ) as ChildValue[];
+          for (const node of resolveChildren(filtered)) {
+            frag.appendChild(node);
+          }
+          return frag as unknown as HTMLElement;
         }
         return result as HTMLElement;
       } finally {

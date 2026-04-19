@@ -1365,21 +1365,40 @@ fn build_children_thunk(
     rx: &ReactivityContext,
     counter: &mut u32,
 ) -> String {
-    let mut values: Vec<String> = Vec::new();
-
-    for child in children {
-        if let Some(v) = transform_child_as_value(ms, program, child, rx, counter) {
-            values.push(v);
-        }
-    }
-
-    if values.is_empty() {
+    if children.is_empty() {
         return String::new();
     }
-    if values.len() == 1 {
-        return format!("() => {}", values[0]);
+
+    // Single child: emit an expression-returning thunk for the child value.
+    if children.len() == 1 {
+        return match transform_child_as_value(ms, program, children[0], rx, counter) {
+            Some(v) => format!("() => {}", v),
+            None => String::new(),
+        };
     }
-    format!("() => [{}]", values.join(", "))
+
+    // Fix #2821: multiple children are wrapped in a DocumentFragment so the
+    // consumer (Context.Provider, Suspense, ErrorBoundary, etc.) receives a
+    // single Node. This mirrors how `<>...</>` fragments are compiled, making
+    // `<Provider><a/><b/></Provider>` behave like
+    // `<Provider><><a/><b/></></Provider>`.
+    let frag_var = gen_var(counter);
+    let mut stmts: Vec<String> = Vec::new();
+    stmts.push(format!(
+        "const {} = document.createDocumentFragment()",
+        frag_var
+    ));
+    for child in children {
+        if let Some(stmt) = transform_child(ms, program, child, &frag_var, rx, counter) {
+            stmts.push(stmt);
+        }
+    }
+    let body = stmts
+        .iter()
+        .map(|s| format!("    {};", s))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("() => {{\n{}\n    return {};\n  }}", body, frag_var)
 }
 
 fn transform_child_as_value(
@@ -3938,8 +3957,37 @@ export function B() {
     return <Wrapper><span>a</span><span>b</span></Wrapper>;
 }"#,
         );
-        // Multiple children → children: () => [...]
-        assert!(result.contains("children: () => ["), "result: {result}");
+        // Fix #2821: multi-child component children are wrapped in a
+        // DocumentFragment so consumers (Provider, Suspense, ErrorBoundary)
+        // receive a single Node, not an array.
+        assert!(
+            result.contains("createDocumentFragment"),
+            "result: {result}"
+        );
+        assert!(!result.contains("children: () => ["), "result: {result}");
+    }
+
+    #[test]
+    fn component_member_expression_multi_child_uses_fragment() {
+        // Reproduces #2821: RouterContext.Provider with multiple JSX children.
+        let result = transform(
+            r#"export function App() {
+    return (
+        <RouterContext.Provider value={router}>
+            <aside>sidebar</aside>
+            <main>content</main>
+        </RouterContext.Provider>
+    );
+}"#,
+        );
+        assert!(
+            result.contains("RouterContext.Provider({"),
+            "result: {result}"
+        );
+        assert!(
+            result.contains("createDocumentFragment"),
+            "result: {result}"
+        );
     }
 
     #[test]
