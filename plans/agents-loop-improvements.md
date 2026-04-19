@@ -1,6 +1,6 @@
 # `@vertz/agents` ReAct Loop Improvements
 
-**Status:** Rev 2 — review findings addressed, awaiting human sign-off
+**Status:** Shipped — implemented by [PR #2184](https://github.com/vertz-dev/vertz/pull/2184) (merged 2026-03-31). This plan is retained for historical context; the code is live.
 **Author:** Vinicius Dacal
 **Date:** 2026-03-31
 **Package:** `packages/agents`
