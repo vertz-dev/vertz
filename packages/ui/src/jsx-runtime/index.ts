@@ -165,11 +165,14 @@ function applyChildren(parent: Node, children: unknown): void {
  * IDL properties where setAttribute doesn't control the displayed state —
  * only direct property assignment (el.prop = value) works correctly.
  * Must be set AFTER children are appended (select.value needs options in DOM).
+ *
+ * `defaultValue` / `defaultChecked` have no HTML content attribute, so they
+ * must go through this path or they are silently dropped. See #2820.
  */
 const IDL_PROPS: Record<string, ReadonlySet<string>> = {
-  input: new Set(['value', 'checked']),
+  input: new Set(['value', 'checked', 'defaultValue', 'defaultChecked']),
   select: new Set(['value']),
-  textarea: new Set(['value']),
+  textarea: new Set(['value', 'defaultValue']),
 };
 
 // Implementation

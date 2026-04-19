@@ -36,17 +36,25 @@ struct ReactivityContext {
 
 /// IDL properties that must use direct property assignment instead of setAttribute.
 /// setAttribute doesn't reflect the displayed state for these after user interaction.
+///
+/// `defaultValue` and `defaultChecked` are React-style uncontrolled-initial-value
+/// props. They have no HTML content attribute, so setAttribute is a silent no-op
+/// — they must go through the IDL property path. See #2820.
 fn is_idl_property(tag_name: &str, attr_name: &str) -> bool {
     match tag_name {
-        "input" => attr_name == "value" || attr_name == "checked",
-        "select" | "textarea" => attr_name == "value",
+        "input" => matches!(
+            attr_name,
+            "value" | "checked" | "defaultValue" | "defaultChecked"
+        ),
+        "textarea" => matches!(attr_name, "value" | "defaultValue"),
+        "select" => attr_name == "value",
         _ => false,
     }
 }
 
 /// Boolean IDL properties — boolean shorthand emits `.prop = true`.
 fn is_boolean_idl_property(attr_name: &str) -> bool {
-    attr_name == "checked"
+    matches!(attr_name, "checked" | "defaultChecked")
 }
 
 /// Check if an element supports the `debounce` prop transform.
@@ -2673,6 +2681,17 @@ mod tests {
     }
 
     #[test]
+    fn is_idl_property_default_value() {
+        assert!(is_idl_property("input", "defaultValue"));
+        assert!(is_idl_property("input", "defaultChecked"));
+        assert!(is_idl_property("textarea", "defaultValue"));
+        // defaultChecked is meaningless on textarea/select
+        assert!(!is_idl_property("textarea", "defaultChecked"));
+        assert!(!is_idl_property("select", "defaultValue"));
+        assert!(!is_idl_property("div", "defaultValue"));
+    }
+
+    #[test]
     fn is_boolean_idl_property_checked() {
         assert!(is_boolean_idl_property("checked"));
         assert!(!is_boolean_idl_property("value"));
@@ -2958,6 +2977,51 @@ export function App() {
         assert!(
             exit_pos.unwrap() < value_pos.unwrap(),
             "value assignment must come after __exitChildren: {result}"
+        );
+    }
+
+    // ========== defaultValue / defaultChecked (#2820) ==========
+
+    #[test]
+    fn textarea_default_value_static_emits_idl_assignment() {
+        let result = transform(
+            r#"export function App() {
+    return <textarea defaultValue="Hello world" />;
+}"#,
+        );
+        assert!(
+            result.contains(r#"__el0.defaultValue = "Hello world""#),
+            "expected IDL property assignment, got: {result}"
+        );
+        assert!(
+            !result.contains(r#"setAttribute("defaultValue""#),
+            "must not fall back to setAttribute, got: {result}"
+        );
+    }
+
+    #[test]
+    fn input_default_value_static_emits_idl_assignment() {
+        let result = transform(
+            r#"export function App() {
+    return <input defaultValue="initial" />;
+}"#,
+        );
+        assert!(
+            result.contains(r#"__el0.defaultValue = "initial""#),
+            "expected IDL property assignment, got: {result}"
+        );
+    }
+
+    #[test]
+    fn input_default_checked_boolean_shorthand_emits_idl_assignment() {
+        let result = transform(
+            r#"export function App() {
+    return <input type="checkbox" defaultChecked />;
+}"#,
+        );
+        assert!(
+            result.contains("__el0.defaultChecked = true"),
+            "expected boolean IDL assignment, got: {result}"
         );
     }
 

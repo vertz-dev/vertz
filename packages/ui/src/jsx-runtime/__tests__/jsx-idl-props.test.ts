@@ -52,4 +52,34 @@ describe('JSX runtime IDL property handling', () => {
       });
     });
   });
+
+  describe('Given an <input> with defaultValue prop', () => {
+    describe('When rendered via jsx()', () => {
+      it('Then sets defaultValue via property assignment', () => {
+        const input = jsx('input', { defaultValue: 'hello' }) as HTMLInputElement;
+        expect(input.defaultValue).toBe('hello');
+        expect(input.value).toBe('hello');
+      });
+    });
+  });
+
+  describe('Given a <textarea> with defaultValue prop', () => {
+    describe('When rendered via jsx()', () => {
+      it('Then sets defaultValue via property assignment', () => {
+        const textarea = jsx('textarea', { defaultValue: 'Hello world' }) as HTMLTextAreaElement;
+        expect(textarea.defaultValue).toBe('Hello world');
+        expect(textarea.value).toBe('Hello world');
+      });
+    });
+  });
+
+  describe('Given an <input type="checkbox"> with defaultChecked prop', () => {
+    describe('When rendered via jsx()', () => {
+      it('Then sets defaultChecked via property assignment', () => {
+        const input = jsx('input', { type: 'checkbox', defaultChecked: true }) as HTMLInputElement;
+        expect(input.defaultChecked).toBe(true);
+        expect(input.checked).toBe(true);
+      });
+    });
+  });
 });

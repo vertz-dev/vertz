@@ -259,6 +259,47 @@ pub const DOM_SHIM_JS: &str = r#"
       this._classList = String(val).split(/\s+/).filter(Boolean);
     }
 
+    // React-style uncontrolled-initial-value props. The compiler emits
+    // `el.defaultValue = "x"` / `el.defaultChecked = true` for <input>
+    // and <textarea> (see #2820). Translate to the right serialized form:
+    //   - <input>:    sets the `value` (or `checked`) attribute
+    //   - <textarea>: replaces text content with the default value
+    // No-op for any other element to preserve plain JS-property semantics.
+    get defaultValue() {
+      return this._defaultValue !== undefined ? this._defaultValue : '';
+    }
+
+    set defaultValue(val) {
+      this._defaultValue = val == null ? '' : String(val);
+      if (this.localName === 'input') {
+        if (val == null) {
+          delete this.attributes.value;
+        } else {
+          this.attributes.value = String(val);
+        }
+      } else if (this.localName === 'textarea') {
+        this.childNodes = [];
+        if (val != null && String(val) !== '') {
+          this.appendChild(new SSRTextNode(String(val)));
+        }
+      }
+    }
+
+    get defaultChecked() {
+      return !!this._defaultChecked;
+    }
+
+    set defaultChecked(val) {
+      this._defaultChecked = !!val;
+      if (this.localName === 'input') {
+        if (val) {
+          this.attributes.checked = '';
+        } else {
+          delete this.attributes.checked;
+        }
+      }
+    }
+
     get classList() {
       const self = this;
       return {
@@ -1806,6 +1847,92 @@ mod tests {
             )
             .unwrap();
         assert_eq!(result, serde_json::json!(0));
+    }
+
+    #[test]
+    fn test_textarea_default_value_serializes() {
+        let mut rt = create_runtime();
+        load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const ta = document.createElement('textarea');
+                ta.defaultValue = 'Hello world';
+                ta.outerHTML
+                "#,
+            )
+            .unwrap();
+        assert_eq!(
+            result,
+            serde_json::json!("<textarea>Hello world</textarea>")
+        );
+    }
+
+    #[test]
+    fn test_input_default_value_serializes() {
+        let mut rt = create_runtime();
+        load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const input = document.createElement('input');
+                input.defaultValue = 'hello';
+                input.outerHTML
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!(r#"<input value="hello" />"#));
+    }
+
+    #[test]
+    fn test_input_default_checked_serializes() {
+        let mut rt = create_runtime();
+        load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const input = document.createElement('input');
+                input.setAttribute('type', 'checkbox');
+                input.defaultChecked = true;
+                input.outerHTML
+                "#,
+            )
+            .unwrap();
+        let html: String = serde_json::from_value(result).unwrap();
+        assert!(
+            html.contains("checked"),
+            "expected checked attribute, got: {html}"
+        );
+        assert!(html.contains(r#"type="checkbox""#));
+    }
+
+    #[test]
+    fn test_default_value_no_op_on_div() {
+        let mut rt = create_runtime();
+        load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const div = document.createElement('div');
+                div.defaultValue = 'ignored';
+                div.outerHTML
+                "#,
+            )
+            .unwrap();
+        // defaultValue on non-form elements is a plain JS property — no DOM impact.
+        assert_eq!(result, serde_json::json!("<div></div>"));
     }
 
     #[test]
