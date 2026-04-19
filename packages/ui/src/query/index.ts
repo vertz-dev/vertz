@@ -7,3 +7,4 @@ export { deriveKey } from './key-derivation';
 export { serializeQueryKey } from './key-serialization';
 export type { QueryOptions, QueryResult, QueryStreamOptions, QueryStreamResult } from './query';
 export { query, QueryDisposedReason, QueryStreamMisuseError } from './query';
+export { fromEventSource, fromWebSocket } from './sources';

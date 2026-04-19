@@ -152,6 +152,58 @@ describe('query() — stream sources', () => {
     });
   });
 
+  // ─── Phase 3: cross-mode signal on Promise overload ──────────────
+
+  describe('Given a promise thunk that observes signal.aborted', () => {
+    describe('When dispose() is called before resolution', () => {
+      test('then signal.aborted is true and the abort fires QueryDisposedReason', async () => {
+        let receivedSignal: AbortSignal | undefined;
+        let abortFired = false;
+        const q = query(
+          (signal) =>
+            new Promise<string>((resolve) => {
+              receivedSignal = signal;
+              signal?.addEventListener('abort', () => {
+                abortFired = true;
+              });
+              setTimeout(() => resolve('resolved'), 1000);
+            }),
+          { key: 'promise-signal-test' },
+        );
+        // Let the effect install + thunk fire.
+        await flushPromises();
+        expect(receivedSignal).toBeInstanceOf(AbortSignal);
+        expect(receivedSignal?.aborted).toBe(false);
+
+        q.dispose();
+        expect(abortFired).toBe(true);
+        expect(receivedSignal?.aborted).toBe(true);
+        expect(receivedSignal?.reason).toBeInstanceOf(QueryDisposedReason);
+      });
+    });
+  });
+
+  describe('Given a zero-arg promise thunk (legacy shape)', () => {
+    describe('When dispose() is called', () => {
+      test('then dispose works without crashing (no signal consumed)', async () => {
+        let resolved = false;
+        const q = query(
+          () =>
+            Promise.resolve('a').then((v) => {
+              resolved = true;
+              return v;
+            }),
+          {
+            key: 'zero-arg-promise',
+          },
+        );
+        await flushPromises();
+        expect(resolved).toBe(true);
+        expect(() => q.dispose()).not.toThrow();
+      });
+    });
+  });
+
   // ─── Phase 2: lifecycle ──────────────────────────────────────────
 
   describe('Given an iterator that respects AbortSignal', () => {

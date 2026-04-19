@@ -214,7 +214,10 @@ export function query<T, E>(
   thunk: () => QueryDescriptor<T, E> | null,
   options?: Omit<QueryOptions<T>, 'key'>,
 ): QueryResult<T, E>;
-export function query<T>(thunk: () => Promise<T> | null, options?: QueryOptions<T>): QueryResult<T>;
+export function query<T>(
+  thunk: (signal?: AbortSignal) => Promise<T> | null,
+  options?: QueryOptions<T>,
+): QueryResult<T>;
 export function query<T, E = unknown>(
   source:
     | QueryDescriptor<T, E>
@@ -379,6 +382,10 @@ export function query<T, E = unknown>(
   // Source-type lock: set on first non-null classification.  Subsequent
   // classifications that disagree throw QueryStreamMisuseError per design doc.
   let firstClassifiedMode: 'stream' | 'promise' | 'descriptor' | undefined;
+  // Phase 3: per-thunk-call AbortController for promise/descriptor mode too.
+  // Aborted on dispose / refetch / dep change so signal-aware promise thunks
+  // (e.g., `(signal) => fetch(url, { signal })`) can cancel in-flight work.
+  let currentPromiseController: AbortController | undefined;
 
   // Entity-backed source switcher: when entityMeta is present,
   // data reads from EntityStore instead of rawData.
@@ -1187,6 +1194,14 @@ export function query<T, E = unknown>(
       firstClassifiedMode = isQueryDescriptor<T, E>(raw) ? 'descriptor' : 'promise';
     }
 
+    // Phase 3: track this thunk-call's controller so dispose() / refetch() can
+    // abort the in-flight signal.  Abort the previous controller (if any) so
+    // dep-change re-runs cancel stale work.
+    if (currentPromiseController && !currentPromiseController.signal.aborted) {
+      currentPromiseController.abort(new QueryDisposedReason());
+    }
+    currentPromiseController = probeController;
+
     // Classify the result: QueryDescriptor or Promise.
     // MUST check isQueryDescriptor FIRST — QueryDescriptor extends PromiseLike,
     // and accidentally .then()-ing it would trigger a double-fetch.
@@ -1335,6 +1350,11 @@ export function query<T, E = unknown>(
     // listener might race with the test runner's exit).
     if (streamMode) {
       cancelStreamPump(new QueryDisposedReason());
+    }
+    // Phase 3: abort the in-flight promise/descriptor signal too, so signal-
+    // aware producers (e.g., fetch with { signal }) can stop wasting work.
+    if (currentPromiseController && !currentPromiseController.signal.aborted) {
+      currentPromiseController.abort(new QueryDisposedReason());
     }
     // Decrement ref counts for all referenced entities
     if (referencedKeys.size > 0) {
