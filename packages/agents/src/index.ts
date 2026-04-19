@@ -82,6 +82,7 @@ export { toolsToDescriptions } from './providers/tool-description';
 
 // LLM adapters
 export { createAdapter } from './providers/create-adapter';
+export { createAnthropicAdapter } from './providers/anthropic';
 export { createCloudflareAdapter } from './providers/cloudflare';
 export { createMinimaxAdapter } from './providers/minimax';
 
