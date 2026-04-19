@@ -386,6 +386,11 @@ export function query<T, E = unknown>(
   // Aborted on dispose / refetch / dep change so signal-aware promise thunks
   // (e.g., `(signal) => fetch(url, { signal })`) can cancel in-flight work.
   let currentPromiseController: AbortController | undefined;
+  // Never-aborted signal handed to thunks during SSR / hydration / nav-prefetch
+  // probes — these are non-cancellable discovery calls that just need the
+  // thunk to NOT crash on `signal.addEventListener(...)`.  Real abort wiring
+  // happens in the main effect via probeController.
+  const probeSignalForDiscovery: AbortSignal = new AbortController().signal;
 
   // Entity-backed source switcher: when entityMeta is present,
   // data reads from EntityStore instead of rawData.
@@ -529,7 +534,7 @@ export function query<T, E = unknown>(
   const ssrTimeout = options.ssrTimeout ?? getGlobalSSRTimeout() ?? 300;
   if (isSSR() && ssrTimeout !== 0 && initialData === undefined) {
     // Call the thunk to derive cache key from dependency values.
-    const ssrRaw = callThunkWithCapture();
+    const ssrRaw = callThunkWithCapture(probeSignalForDiscovery);
 
     // Null return: thunk says "not ready" — skip SSR data loading.
     // Dependent chains won't resolve during SSR (known limitation).
@@ -615,7 +620,7 @@ export function query<T, E = unknown>(
       // Only probe the thunk for dep hash when SSR data exists — avoids
       // an unnecessary thunk invocation on pure client-side navigations.
       try {
-        const raw = callThunkWithCapture();
+        const raw = callThunkWithCapture(probeSignalForDiscovery);
         if (raw !== null) {
           if (isQueryDescriptor<T, E>(raw)) {
             // Descriptor: capture entity metadata but don't call _fetch()
@@ -1014,7 +1019,7 @@ export function query<T, E = unknown>(
     // and calling the thunk would fire a wasteful fetch for promise thunks.
     if (isFirst && ssrHydrated) {
       if (!customKey) {
-        const trackRaw = callThunkWithCapture();
+        const trackRaw = callThunkWithCapture(probeSignalForDiscovery);
         if (trackRaw !== null) {
           if (isQueryDescriptor<T, E>(trackRaw)) {
             // Descriptor-in-thunk: capture entity metadata lazily but do NOT
@@ -1049,7 +1054,7 @@ export function query<T, E = unknown>(
         }
       } else {
         // Derived key: call thunk to discover the key, then check cache.
-        const trackRaw = callThunkWithCapture();
+        const trackRaw = callThunkWithCapture(probeSignalForDiscovery);
         if (trackRaw === null) {
           // Thunk not ready — defer to next effect run.
           isFirst = false;

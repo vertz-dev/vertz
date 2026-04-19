@@ -183,6 +183,32 @@ describe('query() — stream sources', () => {
     });
   });
 
+  describe('Given a signal-aware promise thunk (uses signal.addEventListener)', () => {
+    describe('When called from any code path (effect, hydration probe, etc.)', () => {
+      test('then the thunk always receives a real AbortSignal — never undefined', async () => {
+        let calls = 0;
+        let allCallsHadSignal = true;
+        const q = query(
+          (signal) => {
+            calls++;
+            if (!signal) {
+              allCallsHadSignal = false;
+            } else {
+              // Reading addEventListener proves the signal is a real object.
+              signal.addEventListener('abort', () => {});
+            }
+            return Promise.resolve('ok');
+          },
+          { key: 'always-has-signal' },
+        );
+        await flushPromises();
+        expect(calls).toBeGreaterThan(0);
+        expect(allCallsHadSignal).toBe(true);
+        expect(q.data.value).toBe('ok');
+      });
+    });
+  });
+
   describe('Given a zero-arg promise thunk (legacy shape)', () => {
     describe('When dispose() is called', () => {
       test('then dispose works without crashing (no signal consumed)', async () => {

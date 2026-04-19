@@ -307,3 +307,31 @@ void _wrongData;
 const _promiseRegression = query(() => Promise.resolve('a'));
 const _promiseData: string | undefined = _promiseRegression.data;
 void _promiseData;
+
+// Phase 3: Promise overload accepts (signal?: AbortSignal) too
+const _promiseWithSignal = query((signal: AbortSignal | undefined) => {
+  const _isAborted: boolean | undefined = signal?.aborted;
+  void _isAborted;
+  return Promise.resolve(42);
+});
+const _promiseSignalData: number | undefined = _promiseWithSignal.data;
+void _promiseSignalData;
+
+// fromWebSocket / fromEventSource: generic-typed yields
+import { fromEventSource, fromWebSocket } from '../sources';
+
+interface Tick {
+  ts: number;
+  px: number;
+}
+const _wsStream = query((signal) => fromWebSocket<Tick>('wss://x/ticks', signal as AbortSignal), {
+  key: 'tick-stream',
+});
+const _wsData: Tick[] = _wsStream.data;
+void _wsData;
+
+const _esStream = query((signal) => fromEventSource<Tick>('https://x/sse', signal as AbortSignal), {
+  key: 'sse-stream',
+});
+const _esData: Tick[] = _esStream.data;
+void _esData;

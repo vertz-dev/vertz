@@ -11,10 +11,17 @@
  * Usage:
  * ```ts
  * import { fromWebSocket, query } from '@vertz/ui';
- * const ticks = query((signal) => fromWebSocket('wss://example/ticks', signal), {
- *   key: 'ticks',
- * });
+ * const ticks = query<TickEvent>(
+ *   (signal) => fromWebSocket<TickEvent>('wss://example/ticks', signal),
+ *   { key: 'ticks' },
+ * );
  * ```
+ *
+ * Note on errors: native WebSocket / EventSource `error` events do not carry
+ * the underlying failure reason (it's a security limitation of the platform).
+ * The helpers throw a generic `new Error('source error')`.  For diagnostic
+ * detail, use the browser DevTools network panel or wire a richer protocol
+ * (e.g., wrap your messages in `{ ok, data, error }` envelopes).
  */
 
 interface QueueEntry {
@@ -27,19 +34,34 @@ interface QueueEntry {
  * Internal helper: turn an EventTarget-style source (WebSocket / EventSource
  * shape) into an AsyncIterable of parsed messages.
  *
- * The producer/consumer rendezvous uses a queue + Promise latch so messages
- * arriving faster than the consumer iterates are buffered in arrival order.
+ * The producer/consumer rendezvous uses a queue + monotonic version counter
+ * so messages arriving between consumer awaits are buffered in arrival order
+ * AND the consumer never misses a wake-up (the version is bumped on every
+ * push; the consumer awaits a Promise that resolves when version > seen).
  */
 async function* iterateEventStream(
   source: {
     addEventListener(type: string, listener: (e: { data?: unknown }) => void): void;
     close(): void;
   },
-  messageEvent: 'message',
   signal: AbortSignal,
 ): AsyncIterable<unknown> {
   const queue: QueueEntry[] = [];
-  let release: (() => void) | undefined;
+  // Wake-up latch: every push increments `version`; the consumer awaits a
+  // promise that resolves when `version` increases.  A push that happens
+  // *before* the consumer installs the next waiter still wakes the next
+  // await because `version` is already ahead of `seenVersion`.
+  let version = 0;
+  let seenVersion = 0;
+  let pendingResolve: (() => void) | undefined;
+
+  function bump(): void {
+    version++;
+    const r = pendingResolve;
+    pendingResolve = undefined;
+    r?.();
+  }
+
   const onMessage = (e: { data?: unknown }) => {
     let parsed: unknown = e.data;
     if (typeof e.data === 'string') {
@@ -50,21 +72,21 @@ async function* iterateEventStream(
       }
     }
     queue.push({ type: 'message', data: parsed });
-    release?.();
+    bump();
   };
   const onError = (e: unknown) => {
     queue.push({
       type: 'error',
       error: e instanceof Error ? e : new Error('source error'),
     });
-    release?.();
+    bump();
   };
   const onClose = () => {
     queue.push({ type: 'close' });
-    release?.();
+    bump();
   };
 
-  source.addEventListener(messageEvent, onMessage);
+  source.addEventListener('message', onMessage);
   source.addEventListener('error', onError as (e: { data?: unknown }) => void);
   source.addEventListener('close', onClose as (e: { data?: unknown }) => void);
 
@@ -75,7 +97,7 @@ async function* iterateEventStream(
       // ignore — already closed
     }
     queue.push({ type: 'close' });
-    release?.();
+    bump();
   };
   if (signal.aborted) {
     onAbort();
@@ -92,13 +114,21 @@ async function* iterateEventStream(
         yield entry.data;
       }
       if (signal.aborted) return;
-      await new Promise<void>((resolve) => {
-        release = resolve;
-      });
-      release = undefined;
+      // Wait for the next push.  If `version` already moved past what we
+      // last consumed (a push raced our queue-drain check), loop without
+      // sleeping so we drain the new entries immediately.
+      if (version === seenVersion) {
+        await new Promise<void>((resolve) => {
+          pendingResolve = resolve;
+        });
+      }
+      seenVersion = version;
     }
   } finally {
     signal.removeEventListener('abort', onAbort);
+    // Clear the queue so the generator's closure doesn't hold references
+    // to undelivered message objects after the consumer abandoned us.
+    queue.length = 0;
     try {
       source.close();
     } catch {
@@ -110,38 +140,44 @@ async function* iterateEventStream(
 /**
  * Yield messages from a WebSocket as an AsyncIterable.
  *
+ * Type parameter `T` lets callers narrow the yield type:
+ * `fromWebSocket<TickEvent>(url, signal)` returns `AsyncIterable<TickEvent>`.
+ * Without a parameter, defaults to `unknown` so consumers must narrow at the
+ * use site.
+ *
  * - `data` is JSON-parsed when it's a string and parses successfully;
  *   non-JSON or non-string `data` is yielded as-is.
  * - `signal.abort()` closes the socket and ends iteration.
- * - Socket errors throw inside the generator.
+ * - Socket errors throw inside the generator (see module-level note about
+ *   the native error event's lack of detail).
  */
-export function fromWebSocket(url: string, signal: AbortSignal): AsyncIterable<unknown> {
+export function fromWebSocket<T = unknown>(url: string, signal: AbortSignal): AsyncIterable<T> {
   const ws = new WebSocket(url);
   return iterateEventStream(
     ws as unknown as {
       addEventListener(type: string, listener: (e: { data?: unknown }) => void): void;
       close(): void;
     },
-    'message',
     signal,
-  );
+  ) as AsyncIterable<T>;
 }
 
 /**
  * Yield messages from a Server-Sent Events stream as an AsyncIterable.
  *
+ * Type parameter `T` lets callers narrow the yield type — see fromWebSocket.
+ *
  * - `data` is JSON-parsed when it parses successfully; raw `data` otherwise.
  * - `signal.abort()` closes the EventSource and ends iteration.
  * - Source errors throw inside the generator.
  */
-export function fromEventSource(url: string, signal: AbortSignal): AsyncIterable<unknown> {
+export function fromEventSource<T = unknown>(url: string, signal: AbortSignal): AsyncIterable<T> {
   const es = new EventSource(url);
   return iterateEventStream(
     es as unknown as {
       addEventListener(type: string, listener: (e: { data?: unknown }) => void): void;
       close(): void;
     },
-    'message',
     signal,
-  );
+  ) as AsyncIterable<T>;
 }
