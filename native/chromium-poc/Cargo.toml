@@ -5,6 +5,13 @@ edition = "2021"
 publish = false
 description = "Throwaway POC for Issue #2865 — validates chromiumoxide as the Rust Chromium client for headless screenshots in vtz."
 
+# Standalone workspace — keeps heavy POC deps out of the real vtz workspace.
+[workspace]
+
+[profile.release]
+lto = true
+strip = true
+
 [dependencies]
 chromiumoxide = { version = "0.9", default-features = false }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "fs", "net", "io-util"] }

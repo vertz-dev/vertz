@@ -217,10 +217,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn capture_selector(
-    page: &chromiumoxide::Page,
-    selector: &str,
-) -> anyhow::Result<Vec<u8>> {
+async fn capture_selector(page: &chromiumoxide::Page, selector: &str) -> anyhow::Result<Vec<u8>> {
     let element = page.find_element(selector).await?;
     let bbox = element.bounding_box().await?;
 

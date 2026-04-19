@@ -1,6 +1,11 @@
 [workspace]
 resolver = "2"
-members = ["vertz-compiler", "vertz-compiler-core", "vtz", "chromium-poc"]
+members = ["vertz-compiler", "vertz-compiler-core", "vtz"]
+# chromium-poc is intentionally OUTSIDE this workspace — it is a throwaway
+# research crate for issue #2865 with heavy deps (reqwest, hyper, aws-lc-sys)
+# that we don't want in vtz's dep graph. Build it with:
+#   cargo run --release --manifest-path native/chromium-poc/Cargo.toml
+exclude = ["chromium-poc"]
 
 [profile.release]
 lto = true
