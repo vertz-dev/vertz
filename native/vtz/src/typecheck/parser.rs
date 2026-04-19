@@ -37,18 +37,32 @@ impl TscDiagnostic {
     /// Attaches an actionable suggestion if one is available for this TS error code.
     /// Optionally enriches with a code snippet if `root_dir` is provided and the
     /// source file can be read.
-    pub fn to_dev_error(&self) -> DevError {
+    ///
+    /// `hmr_hint_enabled` gates the Vertz-specific `import.meta.hot` hint; users
+    /// can disable it via `VTZ_NO_HMR_HINT=1`. `DiagnosticBuffer::flush()`
+    /// re-reads the env var on every flush so a running dev server picks up
+    /// toggles without a restart.
+    pub fn to_dev_error(&self, hmr_hint_enabled: bool) -> DevError {
         let msg = format!("TS{}: {}", self.code, self.message);
         let mut error = DevError::typecheck(msg)
             .with_file(&self.file)
             .with_location(self.line, self.col);
 
-        if let Some(suggestion) = suggestions::suggest_typecheck_fix(self.code) {
+        if let Some(suggestion) =
+            suggestions::suggest_typecheck_fix(self.code, &self.message, hmr_hint_enabled)
+        {
             error = error.with_suggestion(suggestion);
         }
 
         error
     }
+}
+
+/// Resolve the `VTZ_NO_HMR_HINT` env var once at the point where we batch
+/// diagnostics. Centralised so tests can feed the flag explicitly without
+/// racing on the process env.
+pub fn hmr_hint_enabled_from_env() -> bool {
+    std::env::var("VTZ_NO_HMR_HINT").as_deref() != Ok("1")
 }
 
 /// Parse a single line of tsc `--pretty false --watch` output.
@@ -193,11 +207,15 @@ impl DiagnosticBuffer {
     }
 
     /// Flush the buffer and return all accumulated errors as DevErrors.
+    ///
+    /// Reads `VTZ_NO_HMR_HINT` once per flush to decide whether to emit the
+    /// Vertz-specific `import.meta.hot` hint for TS2339 diagnostics.
     pub fn flush(&mut self) -> Vec<DevError> {
+        let hmr_hint_enabled = hmr_hint_enabled_from_env();
         let errors: Vec<DevError> = self
             .diagnostics
             .drain(..)
-            .map(|d| d.to_dev_error())
+            .map(|d| d.to_dev_error(hmr_hint_enabled))
             .collect();
         self.has_content = false;
         errors
@@ -372,7 +390,7 @@ mod tests {
             severity: "error".to_string(),
         };
 
-        let err = diag.to_dev_error();
+        let err = diag.to_dev_error(true);
         assert_eq!(
             err.category,
             crate::errors::categories::ErrorCategory::TypeCheck
@@ -397,9 +415,53 @@ mod tests {
             severity: "error".to_string(),
         };
 
-        let err = diag.to_dev_error();
+        let err = diag.to_dev_error(true);
         assert!(err.suggestion.is_some());
         assert!(err.suggestion.unwrap().contains("import path"));
+    }
+
+    #[test]
+    fn test_diagnostic_to_dev_error_emits_hmr_hint_for_import_meta_hot() {
+        let diag = TscDiagnostic {
+            file: "src/entry-client.ts".to_string(),
+            line: 1,
+            col: 1,
+            code: 2339,
+            message: "Property 'hot' does not exist on type 'ImportMeta'.".to_string(),
+            severity: "error".to_string(),
+        };
+
+        let err = diag.to_dev_error(true);
+        let suggestion = err.suggestion.expect("expected a suggestion");
+        assert!(
+            suggestion.contains("vertz/client"),
+            "expected HMR hint, got: {}",
+            suggestion
+        );
+        assert!(suggestion.contains("https://vertz.dev/guides/hmr-types"));
+    }
+
+    #[test]
+    fn test_diagnostic_to_dev_error_hmr_hint_suppressed_when_flag_off() {
+        let diag = TscDiagnostic {
+            file: "src/entry-client.ts".to_string(),
+            line: 1,
+            col: 1,
+            code: 2339,
+            message: "Property 'hot' does not exist on type 'ImportMeta'.".to_string(),
+            severity: "error".to_string(),
+        };
+
+        let err = diag.to_dev_error(false);
+        let suggestion = err
+            .suggestion
+            .expect("still expect the generic TS2339 suggestion");
+
+        assert!(
+            !suggestion.contains("vertz/client"),
+            "HMR hint should be suppressed, got: {}",
+            suggestion
+        );
     }
 
     #[test]
@@ -413,11 +475,60 @@ mod tests {
             severity: "error".to_string(),
         };
 
-        let err = diag.to_dev_error();
+        let err = diag.to_dev_error(true);
         assert!(err.suggestion.is_none());
     }
 
     // ── DiagnosticBuffer ──
+
+    #[test]
+    fn test_buffer_flush_threads_hmr_flag_into_diagnostics() {
+        // Integration: a TS2339 `import.meta.hot` diagnostic fed through the
+        // full buffer → flush pipeline picks up the HMR hint when the env
+        // default applies (no override set).
+        let mut buf = DiagnosticBuffer::new();
+        buf.feed(parse_tsc_line(
+            "src/entry-client.ts(1,1): error TS2339: Property 'hot' does not exist on type 'ImportMeta'.",
+        ));
+        let errors = buf
+            .feed(parse_tsc_line(
+                "[12:00:00] Found 1 error. Watching for file changes.",
+            ))
+            .expect("sentinel should flush");
+
+        assert_eq!(errors.len(), 1);
+        let suggestion = errors[0]
+            .suggestion
+            .as_ref()
+            .expect("expected a suggestion");
+        // When env is not set to "1", the HMR hint fires.
+        if hmr_hint_enabled_from_env() {
+            assert!(
+                suggestion.contains("vertz/client"),
+                "expected HMR hint when VTZ_NO_HMR_HINT is unset, got: {}",
+                suggestion
+            );
+        } else {
+            assert!(
+                !suggestion.contains("vertz/client"),
+                "HMR hint should be suppressed when VTZ_NO_HMR_HINT=1, got: {}",
+                suggestion
+            );
+        }
+    }
+
+    #[test]
+    fn test_hmr_hint_enabled_from_env_defaults_to_true_when_unset() {
+        // This test is intentionally tolerant: if the ambient test env happens
+        // to have VTZ_NO_HMR_HINT=1, we accept `false` instead. What matters
+        // is that the function reads the env var and returns a bool.
+        let result = hmr_hint_enabled_from_env();
+        let env_value = std::env::var("VTZ_NO_HMR_HINT").ok();
+        match env_value.as_deref() {
+            Some("1") => assert!(!result),
+            _ => assert!(result),
+        }
+    }
 
     #[test]
     fn test_buffer_accumulates_diagnostics() {

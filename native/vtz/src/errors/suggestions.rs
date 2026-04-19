@@ -187,7 +187,15 @@ pub fn suggest_runtime_fix(message: &str) -> Option<String> {
 /// Only provides suggestions for errors where the fix is NOT obvious from the
 /// error message itself. Self-explanatory errors (e.g., TS2322 "type X is not
 /// assignable to type Y") get no suggestion — the error message is sufficient.
-pub fn suggest_typecheck_fix(ts_code: u32) -> Option<String> {
+///
+/// `hmr_hint_enabled` gates the Vertz-specific `import.meta.hot` hint so users
+/// can suppress it via `VTZ_NO_HMR_HINT=1` without losing the generic TS2339
+/// suggestion.
+pub fn suggest_typecheck_fix(
+    ts_code: u32,
+    message: &str,
+    hmr_hint_enabled: bool,
+) -> Option<String> {
     match ts_code {
         // TS2307: Cannot find module 'X' or its corresponding type declarations.
         2307 => Some(
@@ -210,11 +218,21 @@ pub fn suggest_typecheck_fix(ts_code: u32) -> Option<String> {
         // TS7006: Parameter 'x' implicitly has an 'any' type.
         7006 => Some("Add an explicit type annotation to this parameter.".into()),
         // TS2339: Property 'X' does not exist on type 'Y'.
-        2339 => Some(
-            "The property doesn't exist on this type. Check spelling, \
-             or verify the object's type is what you expect."
-                .into(),
-        ),
+        2339 => {
+            if hmr_hint_enabled && is_import_meta_hot_miss(message) {
+                return Some(
+                    "Add `vertz/client` to your tsconfig `compilerOptions.types` to pick up HMR \
+                     type augmentations (`import.meta.hot`). \
+                     See https://vertz.dev/guides/hmr-types"
+                        .into(),
+                );
+            }
+            Some(
+                "The property doesn't exist on this type. Check spelling, \
+                 or verify the object's type is what you expect."
+                    .into(),
+            )
+        }
         // TS2551: Property 'X' does not exist on type 'Y'. Did you mean 'Z'?
         2551 => Some(
             "Check the property name — TypeScript suggests a similar name in the error.".into(),
@@ -228,6 +246,19 @@ pub fn suggest_typecheck_fix(ts_code: u32) -> Option<String> {
         // Self-explanatory errors (TS2322, etc.) — no suggestion
         _ => None,
     }
+}
+
+/// Detect the specific TS2339 shape emitted when `import.meta.hot` is used
+/// without the `vertz/client` type augmentation:
+///
+/// `Property 'hot' does not exist on type 'ImportMeta'.`
+///
+/// Anchored on the full canonical TS2339 phrasing so that unrelated
+/// diagnostics mentioning `'hot'` and `'ImportMeta'` separately (e.g. a
+/// "Did you mean 'hot'?" continuation on an `'env' does not exist on type
+/// 'ImportMeta'` error) don't trigger the Vertz-specific hint.
+fn is_import_meta_hot_miss(message: &str) -> bool {
+    message.contains("Property 'hot' does not exist on type 'ImportMeta'")
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -399,49 +430,109 @@ mod tests {
 
     #[test]
     fn test_suggest_typecheck_ts2307_cannot_find_module() {
-        let suggestion = suggest_typecheck_fix(2307);
+        let suggestion = suggest_typecheck_fix(2307, "Cannot find module 'foo'.", true);
         assert!(suggestion.is_some());
         assert!(suggestion.unwrap().contains("import path"));
     }
 
     #[test]
     fn test_suggest_typecheck_ts2304_cannot_find_name() {
-        let suggestion = suggest_typecheck_fix(2304);
+        let suggestion = suggest_typecheck_fix(2304, "Cannot find name 'foo'.", true);
         assert!(suggestion.is_some());
         assert!(suggestion.unwrap().contains("imported or declared"));
     }
 
     #[test]
     fn test_suggest_typecheck_ts2345_argument_type_mismatch() {
-        let suggestion = suggest_typecheck_fix(2345);
+        let suggestion = suggest_typecheck_fix(2345, "Argument of type X.", true);
         assert!(suggestion.is_some());
         assert!(suggestion.unwrap().contains("function signature"));
     }
 
     #[test]
     fn test_suggest_typecheck_ts7006_implicit_any() {
-        let suggestion = suggest_typecheck_fix(7006);
+        let suggestion = suggest_typecheck_fix(7006, "Parameter 'x' implicitly has any.", true);
         assert!(suggestion.is_some());
         assert!(suggestion.unwrap().contains("type annotation"));
     }
 
     #[test]
     fn test_suggest_typecheck_ts2339_property_not_exist() {
-        let suggestion = suggest_typecheck_fix(2339);
+        let suggestion =
+            suggest_typecheck_fix(2339, "Property 'foo' does not exist on type 'Bar'.", true);
         assert!(suggestion.is_some());
-        assert!(suggestion.unwrap().contains("property"));
+        let s = suggestion.unwrap();
+        assert!(s.contains("property"));
+        // Generic TS2339 message, not the HMR-specific hint
+        assert!(!s.contains("vertz/client"));
+    }
+
+    #[test]
+    fn test_suggest_typecheck_ts2339_import_meta_hot_hint() {
+        let suggestion = suggest_typecheck_fix(
+            2339,
+            "Property 'hot' does not exist on type 'ImportMeta'.",
+            true,
+        );
+        assert!(suggestion.is_some());
+        let s = suggestion.unwrap();
+        assert!(
+            s.contains("vertz/client"),
+            "expected vertz/client hint but got: {}",
+            s
+        );
+        assert!(s.contains("compilerOptions.types"));
+        assert!(s.contains("https://vertz.dev/guides/hmr-types"));
+    }
+
+    #[test]
+    fn test_suggest_typecheck_ts2339_hmr_hint_disabled_falls_back_to_generic() {
+        let suggestion = suggest_typecheck_fix(
+            2339,
+            "Property 'hot' does not exist on type 'ImportMeta'.",
+            false,
+        );
+        assert!(suggestion.is_some());
+        let s = suggestion.unwrap();
+        assert!(
+            !s.contains("vertz/client"),
+            "HMR hint should be suppressed but got: {}",
+            s
+        );
+        assert!(s.contains("property"));
+    }
+
+    #[test]
+    fn test_suggest_typecheck_ts2339_hmr_hint_requires_both_hot_and_importmeta() {
+        // 'hot' on a non-ImportMeta type — should not trigger the HMR hint.
+        let suggestion = suggest_typecheck_fix(
+            2339,
+            "Property 'hot' does not exist on type 'Thermometer'.",
+            true,
+        );
+        assert!(suggestion.is_some());
+        assert!(!suggestion.unwrap().contains("vertz/client"));
+
+        // ImportMeta but a different missing property — also should not trigger.
+        let suggestion = suggest_typecheck_fix(
+            2339,
+            "Property 'env' does not exist on type 'ImportMeta'.",
+            true,
+        );
+        assert!(suggestion.is_some());
+        assert!(!suggestion.unwrap().contains("vertz/client"));
     }
 
     #[test]
     fn test_suggest_typecheck_ts2551_did_you_mean() {
-        let suggestion = suggest_typecheck_fix(2551);
+        let suggestion = suggest_typecheck_fix(2551, "Did you mean 'foo'?", true);
         assert!(suggestion.is_some());
         assert!(suggestion.unwrap().contains("similar name"));
     }
 
     #[test]
     fn test_suggest_typecheck_ts1259_esmodule_interop() {
-        let suggestion = suggest_typecheck_fix(1259);
+        let suggestion = suggest_typecheck_fix(1259, "esModuleInterop.", true);
         assert!(suggestion.is_some());
         assert!(suggestion.unwrap().contains("esModuleInterop"));
     }
@@ -449,9 +540,9 @@ mod tests {
     #[test]
     fn test_suggest_typecheck_self_explanatory_returns_none() {
         // TS2322: Type 'X' is not assignable to type 'Y' — self-explanatory
-        assert!(suggest_typecheck_fix(2322).is_none());
+        assert!(suggest_typecheck_fix(2322, "Type 'x'.", true).is_none());
         // Unknown codes
-        assert!(suggest_typecheck_fix(9999).is_none());
+        assert!(suggest_typecheck_fix(9999, "anything", true).is_none());
     }
 
     #[test]
