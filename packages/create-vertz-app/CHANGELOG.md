@@ -1,5 +1,18 @@
 # @vertz/create-vertz-app
 
+## 0.2.73
+
+### Patch Changes
+
+- [#2822](https://github.com/vertz-dev/vertz/pull/2822) [`a06aaae`](https://github.com/vertz-dev/vertz/commit/a06aaae48e5e5612c36b4dd29dd6e0adebdc776a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Rename `vertz/env` → `vertz/client` so tsconfig `types` discoverability matches
+  the Vite convention. The augmentation now correctly types `ImportMeta.hot` as
+  `ImportMetaHot | undefined` (it only exists in dev), adds the `accept(cb)`
+  callback overload for the in-repo HMR pattern, and drops the Bun-only
+  `ImportMeta.main` property. Migrate by updating `tsconfig.json` to
+  `"types": ["vertz/client"]` and call sites to `import.meta.hot?.accept()`.
+
+  Closes #2777.
+
 ## 0.2.72
 
 ## 0.2.71

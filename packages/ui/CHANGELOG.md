@@ -1,5 +1,131 @@
 # @vertz/ui
 
+## 0.2.73
+
+### Patch Changes
+
+- [#2827](https://github.com/vertz-dev/vertz/pull/2827) [`7e80041`](https://github.com/vertz-dev/vertz/commit/7e80041df6d5708fb54177edeef8bd211e368c7c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(compiler,ui): wrap multi-child component children in a DocumentFragment
+
+  Previously, a component with multiple JSX children compiled to
+  `Component({ children: () => [a, b] })`. Consumers such as
+  `Context.Provider`, `Suspense`, and `ErrorBoundary` call `children()` and
+  expect a single node — they got an array instead, which downstream
+  `appendChild` calls rejected. This affected any component that treats
+  `children` as a renderable slot, so code like
+
+  ```tsx
+  <RouterContext.Provider value={router}>
+    <aside>…</aside>
+    <main>…</main>
+  </RouterContext.Provider>
+  ```
+
+  crashed at mount with a generic
+  `TypeError: Failed to execute 'appendChild' on 'Node': parameter 1 is not of type 'Node'.`
+
+  The compiler now emits a `DocumentFragment`-returning thunk for
+  multi-child components, mirroring how `<>…</>` fragments are already
+  handled. `Context.Provider` also wraps any hand-written array result in a
+  `DocumentFragment` as a defensive fallback, replacing the previous
+  dev-only throw (which was unreliable in the browser because
+  `process.env.NODE_ENV` is not polyfilled).
+
+  Closes #2821.
+
+- [#2824](https://github.com/vertz-dev/vertz/pull/2824) [`c724744`](https://github.com/vertz-dev/vertz/commit/c724744924b75e215201c0d19b047f4b8a287044) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui): let `globalCss()` accept nested at-rules (`@keyframes`, `@media`, `@supports`)
+
+  `globalCss({ '@keyframes spin': { from: {...}, to: {...} } })` used to fail
+  typecheck with `TS2353` because the block value type only allowed CSS
+  declarations. `GlobalStyleBlock` is now a union — either a declarations map
+  or a selector → declarations map — and the runtime wraps nested blocks
+  inside their parent at-rule.
+
+  ```ts
+  globalCss({
+    "@keyframes spin": {
+      from: { transform: "rotate(0deg)" },
+      to: { transform: "rotate(360deg)" },
+    },
+    "@media (min-width: 768px)": {
+      body: { fontSize: "18px" },
+    },
+  });
+  ```
+
+  Closes #2776.
+
+- [#2833](https://github.com/vertz-dev/vertz/pull/2833) [`5223868`](https://github.com/vertz-dev/vertz/commit/5223868cb3001349065cc246e0ca8a03ad9356f4) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(jsx): honor `defaultValue` / `defaultChecked` on `<input>` and `<textarea>`
+
+  The React-style uncontrolled-initial-value props were silently dropped:
+
+  ```tsx
+  <textarea defaultValue="Hello world" />  // rendered empty
+  <input defaultValue="initial" />          // rendered empty
+  <input type="checkbox" defaultChecked /> // rendered unchecked
+  ```
+
+  Both have no HTML content attribute, so the compiler's fallback to
+  `setAttribute("defaultValue", ...)` was a no-op in the browser.
+
+  The native compiler and the test-time JSX runtime now route these through
+  the IDL property path (`el.defaultValue = "..."`, `el.defaultChecked = true`),
+  matching how `value` / `checked` are already handled. The SSR DOM shim
+  serializes them to the correct initial HTML — `value="..."` for `<input>`,
+  text content for `<textarea>`, and the `checked` attribute for
+  `<input type="checkbox">` — so the value is visible before hydration.
+
+  Closes #2820.
+
+- [#2852](https://github.com/vertz-dev/vertz/pull/2852) [`b8253ad`](https://github.com/vertz-dev/vertz/commit/b8253ad485fba3fc04164db116ee0192e629b3d2) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(ui): query() now accepts AsyncIterable sources for live data
+
+  `query()` accepts an `AsyncIterable<T>` source in addition to promises and SDK
+  descriptors. Each yield appends to a reactive `data: T[]` array — perfect for
+  chat transcripts, agent runs, log tails, live dashboards, presence streams.
+
+  ```ts
+  import { query, fromWebSocket } from "@vertz/ui";
+
+  const ticks = query<TickEvent>(
+    (signal) => fromWebSocket<TickEvent>("wss://stream.example/ticks", signal),
+    { key: "ticks" }
+  );
+
+  // In JSX
+  {
+    ticks.data.map((t) => <Tick key={t.ts} tick={t} />);
+  }
+  ```
+
+  The query owns the iterator's lifecycle: `dispose()` (or auto-cleanup on
+  component unmount) calls `signal.abort()` _and_ `iterator.return?.()`.
+  `refetch()` cancels and starts a fresh iterator, resetting `data` to `[]`
+  and flipping `reconnecting` to true. Reactive keys (e.g., a signal-backed
+  `sessionId`) automatically restart the iterator when their values change.
+
+  New public API:
+
+  - Stream overload of `query()` returning `QueryStreamResult<T>` (`data: T[]`,
+    `reconnecting: boolean`, plus the existing `loading` / `error` / `idle` /
+    `refetch` / `dispose`).
+  - `fromWebSocket<T>(url, signal)` and `fromEventSource<T>(url, signal)` helpers
+    that yield JSON-parsed messages and close on `signal.abort()`.
+  - `QueryDisposedReason` (the `signal.reason` set on framework-initiated
+    cancellations) and `QueryStreamMisuseError` (thrown for `refetchInterval`
+    - stream, missing `key` on stream queries, or source-type swap mid-flight).
+  - `serializeQueryKey()` for tuple cache keys (recursively sorts object keys
+    so `{a:1,b:2}` and `{b:2,a:1}` hash identically).
+  - The Promise overload's thunk now optionally accepts `(signal?: AbortSignal)`
+    too, so signal-aware producers (e.g., `fetch(url, { signal })`) get
+    cancellation parity. Existing zero-arg thunks continue to compile unchanged.
+
+  See `docs/guides/ui/live-data` for the full guide, including the cursor /
+  replay pattern, dedup wrapper, and lifecycle pitfalls.
+
+  Closes #2846.
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.73
+
 ## 0.2.72
 
 ### Patch Changes
