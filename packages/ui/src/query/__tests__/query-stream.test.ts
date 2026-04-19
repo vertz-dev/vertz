@@ -34,10 +34,14 @@ describe('query() — stream sources', () => {
         }
         const q = query(() => mock(), { key: 'acc-test' });
 
-        // Initial state: loading, idle, empty
+        // Initial state synchronously after construction:
+        // - data is the empty accumulator (always-array, never undefined)
+        // - loading is true (no yields landed yet)
+        // - idle is FALSE: the thunk has been called and returned a non-null
+        //   AsyncIterable, so the query is no longer idle even before first yield
         expect(q.loading.value).toBe(true);
         expect(q.data.value).toEqual([]);
-        expect(q.idle.value).toBe(true);
+        expect(q.idle.value).toBe(false);
 
         await flushPromises();
 
@@ -263,6 +267,26 @@ describe('query() — stream sources', () => {
         expect(aborted).toEqual(['s1']);
         expect(opened).toEqual(['s1', 's2']);
         expect(q.data.value.map((x) => x.id)).toEqual(['s2-msg-1']);
+      });
+    });
+  });
+
+  describe('Given a stream that errored', () => {
+    describe('When a reactive-key change triggers a restart', () => {
+      test('then error is cleared and a fresh iterator runs', async () => {
+        const sessionId = createSignal('s1');
+        async function* maybeFail(id: string) {
+          if (id === 's1') throw new Error('first failed');
+          yield { id: `${id}-ok` };
+        }
+        const q = query(() => maybeFail(sessionId.value), { key: 'restart-clears-error' });
+        await flushPromises();
+        expect(q.error.value).toBeInstanceOf(Error);
+
+        sessionId.value = 's2';
+        await flushPromises();
+        expect(q.error.value).toBeUndefined();
+        expect(q.data.value).toEqual([{ id: 's2-ok' }]);
       });
     });
   });

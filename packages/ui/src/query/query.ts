@@ -919,6 +919,10 @@ export function query<T, E = unknown>(
    * call is awaited via Promise.resolve(...).catch(() => {}) so a rejecting
    * cleanup doesn't surface as an unhandled rejection.
    *
+   * Idempotent — a second cancel during a still-pending .return() is a no-op
+   * (the iterator reference is cleared on the first call, so the second call's
+   * lookup returns undefined).  This guards against double-refetch races.
+   *
    * Phase 2 helper used by dispose(), refetch(), and reactive-key restart.
    */
   function cancelStreamPump(reason: unknown): void {
@@ -926,6 +930,8 @@ export function query<T, E = unknown>(
       currentStreamController.abort(reason);
     }
     const iter = currentStreamIterator;
+    // Clear the reference BEFORE awaiting return() so a re-entry during the
+    // pending return doesn't see this iterator and call .return() again.
     currentStreamIterator = undefined;
     if (iter && typeof iter.return === 'function') {
       void Promise.resolve(iter.return()).catch(() => {});
@@ -978,6 +984,10 @@ export function query<T, E = unknown>(
           // Brief loading spike between iterators is appropriate.
           loading.value = true;
         }
+        // The thunk just returned a non-null AsyncIterable, so the query is
+        // not idle — even if no yields have landed yet (mirrors first-time
+        // classification per Implementation Notes #3).
+        idle.value = false;
         error.value = undefined;
       });
       pumpStream(next as AsyncIterable<unknown>, newController.signal).catch((err: unknown) => {
@@ -1155,7 +1165,10 @@ export function query<T, E = unknown>(
       untrack(() => {
         rawData.value = [] as unknown as T;
         loading.value = true;
-        idle.value = true;
+        // Per design Implementation Notes #3: idle flips to false on the first
+        // non-null thunk return, NOT on the first yield.  The thunk has now
+        // returned a non-null AsyncIterable, so the query is no longer idle.
+        idle.value = false;
         reconnecting.value = false;
         error.value = undefined;
       });
