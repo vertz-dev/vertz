@@ -6,7 +6,12 @@ import type {
   ToolCallSummaryEntry,
 } from './loop/react-loop';
 import { reactLoop } from './loop/react-loop';
-import { SessionAccessDeniedError, SessionNotFoundError } from './stores/errors';
+import {
+  MemoryStoreNotDurableError,
+  SessionAccessDeniedError,
+  SessionNotFoundError,
+} from './stores/errors';
+import { isMemoryStore } from './stores/memory-store';
 import type { AgentSession, AgentStore } from './stores/types';
 import type { AgentContext, AgentDefinition, ToolDefinition, ToolProvider } from './types';
 
@@ -155,6 +160,13 @@ export async function run(
 
   if (hasStore(options)) {
     const { store } = options;
+
+    // Fail fast if a sessionId is paired with the non-durable memory store —
+    // otherwise a chat-only agent (no tool calls) would silently appear to
+    // work and lose data on restart. See #2835.
+    if (options.sessionId && isMemoryStore(store)) {
+      throw new MemoryStoreNotDurableError();
+    }
 
     if (options.sessionId) {
       // Resume existing session
