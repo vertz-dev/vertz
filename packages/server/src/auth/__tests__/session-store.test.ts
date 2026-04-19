@@ -136,11 +136,29 @@ describe('InMemorySessionStore', () => {
     expect(sessions).toHaveLength(0);
   });
 
-  it('disposes cleanup interval', () => {
+  it('dispose is idempotent', () => {
     const s = new InMemorySessionStore();
-    // Should not throw
     s.dispose();
-    s.dispose(); // Double dispose should also be safe
+    s.dispose();
+  });
+
+  it('does not schedule a setInterval at construction time', () => {
+    // Regression for #2851 — a background setInterval in the constructor keeps
+    // the V8 event loop alive and prevents the API isolate from completing
+    // module evaluation, making `createServer({ auth })` hang.
+    const originalSetInterval = globalThis.setInterval;
+    let scheduled = false;
+    globalThis.setInterval = ((...args: Parameters<typeof setInterval>) => {
+      scheduled = true;
+      return originalSetInterval(...args);
+    }) as typeof setInterval;
+    try {
+      const s = new InMemorySessionStore();
+      expect(scheduled).toBe(false);
+      s.dispose();
+    } finally {
+      globalThis.setInterval = originalSetInterval;
+    }
   });
 
   it('createSessionWithId uses the provided id', async () => {

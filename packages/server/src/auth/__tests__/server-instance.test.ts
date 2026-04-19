@@ -9,7 +9,6 @@ describe('createServer with db + auth', () => {
   let serverApp: ServerInstance | null = null;
 
   afterEach(() => {
-    // Dispose auth stores to clear setInterval timers that keep the event loop alive
     if (serverApp?.auth) {
       serverApp.auth.dispose();
       serverApp = null;

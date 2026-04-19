@@ -13,14 +13,11 @@ const CLEANUP_INTERVAL_MS = 60_000;
 
 export class InMemoryRateLimitStore implements RateLimitStore {
   private store = new Map<string, RateLimitEntry>();
-  private cleanupTimer: ReturnType<typeof setInterval>;
-
-  constructor() {
-    this.cleanupTimer = setInterval(() => this.cleanup(), CLEANUP_INTERVAL_MS);
-  }
+  private lastCleanupAt = 0;
 
   async check(key: string, maxAttempts: number, windowMs: number): Promise<RateLimitResult> {
     const now = new Date();
+    this.maybeCleanup(now);
     const entry = this.store.get(key);
 
     if (!entry || entry.resetAt < now) {
@@ -38,11 +35,17 @@ export class InMemoryRateLimitStore implements RateLimitStore {
   }
 
   dispose(): void {
-    clearInterval(this.cleanupTimer);
+    this.store.clear();
   }
 
-  private cleanup(): void {
-    const now = new Date();
+  private maybeCleanup(now: Date): void {
+    const nowMs = now.getTime();
+    if (nowMs - this.lastCleanupAt < CLEANUP_INTERVAL_MS) return;
+    this.lastCleanupAt = nowMs;
+    this.cleanup(now);
+  }
+
+  private cleanup(now: Date = new Date()): void {
     for (const [key, entry] of this.store) {
       if (entry.resetAt < now) {
         this.store.delete(key);
