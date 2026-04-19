@@ -917,9 +917,14 @@ fn classify_map_call(call: &CallExpression, source: &str) -> Option<ExprKind> {
         _ => return None,
     };
 
+    // Use the raw source slice of the parameter pattern so destructured
+    // patterns (`[a, b]`, `{ a, b }`) are preserved verbatim when we emit the
+    // render / key functions.
     let item_param = arrow.params.items.first().and_then(|p| {
-        if let BindingPattern::BindingIdentifier(id) = &p.pattern {
-            Some(id.name.to_string())
+        let start = p.pattern.span().start as usize;
+        let end = p.pattern.span().end as usize;
+        if start < end && end <= source.len() {
+            Some(source[start..end].to_string())
         } else {
             None
         }
@@ -3940,6 +3945,66 @@ export function B() {
 }"#,
         );
         assert!(result.contains("__list("), "result: {result}");
+    }
+
+    // Regression #2817: destructured array pattern in .map() callback must
+    // still transform JSX inside the callback body.
+    #[test]
+    fn list_map_with_array_destructured_param() {
+        let result = transform(
+            r#"export function App() {
+    const entries: [string, string][] = [['a', 'Alpha'], ['b', 'Beta']];
+    return <div>{entries.map(([key, label]) => <button key={key}>{label}</button>)}</div>;
+}"#,
+        );
+        assert!(result.contains("__list("), "result: {result}");
+        assert!(
+            !result.contains("<button"),
+            "raw JSX leaked into output: {result}"
+        );
+        assert!(
+            result.contains("([key, label])"),
+            "destructured param missing from render fn: {result}"
+        );
+    }
+
+    // Regression #2817: destructured object pattern in .map() callback must
+    // still transform JSX inside the callback body.
+    #[test]
+    fn list_map_with_object_destructured_param() {
+        let result = transform(
+            r#"export function App() {
+    const items = [{ id: 1, name: 'A' }];
+    return <div>{items.map(({ id, name }) => <span key={id}>{name}</span>)}</div>;
+}"#,
+        );
+        assert!(result.contains("__list("), "result: {result}");
+        assert!(
+            !result.contains("<span"),
+            "raw JSX leaked into output: {result}"
+        );
+        assert!(
+            result.contains("({ id, name })"),
+            "destructured param missing from render fn: {result}"
+        );
+    }
+
+    // Regression #2817: type-annotated param must not leak the annotation
+    // into the emitted render fn (pattern span excludes the annotation).
+    #[test]
+    fn list_map_with_typed_param() {
+        let result = transform(
+            r#"type Task = { id: number };
+export function App() {
+    const items: Task[] = [{ id: 1 }];
+    return <div>{items.map((item: Task) => <span key={item.id}>{item.id}</span>)}</div>;
+}"#,
+        );
+        assert!(result.contains("__list("), "result: {result}");
+        assert!(
+            !result.contains("<span"),
+            "raw JSX leaked into output: {result}"
+        );
     }
 
     // ========== Component props: expression props become getters ==========
