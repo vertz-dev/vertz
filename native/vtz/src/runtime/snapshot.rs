@@ -313,6 +313,8 @@ mod tests {
     fn test_production_snapshot_has_dom_shim() {
         let mut rt = VertzJsRuntime::new_for_production(VertzRuntimeOptions::default()).unwrap();
 
+        rt.execute_script_void("<install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -320,6 +322,101 @@ mod tests {
                 typeof document !== 'undefined'
                 && typeof document.createElement === 'function'
                 && typeof HTMLElement === 'function'
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!(true));
+    }
+
+    // ------------------------------------------------------------------
+    // Clean-handler-env tests (Phase 2 of #2760).
+    //
+    // A fresh production runtime must look like Cloudflare Workers:
+    //   - No `window`, `document`, DOM constructors, `location`, `history`.
+    //   - Permanent: `navigator`, CSS collector state, install/uninstall.
+    // SSR renders opt in via the install hook wired into dispatch.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_fresh_production_runtime_has_no_window() {
+        let mut rt = VertzJsRuntime::new_for_production(VertzRuntimeOptions::default()).unwrap();
+        let result = rt.execute_script("<test>", "typeof window").unwrap();
+        assert_eq!(result, serde_json::json!("undefined"));
+    }
+
+    #[test]
+    fn test_fresh_production_runtime_has_no_document() {
+        let mut rt = VertzJsRuntime::new_for_production(VertzRuntimeOptions::default()).unwrap();
+        let result = rt.execute_script("<test>", "typeof document").unwrap();
+        assert_eq!(result, serde_json::json!("undefined"));
+    }
+
+    #[test]
+    fn test_fresh_production_runtime_has_no_dom_constructors() {
+        let mut rt = VertzJsRuntime::new_for_production(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                [
+                    typeof HTMLElement,
+                    typeof Element,
+                    typeof Document,
+                    typeof Node,
+                    typeof location,
+                    typeof history,
+                ]
+                "#,
+            )
+            .unwrap();
+        assert_eq!(
+            result,
+            serde_json::json!([
+                "undefined",
+                "undefined",
+                "undefined",
+                "undefined",
+                "undefined",
+                "undefined",
+            ])
+        );
+    }
+
+    #[test]
+    fn test_fresh_production_runtime_has_navigator() {
+        let mut rt = VertzJsRuntime::new_for_production(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                "typeof navigator === 'object' && navigator.userAgent.includes('vertz-server')",
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!(true));
+    }
+
+    #[test]
+    fn test_fresh_production_runtime_registers_install_uninstall() {
+        let mut rt = VertzJsRuntime::new_for_production(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                "typeof globalThis.__vertz_install_dom_shim === 'function' && \
+                 typeof globalThis.__vertz_uninstall_dom_shim === 'function'",
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!(true));
+    }
+
+    #[test]
+    fn test_fresh_production_runtime_has_css_collector() {
+        let mut rt = VertzJsRuntime::new_for_production(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                typeof globalThis.__vertz_inject_css === 'function'
+                && Array.isArray(globalThis.__vertz_get_collected_css())
+                && globalThis.__vertz_get_collected_css().length === 0
                 "#,
             )
             .unwrap();
@@ -347,6 +444,8 @@ mod tests {
     fn test_production_snapshot_dom_state() {
         let mut rt = VertzJsRuntime::new_for_production(VertzRuntimeOptions::default()).unwrap();
 
+        rt.execute_script_void("<install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",

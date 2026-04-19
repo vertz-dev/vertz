@@ -236,6 +236,9 @@ jobs:
       - name: Format check
         run: oxfmt --check packages/
 
+      - name: Audit handler-reachable DOM references
+        run: bash scripts/audit-window-document-refs.sh
+
   # ---------------------------------------------------------------------------
   # Build, typecheck & test — the heavy job.
   # Runs turbo without lint (handled by the parallel lint job above).

@@ -70,6 +70,8 @@ fn test_dom_shim_provides_complete_environment() {
     .unwrap();
 
     dom_shim::load_dom_shim(&mut rt).unwrap();
+    rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+        .unwrap();
 
     // Verify all required globals are available
     let checks = rt
@@ -118,6 +120,8 @@ fn test_dom_shim_complex_dom_tree() {
     .unwrap();
 
     dom_shim::load_dom_shim(&mut rt).unwrap();
+    rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+        .unwrap();
 
     let result = rt
         .execute_script(
@@ -179,6 +183,8 @@ fn test_css_collection_end_to_end() {
     .unwrap();
 
     dom_shim::load_dom_shim(&mut rt).unwrap();
+    rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+        .unwrap();
 
     // Simulate component rendering that injects CSS
     rt.execute_script_void(
@@ -317,6 +323,8 @@ fn test_ssr_render_full_pipeline() {
     .unwrap();
 
     dom_shim::load_dom_shim(&mut rt).unwrap();
+    rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+        .unwrap();
 
     rt.execute_script_void(
         "<test>",
@@ -639,6 +647,8 @@ async fn poc_ssr_render_single_pass_in_v8() {
     // Load polyfills (AsyncLocalStorage, DOM shim)
     load_async_context(&mut rt).unwrap();
     dom_shim::load_dom_shim(&mut rt).unwrap();
+    rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+        .unwrap();
 
     // Load the app module and store as globalThis.__vertz_app_module
     let app_path = root.join("src/app-ssr.js");
@@ -716,6 +726,8 @@ fn test_async_local_storage_in_ssr_context() {
 
     load_async_context(&mut rt).unwrap();
     dom_shim::load_dom_shim(&mut rt).unwrap();
+    rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+        .unwrap();
 
     // Simulate SSR context usage
     let result = rt

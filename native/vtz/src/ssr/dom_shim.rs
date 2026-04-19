@@ -25,7 +25,17 @@ pub const DOM_SHIM_JS: &str = r#"
   const DOCUMENT_FRAGMENT_NODE = 11;
 
   // --- CSS collector ---
-  const __vertz_collected_css = [];
+  // State is owned by `globalThis.__vertz_css_state` (permanent, non-enumerable).
+  // Defined once at snapshot time so collector functions survive install/uninstall
+  // cycles of the DOM shim. See __vertz_install_dom_shim below.
+  if (typeof globalThis.__vertz_css_state === 'undefined') {
+    Object.defineProperty(globalThis, '__vertz_css_state', {
+      value: [],
+      writable: true,
+      configurable: false,
+      enumerable: false,
+    });
+  }
 
   // --- Base Node ---
   class SSRNode {
@@ -701,82 +711,17 @@ pub const DOM_SHIM_JS: &str = r#"
     disconnect() {}
   }
 
-  // --- Install globals ---
-  const doc = new SSRDocument();
+  // ==================================================================
+  // PERMANENT BLOCK — globals that stay regardless of install state.
+  // ==================================================================
+  //
+  // Server handlers see these too. Nothing here should make the runtime
+  // look like a browser. Cloudflare-Workers-compatible shape only.
 
-  // Create the #app mount point that mount() expects
-  const appRoot = doc.createElement('div');
-  appRoot.setAttribute('id', 'app');
-  doc.body.appendChild(appRoot);
-
-  globalThis.document = doc;
-  globalThis.Document = SSRDocument;
-  globalThis.Element = SSRElement;
-  globalThis.HTMLElement = SSRElement;
-  globalThis.HTMLDivElement = SSRElement;
-  globalThis.HTMLSpanElement = SSRElement;
-  globalThis.HTMLButtonElement = SSRElement;
-  globalThis.HTMLInputElement = SSRElement;
-  globalThis.HTMLFormElement = SSRElement;
-  globalThis.HTMLAnchorElement = SSRElement;
-  globalThis.HTMLImageElement = SSRElement;
-  globalThis.HTMLTemplateElement = SSRElement;
-  globalThis.HTMLStyleElement = SSRElement;
-  globalThis.SVGElement = SSRElement;
-  globalThis.Text = SSRTextNode;
-  globalThis.Comment = SSRComment;
-  globalThis.DocumentFragment = SSRDocumentFragment;
-  globalThis.Node = SSRNode;
-  globalThis.Event = SSREvent;
-  globalThis.CustomEvent = SSRCustomEvent;
-  globalThis.MutationObserver = SSRMutationObserver;
-  globalThis.ResizeObserver = SSRResizeObserver;
-  globalThis.IntersectionObserver = SSRIntersectionObserver;
-  globalThis.NodeList = Array;
-
-  // requestAnimationFrame / cancelAnimationFrame (no-op)
-  globalThis.requestAnimationFrame = function(cb) { return 0; };
-  globalThis.cancelAnimationFrame = function() {};
-
-  // matchMedia (no-op)
-  globalThis.matchMedia = function(query) {
-    return {
-      matches: false,
-      media: query,
-      addEventListener() {},
-      removeEventListener() {},
-      addListener() {},
-      removeListener() {},
-      onchange: null,
-    };
-  };
-
-  // getComputedStyle (no-op)
-  globalThis.getComputedStyle = function(el) {
-    return new Proxy({}, {
-      get(_, prop) {
-        if (prop === 'getPropertyValue') return () => '';
-        return '';
-      }
-    });
-  };
-
-  // Event target methods (no-op in SSR)
-  if (typeof globalThis.addEventListener === 'undefined') {
-    globalThis.addEventListener = function() {};
-    globalThis.removeEventListener = function() {};
-    globalThis.dispatchEvent = function() { return true; };
-  }
-
-  // window as globalThis alias
-  if (typeof globalThis.window === 'undefined') {
-    globalThis.window = globalThis;
-  }
-
-  // navigator
+  // --- navigator (Worker-compatible) ---
   if (typeof globalThis.navigator === 'undefined') {
     globalThis.navigator = {
-      userAgent: 'vertz-ssr/1.0',
+      userAgent: 'vertz-server/1.0',
       language: 'en',
       languages: ['en'],
       platform: 'server',
@@ -784,39 +729,11 @@ pub const DOM_SHIM_JS: &str = r#"
     };
   }
 
-  // location (default to /)
-  if (typeof globalThis.location === 'undefined') {
-    globalThis.location = {
-      href: 'http://localhost/',
-      origin: 'http://localhost',
-      protocol: 'http:',
-      host: 'localhost',
-      hostname: 'localhost',
-      port: '',
-      pathname: '/',
-      search: '',
-      hash: '',
-    };
-  }
-
-  // history (no-op)
-  if (typeof globalThis.history === 'undefined') {
-    globalThis.history = {
-      pushState() {},
-      replaceState() {},
-      back() {},
-      forward() {},
-      go() {},
-      state: null,
-      length: 1,
-    };
-  }
-
-  // CSS utilities used by Vertz's css() / variants() runtime
-  // __vertz_inject_css collects CSS strings during SSR
+  // --- CSS collector (permanent — survives install/uninstall cycles) ---
   globalThis.__vertz_inject_css = function(css, id) {
-    if (id && __vertz_collected_css.some(c => c.id === id)) return;
-    __vertz_collected_css.push({ css, id: id || null });
+    const state = globalThis.__vertz_css_state;
+    if (id && state.some(c => c.id === id)) return;
+    state.push({ css, id: id || null });
   };
 
   globalThis.__vertz_get_collected_css = function() {
@@ -824,8 +741,9 @@ pub const DOM_SHIM_JS: &str = r#"
     // 1. Explicit __vertz_inject_css() calls (used by native compiler pipeline)
     // 2. <style> elements appended to document.head by @vertz/ui's injectCSS()
     //    (when SSR context is not set, injectCSS falls back to DOM <style> tags)
-    const seen = new Set(__vertz_collected_css.map(c => c.css));
-    const merged = [...__vertz_collected_css];
+    const state = globalThis.__vertz_css_state;
+    const seen = new Set(state.map(c => c.css));
+    const merged = [...state];
 
     if (typeof document !== 'undefined' && document.head) {
       for (const child of document.head.childNodes) {
@@ -844,7 +762,7 @@ pub const DOM_SHIM_JS: &str = r#"
   };
 
   globalThis.__vertz_clear_collected_css = function() {
-    __vertz_collected_css.length = 0;
+    globalThis.__vertz_css_state.length = 0;
   };
 
   // URLSearchParams shim (used by the router for query string parsing)
@@ -1001,6 +919,161 @@ pub const DOM_SHIM_JS: &str = r#"
     SSRDocument,
     VOID_ELEMENTS,
   };
+
+  // ==================================================================
+  // SCOPED BLOCK — install / uninstall browser-like globals.
+  // ==================================================================
+  //
+  // These functions toggle the DOM globals that make the environment
+  // "look like" a browser. Handlers run with them uninstalled so
+  // third-party SDKs (`@anthropic-ai/sdk`, `openai`, `stripe`, ...) do
+  // not refuse to operate. SSR renders call install/uninstall around
+  // their render boundary (wired in persistent_isolate.rs).
+  //
+  // Constructors like SSRElement stay defined in the IIFE closure; the
+  // install function copies references onto globalThis, uninstall deletes
+  // them. CSS collector state lives on globalThis (see permanent block),
+  // so it survives across install cycles.
+
+  let __vertz_shim_installed = false;
+
+  globalThis.__vertz_install_dom_shim = function () {
+    if (__vertz_shim_installed) return;
+    __vertz_shim_installed = true;
+
+    // Fresh document per render — previous render's tree must not leak.
+    const doc = new SSRDocument();
+    const appRoot = doc.createElement('div');
+    appRoot.setAttribute('id', 'app');
+    doc.body.appendChild(appRoot);
+
+    globalThis.document = doc;
+    globalThis.window = globalThis;
+
+    globalThis.Document = SSRDocument;
+    globalThis.Element = SSRElement;
+    globalThis.HTMLElement = SSRElement;
+    globalThis.HTMLDivElement = SSRElement;
+    globalThis.HTMLSpanElement = SSRElement;
+    globalThis.HTMLButtonElement = SSRElement;
+    globalThis.HTMLInputElement = SSRElement;
+    globalThis.HTMLFormElement = SSRElement;
+    globalThis.HTMLAnchorElement = SSRElement;
+    globalThis.HTMLImageElement = SSRElement;
+    globalThis.HTMLTemplateElement = SSRElement;
+    globalThis.HTMLStyleElement = SSRElement;
+    globalThis.SVGElement = SSRElement;
+    globalThis.Text = SSRTextNode;
+    globalThis.Comment = SSRComment;
+    globalThis.DocumentFragment = SSRDocumentFragment;
+    globalThis.Node = SSRNode;
+    globalThis.Event = SSREvent;
+    globalThis.CustomEvent = SSRCustomEvent;
+    globalThis.MutationObserver = SSRMutationObserver;
+    globalThis.ResizeObserver = SSRResizeObserver;
+    globalThis.IntersectionObserver = SSRIntersectionObserver;
+    globalThis.NodeList = Array;
+
+    globalThis.requestAnimationFrame = function(cb) { return 0; };
+    globalThis.cancelAnimationFrame = function() {};
+
+    globalThis.matchMedia = function(query) {
+      return {
+        matches: false,
+        media: query,
+        addEventListener() {},
+        removeEventListener() {},
+        addListener() {},
+        removeListener() {},
+        onchange: null,
+      };
+    };
+
+    globalThis.getComputedStyle = function(el) {
+      return new Proxy({}, {
+        get(_, prop) {
+          if (prop === 'getPropertyValue') return () => '';
+          return '';
+        }
+      });
+    };
+
+    globalThis.addEventListener = function() {};
+    globalThis.removeEventListener = function() {};
+    globalThis.dispatchEvent = function() { return true; };
+
+    globalThis.location = {
+      href: 'http://localhost/',
+      origin: 'http://localhost',
+      protocol: 'http:',
+      host: 'localhost',
+      hostname: 'localhost',
+      port: '',
+      pathname: '/',
+      search: '',
+      hash: '',
+    };
+    globalThis.history = {
+      pushState() {},
+      replaceState() {},
+      back() {},
+      forward() {},
+      go() {},
+      state: null,
+      length: 1,
+    };
+
+    // Intentionally NOT resetting __vertz_css_state here. The dispatch-level
+    // reset scripts (SSR_RESET_JS / COMPONENT_RESET_JS in persistent_isolate)
+    // own per-request CSS isolation, including snapshotting module-level
+    // baseline CSS on first call. Wiping here would destroy that baseline
+    // before the snapshot can capture it.
+  };
+
+  globalThis.__vertz_uninstall_dom_shim = function () {
+    if (!__vertz_shim_installed) return;
+    __vertz_shim_installed = false;
+
+    delete globalThis.window;
+    delete globalThis.document;
+    delete globalThis.Document;
+    delete globalThis.Element;
+    delete globalThis.HTMLElement;
+    delete globalThis.HTMLDivElement;
+    delete globalThis.HTMLSpanElement;
+    delete globalThis.HTMLButtonElement;
+    delete globalThis.HTMLInputElement;
+    delete globalThis.HTMLFormElement;
+    delete globalThis.HTMLAnchorElement;
+    delete globalThis.HTMLImageElement;
+    delete globalThis.HTMLTemplateElement;
+    delete globalThis.HTMLStyleElement;
+    delete globalThis.SVGElement;
+    delete globalThis.Text;
+    delete globalThis.Comment;
+    delete globalThis.DocumentFragment;
+    delete globalThis.Node;
+    delete globalThis.Event;
+    delete globalThis.CustomEvent;
+    delete globalThis.MutationObserver;
+    delete globalThis.ResizeObserver;
+    delete globalThis.IntersectionObserver;
+    delete globalThis.NodeList;
+    delete globalThis.requestAnimationFrame;
+    delete globalThis.cancelAnimationFrame;
+    delete globalThis.matchMedia;
+    delete globalThis.getComputedStyle;
+    delete globalThis.addEventListener;
+    delete globalThis.removeEventListener;
+    delete globalThis.dispatchEvent;
+    delete globalThis.location;
+    delete globalThis.history;
+  };
+
+  // DOM shim is NOT eagerly installed. Server handlers see a clean,
+  // Worker-like environment (no `window`, `document`, ...). SSR renders
+  // call `__vertz_install_dom_shim()` / `__vertz_uninstall_dom_shim()`
+  // around their render boundary (see persistent_isolate.rs).
 })();
 "#;
 
@@ -1102,6 +1175,8 @@ mod tests {
     fn test_document_is_defined() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script("<test>", "typeof globalThis.document")
             .unwrap();
@@ -1112,6 +1187,8 @@ mod tests {
     fn test_window_is_defined() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script("<test>", "typeof globalThis.window")
             .unwrap();
@@ -1122,6 +1199,8 @@ mod tests {
     fn test_navigator_is_defined() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script("<test>", "typeof globalThis.navigator")
             .unwrap();
@@ -1132,6 +1211,8 @@ mod tests {
     fn test_location_is_defined() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script("<test>", "globalThis.location.pathname")
             .unwrap();
@@ -1142,6 +1223,8 @@ mod tests {
     fn test_create_element() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1158,6 +1241,8 @@ mod tests {
     fn test_create_text_node() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1174,6 +1259,8 @@ mod tests {
     fn test_create_document_fragment() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1190,6 +1277,8 @@ mod tests {
     fn test_element_set_attribute() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1207,6 +1296,8 @@ mod tests {
     fn test_element_append_child() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1225,6 +1316,8 @@ mod tests {
     fn test_element_inner_html() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1245,6 +1338,8 @@ mod tests {
     fn test_element_outer_html() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1267,6 +1362,8 @@ mod tests {
     fn test_element_outer_html_escapes() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1287,6 +1384,8 @@ mod tests {
     fn test_void_elements_self_close() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1304,6 +1403,8 @@ mod tests {
     fn test_element_class_name() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1321,6 +1422,8 @@ mod tests {
     fn test_element_class_list() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1338,6 +1441,8 @@ mod tests {
     fn test_set_ssr_location() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         set_ssr_location(&mut rt, "/tasks/123?filter=active").unwrap();
         let result = rt
             .execute_script("<test>", "globalThis.location.pathname")
@@ -1353,6 +1458,8 @@ mod tests {
     fn test_set_ssr_location_root() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         set_ssr_location(&mut rt, "/").unwrap();
         let result = rt
             .execute_script("<test>", "globalThis.location.pathname")
@@ -1364,6 +1471,8 @@ mod tests {
     fn test_document_head_and_body_exist() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let head = rt
             .execute_script("<test>", "document.head.tagName")
             .unwrap();
@@ -1378,6 +1487,8 @@ mod tests {
     fn test_css_injection() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1398,6 +1509,8 @@ mod tests {
     fn test_css_collection_and_clear() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         rt.execute_script_void(
             "<test>",
             r#"
@@ -1422,6 +1535,8 @@ mod tests {
     fn test_create_comment() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1440,6 +1555,8 @@ mod tests {
     fn test_element_text_content_setter() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1457,6 +1574,8 @@ mod tests {
     fn test_nested_element_serialization() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1484,6 +1603,8 @@ mod tests {
     fn test_event_listeners_are_noop() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1502,6 +1623,8 @@ mod tests {
     fn test_request_animation_frame_is_noop() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1519,6 +1642,8 @@ mod tests {
     fn test_match_media_is_noop() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1535,6 +1660,8 @@ mod tests {
     fn test_shim_does_not_interfere_with_globals() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         // Ensure basic JS still works after shim
         let result = rt.execute_script("<test>", "1 + 1").unwrap();
         assert_eq!(result, serde_json::json!(2));
@@ -1544,6 +1671,8 @@ mod tests {
     fn test_mutation_observer_noop() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1562,6 +1691,8 @@ mod tests {
     fn test_history_is_noop() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1578,6 +1709,8 @@ mod tests {
     fn test_element_style_serialization() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1598,6 +1731,8 @@ mod tests {
     fn test_element_dataset() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1615,6 +1750,8 @@ mod tests {
     fn test_insert_before() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1635,6 +1772,8 @@ mod tests {
     fn test_remove_child() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1654,6 +1793,8 @@ mod tests {
     fn test_element_get_bounding_client_rect() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1671,6 +1812,8 @@ mod tests {
     fn test_document_fragment_append_to_element() {
         let mut rt = create_runtime();
         load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -1685,5 +1828,210 @@ mod tests {
             )
             .unwrap();
         assert_eq!(result, serde_json::json!(2));
+    }
+
+    // ------------------------------------------------------------------
+    // Scoped install/uninstall tests (Phase 1 of #2760)
+    //
+    // These verify the permanent + scoped split of the DOM shim:
+    //   - `__vertz_install_dom_shim` / `__vertz_uninstall_dom_shim` are
+    //     registered on globalThis after load_dom_shim.
+    //   - Install makes `window`, `document`, etc. available; uninstall
+    //     removes them.
+    //   - CSS collector state and `navigator` are permanent (survive
+    //     install/uninstall cycles).
+    //   - Install is idempotent.
+    //
+    // Phase 1 keeps eager install at the end of the permanent block, so
+    // load_dom_shim() leaves the shim installed by default. Tests that
+    // assert the uninstalled state explicitly call uninstall first.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_install_uninstall_functions_are_registered() {
+        let mut rt = create_runtime();
+        load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                "typeof globalThis.__vertz_install_dom_shim === 'function' && \
+                 typeof globalThis.__vertz_uninstall_dom_shim === 'function'",
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!(true));
+    }
+
+    #[test]
+    fn test_install_sets_window_and_document() {
+        let mut rt = create_runtime();
+        load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                globalThis.__vertz_uninstall_dom_shim();
+                globalThis.__vertz_install_dom_shim();
+                [typeof globalThis.window, typeof globalThis.document]
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!(["object", "object"]));
+    }
+
+    #[test]
+    fn test_install_produces_fresh_document_per_call() {
+        let mut rt = create_runtime();
+        load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                globalThis.__vertz_install_dom_shim();
+                const firstDoc = globalThis.document;
+                globalThis.__vertz_uninstall_dom_shim();
+                globalThis.__vertz_install_dom_shim();
+                const secondDoc = globalThis.document;
+                firstDoc !== secondDoc
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!(true));
+    }
+
+    #[test]
+    fn test_uninstall_removes_browser_globals() {
+        let mut rt = create_runtime();
+        load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                globalThis.__vertz_install_dom_shim();
+                globalThis.__vertz_uninstall_dom_shim();
+                [
+                    typeof globalThis.window,
+                    typeof globalThis.document,
+                    typeof globalThis.location,
+                    typeof globalThis.history,
+                    typeof globalThis.HTMLElement,
+                    typeof globalThis.Element,
+                    typeof globalThis.addEventListener,
+                ]
+                "#,
+            )
+            .unwrap();
+        assert_eq!(
+            result,
+            serde_json::json!([
+                "undefined",
+                "undefined",
+                "undefined",
+                "undefined",
+                "undefined",
+                "undefined",
+                "undefined",
+            ])
+        );
+    }
+
+    #[test]
+    fn test_css_collector_state_is_permanent() {
+        let mut rt = create_runtime();
+        load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                globalThis.__vertz_uninstall_dom_shim();
+                // Inject + collector API remain available while uninstalled.
+                const beforeExists = typeof globalThis.__vertz_inject_css === 'function';
+                globalThis.__vertz_clear_collected_css();
+                globalThis.__vertz_inject_css('a { color: red; }');
+                const afterFirst = globalThis.__vertz_get_collected_css().length;
+                // Install must NOT wipe collected CSS — dispatch-level reset
+                // owns per-request CSS isolation, including baseline capture.
+                globalThis.__vertz_install_dom_shim();
+                const afterInstall = globalThis.__vertz_get_collected_css().length;
+                globalThis.__vertz_inject_css('b { color: blue; }');
+                const afterSecond = globalThis.__vertz_get_collected_css().length;
+                globalThis.__vertz_uninstall_dom_shim();
+                const afterUninstall = typeof globalThis.__vertz_inject_css === 'function';
+                [beforeExists, afterFirst, afterInstall, afterSecond, afterUninstall]
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!([true, 1, 1, 2, true]));
+    }
+
+    #[test]
+    fn test_navigator_is_permanent() {
+        let mut rt = create_runtime();
+        load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                globalThis.__vertz_uninstall_dom_shim();
+                [
+                    typeof globalThis.navigator,
+                    globalThis.navigator.userAgent.includes('vertz-server'),
+                ]
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!(["object", true]));
+    }
+
+    #[test]
+    fn test_install_is_idempotent() {
+        let mut rt = create_runtime();
+        load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                globalThis.__vertz_uninstall_dom_shim();
+                globalThis.__vertz_install_dom_shim();
+                globalThis.document.__mark = 'first';
+                globalThis.__vertz_install_dom_shim();
+                // second install must NOT reset the document
+                globalThis.document.__mark
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("first"));
+    }
+
+    #[test]
+    fn test_uninstall_is_idempotent() {
+        let mut rt = create_runtime();
+        load_dom_shim(&mut rt).unwrap();
+        rt.execute_script_void("<test-install>", "__vertz_install_dom_shim();")
+            .unwrap();
+        let ok = rt
+            .execute_script(
+                "<test>",
+                r#"
+                globalThis.__vertz_uninstall_dom_shim();
+                globalThis.__vertz_uninstall_dom_shim();
+                typeof globalThis.window
+                "#,
+            )
+            .unwrap();
+        assert_eq!(ok, serde_json::json!("undefined"));
     }
 }
