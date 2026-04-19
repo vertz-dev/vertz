@@ -30,7 +30,9 @@ export function DeployFeed() {
 }
 ```
 
-The descriptor carries its own `_key` (derived from method + path + args, identical to REST descriptors), so cache identity, dedup, and `invalidate()` work the same way they do for `query(api.tasks.list({ page: 1 }))`. No manual key, no wrapper thunk.
+The descriptor carries its own `_key` (derived from method + path + args, identical to REST descriptors), so cache identity and dedup work the same way they do for `query(api.tasks.list({ page: 1 }))`. No manual key, no wrapper thunk.
+
+Note: `invalidate(descriptor)` operates on entity-backed REST queries today and is not yet supported for stream descriptors. To restart a stream manually, call `events.refetch()` on the result.
 
 ### 2. Function thunks (escape hatch for ad-hoc iterables)
 

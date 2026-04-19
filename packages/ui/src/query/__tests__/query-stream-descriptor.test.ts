@@ -110,6 +110,43 @@ describe('query() — StreamDescriptor', () => {
     });
   });
 
+  describe('Given a thunk that returns different StreamDescriptors based on a reactive signal', () => {
+    describe('When the signal changes', () => {
+      test('then the previous iterator aborts and the new descriptor key is used', async () => {
+        const { signal: createSignal } = await import('../../runtime/signal');
+        const sessionId = createSignal('a');
+        const opened: string[] = [];
+        const aborted: string[] = [];
+        const descA = createStreamDescriptor('GET', '/sessions/a/events', (signal) => {
+          opened.push('a');
+          signal.addEventListener('abort', () => aborted.push('a'));
+          async function* mock() {
+            yield { id: 'a-1' };
+          }
+          return mock();
+        });
+        const descB = createStreamDescriptor('GET', '/sessions/b/events', (signal) => {
+          opened.push('b');
+          signal.addEventListener('abort', () => aborted.push('b'));
+          async function* mock() {
+            yield { id: 'b-1' };
+          }
+          return mock();
+        });
+        const q = query(() => (sessionId.value === 'a' ? descA : descB));
+        await flushPromises();
+        expect(opened).toEqual(['a']);
+        expect(q.data.value.map((x) => x.id)).toEqual(['a-1']);
+
+        sessionId.value = 'b';
+        await flushPromises();
+        expect(aborted).toEqual(['a']);
+        expect(opened).toEqual(['a', 'b']);
+        expect(q.data.value.map((x) => x.id)).toEqual(['b-1']);
+      });
+    });
+  });
+
   describe('Given a StreamDescriptor and a manual options bag together', () => {
     describe('When passed at runtime (bypassing TypeScript via cast)', () => {
       test('then construction throws QueryStreamMisuseError naming the descriptor', () => {
