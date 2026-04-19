@@ -4,6 +4,8 @@
  * Provides a DbDriver interface that wraps D1's prepare/bind/all/run API.
  */
 
+import { JsonbParseError, JsonbValidationError } from '../errors';
+import type { JsonbValidator } from '../schema/column';
 import type { DbDriver } from './driver';
 import { fromSqliteValue, toSqliteValue } from './sqlite-value-converter';
 
@@ -28,10 +30,22 @@ export interface D1PreparedStatement {
 }
 
 /**
- * Table schema registry mapping table names to their column definitions.
- * Maps tableName → { columnName → columnType }
+ * Per-column schema information consumed by the row-mapper on reads.
+ *
+ * The row-mapper accepts either a bare SQL type string (e.g. `'jsonb'`) or an
+ * object carrying additional metadata like the optional `validator`. The string
+ * form is a shortcut for `{ sqlType }` with no validator.
  */
-export type TableSchemaRegistry = Map<string, Record<string, string>>;
+export interface ColumnSchemaEntry {
+  readonly sqlType: string;
+  readonly validator?: JsonbValidator<unknown>;
+}
+
+/**
+ * Table schema registry mapping table names to their column definitions.
+ * Maps tableName → { columnName → columnType | ColumnSchemaEntry }
+ */
+export type TableSchemaRegistry = Map<string, Record<string, string | ColumnSchemaEntry>>;
 
 // ---------------------------------------------------------------------------
 // Helper: Build table schema from table entries
@@ -42,27 +56,86 @@ import type { ModelEntry } from '../schema/inference';
 
 /**
  * Builds a table schema registry from table entries.
- * Extracts column names and their SQL types from the table definitions.
+ * Stores `sqlType` as a string shortcut when there's no per-column validator,
+ * or a full `ColumnSchemaEntry` when a validator is attached.
  */
 export function buildTableSchema<TModels extends Record<string, ModelEntry>>(
   models: TModels,
 ): TableSchemaRegistry {
-  const registry = new Map<string, Record<string, string>>();
+  const registry: TableSchemaRegistry = new Map();
 
   for (const [, entry] of Object.entries(models)) {
     const tableName = entry.table._name;
-    const columnTypes: Record<string, string> = {};
+    const columnTypes: Record<string, string | ColumnSchemaEntry> = {};
 
     for (const [colName, colBuilder] of Object.entries(entry.table._columns)) {
-      // ColumnBuilder has _meta with sqlType
       const meta = (colBuilder as unknown as { _meta: ColumnMetadata })._meta;
-      columnTypes[colName] = meta.sqlType;
+      if (meta.validator !== undefined) {
+        columnTypes[colName] = { sqlType: meta.sqlType, validator: meta.validator };
+      } else {
+        columnTypes[colName] = meta.sqlType;
+      }
     }
 
     registry.set(tableName, columnTypes);
   }
 
   return registry;
+}
+
+function readSqlType(entry: string | ColumnSchemaEntry): string {
+  return typeof entry === 'string' ? entry : entry.sqlType;
+}
+
+function readValidator(
+  entry: string | ColumnSchemaEntry,
+): JsonbValidator<unknown> | undefined {
+  return typeof entry === 'string' ? undefined : entry.validator;
+}
+
+/**
+ * Convert one row's values using per-column schema. Parse JSONB cells, run
+ * validators when present, and enrich `JsonbParseError` / `JsonbValidationError`
+ * with `table` / `column` context that `fromSqliteValue` can't know on its own.
+ */
+function convertRowWithSchema<T>(
+  row: Record<string, unknown>,
+  schema: Record<string, string | ColumnSchemaEntry>,
+  tableName: string,
+): T {
+  const converted: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    const entry = schema[key];
+    if (entry === undefined) {
+      converted[key] = value;
+      continue;
+    }
+    const sqlType = readSqlType(entry);
+    let next: unknown;
+    try {
+      next = fromSqliteValue(value, sqlType);
+    } catch (err) {
+      if (err instanceof JsonbParseError) {
+        throw new JsonbParseError({
+          columnType: err.columnType,
+          table: tableName,
+          column: key,
+          cause: (err as { cause?: unknown }).cause,
+        });
+      }
+      throw err;
+    }
+    const validator = readValidator(entry);
+    if (validator !== undefined && next !== null && next !== undefined) {
+      try {
+        next = validator.parse(next);
+      } catch (cause) {
+        throw new JsonbValidationError({ table: tableName, column: key, value: next, cause });
+      }
+    }
+    converted[key] = next;
+  }
+  return converted as T;
 }
 
 // ---------------------------------------------------------------------------
@@ -136,19 +209,9 @@ export function createSqliteDriver(
       if (tableName) {
         const schema = tableSchema.get(tableName);
         if (schema) {
-          // Convert each row's values based on column types
-          return result.results.map((row) => {
-            const convertedRow: Record<string, unknown> = {};
-            for (const [key, value] of Object.entries(row as Record<string, unknown>)) {
-              const columnType = schema[key];
-              if (columnType) {
-                convertedRow[key] = fromSqliteValue(value, columnType);
-              } else {
-                convertedRow[key] = value;
-              }
-            }
-            return convertedRow as T;
-          });
+          return result.results.map((row) =>
+            convertRowWithSchema<T>(row as Record<string, unknown>, schema, tableName),
+          );
         }
       }
     }
@@ -311,12 +374,7 @@ export async function createLocalSqliteDriver(
     const schema = tableSchema.get(tableName);
     if (!schema) return row as T;
 
-    const converted: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(row)) {
-      const columnType = schema[key];
-      converted[key] = columnType ? fromSqliteValue(value, columnType) : value;
-    }
-    return converted as T;
+    return convertRowWithSchema<T>(row, schema, tableName);
   };
 
   const query = async <T>(sql: string, params?: unknown[]): Promise<T[]> => {
