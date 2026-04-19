@@ -65,6 +65,7 @@ ALLOWLIST=(
 
   # @vertz/ui — component / rendering (client-only execution paths)
   "packages/ui/src/component/children.ts"
+  "packages/ui/src/component/context.ts"
   "packages/ui/src/component/default-error-fallback.ts"
   "packages/ui/src/component/presence.ts"
   "packages/ui/src/css/css.ts"
