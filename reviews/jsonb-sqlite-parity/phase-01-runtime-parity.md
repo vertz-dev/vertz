@@ -70,3 +70,17 @@ Either way, **a test at the `db.<model>.list()` level must assert on the surface
 ## Verdict
 
 **CHANGES REQUESTED** — B1 is a real functional gap that defeats the phase goal. The tests all pass because they stop at the driver layer; the Result-layer promise in the design doc, the JSDoc, and the commit messages is untrue. Fix the plumbing in `executeQuery` / `toReadError`, add a CRUD-level test, and this phase is solid.
+
+---
+
+## Resolution (commit `80776fc6f`)
+
+**B1 fixed.** `executeQuery` short-circuits on `DbError` instances so they reach the Result layer unchanged. `ReadError` gained `DbJsonbParseError` (`code: 'JSONB_PARSE_ERROR'`) and `DbJsonbValidationError` (`code: 'JSONB_VALIDATION_ERROR'`) with all enrichment (`table`, `column`, `columnType`, `value`) preserved. `toReadError` maps the typed throws to these variants before the generic code-sniffing path.
+
+**CRUD-level tests added.** Two new tests in `jsonb-parity.test.ts` seed corrupt / invalid JSONB via `db.query(sql\`INSERT…\`)` against a local `:memory:` DB and assert `{ ok: false, error.code === 'JSONB_PARSE_ERROR' }` / `'JSONB_VALIDATION_ERROR'` with `table` / `column` preserved. Both green.
+
+**S1/S2/S5, N1/N2/N3 addressed.** Validator guard no longer checks `undefined`; `DbError` constructor accepts `{ cause }`; `JsonbParseError` re-throw preserves upstream table/column; docstrings on `TableSchemaRegistry` shortcut invariant and `convertRowWithSchema` JOIN caveat.
+
+**S4 intentionally deferred.** The two new CRUD-level tests exercise the local driver path end-to-end, so explicit local-only error tests would be redundant.
+
+**Reviewer verdict on resolution: APPROVED.** All 1685 tests green. Phase A ready to merge.
