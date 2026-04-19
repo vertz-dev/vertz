@@ -1,15 +1,29 @@
 import type { Message } from '../loop/react-loop';
+import { MemoryStoreNotDurableError } from './errors';
 import type { AgentSession, AgentStore, ListSessionsFilter } from './types';
+
+/** Brand used by `run()` to detect memoryStore() without `instanceof` across HMR/bundle boundaries. */
+export const MEMORY_STORE_KIND: unique symbol = Symbol.for('@vertz/agents::memoryStore');
+
+/** Returns true if the given store was produced by `memoryStore()`. */
+export function isMemoryStore(store: AgentStore): boolean {
+  return (store as { [MEMORY_STORE_KIND]?: boolean })[MEMORY_STORE_KIND] === true;
+}
 
 /**
  * In-memory store for agent sessions and messages.
  * Sessions are lost on process restart. Useful for testing.
+ *
+ * Non-durable by construction: `appendMessagesAtomic` always throws
+ * `MemoryStoreNotDurableError`. `run()` also detects memoryStore + sessionId
+ * at entry and throws before any work starts (see `isMemoryStore`).
  */
 export function memoryStore(): AgentStore {
   const sessions = new Map<string, AgentSession>();
   const messages = new Map<string, Message[]>();
 
-  return {
+  const store: AgentStore & { [MEMORY_STORE_KIND]: true } = {
+    [MEMORY_STORE_KIND]: true,
     async loadSession(sessionId) {
       return sessions.get(sessionId) ?? null;
     },
@@ -58,5 +72,11 @@ export function memoryStore(): AgentStore {
 
       return result;
     },
+
+    async appendMessagesAtomic(_sessionId, _newMessages, _session) {
+      throw new MemoryStoreNotDurableError();
+    },
   };
+
+  return store;
 }

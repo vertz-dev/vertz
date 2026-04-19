@@ -1,14 +1,27 @@
+import { ToolDurabilityError, serializeToolDurabilityError } from './errors';
 import type {
   LLMAdapter,
   LoopResult,
   Message,
   TokenUsageSummary,
+  ToolCall,
   ToolCallSummaryEntry,
 } from './loop/react-loop';
-import { reactLoop } from './loop/react-loop';
-import { SessionAccessDeniedError, SessionNotFoundError } from './stores/errors';
+import { executeToolCall, reactLoop } from './loop/react-loop';
+import {
+  MemoryStoreNotDurableError,
+  SessionAccessDeniedError,
+  SessionNotFoundError,
+} from './stores/errors';
+import { isMemoryStore } from './stores/memory-store';
 import type { AgentSession, AgentStore } from './stores/types';
-import type { AgentContext, AgentDefinition, ToolDefinition, ToolProvider } from './types';
+import type {
+  AgentContext,
+  AgentDefinition,
+  ToolContext,
+  ToolDefinition,
+  ToolProvider,
+} from './types';
 
 // ---------------------------------------------------------------------------
 // Run options — discriminated union
@@ -91,6 +104,42 @@ function hasStore(opts: RunOptions): opts is RunOptionsWithStore {
 }
 
 /**
+ * Scan the loaded message history for an "orphaned" assistant-with-toolCalls —
+ * an assistant message whose tool_call ids are not all matched by tool_result
+ * messages that come after it. Returns the missing tool_calls, or null if the
+ * history is consistent.
+ */
+function findOrphanAssistantWithToolCalls(
+  messages: readonly Message[],
+): { missingToolCalls: ToolCall[] } | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]!;
+    if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0) {
+      const laterToolResultIds = new Set(
+        messages
+          .slice(i + 1)
+          .filter(
+            (x): x is Message & { toolCallId: string } =>
+              x.role === 'tool' && typeof x.toolCallId === 'string',
+          )
+          .map((x) => x.toolCallId),
+      );
+      const missing = m.toolCalls.filter(
+        (tc): tc is ToolCall & { id: string } =>
+          typeof tc.id === 'string' && tc.id.length > 0 && !laterToolResultIds.has(tc.id),
+      );
+      return missing.length > 0 ? { missingToolCalls: [...missing] } : null;
+    }
+    if (m.role !== 'tool') {
+      // Reached a non-tool, non-assistant row (typically `user`) without
+      // finding an assistant-with-toolCalls closer to the tail → no orphan.
+      break;
+    }
+  }
+  return null;
+}
+
+/**
  * Merge a ToolProvider's handlers into the agent's tool definitions.
  * Creates new (unfrozen) objects — never mutates frozen definitions.
  * Provider handlers override definition handlers.
@@ -156,6 +205,13 @@ export async function run(
   if (hasStore(options)) {
     const { store } = options;
 
+    // Fail fast if a sessionId is paired with the non-durable memory store —
+    // otherwise a chat-only agent (no tool calls) would silently appear to
+    // work and lose data on restart. See #2835.
+    if (options.sessionId && isMemoryStore(store)) {
+      throw new MemoryStoreNotDurableError();
+    }
+
     if (options.sessionId) {
       // Resume existing session
       const session = await store.loadSession(options.sessionId);
@@ -185,7 +241,9 @@ export async function run(
         initialState = structuredClone(agentDef.initialState);
       }
 
-      // Load previous messages (excluding system prompts)
+      // Load previous messages (excluding system prompts). Resume detection
+      // happens later, after ctx + resolvedTools are built (so safeToRetry
+      // tools can be re-invoked with full toolContext).
       previousMessages = await store.loadMessages(sessionId);
     } else {
       // Create new session
@@ -250,6 +308,73 @@ export async function run(
     },
   };
 
+  // Durable execution is active when the caller pairs a durable store with
+  // a sessionId. In that mode, we persist per-step via appendMessagesAtomic
+  // instead of a single end-of-run flush.
+  const durable = hasStore(options) && sessionId !== undefined && !isMemoryStore(options.store);
+  const durableStore = durable ? options.store : null;
+
+  let writtenByLoop = 0;
+
+  function buildSession(): AgentSession {
+    const now = new Date().toISOString();
+    return {
+      id: sessionId!,
+      agentName: agentDef.name,
+      userId,
+      tenantId,
+      state: JSON.stringify(ctx.state),
+      createdAt: existingCreatedAt ?? now,
+      updatedAt: now,
+    };
+  }
+
+  // Resume detection (Phases 3 + 4 of #2835): if the loaded history ends in
+  // an assistant-with-toolCalls with unmatched tool_result ids, the previous
+  // run crashed between write #1 and write #2. For each missing call, either:
+  //   - the tool declares `safeToRetry: true` → re-invoke its handler and
+  //     persist the real result (the side effect, if any, was safe to retry);
+  //   - otherwise → surface a synthetic ToolDurabilityError tool_result so
+  //     the LLM decides recovery in-band.
+  if (durable && durableStore && previousMessages) {
+    const orphan = findOrphanAssistantWithToolCalls(previousMessages);
+    if (orphan) {
+      const toolContextForResume: ToolContext = {
+        agentId,
+        agentName: agentDef.name,
+        agents,
+      };
+      const resumeResults: Message[] = [];
+      for (const missing of orphan.missingToolCalls) {
+        const toolDef = resolvedTools[missing.name];
+        if (toolDef?.safeToRetry) {
+          const result = await executeToolCall(missing, resolvedTools, 0, toolContextForResume);
+          resumeResults.push(result.message);
+        } else {
+          resumeResults.push({
+            role: 'tool',
+            content: serializeToolDurabilityError(
+              new ToolDurabilityError(missing.id ?? '', missing.name),
+            ),
+            toolCallId: missing.id ?? '',
+            toolName: missing.name,
+          });
+        }
+      }
+      if (resumeResults.length > 0) {
+        await durableStore.appendMessagesAtomic(sessionId!, resumeResults, buildSession());
+        previousMessages = [...previousMessages, ...resumeResults];
+      }
+    }
+  }
+
+  // Under durable execution, the new turn's user message is persisted
+  // alongside the FIRST persistStep write (bundled atomically). That way,
+  // if the LLM call fails before any step runs, nothing lands in the store
+  // and readers observe the session at its pre-turn state.
+  let userPersisted = false;
+  const newUserMessage: Message = { role: 'user', content: message };
+
   // Run the ReAct loop
   const result = await reactLoop({
     llm,
@@ -259,12 +384,20 @@ export async function run(
     maxIterations: agentDef.loop.maxIterations,
     stuckThreshold: agentDef.loop.stuckThreshold,
     toolContext: { agentId, agentName: agentDef.name, agents },
-    checkpointInterval: agentDef.loop.checkpointInterval,
     previousMessages,
     tokenBudget: agentDef.loop.tokenBudget,
     diminishingReturns: agentDef.loop.diminishingReturns,
     maxToolConcurrency: agentDef.loop.maxToolConcurrency,
     contextCompression: agentDef.loop.contextCompression,
+    persistStep:
+      durable && durableStore
+        ? async ({ newMessages }) => {
+            const batch = userPersisted ? [...newMessages] : [newUserMessage, ...newMessages];
+            userPersisted = true;
+            await durableStore.appendMessagesAtomic(sessionId!, batch, buildSession());
+            writtenByLoop += batch.length;
+          }
+        : undefined,
   });
 
   // Lifecycle: onComplete or onStuck
@@ -320,36 +453,53 @@ export async function run(
     const { store } = options;
 
     if (result.status !== 'error') {
-      const now = new Date().toISOString();
-      const createdAt = existingCreatedAt ?? now;
+      if (durable && durableStore) {
+        // Compute what reactLoop produced NEW in this turn (skipping system
+        // prompt and any pre-existing resumed messages).
+        const newSinceResume = result.messages
+          .filter((m) => m.role !== 'system')
+          .slice(previousMessages?.length ?? 0);
 
-      const session: AgentSession = {
-        id: sessionId,
-        agentName: agentDef.name,
-        userId,
-        tenantId,
-        state: JSON.stringify(ctx.state),
-        createdAt,
-        updatedAt: now,
-      };
+        // Already persisted by persistStep: writtenByLoop messages plus the
+        // user message if it was bundled into the first persist.
+        const alreadyPersisted = (userPersisted ? 0 : 0) + writtenByLoop + (userPersisted ? 1 : 0);
+        // Unpersisted tail: user message (if loop never called persistStep)
+        // plus any trailing text-only assistant response.
+        const tail = userPersisted ? newSinceResume.slice(alreadyPersisted) : newSinceResume; // includes the user message
+        if (tail.length > 0) {
+          await durableStore.appendMessagesAtomic(sessionId, [...tail], buildSession());
+        } else {
+          // No tail to flush, but session.state may have changed via
+          // onComplete — bump the session row so readers see final state.
+          await durableStore.saveSession(buildSession());
+        }
 
-      await store.saveSession(session);
+        // Prune messages if maxStoredMessages is set
+        const maxStored = options.maxStoredMessages;
+        if (maxStored !== undefined) {
+          await durableStore.pruneMessages(sessionId, maxStored);
+        }
+      } else {
+        // Non-durable legacy path: saveSession + appendMessages at end.
+        const session = buildSession();
+        await store.saveSession(session);
 
-      // Persist new messages (exclude system prompts)
-      const newMessages = result.messages.filter((m) => m.role !== 'system');
-      // If resuming, only persist messages from this turn (not the loaded ones)
-      const messagesToPersist = previousMessages
-        ? newMessages.slice(previousMessages.length)
-        : newMessages;
+        // Persist new messages (exclude system prompts)
+        const newMessages = result.messages.filter((m) => m.role !== 'system');
+        // If resuming, only persist messages from this turn (not the loaded ones)
+        const messagesToPersist = previousMessages
+          ? newMessages.slice(previousMessages.length)
+          : newMessages;
 
-      if (messagesToPersist.length > 0) {
-        await store.appendMessages(sessionId, [...messagesToPersist]);
-      }
+        if (messagesToPersist.length > 0) {
+          await store.appendMessages(sessionId, [...messagesToPersist]);
+        }
 
-      // Prune messages if maxStoredMessages is set
-      const maxStored = options.maxStoredMessages;
-      if (maxStored !== undefined) {
-        await store.pruneMessages(sessionId, maxStored);
+        // Prune messages if maxStoredMessages is set
+        const maxStored = options.maxStoredMessages;
+        if (maxStored !== undefined) {
+          await store.pruneMessages(sessionId, maxStored);
+        }
       }
     }
 

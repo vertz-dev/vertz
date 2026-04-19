@@ -48,4 +48,24 @@ export interface AgentStore {
 
   /** List sessions, optionally filtered. Ordered by updatedAt descending. */
   listSessions(filter?: ListSessionsFilter): Promise<AgentSession[]>;
+
+  /**
+   * Atomically append messages AND upsert the session row in a single
+   * transaction (D1 `batch`, SQLite `transaction`, etc.). Readers must
+   * observe either all of the writes or none — no partial visibility.
+   *
+   * Implementations must not `await` between internal statements; the whole
+   * atomic unit runs as one driver-level transaction over already-resolved
+   * data. The memory store cannot provide durability and throws
+   * `MemoryStoreNotDurableError` on any call.
+   *
+   * Used on every step boundary under durable execution (`run()` called
+   * with `store + sessionId`). Replaces the end-of-run
+   * `saveSession` + `appendMessages` pair for that path.
+   */
+  appendMessagesAtomic(
+    sessionId: string,
+    messages: Message[],
+    session: AgentSession,
+  ): Promise<void>;
 }

@@ -1,0 +1,180 @@
+---
+title: Durable resume
+description: 'At-most-once tool execution for side-effecting agents — automatic crash recovery with no extra API.'
+---
+
+Agents that post to Slack, send email, charge customers, or call paid
+external APIs need **at-most-once** tool execution. If the process dies
+between "handler ran" and "tool result persisted," a naive resume re-runs
+the handler on the next invocation — your bot posts twice, your customer
+gets billed twice, your external API fires twice.
+
+`@vertz/agents` handles this automatically. Pair a durable store with a
+`sessionId` on `run()` and you get:
+
+- Each tool-call step commits atomically (one write pre-dispatch, one
+  post-dispatch).
+- On resume, the framework detects orphaned tool calls and either
+  re-invokes safe handlers or surfaces a typed `ToolDurabilityError`
+  tool_result for the LLM to reason about.
+- No separate `resume()` API, no durable-mode flag — durability is a
+  consequence of using a durable store with session identity.
+
+## Activation
+
+Durable resume turns on when **all three** are true:
+
+1. You pass a `store` to `run()`.
+2. You pass a `sessionId`.
+3. The store is durable — `sqliteStore` or `d1Store`. The in-memory
+   `memoryStore` cannot guarantee durable writes and throws
+   `MemoryStoreNotDurableError` at entry if combined with `sessionId`.
+
+```ts
+import { createAnthropicAdapter, run } from '@vertz/agents';
+import { d1Store } from '@vertz/agents/cloudflare';
+import { triageAgent } from './agents/triage';
+import { createSlackProvider } from './providers/slack';
+
+await run(triageAgent, {
+  message: 'An issue came in: ...',
+  sessionId: this.state.id.toString(), // e.g. a Durable Object ID
+  store: d1Store(this.env.DB),
+  llm: createAnthropicAdapter({ apiKey: this.env.ANTHROPIC_API_KEY, model: 'claude-sonnet-4-6' }),
+  tools: { postSlack: createSlackProvider(this.env) },
+});
+```
+
+## The `safeToRetry` flag
+
+A tool declaration controls how the framework behaves if its handler
+was requested but its result was lost:
+
+```ts
+import { tool } from '@vertz/agents';
+import { s } from '@vertz/schema';
+
+// Pure read. Safe to re-invoke on resume — the framework will call
+// getIssue() again if its tool_result was lost before the previous run
+// persisted it.
+export const getIssue = tool({
+  description: 'Fetch a Sentry issue by ID',
+  input: s.object({ id: s.string() }),
+  output: s.object({ title: s.string(), status: s.string() }),
+  safeToRetry: true,
+});
+
+// Side-effecting. Default. The framework will NOT re-invoke on
+// resume — instead, a ToolDurabilityError tool_result is persisted and
+// the LLM decides recovery in-band.
+export const postSlack = tool({
+  description: 'Post a message to a Slack channel',
+  input: s.object({ channel: s.string(), text: s.string() }),
+  output: s.object({ ts: s.string() }),
+});
+```
+
+### `safeToRetry` is NOT network retry
+
+This is a common confusion worth calling out:
+
+- `safeToRetry` **only** controls resume replay — whether the framework
+  re-invokes a handler when a previous run crashed.
+- It does **nothing** for transient network errors during normal
+  execution. If your handler calls `fetch()` and the fetch fails, the
+  error is persisted as the `tool_result` either way.
+
+`safeToRetry: true` is a declaration about the operation, not about
+retry policy. Think "this call is safe to run twice" not "retry this
+call on failure."
+
+## What resume looks like
+
+Consider a triage bot whose handler posts to Slack. The normal flow:
+
+1. LLM: "I'll post to Slack" → requests `postSlack`.
+2. Framework writes the assistant message with the tool_call id.
+3. `postSlack` handler runs. **Slack gets the message.**
+4. Framework writes the tool_result.
+
+If the process dies between step 3 and step 4, a later `run()` with the
+same `sessionId` loads the session and sees: assistant asked for
+`postSlack`, no tool_result exists. For a non-`safeToRetry` tool like
+`postSlack`:
+
+5. Framework writes a synthetic tool_result with content:
+   ```json
+   {
+     "error": "Tool 'postSlack' (call toolu_01) was requested but its execution did not complete durably...",
+     "kind": "tool-durability-error",
+     "toolName": "postSlack",
+     "toolCallId": "toolu_01"
+   }
+   ```
+6. The LLM's next turn sees the error in the message history and decides
+   what to do: check Slack for a duplicate post, ask the user, abort
+   the thread, etc.
+
+For a `safeToRetry: true` tool like `getIssue`, step 5 instead
+re-invokes the handler and persists the real result. Step 6 never
+happens — the LLM never sees the crash.
+
+## Crash windows in detail
+
+The framework performs **two** atomic writes per tool-call step, plus
+one at end-of-turn for trailing text. Crash outcomes:
+
+| Crash window                                                         | Store state                                         | Resume behavior                                                                                                                 |
+| -------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Before the first persisted write                                     | no new messages for this turn                       | No orphan. Next LLM call starts fresh from prior state.                                                                         |
+| Between write #1 (assistant + user + toolCalls) and handler dispatch | assistant-with-toolCalls persisted, no tool_results | Orphan. For each call: if `safeToRetry`, re-invoke; else surface `ToolDurabilityError`.                                         |
+| During handler dispatch                                              | same as above                                       | Same behavior. The framework cannot distinguish "handler never started" from "handler ran + result lost" without `safeToRetry`. |
+| Between handlers and write #2                                        | same as above                                       | Same behavior.                                                                                                                  |
+| Mid-write #2                                                         | atomic — either all tool_results present or none    | Either case is well-defined.                                                                                                    |
+| After write #2                                                       | full step committed                                 | No orphan. Loop resumes normally.                                                                                               |
+
+Non-`safeToRetry` tools that crash in the middle windows are
+**intentionally** pessimistic: the framework cannot know if your side
+effect landed. The LLM decides, with the error visible in history.
+
+## Performance
+
+Under durable execution, each tool-call step commits two atomic writes
+to the store instead of one end-of-run batch. For a 10-step loop with
+2 tools per step, that's roughly 20 writes instead of 1. On Cloudflare
+D1 same-region, expect ~100–200ms overhead per 10-step session. For
+high-volume read-heavy agents that don't need crash recovery, omit
+`sessionId` to run statelessly — no durable writes happen.
+
+## The `ToolDurabilityError` class
+
+Exported from `@vertz/agents` so callers inspecting resumed session
+history can pattern-match:
+
+```ts
+import { ToolDurabilityError } from '@vertz/agents';
+
+const messages = await store.loadMessages(sessionId);
+const durabilityEvents = messages.filter((m) => {
+  if (m.role !== 'tool' || !m.content) return false;
+  try {
+    return JSON.parse(m.content).kind === 'tool-durability-error';
+  } catch {
+    return false;
+  }
+});
+```
+
+## Testing
+
+The package exposes a crash harness at `@vertz/agents/testing` for
+writing resume tests:
+
+```ts
+import { crashAfterToolResults } from '@vertz/agents/testing';
+import { sqliteStore } from '@vertz/agents';
+
+const store = sqliteStore({ path: ':memory:' });
+const harness = crashAfterToolResults(store); // throws on the 2nd appendMessagesAtomic call
+// Run your agent against `harness`, then run again with `store` to exercise resume.
+```

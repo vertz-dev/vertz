@@ -182,15 +182,17 @@ agent('with-prompt', {
 });
 
 // ---------------------------------------------------------------------------
-// checkpointInterval (renamed from checkpointEvery)
+// AgentLoopConfig — deleted fields (pre-v1, no shim)
 // ---------------------------------------------------------------------------
 
-// Agent accepts checkpointInterval in loop config
-agent('with-interval', {
+// checkpointInterval was removed in #2835 in favor of store + sessionId for
+// durable resume. Regression guard: type system must reject it now.
+agent('no-checkpoint', {
   state: s.object({}),
   initialState: {},
   tools: {},
   model: { provider: 'cloudflare', model: 'test' },
+  // @ts-expect-error — checkpointInterval removed from AgentLoopConfig
   loop: { maxIterations: 10, checkpointInterval: 5 },
 });
 

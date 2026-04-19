@@ -1,5 +1,9 @@
 import { describe, expect, it } from '@vertz/test';
-import { SessionAccessDeniedError, SessionNotFoundError } from './errors';
+import {
+  MemoryStoreNotDurableError,
+  SessionAccessDeniedError,
+  SessionNotFoundError,
+} from './errors';
 
 describe('SessionNotFoundError', () => {
   describe('Given a session ID', () => {
@@ -24,6 +28,23 @@ describe('SessionAccessDeniedError', () => {
         expect(error.code).toBe('SESSION_ACCESS_DENIED');
         expect(error.name).toBe('SessionAccessDeniedError');
         expect(error).toBeInstanceOf(Error);
+      });
+    });
+  });
+});
+
+describe('MemoryStoreNotDurableError', () => {
+  describe('Given memory store is used with a sessionId', () => {
+    describe('When the error is instantiated', () => {
+      it('Then has a descriptive message directing the caller to a durable store', () => {
+        const error = new MemoryStoreNotDurableError();
+        expect(error.code).toBe('MEMORY_STORE_NOT_DURABLE');
+        expect(error.name).toBe('MemoryStoreNotDurableError');
+        expect(error).toBeInstanceOf(Error);
+        expect(error.message).toContain('memoryStore()');
+        expect(error.message).toContain('sqliteStore');
+        expect(error.message).toContain('d1Store');
+        expect(error.message).toContain('omit sessionId');
       });
     });
   });

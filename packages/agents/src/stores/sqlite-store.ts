@@ -230,5 +230,39 @@ export function sqliteStore(options: SqliteStoreOptions): AgentStore {
       const rows = db.prepare<SessionRow, (string | number)[]>(query).all(...params);
       return rows.map(rowToSession);
     },
+
+    async appendMessagesAtomic(sessionId, messages, session) {
+      // One synchronous transaction: upsert session + insert each message at
+      // the next seq. Runs over already-resolved data — no `await` allowed
+      // inside the transaction callback (the sqlite driver is sync).
+      const tx = db.transaction(() => {
+        upsertSessionStmt.run(
+          session.id,
+          session.agentName,
+          session.userId,
+          session.tenantId,
+          session.state,
+          session.createdAt,
+          session.updatedAt,
+        );
+        const maxSeqRow = maxSeqStmt.get(sessionId);
+        let seq = (maxSeqRow?.max_seq ?? 0) + 1;
+        const now = new Date().toISOString();
+        for (const msg of messages) {
+          insertMessageStmt.run(
+            sessionId,
+            seq,
+            msg.role,
+            msg.content,
+            msg.toolCallId ?? null,
+            msg.toolName ?? null,
+            msg.toolCalls ? JSON.stringify(msg.toolCalls) : null,
+            now,
+          );
+          seq++;
+        }
+      });
+      tx();
+    },
   };
 }

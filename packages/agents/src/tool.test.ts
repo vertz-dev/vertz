@@ -70,4 +70,25 @@ describe('tool()', () => {
       });
     });
   });
+
+  describe('safeToRetry flag', () => {
+    it('forwards safeToRetry: true from config to definition', () => {
+      const def = tool({
+        description: 'Pure read',
+        input: s.object({}),
+        output: s.object({}),
+        safeToRetry: true,
+      });
+      expect(def.safeToRetry).toBe(true);
+    });
+
+    it('leaves safeToRetry undefined when omitted (side-effecting default)', () => {
+      const def = tool({
+        description: 'Post to Slack',
+        input: s.object({}),
+        output: s.object({}),
+      });
+      expect(def.safeToRetry).toBeUndefined();
+    });
+  });
 });

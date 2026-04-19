@@ -348,4 +348,103 @@ describe('sqliteStore()', () => {
       });
     });
   });
+
+  describe('appendMessagesAtomic', () => {
+    describe('Given a session + 2 messages', () => {
+      it('Then the session is upserted and both messages are visible after the call', async () => {
+        const store = sqliteStore({ path: ':memory:' });
+        const session = makeSession();
+        const messages: Message[] = [
+          { role: 'user', content: 'hello' },
+          { role: 'assistant', content: 'hi' },
+        ];
+
+        await store.appendMessagesAtomic(session.id, messages, session);
+
+        const loadedSession = await store.loadSession(session.id);
+        expect(loadedSession).toEqual(session);
+        const loaded = await store.loadMessages(session.id);
+        expect(loaded).toEqual(messages);
+      });
+    });
+
+    describe('Given an insert fails mid-batch (duplicate seq)', () => {
+      it('Then no partial state is visible (atomic rollback)', async () => {
+        const store = sqliteStore({ path: ':memory:' });
+        const session = makeSession();
+
+        // Prime the session with one existing message at seq=1.
+        await store.appendMessagesAtomic(
+          session.id,
+          [{ role: 'user', content: 'existing' }],
+          session,
+        );
+
+        // Force a duplicate by directly inserting a row at seq=2, then call
+        // appendMessagesAtomic which will try to insert at seq=2 again —
+        // the UNIQUE constraint will throw, and the whole transaction must roll
+        // back (no partial rows, session.updatedAt unchanged).
+        const updatedSession: AgentSession = {
+          ...session,
+          updatedAt: '2099-01-01T00:00:00.000Z',
+        };
+
+        // Inject a conflicting row using the internal sqlite driver via a
+        // second store over the SAME memory DB is not possible; instead we
+        // rely on the UNIQUE(session_id, seq) constraint: appendMessages
+        // computes starting seq from MAX+1, so to force a conflict we first
+        // mutate seq via raw SQL. Simplest: open a second writer via the
+        // public API path to force a conflict is not feasible for `:memory:`.
+        // Alternative: assert that throwing from within the transaction
+        // callback rolls back. We test this by breaking one of the prepared
+        // statements via a message with content SQL injection... or easier:
+        // pass an object that fails JSON.stringify (circular toolCalls).
+        const circular: Record<string, unknown> = {};
+        circular.self = circular;
+        const badMessages: Message[] = [
+          { role: 'user', content: 'this-will-commit' },
+          // toolCalls with a circular reference → JSON.stringify throws.
+          { role: 'assistant', content: 'fails', toolCalls: circular as never },
+        ];
+
+        await expect(
+          store.appendMessagesAtomic(session.id, badMessages, updatedSession),
+        ).rejects.toThrow();
+
+        // Messages from the failed call must NOT be persisted.
+        const loaded = await store.loadMessages(session.id);
+        expect(loaded).toEqual([{ role: 'user', content: 'existing' }]);
+
+        // Session.updatedAt from the failed call must NOT be persisted.
+        const loadedSession = await store.loadSession(session.id);
+        expect(loadedSession?.updatedAt).toBe('2026-03-30T00:00:00.000Z');
+      });
+    });
+
+    describe('Given multiple atomic appends to the same session', () => {
+      it('Then each message gets a monotonic sequence number', async () => {
+        const store = sqliteStore({ path: ':memory:' });
+        const session = makeSession();
+        await store.appendMessagesAtomic(
+          session.id,
+          [
+            { role: 'user', content: 'a' },
+            { role: 'assistant', content: 'b' },
+          ],
+          session,
+        );
+        await store.appendMessagesAtomic(
+          session.id,
+          [
+            { role: 'user', content: 'c' },
+            { role: 'assistant', content: 'd' },
+          ],
+          session,
+        );
+
+        const loaded = await store.loadMessages(session.id);
+        expect(loaded.map((m) => m.content)).toEqual(['a', 'b', 'c', 'd']);
+      });
+    });
+  });
 });

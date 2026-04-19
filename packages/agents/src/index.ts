@@ -60,7 +60,12 @@ export { sqliteStore } from './stores/sqlite-store';
 export type { SqliteStoreOptions } from './stores/sqlite-store';
 export { d1Store } from './stores/d1-store';
 export type { D1Binding, D1PreparedStatement, D1Result, D1StoreOptions } from './stores/d1-store';
-export { SessionNotFoundError, SessionAccessDeniedError } from './stores/errors';
+export {
+  MemoryStoreNotDurableError,
+  SessionAccessDeniedError,
+  SessionNotFoundError,
+} from './stores/errors';
+export { ToolDurabilityError } from './errors';
 
 // Workflow
 export type {

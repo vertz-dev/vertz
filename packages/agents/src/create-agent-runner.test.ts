@@ -3,7 +3,7 @@ import { s } from '@vertz/schema';
 import { agent } from './agent';
 import { createAgentRunner } from './create-agent-runner';
 import type { LLMAdapter } from './loop/react-loop';
-import { memoryStore } from './stores/memory-store';
+import { sqliteStore } from './stores/sqlite-store';
 import { tool } from './tool';
 
 // ---------------------------------------------------------------------------
@@ -119,7 +119,7 @@ describe('createAgentRunner()', () => {
   describe('Given a runner with a store', () => {
     describe('When called without sessionId', () => {
       it('Then creates a new session and returns sessionId', async () => {
-        const store = memoryStore();
+        const store = sqliteStore({ path: ':memory:' });
         const llm = mockLLM('Hello!');
         const runner = createAgentRunner([testAgent], { llm, store });
 
@@ -134,7 +134,7 @@ describe('createAgentRunner()', () => {
   describe('Given a runner with a store and existing session', () => {
     describe('When called with sessionId', () => {
       it('Then resumes the session', async () => {
-        const store = memoryStore();
+        const store = sqliteStore({ path: ':memory:' });
         const llm = mockLLM('Hello!');
         const runner = createAgentRunner([testAgent], { llm, store });
 
@@ -167,7 +167,7 @@ describe('createAgentRunner()', () => {
   describe('Given a runner with a store and session ownership', () => {
     describe('When user B tries to resume user A session', () => {
       it('Then throws access denied error', async () => {
-        const store = memoryStore();
+        const store = sqliteStore({ path: ':memory:' });
         const llm = mockLLM('Hello!');
         const runner = createAgentRunner([testAgent], { llm, store });
 

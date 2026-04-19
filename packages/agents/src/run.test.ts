@@ -6,6 +6,8 @@ import type { LLMAdapter } from './loop/react-loop';
 import { run } from './run';
 import { SessionAccessDeniedError, SessionNotFoundError } from './stores/errors';
 import { memoryStore } from './stores/memory-store';
+import { sqliteStore } from './stores/sqlite-store';
+import { MemoryStoreNotDurableError } from './stores/errors';
 import { tool } from './tool';
 
 /** Builds a mock LLM adapter from a sequence of responses. */
@@ -203,7 +205,7 @@ describe('run()', () => {
   describe('Given a store is provided', () => {
     describe('When run() is called without a sessionId', () => {
       it('Then creates a new session and returns a SessionLoopResult with sessionId', async () => {
-        const store = memoryStore();
+        const store = sqliteStore({ path: ':memory:' });
         const llm = mockLLM([{ text: 'Hello!' }]);
 
         const result = await run(greeterAgent, { message: 'Hi', llm, store });
@@ -218,7 +220,7 @@ describe('run()', () => {
   describe('Given a store with an existing session', () => {
     describe('When run() is called with the sessionId', () => {
       it('Then resumes the session and the LLM sees conversation history', async () => {
-        const store = memoryStore();
+        const store = sqliteStore({ path: ':memory:' });
         const messageSpy: Message[][] = [];
         let callIndex = 0;
         const responses = [
@@ -283,7 +285,7 @@ describe('run()', () => {
   describe('Given a non-existent sessionId', () => {
     describe('When run() is called', () => {
       it('Then throws SessionNotFoundError', async () => {
-        const store = memoryStore();
+        const store = sqliteStore({ path: ':memory:' });
         const llm = mockLLM([{ text: 'unused' }]);
 
         await expect(
@@ -296,7 +298,7 @@ describe('run()', () => {
   describe('Given a session created by user A', () => {
     describe('When user B tries to resume it', () => {
       it('Then throws SessionAccessDeniedError', async () => {
-        const store = memoryStore();
+        const store = sqliteStore({ path: ':memory:' });
         const llm = mockLLM([{ text: 'Response 1' }, { text: 'Response 2' }]);
 
         // Create session as user A
@@ -326,7 +328,7 @@ describe('run()', () => {
   describe('Given a session created with a tenantId', () => {
     describe('When a user from a different tenant tries to resume it', () => {
       it('Then throws SessionAccessDeniedError', async () => {
-        const store = memoryStore();
+        const store = sqliteStore({ path: ':memory:' });
         const llm = mockLLM([{ text: 'Response 1' }, { text: 'Response 2' }]);
 
         const r1 = await run(greeterAgent, {
@@ -354,7 +356,7 @@ describe('run()', () => {
   describe('Given run() results in an error status', () => {
     describe('When a store is provided', () => {
       it('Then does NOT persist messages from the failed turn', async () => {
-        const store = memoryStore();
+        const store = sqliteStore({ path: ':memory:' });
         const llm: LLMAdapter = {
           async chat() {
             throw new Error('LLM provider failed');
@@ -377,7 +379,7 @@ describe('run()', () => {
   describe('Given agent state is modified during execution', () => {
     describe('When the session is persisted', () => {
       it('Then the state is saved and available on the session', async () => {
-        const store = memoryStore();
+        const store = sqliteStore({ path: ':memory:' });
         const stateAgent = agent('stateful', {
           state: s.object({ topic: s.string() }),
           initialState: { topic: 'none' },
@@ -401,7 +403,7 @@ describe('run()', () => {
   describe('Given state was persisted and session is resumed', () => {
     describe('When the agent definition has a state schema', () => {
       it('Then restores and validates the persisted state', async () => {
-        const store = memoryStore();
+        const store = sqliteStore({ path: ':memory:' });
         let capturedState: { topic: string } | undefined;
         const stateAgent = agent('stateful', {
           state: s.object({ topic: s.string() }),
@@ -436,7 +438,7 @@ describe('run()', () => {
   describe('Given maxStoredMessages is set to 4', () => {
     describe('When message count exceeds the cap after multiple turns', () => {
       it('Then prunes the oldest messages to stay within the limit', async () => {
-        const store = memoryStore();
+        const store = sqliteStore({ path: ':memory:' });
         const llm = mockLLM([
           { text: 'Response 1' },
           { text: 'Response 2' },
@@ -483,7 +485,7 @@ describe('run()', () => {
   describe('Given an existing session with messages and the LLM fails on resume', () => {
     describe('When run() returns an error status', () => {
       it('Then pre-existing messages are preserved and no new messages added', async () => {
-        const store = memoryStore();
+        const store = sqliteStore({ path: ':memory:' });
         let callCount = 0;
         const llm: LLMAdapter = {
           async chat() {
@@ -523,7 +525,7 @@ describe('run()', () => {
   describe('Given an existing session and the LLM fails on resume', () => {
     describe('When run() returns an error status', () => {
       it('Then the session state and updatedAt are NOT modified', async () => {
-        const store = memoryStore();
+        const store = sqliteStore({ path: ':memory:' });
         let callCount = 0;
         const llm: LLMAdapter = {
           async chat() {
@@ -572,7 +574,7 @@ describe('run()', () => {
   describe('Given system prompts', () => {
     describe('When messages are persisted', () => {
       it('Then system prompt messages are NOT stored', async () => {
-        const store = memoryStore();
+        const store = sqliteStore({ path: ':memory:' });
         const llm = mockLLM([{ text: 'Hello!' }]);
 
         const result = await run(greeterAgent, { message: 'Hi', llm, store });
@@ -1110,6 +1112,66 @@ describe('run()', () => {
 
       // max-iterations, not error — output validation is skipped
       expect(result.status).toBe('max-iterations');
+    });
+  });
+
+  describe('Given memoryStore + sessionId', () => {
+    describe('When run() is called', () => {
+      it('Then throws MemoryStoreNotDurableError at entry, before any LLM call', async () => {
+        const store = memoryStore();
+        let llmWasCalled = false;
+        const llm: LLMAdapter = {
+          async chat() {
+            llmWasCalled = true;
+            return { text: 'should-not-reach', toolCalls: [] };
+          },
+        };
+
+        await expect(
+          run(greeterAgent, {
+            message: 'Hi',
+            llm,
+            store,
+            sessionId: 'sess_existing',
+          }),
+        ).rejects.toThrow(MemoryStoreNotDurableError);
+
+        expect(llmWasCalled).toBe(false);
+      });
+
+      it('Then also throws for a chat-only agent with no tool calls (no silent data loss)', async () => {
+        const store = memoryStore();
+        const chatOnly = agent('chat-only', {
+          state: s.object({}),
+          initialState: {},
+          tools: {},
+          model: { provider: 'cloudflare', model: 'test' },
+          loop: { maxIterations: 3 },
+        });
+        const llm = mockLLM([{ text: 'unreachable' }]);
+
+        await expect(
+          run(chatOnly, {
+            message: 'Hi',
+            llm,
+            store,
+            sessionId: 'sess_x',
+          }),
+        ).rejects.toThrow(MemoryStoreNotDurableError);
+      });
+    });
+  });
+
+  describe('Given memoryStore without sessionId', () => {
+    describe('When run() is called', () => {
+      it('Then the call succeeds (no durability required)', async () => {
+        const store = memoryStore();
+        const llm = mockLLM([{ text: 'Hi back' }]);
+
+        const result = await run(greeterAgent, { message: 'Hi', llm, store });
+
+        expect(result.status).toBe('complete');
+      });
     });
   });
 });
