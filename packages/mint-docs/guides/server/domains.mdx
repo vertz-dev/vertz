@@ -8,7 +8,7 @@ description: 'Group entities and services into bounded contexts with automatic r
 ## Quick start
 
 ```ts
-import { createServer, domain, entity, service } from 'vertz/server';
+import { createServer, domain, entity, service } from '@vertz/server';
 
 const invoices = entity('invoices', {
   model: invoicesModel,
@@ -99,7 +99,7 @@ GET /api/billing/invoices       → domain-scoped
 Domains can have their own middleware that runs only for routes inside that domain:
 
 ```ts
-import { createMiddleware } from 'vertz/server';
+import { createMiddleware } from '@vertz/server';
 
 const billingTracker = createMiddleware({
   name: 'billing-tracker',

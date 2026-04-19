@@ -127,7 +127,7 @@ The compiler sees that `totalItems`, `totalPrice`, `isEmpty`, and `summary` all 
 Use `watch()` to run side effects when a signal changes. This is for side effects only — not for deriving values.
 
 ```tsx
-import { watch } from 'vertz/ui';
+import { watch } from '@vertz/ui';
 
 export function ThemeSettings() {
   let theme = 'light';
@@ -244,7 +244,7 @@ function resetForm() {
 For cases where you need explicit batching across async boundaries, use `batch()`:
 
 ```tsx
-import { batch } from 'vertz/ui';
+import { batch } from '@vertz/ui';
 
 async function loadUser(id: string) {
   const user = await fetchUser(id);
@@ -261,7 +261,7 @@ async function loadUser(id: string) {
 Share state across components without prop drilling using `createContext()`:
 
 ```tsx
-import { createContext, useContext } from 'vertz/ui';
+import { createContext, useContext } from '@vertz/ui';
 
 interface AppSettings {
   theme: string;

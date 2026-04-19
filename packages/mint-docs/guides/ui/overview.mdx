@@ -1,9 +1,9 @@
 ---
 title: Overview
-description: 'vertz/ui — a compiled UI layer with fine-grained reactivity, routing, and SSR'
+description: '@vertz/ui — a compiled UI layer with fine-grained reactivity, routing, and SSR'
 ---
 
-`vertz/ui` is the UI layer of the Vertz stack. You write standard TypeScript and JSX — the compiler transforms it into fine-grained DOM updates at build time. No virtual DOM, no hooks, no manual subscriptions.
+`@vertz/ui` is the UI layer of the Vertz stack. You write standard TypeScript and JSX — the compiler transforms it into fine-grained DOM updates at build time. No virtual DOM, no hooks, no manual subscriptions.
 
 ## How the compiler works
 
@@ -25,7 +25,7 @@ The result: components run **once** to set up the DOM. After that, only the spec
 
 ## What's included
 
-`vertz/ui` is a single package that covers what typically requires multiple libraries:
+`@vertz/ui` is a single package that covers what typically requires multiple libraries:
 
 | Feature              | What it replaces                                 |
 | -------------------- | ------------------------------------------------ |
@@ -42,14 +42,14 @@ The result: components run **once** to set up the DOM. After that, only the spec
 
 The UI layer is split into three packages:
 
-- **`vertz/ui`** — the runtime: signals, JSX factory, router, query, form, CSS, context
-- **`vertz/ui-compiler`** — the build plugin: transforms `let`/`const`, generates reactive props, compiles conditionals and lists
-- **`vertz/ui-server`** — SSR renderer, dev server with HMR, hydration support
+- **`@vertz/ui`** — the runtime: signals, JSX factory, router, query, form, CSS, context
+- **`@vertz/ui-compiler`** — the build plugin: transforms `let`/`const`, generates reactive props, compiles conditionals and lists
+- **`@vertz/ui-server`** — SSR renderer, dev server with HMR, hydration support
 
-You install `vertz` and import from `vertz/ui` in your application code. The compiler and server are build-time concerns.
+You import from `@vertz/ui` in your application code. The compiler and server are build-time concerns.
 
 ```bash
-vtz add vertz
+vtz add @vertz/ui
 ```
 
 ## Core principles

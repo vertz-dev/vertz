@@ -21,7 +21,7 @@ const tasks = query(api.tasks.list());
 ## Basic usage
 
 ```tsx
-import { query } from 'vertz/ui';
+import { query } from '@vertz/ui';
 import { api } from '../client';
 
 export function TaskListPage() {
@@ -307,7 +307,7 @@ This works across components — if a sidebar shows task counts and the main are
 For edge cases not covered by automatic revalidation (e.g., a custom server-side operation that affects entity data), use `invalidate()`:
 
 ```tsx
-import { invalidate } from 'vertz/ui';
+import { invalidate } from '@vertz/ui';
 
 // Revalidate all active todo list queries — including filtered ones
 invalidate(api.todos.list());
@@ -330,7 +330,7 @@ Existing data stays visible while the refetch happens in the background (SWR pat
 When using multi-tenancy, `switchTenant()` automatically invalidates all tenant-scoped queries (clearing cached data before refetching). If you need to manually trigger this:
 
 ```tsx
-import { invalidateTenantQueries } from 'vertz/ui';
+import { invalidateTenantQueries } from '@vertz/ui';
 
 // Clears data + refetches all active tenant-scoped queries
 invalidateTenantQueries();

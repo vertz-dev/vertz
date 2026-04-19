@@ -141,7 +141,7 @@ This marks the current database state as the starting point for future migration
 For custom tooling or test setup:
 
 ```ts
-import { migrateDev, migrateDeploy, migrateStatus } from 'vertz/db';
+import { migrateDev, migrateDeploy, migrateStatus } from '@vertz/db';
 
 // Development: generate and apply migration
 await migrateDev({
@@ -171,7 +171,7 @@ If you use [RLS policy generation](/guides/server/codegen#rls-policy-generation-
 When you pass `rlsPolicies` to `migrateDev()`, it diffs the current RLS state against the previous snapshot and appends the necessary SQL:
 
 ```ts
-import { migrateDev } from 'vertz/db';
+import { migrateDev } from '@vertz/db';
 
 await migrateDev({
   queryFn: db.queryFn,
@@ -245,10 +245,10 @@ COMMIT;
 
 ### autoMigrate not available for Postgres
 
-`autoMigrate()` only supports SQLite. If you need programmatic migration for Postgres in test setup or scripts, use `migrateDev()` or `push()` from `vertz/db` instead:
+`autoMigrate()` only supports SQLite. If you need programmatic migration for Postgres in test setup or scripts, use `migrateDev()` or `push()` from `@vertz/db` instead:
 
 ```ts
-import { push } from 'vertz/db';
+import { push } from '@vertz/db';
 
 await push({
   queryFn: db.queryFn,

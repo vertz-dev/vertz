@@ -53,7 +53,7 @@
             ]
           },
           {
-            "group": "vertz/ui",
+            "group": "@vertz/ui",
             "pages": [
               "guides/ui/overview",
               "guides/ui/components",
@@ -72,23 +72,23 @@
             ]
           },
           {
-            "group": "vertz/ui-compiler",
+            "group": "@vertz/ui-compiler",
             "pages": ["guides/ui/compiler"]
           },
           {
-            "group": "vertz/icons",
+            "group": "@vertz/icons",
             "pages": ["guides/ui/icons"]
           },
           {
-            "group": "vertz/schema",
+            "group": "@vertz/schema",
             "pages": ["guides/schema"]
           },
           {
-            "group": "vertz/errors",
+            "group": "@vertz/errors",
             "pages": ["guides/errors"]
           },
           {
-            "group": "vertz/server",
+            "group": "@vertz/server",
             "pages": [
               "guides/server/overview",
               "guides/server/entities",
@@ -105,11 +105,11 @@
             ]
           },
           {
-            "group": "vertz/agents",
+            "group": "@vertz/agents",
             "pages": ["guides/agents/overview", "guides/agents/workflows"]
           },
           {
-            "group": "vertz/db",
+            "group": "@vertz/db",
             "pages": [
               "guides/db/overview",
               "guides/db/schema",
@@ -120,15 +120,15 @@
             ]
           },
           {
-            "group": "vertz/desktop",
+            "group": "@vertz/desktop",
             "pages": ["guides/desktop/fs"]
           },
           {
-            "group": "vertz/fetch",
+            "group": "@vertz/fetch",
             "pages": ["guides/fetch"]
           },
           {
-            "group": "vertz/openapi",
+            "group": "@vertz/openapi",
             "pages": ["guides/openapi"]
           },
           {
@@ -159,7 +159,7 @@
             "pages": ["api-reference/fetch/sdk"]
           },
           {
-            "group": "vertz/ui",
+            "group": "@vertz/ui",
             "pages": [
               "api-reference/ui/reactivity",
               "api-reference/ui/css",

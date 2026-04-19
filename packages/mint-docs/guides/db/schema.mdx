@@ -8,7 +8,7 @@ The `d` builder is the API for defining your database schema. Every table, colum
 ## Tables
 
 ```ts
-import { d } from 'vertz/db';
+import { d } from '@vertz/db';
 
 const users = d.table('users', {
   id: d.uuid().primary({ generate: 'cuid' }),

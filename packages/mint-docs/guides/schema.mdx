@@ -3,12 +3,12 @@ title: Schema
 description: 'Type-safe validation with end-to-end type inference'
 ---
 
-`vertz/schema` is the validation layer used across the entire stack — entity inputs, form validation, action bodies, and custom checks. Define a schema once with the `s` builder, get TypeScript types automatically, and validate at runtime with structured errors.
+`@vertz/schema` is the validation layer used across the entire stack — entity inputs, form validation, action bodies, and custom checks. Define a schema once with the `s` builder, get TypeScript types automatically, and validate at runtime with structured errors.
 
 ## The `s` builder
 
 ```ts
-import { s } from 'vertz/schema';
+import { s } from '@vertz/schema';
 
 const createUserSchema = s.object({
   name: s.string().min(1),
@@ -270,7 +270,7 @@ Errors accumulate — all issues are reported, not just the first one.
 Extract TypeScript types from schemas:
 
 ```ts
-import type { Infer, Input, Output } from 'vertz/schema';
+import type { Infer, Input, Output } from '@vertz/schema';
 
 const schema = s.object({
   name: s.string(),

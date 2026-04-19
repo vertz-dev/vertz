@@ -1,9 +1,9 @@
 ---
 title: Overview
-description: 'vertz/db — schema-first database layer with typed queries and automatic migrations'
+description: '@vertz/db — schema-first database layer with typed queries and automatic migrations'
 ---
 
-`vertz/db` is the database layer of the Vertz stack. You define schemas with the `d` builder, query with typed operations, and run migrations with a single command. Types are inferred from your schema — no code generation step, no separate type files.
+`@vertz/db` is the database layer of the Vertz stack. You define schemas with the `d` builder, query with typed operations, and run migrations with a single command. Types are inferred from your schema — no code generation step, no separate type files.
 
 ## How it works
 
@@ -25,7 +25,7 @@ description: 'vertz/db — schema-first database layer with typed queries and au
 ## Quick example
 
 ```ts
-import { createDb, d } from 'vertz/db';
+import { createDb, d } from '@vertz/db';
 
 // Define schema
 const usersTable = d.table('users', {
@@ -63,7 +63,7 @@ All databases use the same `createDb()` API — the only difference is the optio
 
 <CodeGroup>
 ```ts PostgreSQL
-import { createDb } from 'vertz/db';
+import { createDb } from '@vertz/db';
 
 const db = createDb({
 url: process.env.DATABASE_URL!,
@@ -73,7 +73,7 @@ models: { users: usersModel, tasks: tasksModel },
 ````
 
 ```ts SQLite (local file)
-import { createDb } from 'vertz/db';
+import { createDb } from '@vertz/db';
 
 const db = createDb({
   dialect: 'sqlite',
@@ -84,7 +84,7 @@ const db = createDb({
 ````
 
 ```ts Cloudflare D1
-import { createDb, type D1Database } from 'vertz/db';
+import { createDb, type D1Database } from '@vertz/db';
 
 export function createD1Db(d1: D1Database) {
   return createDb({

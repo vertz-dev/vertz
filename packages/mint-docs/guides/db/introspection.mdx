@@ -58,7 +58,7 @@ vertz db pull --output src/schema.ts
 ```
 
 ```ts src/schema.ts
-import { d } from 'vertz/db';
+import { d } from '@vertz/db';
 
 // ---------- users ----------
 
@@ -107,7 +107,7 @@ src/schema/
 Each file imports its FK dependencies from sibling files:
 
 ```ts src/schema/posts.ts
-import { d } from 'vertz/db';
+import { d } from '@vertz/db';
 import { usersTable } from './users';
 
 export const postsTable = d.table('posts', {
