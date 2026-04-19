@@ -3,8 +3,11 @@ import { FetchNetworkError, ok } from '@vertz/errors';
 import {
   createDescriptor,
   createMutationDescriptor,
+  createStreamDescriptor,
   isMutationDescriptor,
   isQueryDescriptor,
+  isStreamDescriptor,
+  serializeQueryParams,
 } from './descriptor';
 import type { FetchResponse, OptimisticHandler } from './types';
 
@@ -352,5 +355,103 @@ describe('isMutationDescriptor', () => {
   it('returns false for null and plain objects', () => {
     expect(isMutationDescriptor(null)).toBe(false);
     expect(isMutationDescriptor({ _tag: 'QueryDescriptor' })).toBe(false);
+  });
+});
+
+describe('serializeQueryParams', () => {
+  it('returns empty string for undefined', () => {
+    expect(serializeQueryParams(undefined)).toBe('');
+  });
+
+  it('returns empty string when all values are null/undefined', () => {
+    expect(serializeQueryParams({ a: null, b: undefined })).toBe('');
+  });
+
+  it('alphabetizes keys for deterministic output', () => {
+    expect(serializeQueryParams({ z: 1, a: 2, m: 3 })).toBe('?a=2&m=3&z=1');
+  });
+
+  it('URL-encodes values', () => {
+    expect(serializeQueryParams({ q: 'hello world' })).toBe('?q=hello+world');
+  });
+});
+
+describe('createStreamDescriptor', () => {
+  it('produces correct key from method + path', () => {
+    const desc = createStreamDescriptor('GET', '/events', async function* () {});
+    expect(desc._key).toBe('GET:/events');
+  });
+
+  it('derives key with sorted query params (parity with createDescriptor)', () => {
+    const desc = createStreamDescriptor('GET', '/events', async function* () {}, {
+      topic: 'deploys',
+      since: '123',
+    });
+    expect(desc._key).toBe('GET:/events?since=123&topic=deploys');
+  });
+
+  it('cache key matches createDescriptor for the same method/path/args', () => {
+    const fetchFn = mock() as unknown as () => Promise<FetchResponse<string>>;
+    const queryDesc = createDescriptor('GET', '/events', fetchFn, { topic: 'deploys' });
+    const streamDesc = createStreamDescriptor('GET', '/events', async function* () {}, {
+      topic: 'deploys',
+    });
+    expect(streamDesc._key).toBe(queryDesc._key);
+  });
+
+  it('sets _tag to StreamDescriptor', () => {
+    const desc = createStreamDescriptor('GET', '/events', async function* () {});
+    expect(desc._tag).toBe('StreamDescriptor');
+  });
+
+  it('exposes _stream as a callable factory that yields the iterable', async () => {
+    const desc = createStreamDescriptor('GET', '/events', async function* () {
+      yield { id: '1' };
+      yield { id: '2' };
+    });
+    const items: unknown[] = [];
+    for await (const item of desc._stream(new AbortController().signal)) {
+      items.push(item);
+    }
+    expect(items).toEqual([{ id: '1' }, { id: '2' }]);
+  });
+
+  it('passes the signal through to the factory so abort propagates', async () => {
+    let receivedSignal: AbortSignal | undefined;
+    const desc = createStreamDescriptor('GET', '/events', (signal) => {
+      receivedSignal = signal;
+      return (async function* () {
+        yield 1;
+      })();
+    });
+    const controller = new AbortController();
+    for await (const _ of desc._stream(controller.signal)) {
+      // drain
+    }
+    expect(receivedSignal).toBe(controller.signal);
+  });
+});
+
+describe('isStreamDescriptor', () => {
+  it('returns true for StreamDescriptor', () => {
+    const desc = createStreamDescriptor('GET', '/events', async function* () {});
+    expect(isStreamDescriptor(desc)).toBe(true);
+  });
+
+  it('returns false for QueryDescriptor', () => {
+    const fetchFn = mock() as unknown as () => Promise<FetchResponse<string>>;
+    const desc = createDescriptor('GET', '/tasks', fetchFn);
+    expect(isStreamDescriptor(desc)).toBe(false);
+  });
+
+  it('returns false for null and plain objects', () => {
+    expect(isStreamDescriptor(null)).toBe(false);
+    expect(isStreamDescriptor({})).toBe(false);
+    expect(isStreamDescriptor({ _tag: 'QueryDescriptor' })).toBe(false);
+  });
+
+  it('returns false for malformed object (correct tag, missing _stream function)', () => {
+    expect(isStreamDescriptor({ _tag: 'StreamDescriptor' })).toBe(false);
+    expect(isStreamDescriptor({ _tag: 'StreamDescriptor', _stream: 'not-a-fn' })).toBe(false);
   });
 });

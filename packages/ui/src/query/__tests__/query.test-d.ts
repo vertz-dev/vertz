@@ -317,6 +317,45 @@ const _promiseWithSignal = query((signal: AbortSignal | undefined) => {
 const _promiseSignalData: number | undefined = _promiseWithSignal.data;
 void _promiseSignalData;
 
+// ─── query() — StreamDescriptor overload ─────────────────────────
+
+import { createStreamDescriptor, type StreamDescriptor } from '@vertz/fetch';
+
+interface TopicEvent {
+  id: string;
+  topic: string;
+}
+
+declare function makeStreamDesc<T>(): StreamDescriptor<T>;
+
+// Stream descriptor produces QueryStreamResult<T> with data: T[]
+const streamDescResult: QueryStreamResult<TopicEvent> = query(makeStreamDesc<TopicEvent>());
+const _evts: TopicEvent[] = streamDescResult.data;
+void _evts;
+
+// Wrong type — stream data is TopicEvent[], not TopicEvent
+// @ts-expect-error - stream descriptor data is array
+const _scalar: TopicEvent = streamDescResult.data;
+
+// `options?: never` enforcement — passing a key with a descriptor is a type error
+// @ts-expect-error - descriptor overload disallows options second arg
+query(makeStreamDesc<TopicEvent>(), { key: 'manual' });
+// @ts-expect-error - descriptor overload disallows even an empty options bag
+query(makeStreamDesc<TopicEvent>(), {});
+
+// createStreamDescriptor produces a typed StreamDescriptor<T>
+const _madeDesc: StreamDescriptor<{ id: string }> = createStreamDescriptor('GET', '/events', () =>
+  (async function* () {
+    yield { id: 'a' };
+  })(),
+);
+void _madeDesc;
+
+// Promise-overload regression: still works, still returns QueryResult<T>
+const _promiseRegression2 = query(() => Promise.resolve(42));
+const _pData2: number | undefined = _promiseRegression2.data;
+void _pData2;
+
 // fromWebSocket / fromEventSource: generic-typed yields
 import { fromEventSource, fromWebSocket } from '../sources';
 
