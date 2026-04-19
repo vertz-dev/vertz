@@ -10,7 +10,7 @@ description: 'Client-side auth with AuthProvider, useAuth(), and form() integrat
 ### 1. Wrap your app
 
 ```tsx
-import { AuthProvider } from 'vertz/ui/auth';
+import { AuthProvider } from '@vertz/ui-auth';
 
 function App() {
   return (
@@ -24,8 +24,8 @@ function App() {
 ### 2. Build a login form
 
 ```tsx
-import { useAuth } from 'vertz/ui/auth';
-import { form } from 'vertz/ui';
+import { useAuth } from '@vertz/ui-auth';
+import { form } from '@vertz/ui';
 
 function LoginPage() {
   const auth = useAuth();
@@ -53,7 +53,7 @@ function LoginPage() {
 ### 3. Read auth state anywhere
 
 ```tsx
-import { useAuth } from 'vertz/ui/auth';
+import { useAuth } from '@vertz/ui-auth';
 
 function Header() {
   const auth = useAuth();
@@ -154,7 +154,7 @@ const auth = useAuth();
 Gates rendering on auth state resolution. Shows fallback while auth is loading, children once resolved.
 
 ```tsx
-import { AuthGate } from 'vertz/ui/auth';
+import { AuthGate } from '@vertz/ui-auth';
 
 <AuthGate fallback={() => <LoadingScreen />}>
   <App />
@@ -166,7 +166,7 @@ import { AuthGate } from 'vertz/ui/auth';
 Route guard that handles loading, authentication, entitlements, and redirect — all in one component. Wraps `useAuth()`, the router, and `can()` so you don't have to.
 
 ```tsx
-import { ProtectedRoute } from 'vertz/ui/auth';
+import { ProtectedRoute } from '@vertz/ui-auth';
 
 // In route definitions:
 '/dashboard': {
@@ -356,7 +356,7 @@ When using SSR, the server injects the session into the page so the client doesn
 ### Server side
 
 ```ts
-import { createSessionScript } from 'vertz/ui-server';
+import { createSessionScript } from '@vertz/ui-server';
 
 // In your SSR handler, after validating the JWT:
 const sessionScript = createSessionScript({
@@ -398,7 +398,7 @@ This:
 Use `can()` anywhere inside the provider:
 
 ```tsx
-import { can } from 'vertz/ui/auth';
+import { can } from '@vertz/ui-auth';
 
 function AdminPanel() {
   const check = can('admin:manage');

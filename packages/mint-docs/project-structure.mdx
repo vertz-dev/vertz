@@ -60,7 +60,7 @@ This file should export the result of `createServer()`:
 
 ```ts
 // src/server.ts
-import { createServer } from 'vertz/server';
+import { createServer } from '@vertz/server';
 import { db } from './api/db';
 import { tasks } from './api/entities/tasks.entity';
 
@@ -92,7 +92,7 @@ This file defines your app shell — typically the router, theme setup, and top-
 
 ```tsx
 // src/app.tsx
-import { RouterView, defineRoutes, registerTheme } from 'vertz/ui';
+import { RouterView, defineRoutes, registerTheme } from '@vertz/ui';
 import { configureTheme } from '@vertz/theme-shadcn';
 import { HomePage } from './pages/home';
 

@@ -9,7 +9,7 @@ The database client provides typed CRUD operations derived from your schema. Eve
 
 <CodeGroup>
 ```ts PostgreSQL
-import { createDb } from 'vertz/db';
+import { createDb } from '@vertz/db';
 
 const db = createDb({
 url: process.env.DATABASE_URL!,
@@ -19,7 +19,7 @@ models: { users: usersModel, tasks: tasksModel },
 ````
 
 ```ts SQLite (local file)
-import { createDb } from 'vertz/db';
+import { createDb } from '@vertz/db';
 
 const db = createDb({
   dialect: 'sqlite',
@@ -214,7 +214,7 @@ const result = await db.users.update({
 Use `d.increment()`, `d.decrement()`, or `d.expr()` to perform atomic column operations directly in the database — no read-modify-write cycle needed.
 
 ```ts
-import { d, sql } from 'vertz/db';
+import { d, sql } from '@vertz/db';
 
 // Increment a counter atomically
 await db.urls.update({
@@ -364,7 +364,7 @@ if (!result.ok) {
 For queries that the builder can't express, use tagged template SQL:
 
 ```ts
-import { sql } from 'vertz/db';
+import { sql } from '@vertz/db';
 
 const result = await db.query(sql`SELECT * FROM users WHERE email = ${email} AND active = ${true}`);
 ```
@@ -393,7 +393,7 @@ All databases use the same import and `createDb()` API:
 | Cloudflare D1 | `'sqlite'`             | `d1: D1Database`  | Edge deployment                      |
 
 ```ts
-import { createDb } from 'vertz/db';
+import { createDb } from '@vertz/db';
 ```
 
 See the [overview](/guides/db/overview#database-support) for setup examples for each dialect.

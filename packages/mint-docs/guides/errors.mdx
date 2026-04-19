@@ -24,7 +24,7 @@ The compiler forces you to handle both branches. If you add a new error type to 
 ## The Result type
 
 ```ts
-import { ok, err, type Result } from 'vertz/errors';
+import { ok, err, type Result } from '@vertz/errors';
 
 type Result<T, E> = Ok<T> | Err<E>;
 
@@ -38,7 +38,7 @@ type Result<T, E> = Ok<T> | Err<E>;
 ### Creating results
 
 ```ts
-import { ok, err } from 'vertz/errors';
+import { ok, err } from '@vertz/errors';
 
 // Success
 return ok(user);
@@ -62,7 +62,7 @@ if (result.ok) {
 ### Pattern matching
 
 ```ts
-import { match } from 'vertz/errors';
+import { match } from '@vertz/errors';
 
 const message = match(result, {
   ok: (user) => `Hello, ${user.name}!`,
@@ -75,7 +75,7 @@ const message = match(result, {
 `matchErr` requires a handler for **every error code** in the union. Miss one and the compiler tells you:
 
 ```ts
-import { matchErr } from 'vertz/errors';
+import { matchErr } from '@vertz/errors';
 
 const response = matchErr(result, {
   ok: (user) => json({ data: user }, 201),
@@ -91,7 +91,7 @@ This is the key advantage over exceptions — the compiler enforces completeness
 ### Transforming results
 
 ```ts
-import { map, flatMap, unwrapOr } from 'vertz/errors';
+import { map, flatMap, unwrapOr } from '@vertz/errors';
 
 // Transform the success value
 const nameResult = map(result, (user) => user.name);
@@ -108,7 +108,7 @@ const name = unwrapOr(result, 'Unknown');
 ### Unwrapping (tests and scripts only)
 
 ```ts
-import { unwrap } from 'vertz/errors';
+import { unwrap } from '@vertz/errors';
 
 // Throws if result is Err — only use in tests/scripts
 const user = unwrap(result);
@@ -228,7 +228,7 @@ A database `UNIQUE_VIOLATION` on column `email` with constraint `users_email_key
 For application-specific errors, extend `AppError`:
 
 ```ts
-import { AppError } from 'vertz/errors';
+import { AppError } from '@vertz/errors';
 
 class InsufficientBalanceError extends AppError<'INSUFFICIENT_BALANCE'> {
   constructor(

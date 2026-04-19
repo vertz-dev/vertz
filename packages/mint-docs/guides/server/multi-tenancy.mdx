@@ -14,7 +14,7 @@ Vertz supports multi-tenant applications where a single user belongs to multiple
 ## Quick start
 
 ```ts
-import { createAuth, createServer } from 'vertz/server';
+import { createAuth, createServer } from '@vertz/server';
 
 const auth = createAuth({
   session: { strategy: 'jwt', ttl: '60s' },

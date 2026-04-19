@@ -40,7 +40,7 @@ Your `app.tsx` exports the app component and SSR metadata — same as any Vertz 
 
 ```tsx
 // src/app.tsx
-import { getInjectedCSS, ThemeProvider } from 'vertz/ui';
+import { getInjectedCSS, ThemeProvider } from '@vertz/ui';
 import { Hero } from './components/hero';
 import { appTheme, themeGlobals } from './styles/theme';
 
@@ -65,7 +65,7 @@ The client entry hydrates the server-rendered HTML for interactivity:
 
 ```ts
 // src/entry-client.ts
-import { mount } from 'vertz/ui';
+import { mount } from '@vertz/ui';
 import { App, styles } from './app';
 import { appTheme } from './styles/theme';
 

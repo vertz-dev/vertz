@@ -26,8 +26,8 @@ Your `app.tsx` exports the app component and metadata for SSR:
 
 ```tsx
 // src/app.tsx
-import { getInjectedCSS } from 'vertz/ui';
-import { createRouter, RouterContext, RouterView } from 'vertz/ui';
+import { getInjectedCSS } from '@vertz/ui';
+import { createRouter, RouterContext, RouterView } from '@vertz/ui';
 import { routes } from './router';
 import { appTheme } from './styles/theme';
 import { globalStyles } from './styles/globals';
@@ -63,7 +63,7 @@ The client entry hydrates the server-rendered HTML:
 
 ```tsx
 // src/entry-client.ts
-import { mount } from 'vertz/ui';
+import { mount } from '@vertz/ui';
 import { App, styles } from './app';
 import { appTheme } from './styles/theme';
 

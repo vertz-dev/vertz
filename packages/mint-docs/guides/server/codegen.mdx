@@ -349,7 +349,7 @@ The generator applies these transformations:
 **Recommended: migration integration.** Pass the codegen RLS output to `migrateDev()` and let the migration system handle it:
 
 ```ts
-import { migrateDev } from 'vertz/db';
+import { migrateDev } from '@vertz/db';
 
 await migrateDev({
   queryFn: db.queryFn,

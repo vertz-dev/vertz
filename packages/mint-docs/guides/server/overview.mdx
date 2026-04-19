@@ -1,9 +1,9 @@
 ---
 title: Overview
-description: 'vertz/server — entity-driven backend with auto-generated CRUD, access control, and SDK generation'
+description: '@vertz/server — entity-driven backend with auto-generated CRUD, access control, and SDK generation'
 ---
 
-`vertz/server` is the backend layer of the Vertz stack. You define entities with schemas, access rules, and hooks — the framework generates typed CRUD routes, validates inputs, enforces access control, and produces a typed client SDK. No boilerplate controllers, no manual route wiring.
+`@vertz/server` is the backend layer of the Vertz stack. You define entities with schemas, access rules, and hooks — the framework generates typed CRUD routes, validates inputs, enforces access control, and produces a typed client SDK. No boilerplate controllers, no manual route wiring.
 
 ## How it works
 
@@ -38,8 +38,8 @@ description: 'vertz/server — entity-driven backend with auto-generated CRUD, a
 ## Quick example
 
 ```ts
-import { createServer, entity, rules } from 'vertz/server';
-import { createDb, d } from 'vertz/db';
+import { createServer, entity, rules } from '@vertz/server';
+import { createDb, d } from '@vertz/db';
 
 const tasksModel = d.model(
   d.table('tasks', {

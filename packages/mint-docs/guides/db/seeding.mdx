@@ -28,7 +28,7 @@ await db.query(sql`INSERT INTO users (id, email, name) VALUES (${id}, ${email}, 
 Seeding runs **after migrations**. In development, call your seed function after `autoMigrate()` completes or after `vertz db migrate`:
 
 ```ts
-import { createDb, d } from 'vertz/db';
+import { createDb, d } from '@vertz/db';
 
 const db = createDb({
   url: process.env.DATABASE_URL!,

@@ -10,9 +10,9 @@ All service routes are prefixed with `/api/` by default: `POST /api/{serviceName
 ## Defining a service
 
 ```ts
-import { service } from 'vertz/server';
-import { rules } from 'vertz/server';
-import { s } from 'vertz/schema';
+import { service } from '@vertz/server';
+import { rules } from '@vertz/server';
+import { s } from '@vertz/schema';
 
 const notifications = service('notifications', {
   inject: {
@@ -108,7 +108,7 @@ const reports = service('reports', {
 Services use the same access control as entities — deny-by-default, with the action name as the key:
 
 ```ts
-import { rules } from 'vertz/server';
+import { rules } from '@vertz/server';
 
 access: {
   sendEmail: rules.public,
@@ -120,7 +120,7 @@ access: {
 <Warning>
 **The `access` block is required.** If you omit it or leave an action out of it, that action's route is silently not generated (deny-by-default). This is the most common DX trap with services — you define an action, call the endpoint, and get 404 because the access rule is missing.
 
-Always use `rules.*` descriptors from `vertz/server` — not raw callback functions like `() => true`.
+Always use `rules.*` descriptors from `@vertz/server` — not raw callback functions like `() => true`.
 
 </Warning>
 
@@ -129,7 +129,7 @@ Always use `rules.*` descriptors from `vertz/server` — not raw callback functi
 By default, service actions are JSON-in/JSON-out using `s.*` schemas. For non-JSON content types (XML, HTML, plain text, binary), use `content.*` descriptors:
 
 ```ts
-import { content, service } from 'vertz/server';
+import { content, service } from '@vertz/server';
 
 const saml = service('saml', {
   actions: {
@@ -225,8 +225,8 @@ actions: {
 By default, service actions return `200` with `application/json`. To customize the HTTP response headers or status code, wrap your return value with `response()`:
 
 ```ts
-import { response, service } from 'vertz/server';
-import { s } from 'vertz/schema';
+import { response, service } from '@vertz/server';
+import { s } from '@vertz/schema';
 
 const cloud = service('cloud', {
   access: { jwks: rules.public, createToken: rules.public },
@@ -295,7 +295,7 @@ handler: async (_input, ctx) => {
 When a service handler performs multiple database writes that must succeed or fail together, wrap them in `db.transaction()`:
 
 ```ts
-import { service } from 'vertz/server';
+import { service } from '@vertz/server';
 
 const transfers = service('transfers', {
   actions: {
@@ -328,7 +328,7 @@ const transfers = service('transfers', {
 If you have many handlers that need transactions, extract a reusable helper:
 
 ```ts
-import type { TransactionClient } from 'vertz/db';
+import type { TransactionClient } from '@vertz/db';
 
 function withTransaction<T>(
   fn: (tx: TransactionClient<typeof models>) => Promise<T>,
@@ -364,7 +364,7 @@ Like entities, services generate typed SDK methods via codegen. Each action beco
 
 ```ts
 import { api } from '../client';
-import { form } from 'vertz/ui';
+import { form } from '@vertz/ui';
 
 // Call a service action directly
 const result = await api.notifications.sendEmail({

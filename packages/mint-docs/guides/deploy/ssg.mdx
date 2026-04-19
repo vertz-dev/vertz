@@ -22,7 +22,7 @@ Pages with interactive components (hydration markers) keep their client JS. Pure
 Add `prerender: true` to any static route:
 
 ```tsx
-import { defineRoutes } from 'vertz/ui';
+import { defineRoutes } from '@vertz/ui';
 
 const routes = defineRoutes({
   '/': {
@@ -110,7 +110,7 @@ For `vertz build` to discover `generateParams`, export your routes from `app.tsx
 
 ```tsx
 // src/app.tsx
-import { getInjectedCSS } from 'vertz/ui';
+import { getInjectedCSS } from '@vertz/ui';
 import { routes } from './router';
 
 export { getInjectedCSS };

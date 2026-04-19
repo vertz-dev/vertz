@@ -8,7 +8,7 @@ Vertz ships factory functions for OAuth providers. Configure your credentials, a
 ## Setup
 
 ```ts
-import { createAuth, google, github, discord } from 'vertz/server';
+import { createAuth, google, github, discord } from '@vertz/server';
 
 const auth = createAuth({
   session: { strategy: 'jwt', ttl: '60s' },
@@ -115,7 +115,7 @@ interface OAuthAccountStore {
 For development, use the built-in in-memory store:
 
 ```ts
-import { InMemoryOAuthAccountStore } from 'vertz/server';
+import { InMemoryOAuthAccountStore } from '@vertz/server';
 
 const auth = createAuth({
   // ...
@@ -152,8 +152,8 @@ const auth = createAuth({
 Use `createEnv()` to validate OAuth credentials at startup:
 
 ```ts
-import { createEnv } from 'vertz/server';
-import { s } from 'vertz/schema';
+import { createEnv } from '@vertz/server';
+import { s } from '@vertz/schema';
 
 export const env = createEnv({
   schema: s.object({

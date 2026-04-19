@@ -8,8 +8,8 @@ An entity is a declarative definition of a data model and its behavior. It combi
 ## Defining an entity
 
 ```ts
-import { entity } from 'vertz/server';
-import { d } from 'vertz/db';
+import { entity } from '@vertz/server';
+import { d } from '@vertz/db';
 
 const usersModel = d.model(
   d.table('users', {
@@ -57,7 +57,7 @@ For fine-grained control over which relation fields, filters, and sort options a
 Access rules define who can perform each operation. They're evaluated at request time, before any data access.
 
 ```ts
-import { rules } from 'vertz/server';
+import { rules } from '@vertz/server';
 
 const tasks = entity('tasks', {
   model: tasksModel,
@@ -71,7 +71,7 @@ const tasks = entity('tasks', {
 });
 ```
 
-Use `rules.*` descriptors from `vertz/server` to define access. `rules.public` allows unrestricted access. For authenticated-only access, use `rules.authenticated()`. For entitlement checks, use `rules.entitlement('task:update')`.
+Use `rules.*` descriptors from `@vertz/server` to define access. `rules.public` allows unrestricted access. For authenticated-only access, use `rules.authenticated()`. For entitlement checks, use `rules.entitlement('task:update')`.
 
 ### Hiding operations
 
@@ -155,7 +155,7 @@ The `update` after hook receives both the previous and new state of the record.
 Add domain-specific operations beyond CRUD:
 
 ```ts
-import { s } from 'vertz/schema';
+import { s } from '@vertz/schema';
 
 const tasks = entity('tasks', {
   model: tasksModel,
@@ -266,8 +266,8 @@ The request pipeline for each route:
 Pass entities to `createServer()`:
 
 ```ts
-import { createServer } from 'vertz/server';
-import { createDb } from 'vertz/db';
+import { createServer } from '@vertz/server';
+import { createDb } from '@vertz/db';
 
 const db = createDb({
   url: process.env.DATABASE_URL!,

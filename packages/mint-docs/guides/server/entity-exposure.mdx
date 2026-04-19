@@ -23,8 +23,8 @@ Schema annotations are the baseline. `expose` can only narrow further — you ca
 ## Basic usage
 
 ```ts
-import { entity } from 'vertz/server';
-import { rules } from 'vertz/server/rules';
+import { entity } from '@vertz/server';
+import { rules } from '@vertz/server';
 
 const posts = entity('posts', {
   model: postsModel,
@@ -256,7 +256,7 @@ If a client sends `limit: 200` with `maxLimit: 50`, the server silently clamps t
 Fields in `select`, `allowWhere`, and `allowOrderBy` can use `rules.*` descriptors for conditional access:
 
 ```ts
-import { rules } from 'vertz/server/rules';
+import { rules } from '@vertz/server';
 
 const employees = entity('employees', {
   model: employeesModel,

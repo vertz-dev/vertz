@@ -10,7 +10,7 @@ Use `Foreign` to integrate third-party libraries that manage their own DOM (D3, 
 ## Signature
 
 ```tsx
-import { Foreign } from 'vertz/ui';
+import { Foreign } from '@vertz/ui';
 
 <Foreign
   tag="div"
@@ -39,7 +39,7 @@ import { Foreign } from 'vertz/ui';
 ### Wrapping a chart library
 
 ```tsx
-import { Foreign } from 'vertz/ui';
+import { Foreign } from '@vertz/ui';
 import * as d3 from 'd3';
 
 function SalesChart({ data }: { data: number[] }) {
@@ -66,7 +66,7 @@ function SalesChart({ data }: { data: number[] }) {
 ### Wrapping a rich text editor
 
 ```tsx
-import { Foreign } from 'vertz/ui';
+import { Foreign } from '@vertz/ui';
 import CodeMirror from 'codemirror';
 
 function CodeEditor({ initialValue }: { initialValue: string }) {
@@ -86,8 +86,8 @@ function CodeEditor({ initialValue }: { initialValue: string }) {
 Bridge Vertz reactivity into the unmanaged subtree using `domEffect`:
 
 ```tsx
-import { Foreign } from 'vertz/ui';
-import { domEffect } from 'vertz/ui';
+import { Foreign } from '@vertz/ui';
+import { domEffect } from '@vertz/ui';
 
 function LiveCounter() {
   let count = 0;

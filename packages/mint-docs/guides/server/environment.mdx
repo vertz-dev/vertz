@@ -30,7 +30,7 @@ Vertz server handlers run in a Cloudflare-Workers-compatible JavaScript environm
 
 **Standard ECMAScript:** `Promise`, `Map`, `Set`, `WeakMap`, `WeakSet`, `Intl`, `JSON`, etc.
 
-**Vertz APIs:** everything in `vertz/server` (`entity`, `service`, `rules`, etc.), `vertz/db`, `vertz/schema`, and `vertz/errors`.
+**Vertz APIs:** everything in `@vertz/server` (`entity`, `service`, `rules`, etc.), `@vertz/db`, `@vertz/schema`, and `@vertz/errors`.
 
 ## What's not available
 
@@ -49,8 +49,8 @@ SDKs that gate on `typeof window !== 'undefined'` (like `@anthropic-ai/sdk`, `op
 
 ```ts
 import Anthropic from '@anthropic-ai/sdk';
-import { service } from 'vertz/server';
-import { s } from 'vertz/schema';
+import { service } from '@vertz/server';
+import { s } from '@vertz/schema';
 
 export default service('ai', {
   actions: {

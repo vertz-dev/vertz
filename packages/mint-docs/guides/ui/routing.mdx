@@ -10,7 +10,7 @@ Vertz routing is fully typed — route patterns, parameters, and navigation are 
 Use `defineRoutes()` to declare your route map:
 
 ```tsx
-import { defineRoutes } from 'vertz/ui';
+import { defineRoutes } from '@vertz/ui';
 
 export const routes = defineRoutes({
   '/': {
@@ -41,7 +41,7 @@ defineRoutes({
 Pass your routes to `createRouter()`:
 
 ```tsx
-import { createRouter } from 'vertz/ui';
+import { createRouter } from '@vertz/ui';
 import { routes } from './router';
 
 const appRouter = createRouter(routes);
@@ -54,7 +54,7 @@ The router listens to `popstate` events and matches the current URL against your
 `RouterView` renders the matched route's component and handles transitions:
 
 ```tsx
-import { RouterContext, RouterView } from 'vertz/ui';
+import { RouterContext, RouterView } from '@vertz/ui';
 
 export function App() {
   const appRouter = createRouter(routes);
@@ -85,7 +85,7 @@ export function App() {
 Pages access navigation via context — no prop threading:
 
 ```tsx
-import { useRouter } from 'vertz/ui';
+import { useRouter } from '@vertz/ui';
 
 export function TaskListPage() {
   const { navigate } = useRouter();
@@ -100,7 +100,7 @@ Scaffolded apps get typed `useRouter()` automatically after codegen runs:
 
 ```tsx
 // src/router.ts
-import { defineRoutes } from 'vertz/ui';
+import { defineRoutes } from '@vertz/ui';
 
 export const routes = defineRoutes({
   '/': { component: () => HomePage() },
@@ -111,7 +111,7 @@ export const routes = defineRoutes({
 Now `navigate()` is constrained to valid route patterns and params:
 
 ```tsx
-import { useRouter } from 'vertz/ui';
+import { useRouter } from '@vertz/ui';
 
 const { navigate } = useRouter();
 
@@ -137,7 +137,7 @@ navigate({ to: '/', replace: true });
 Use `useParams()` to access typed route parameters:
 
 ```tsx
-import { useParams } from 'vertz/ui';
+import { useParams } from '@vertz/ui';
 
 export function TaskDetailPage() {
   const { id: taskId } = useParams<'/tasks/:id'>();
@@ -159,7 +159,7 @@ The type parameter tells TypeScript which path pattern to extract params from:
 Routes can validate and parse params at the routing layer using a `params` schema:
 
 ```tsx
-import { s } from 'vertz/schema';
+import { s } from '@vertz/schema';
 
 defineRoutes({
   '/tasks/:id': {
@@ -212,7 +212,7 @@ defineRoutes({
 The layout component uses `Outlet` to render the matched child:
 
 ```tsx
-import { Outlet } from 'vertz/ui';
+import { Outlet } from '@vertz/ui';
 
 export function AdminLayout() {
   return (

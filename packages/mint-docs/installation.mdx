@@ -54,10 +54,17 @@ Add Vertz to an existing project.
 ### 1. Install packages
 
 ```bash
-vtz add vertz @vertz/theme-shadcn
+vtz add @vertz/ui @vertz/theme-shadcn
 ```
 
-The `vertz` meta package includes the UI runtime, compiler, and all core packages. `@vertz/theme-shadcn` provides design tokens for the `css()` utility (optional but recommended).
+`@vertz/ui` is the UI runtime (JSX, signals, router, forms). Add `@vertz/server`, `@vertz/db`, `@vertz/schema`, `@vertz/fetch`, etc. as you need them. `@vertz/theme-shadcn` provides design tokens for the `css()` utility (optional but recommended).
+
+<Note>
+  A convenience meta package named `vertz` re-exports everything under subpaths
+  (`vertz/ui`, `vertz/server`, ...). It works, but we recommend the granular
+  `@vertz/*` packages — smaller installs, clearer dependencies, and LLM coding
+  assistants pick the right imports more reliably.
+</Note>
 
 ### 2. Configure TypeScript
 
@@ -83,7 +90,7 @@ The key settings are `jsx: "react-jsx"` and `jsxImportSource: "@vertz/ui"` — t
 Create `src/app.tsx`:
 
 ```tsx
-import { mount } from 'vertz/ui';
+import { mount } from '@vertz/ui';
 
 function App() {
   return <h1>Hello, Vertz!</h1>;
