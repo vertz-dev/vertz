@@ -4,5 +4,6 @@ export type { CacheStore } from './cache';
 export { MemoryCache } from './cache';
 export { invalidate, invalidateTenantQueries } from './invalidate';
 export { deriveKey } from './key-derivation';
-export type { QueryOptions, QueryResult } from './query';
-export { query } from './query';
+export { serializeQueryKey } from './key-serialization';
+export type { QueryOptions, QueryResult, QueryStreamOptions, QueryStreamResult } from './query';
+export { query, QueryDisposedReason } from './query';

@@ -19,6 +19,7 @@ import { resolveReferences } from '../store/resolve';
 import { type CacheStore, MemoryCache } from './cache';
 import { registerActiveQuery } from './invalidate';
 import { deriveKey, hashString } from './key-derivation';
+import { serializeQueryKey } from './key-serialization';
 import { hydrateQueryFromSSR } from './ssr-hydration';
 
 /** SSR detection via the SSRRenderContext resolver. */
@@ -29,6 +30,72 @@ function isSSR(): boolean {
 /** Read the per-request SSR timeout from the SSR context. */
 function getGlobalSSRTimeout(): number | undefined {
   return getSSRContext()?.globalSSRTimeout;
+}
+
+/**
+ * Reason attached to a stream query's AbortSignal when the query disposes
+ * (or is reset by refetch / reactive key change).  Producers can inspect
+ * `signal.reason instanceof QueryDisposedReason` to distinguish framework
+ * cancellations from user-initiated aborts.
+ */
+export class QueryDisposedReason extends Error {
+  constructor() {
+    super('query() disposed');
+    this.name = 'QueryDisposedReason';
+  }
+}
+
+/**
+ * Thrown when a stream query is misused — currently:
+ *   - `refetchInterval` passed alongside an AsyncIterable source
+ *   - source-type swap mid-flight (Phase 2)
+ *   - missing `key` (streams require an explicit key)
+ */
+export class QueryStreamMisuseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'QueryStreamMisuseError';
+  }
+}
+
+/** Options for a stream-backed query.  See QueryOptions for promise queries. */
+export interface QueryStreamOptions {
+  /**
+   * Cache key — required for stream queries.  String passes through;
+   * tuples are normalized via serializeQueryKey().
+   */
+  key: string | readonly unknown[];
+}
+
+/** The reactive object returned by a stream-backed query. */
+export interface QueryStreamResult<T> {
+  /** Accumulated yields. Starts at [] (never undefined). */
+  readonly data: Unwrapped<ReadonlySignal<T[]>>;
+  /** True until the first yield (or first error). */
+  readonly loading: Unwrapped<ReadonlySignal<boolean>>;
+  /**
+   * True between a refetch / restart and the next first yield, when data
+   * already had items pre-cancel.  Mirrors `revalidating` from QueryResult.
+   */
+  readonly reconnecting: Unwrapped<ReadonlySignal<boolean>>;
+  /** Last error from the iterator. Iteration halts after this is set. */
+  readonly error: Unwrapped<ReadonlySignal<unknown>>;
+  /** True when the thunk has not yet been invoked (or returned null). */
+  readonly idle: Unwrapped<ReadonlySignal<boolean>>;
+  /** Cancel the current iterator, reset data to [], start a new iterator. */
+  refetch: () => void;
+  /** Alias for refetch. */
+  revalidate: () => void;
+  /** Cancel the iterator and clean up. */
+  dispose: () => void;
+}
+
+function isAsyncIterable(v: unknown): v is AsyncIterable<unknown> {
+  return (
+    v != null &&
+    typeof v === 'object' &&
+    typeof (v as AsyncIterable<unknown>)[Symbol.asyncIterator] === 'function'
+  );
 }
 
 /** Options for query(). */
@@ -135,6 +202,10 @@ export function resetDefaultQueryCache(): void {
  * @param options - Optional configuration.
  * @returns A QueryResult with reactive signals for data, loading, and error.
  */
+export function query<T>(
+  thunk: (signal?: AbortSignal) => AsyncIterable<T> | null,
+  options: QueryStreamOptions,
+): QueryStreamResult<T>;
 export function query<T, E>(
   descriptor: QueryDescriptor<T, E>,
   options?: Omit<QueryOptions<T>, 'key'>,
@@ -145,9 +216,23 @@ export function query<T, E>(
 ): QueryResult<T, E>;
 export function query<T>(thunk: () => Promise<T> | null, options?: QueryOptions<T>): QueryResult<T>;
 export function query<T, E = unknown>(
-  source: QueryDescriptor<T, E> | (() => QueryDescriptor<T, E> | Promise<T> | null),
-  options: QueryOptions<T> = {},
-): QueryResult<T, E> {
+  source:
+    | QueryDescriptor<T, E>
+    | ((signal?: AbortSignal) => QueryDescriptor<T, E> | Promise<T> | AsyncIterable<T> | null),
+  rawOptions: QueryOptions<T> | QueryStreamOptions = {},
+): QueryResult<T, E> | QueryStreamResult<T> {
+  // Normalize options: tuple keys get serialized to strings so the rest of the
+  // function can treat options uniformly as QueryOptions<T>.  The original
+  // tuple is preserved on the local var so the stream-mode mutual-exclusion
+  // check can still detect a missing `key`.
+  const options: QueryOptions<T> = (() => {
+    const o = rawOptions as QueryOptions<T> & { key?: string | readonly unknown[] };
+    if (o.key !== undefined && typeof o.key !== 'string') {
+      return { ...o, key: serializeQueryKey(o.key) };
+    }
+    return o as QueryOptions<T>;
+  })();
+
   if (isQueryDescriptor<T, E>(source)) {
     const entityMeta = source._entity;
     return query(
@@ -159,6 +244,9 @@ export function query<T, E = unknown>(
       { ...options, key: source._key, _entityMeta: entityMeta },
     ) as QueryResult<T, E>;
   }
+
+  // Stream classification happens inside the effect below (after the first
+  // callThunkWithCapture) so promise thunks aren't double-invoked.
 
   // Mutation-bus and registry subscription handles.
   //
@@ -274,6 +362,11 @@ export function query<T, E = unknown>(
   const revalidating: Signal<boolean> = signal<boolean>(false);
   const error: Signal<unknown> = signal<unknown>(undefined);
   const idle: Signal<boolean> = signal<boolean>(initialData === undefined);
+  // Stream-mode state (Phase 1: classification + accumulation; Phase 2 wires
+  // AbortSignal + iterator.return on dispose).
+  const reconnecting: Signal<boolean> = signal<boolean>(false);
+  let streamMode = false;
+  let streamPumpStarted = false;
 
   // Entity-backed source switcher: when entityMeta is present,
   // data reads from EntityStore instead of rawData.
@@ -742,6 +835,32 @@ export function query<T, E = unknown>(
     refetchTrigger.value = refetchTrigger.peek() + 1;
   }
 
+  /**
+   * Pump an AsyncIterable into rawData (treated as T[] in stream mode).
+   * Each yield appends; the first yield flips loading -> false, idle -> false.
+   * On error, sets error.value and halts.  Phase 2 wires AbortSignal cancellation.
+   */
+  async function pumpStream(iter: AsyncIterable<unknown>): Promise<void> {
+    try {
+      for await (const item of iter) {
+        const prev = (rawData.peek() as unknown[] | undefined) ?? [];
+        rawData.value = [...prev, item] as unknown as T;
+        if (loading.peek()) loading.value = false;
+        if (idle.peek()) idle.value = false;
+        if (reconnecting.peek()) reconnecting.value = false;
+      }
+      // Iterator completed (StopIteration) — clear loading even if zero yields.
+      if (loading.peek()) loading.value = false;
+      if (idle.peek()) idle.value = false;
+      if (reconnecting.peek()) reconnecting.value = false;
+    } catch (err) {
+      error.value = err;
+      if (loading.peek()) loading.value = false;
+      if (idle.peek()) idle.value = false;
+      if (reconnecting.peek()) reconnecting.value = false;
+    }
+  }
+
   // -- Reactive effect --
   //
   // The thunk is called inside the effect so that any reactive signals
@@ -758,6 +877,11 @@ export function query<T, E = unknown>(
   disposeFn = lifecycleEffect(() => {
     // Read the refetch trigger so this effect re-runs on manual refetch().
     refetchTrigger.value;
+
+    // Stream mode short-circuit (Phase 1): once a stream pump has started, the
+    // effect stops driving fetches — the pump owns data updates.  Reactive-key
+    // restart lands in Phase 2.
+    if (streamPumpStarted) return;
 
     // Skip initial fetch if SSR hydration already provided data.
     // When no customKey, still call the thunk so reactive deps are tracked —
@@ -888,6 +1012,35 @@ export function query<T, E = unknown>(
       untrack(() => {
         loading.value = false;
       });
+      isFirst = false;
+      return;
+    }
+
+    // Stream classification (Phase 1).  AsyncIterable sources route to a
+    // dedicated pump that owns its own state machine.  Subsequent effect runs
+    // short-circuit at the top via streamPumpStarted.
+    if (isAsyncIterable(raw)) {
+      // Mutual exclusion: refetchInterval is incompatible with streams.
+      const ri = options.refetchInterval;
+      if (ri !== undefined && ri !== false && ri !== 0) {
+        throw new QueryStreamMisuseError(
+          'query(): `refetchInterval` cannot be used together with a stream (AsyncIterable) source. Polling and streaming are mutually exclusive.',
+        );
+      }
+      // Streams require an explicit key.
+      if (!options.key) {
+        throw new QueryStreamMisuseError(
+          'query(): a stream (AsyncIterable) source requires an explicit `key` option.',
+        );
+      }
+      streamMode = true;
+      streamPumpStarted = true;
+      untrack(() => {
+        rawData.value = [] as unknown as T;
+        loading.value = true;
+        idle.value = true;
+      });
+      void pumpStream(raw as AsyncIterable<unknown>);
       isFirst = false;
       return;
     }
@@ -1109,6 +1262,22 @@ export function query<T, E = unknown>(
   // Auto-register disposal with the current scope (component/page/app).
   // If no scope is active (standalone usage), this is a silent no-op.
   _tryOnCleanup(dispose);
+
+  // Stream-mode return — different shape (data: T[], reconnecting instead of revalidating).
+  // streamMode is set inside the effect's first run, which runs synchronously
+  // when lifecycleEffect installs, so by this point classification is settled.
+  if (streamMode) {
+    return {
+      data: rawData as unknown as Unwrapped<ReadonlySignal<T[]>>,
+      loading: loading as unknown as Unwrapped<ReadonlySignal<boolean>>,
+      reconnecting: reconnecting as unknown as Unwrapped<ReadonlySignal<boolean>>,
+      error: error as unknown as Unwrapped<ReadonlySignal<unknown>>,
+      idle: idle as unknown as Unwrapped<ReadonlySignal<boolean>>,
+      refetch,
+      revalidate: refetch,
+      dispose,
+    } satisfies QueryStreamResult<T>;
+  }
 
   // Return signals with type casts to match the unwrapped return types
   return {
