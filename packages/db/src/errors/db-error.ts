@@ -17,8 +17,8 @@ export abstract class DbError extends Error {
   readonly table?: string | undefined;
   readonly query?: string | undefined;
 
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
     this.name = new.target.name;
   }
 
@@ -220,13 +220,10 @@ export class JsonbParseError extends DbError {
       options.table !== undefined && options.column !== undefined
         ? `${options.table}.${options.column}`
         : (options.column ?? '<unknown column>');
-    super(`Failed to parse ${options.columnType} value at ${location}`);
+    super(`Failed to parse ${options.columnType} value at ${location}`, { cause: options.cause });
     this.table = options.table;
     this.column = options.column;
     this.columnType = options.columnType;
-    if (options.cause !== undefined) {
-      (this as { cause?: unknown }).cause = options.cause;
-    }
   }
 }
 
@@ -248,13 +245,12 @@ export class JsonbValidationError extends DbError {
   readonly value: unknown;
 
   constructor(options: JsonbValidationErrorOptions) {
-    super(`Validator rejected value at ${options.table}.${options.column}`);
+    super(`Validator rejected value at ${options.table}.${options.column}`, {
+      cause: options.cause,
+    });
     this.table = options.table;
     this.column = options.column;
     this.value = options.value;
-    if (options.cause !== undefined) {
-      (this as { cause?: unknown }).cause = options.cause;
-    }
   }
 }
 

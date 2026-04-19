@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@vertz/test';
 import { d } from '../../d';
 import { JsonbParseError, JsonbValidationError } from '../../errors';
+import { sql } from '../../sql';
 import { createDb } from '../database';
 import { createSqliteDriver, type TableSchemaRegistry } from '../sqlite-driver';
 
@@ -77,7 +78,7 @@ describe('Feature: d.jsonb<T>() SQLite parity', () => {
     });
 
     describe('When a jsonb TEXT cell contains malformed JSON', () => {
-      it('Then a read surfaces JsonbParseError with table + column context', async () => {
+      it('Then a read surfaces JsonbParseError with table + column context (driver level)', async () => {
         mockD1AllReturns({ results: [{ id: 'x', meta: 'not-json' }] }, async (mock) => {
           const schema: TableSchemaRegistry = new Map([
             ['install', { id: 'text', meta: 'jsonb' }],
@@ -95,6 +96,31 @@ describe('Feature: d.jsonb<T>() SQLite parity', () => {
           expect(typed.column).toBe('meta');
           expect(typed.columnType).toBe('jsonb');
         });
+      });
+
+      it('Then db.<model>.list() returns { ok: false, error.code === "JSONB_PARSE_ERROR" }', async () => {
+        const corruptTable = d.table('corrupt', {
+          id: d.text().primary(),
+          meta: d.jsonb<{ k: string }>(),
+        });
+        const db = createDb({
+          dialect: 'sqlite',
+          path: ':memory:',
+          models: { corrupt: d.model(corruptTable) },
+          migrations: { autoApply: true },
+        });
+        // Seed a malformed JSON cell via raw SQL, bypassing the typed write path.
+        const seeded = await db.query(
+          sql`INSERT INTO corrupt (id, meta) VALUES (${'bad'}, ${'not-json'})`,
+        );
+        expect(seeded.ok).toBe(true);
+        const listed = await db.corrupt.list({});
+        expect(listed.ok).toBe(false);
+        if (listed.ok) throw new TypeError('expected failure');
+        expect(listed.error.code).toBe('JSONB_PARSE_ERROR');
+        const typed = listed.error as { code: string; table?: string; column?: string };
+        expect(typed.table).toBe('corrupt');
+        expect(typed.column).toBe('meta');
       });
     });
 
@@ -128,7 +154,7 @@ describe('Feature: d.jsonb<T>() SQLite parity', () => {
         );
       });
 
-      it('Then a failing validator surfaces JsonbValidationError', async () => {
+      it('Then a failing validator surfaces JsonbValidationError (driver level)', async () => {
         mockD1AllReturns({ results: [{ id: 'x', meta: '{"bad":true}' }] }, async (mock) => {
           const schema: TableSchemaRegistry = new Map([
             [
@@ -159,6 +185,40 @@ describe('Feature: d.jsonb<T>() SQLite parity', () => {
           expect(typed.column).toBe('meta');
           expect(typed.value).toEqual({ bad: true });
         });
+      });
+
+      it('Then db.<model>.list() returns { ok: false, error.code === "JSONB_VALIDATION_ERROR" }', async () => {
+        const checkedTable = d.table('checked', {
+          id: d.text().primary(),
+          meta: d.jsonb<{ k: string }>({
+            validator: {
+              parse: (v) => {
+                if (typeof v !== 'object' || v === null || !('k' in v)) {
+                  throw new TypeError('missing k');
+                }
+                return v as { k: string };
+              },
+            },
+          }),
+        });
+        const db = createDb({
+          dialect: 'sqlite',
+          path: ':memory:',
+          models: { checked: d.model(checkedTable) },
+          migrations: { autoApply: true },
+        });
+        // Seed valid JSON but invalid shape.
+        const seeded = await db.query(
+          sql`INSERT INTO checked (id, meta) VALUES (${'bad'}, ${'{"wrong":true}'})`,
+        );
+        expect(seeded.ok).toBe(true);
+        const listed = await db.checked.list({});
+        expect(listed.ok).toBe(false);
+        if (listed.ok) throw new TypeError('expected failure');
+        expect(listed.error.code).toBe('JSONB_VALIDATION_ERROR');
+        const typed = listed.error as { code: string; table?: string; column?: string };
+        expect(typed.table).toBe('checked');
+        expect(typed.column).toBe('meta');
       });
     });
 

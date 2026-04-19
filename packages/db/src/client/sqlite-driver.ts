@@ -43,7 +43,13 @@ export interface ColumnSchemaEntry {
 
 /**
  * Table schema registry mapping table names to their column definitions.
- * Maps tableName → { columnName → columnType | ColumnSchemaEntry }
+ * Maps tableName → { columnName → columnType | ColumnSchemaEntry }.
+ *
+ * **Shortcut invariant:** the plain `string` form is equivalent to
+ * `{ sqlType: string }` with no validator and no other metadata. If a future
+ * contributor adds per-column read metadata beyond `validator`, both the
+ * `ColumnSchemaEntry` interface and `buildTableSchema` must be updated so
+ * the shortcut remains a no-metadata-lost alias.
  */
 export type TableSchemaRegistry = Map<string, Record<string, string | ColumnSchemaEntry>>;
 
@@ -97,6 +103,12 @@ function readValidator(
  * Convert one row's values using per-column schema. Parse JSONB cells, run
  * validators when present, and enrich `JsonbParseError` / `JsonbValidationError`
  * with `table` / `column` context that `fromSqliteValue` can't know on its own.
+ *
+ * Known limitation: `extractTableName` at the driver level uses the first FROM
+ * / INSERT INTO / UPDATE / DELETE FROM match, so for a JOIN like
+ * `SELECT ... FROM a JOIN b ...` the enriched table will always be the one
+ * named after the top-level verb. Accurate attribution on joins is tracked
+ * as a separate follow-up and falls outside this phase's scope.
  */
 function convertRowWithSchema<T>(
   row: Record<string, unknown>,
@@ -118,15 +130,17 @@ function convertRowWithSchema<T>(
       if (err instanceof JsonbParseError) {
         throw new JsonbParseError({
           columnType: err.columnType,
-          table: tableName,
-          column: key,
-          cause: (err as { cause?: unknown }).cause,
+          // Preserve any enrichment upstream may already have applied;
+          // only fall back to this call's context when unset.
+          table: err.table ?? tableName,
+          column: err.column ?? key,
+          cause: err.cause,
         });
       }
       throw err;
     }
     const validator = readValidator(entry);
-    if (validator !== undefined && next !== null && next !== undefined) {
+    if (validator !== undefined && next !== null) {
       try {
         next = validator.parse(next);
       } catch (cause) {

@@ -23,6 +23,8 @@ import {
   CheckConstraintError,
   ConnectionError,
   ForeignKeyError,
+  JsonbParseError,
+  JsonbValidationError,
   NotNullError,
   UniqueConstraintError,
 } from './errors/db-error';
@@ -70,9 +72,36 @@ export interface DbNotFoundError extends DbErrorBase {
 }
 
 /**
- * Read operations can fail with connection errors, query errors, or not found.
+ * A JSONB TEXT cell on SQLite/D1 could not be parsed back into an object.
+ * Data-integrity failure — typically corruption or a column type mismatch.
  */
-export type ReadError = DbConnectionError | DbQueryError | DbNotFoundError;
+export interface DbJsonbParseError extends DbErrorBase {
+  readonly code: 'JSONB_PARSE_ERROR';
+  readonly table?: string;
+  readonly column?: string;
+  readonly columnType: string;
+}
+
+/**
+ * A validator attached to a `d.jsonb<T>()` column rejected the parsed value on read.
+ */
+export interface DbJsonbValidationError extends DbErrorBase {
+  readonly code: 'JSONB_VALIDATION_ERROR';
+  readonly table: string;
+  readonly column: string;
+  readonly value: unknown;
+}
+
+/**
+ * Read operations can fail with connection errors, query errors, not found,
+ * or JSONB parse / validator failures on SQLite dialects.
+ */
+export type ReadError =
+  | DbConnectionError
+  | DbQueryError
+  | DbNotFoundError
+  | DbJsonbParseError
+  | DbJsonbValidationError;
 
 /**
  * Write operations can fail with connection errors, query errors, or constraint violations.
@@ -88,6 +117,31 @@ export type WriteError = DbConnectionError | DbQueryError | DbConstraintError;
  * Categorizes PostgreSQL errors into appropriate error types.
  */
 export function toReadError(error: unknown, query?: string): ReadError {
+  // Preserve the discriminating code for typed framework errors. Must be
+  // checked before the generic `code`-sniffing path below, which otherwise
+  // collapses every DbError subclass into QUERY_ERROR.
+  if (error instanceof JsonbParseError) {
+    const variant: DbJsonbParseError = {
+      code: 'JSONB_PARSE_ERROR',
+      message: error.message,
+      columnType: error.columnType,
+      cause: error,
+    };
+    const withTable =
+      error.table !== undefined ? { ...variant, table: error.table } : variant;
+    return error.column !== undefined ? { ...withTable, column: error.column } : withTable;
+  }
+  if (error instanceof JsonbValidationError) {
+    return {
+      code: 'JSONB_VALIDATION_ERROR',
+      message: error.message,
+      table: error.table,
+      column: error.column,
+      value: error.value,
+      cause: error,
+    };
+  }
+
   // Check for error with code property first (includes DbError subclasses)
   if (typeof error === 'object' && error !== null && 'code' in error) {
     const errWithCode = error as {
