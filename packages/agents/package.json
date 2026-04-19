@@ -23,6 +23,10 @@
     "./cloudflare": {
       "import": "./dist/cloudflare.js",
       "types": "./dist/cloudflare.d.ts"
+    },
+    "./testing": {
+      "import": "./dist/testing/index.js",
+      "types": "./dist/testing/index.d.ts"
     }
   },
   "publishConfig": {

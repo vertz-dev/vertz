@@ -1,7 +1,7 @@
 import { defineConfig } from '@vertz/build';
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/cloudflare.ts'],
+  entry: ['src/index.ts', 'src/cloudflare.ts', 'src/testing/index.ts'],
   dts: true,
   external: ['bun:sqlite'],
   clean: true,
