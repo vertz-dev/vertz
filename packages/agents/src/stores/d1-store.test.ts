@@ -326,4 +326,104 @@ describe('d1Store()', () => {
       });
     });
   });
+
+  describe('appendMessagesAtomic', () => {
+    describe('Given a session + 2 messages', () => {
+      it('Then the session is upserted and both messages are visible after the call', async () => {
+        const store = d1Store({ binding: mockD1Binding() });
+        const session = makeSession();
+        const messages: Message[] = [
+          { role: 'user', content: 'hello' },
+          { role: 'assistant', content: 'hi' },
+        ];
+
+        await store.appendMessagesAtomic(session.id, messages, session);
+
+        const loadedSession = await store.loadSession(session.id);
+        expect(loadedSession).toEqual(session);
+        const loaded = await store.loadMessages(session.id);
+        expect(loaded).toEqual(messages);
+      });
+    });
+
+    describe('Given successive atomic appends to the same session', () => {
+      it('Then each message gets a monotonic sequence number (batch subquery picks up prior inserts)', async () => {
+        const store = d1Store({ binding: mockD1Binding() });
+        const session = makeSession();
+
+        await store.appendMessagesAtomic(
+          session.id,
+          [
+            { role: 'user', content: 'a' },
+            { role: 'assistant', content: 'b' },
+          ],
+          session,
+        );
+        await store.appendMessagesAtomic(
+          session.id,
+          [
+            { role: 'user', content: 'c' },
+            { role: 'assistant', content: 'd' },
+          ],
+          session,
+        );
+
+        const loaded = await store.loadMessages(session.id);
+        expect(loaded.map((m) => m.content)).toEqual(['a', 'b', 'c', 'd']);
+      });
+    });
+
+    describe('Given db.batch() rejects', () => {
+      it('Then no partial state is visible (atomic rollback)', async () => {
+        // Wrap the mock binding to make batch() throw.
+        const underlying = mockD1Binding();
+        const failingBinding: D1Binding = {
+          exec: underlying.exec.bind(underlying),
+          prepare: underlying.prepare.bind(underlying),
+          async batch() {
+            // eslint-disable-next-line vertz-rules/no-throw-plain-error -- test mock simulating a driver-level failure; not user-facing
+            throw new Error('simulated D1 failure');
+          },
+        };
+        const store = d1Store({ binding: failingBinding });
+        const session = makeSession();
+
+        await expect(
+          store.appendMessagesAtomic(
+            session.id,
+            [{ role: 'user', content: 'never-landed' }],
+            session,
+          ),
+        ).rejects.toThrow('simulated D1 failure');
+
+        // Recreate the store over the underlying (healthy) binding, confirm
+        // no session row was written.
+        const healthyStore = d1Store({ binding: underlying });
+        const loadedSession = await healthyStore.loadSession(session.id);
+        expect(loadedSession).toBeNull();
+        const loaded = await healthyStore.loadMessages(session.id);
+        expect(loaded).toEqual([]);
+      });
+    });
+
+    describe('Given messages with toolCall metadata', () => {
+      it('Then toolCallId, toolName, and toolCalls are preserved through the batch', async () => {
+        const store = d1Store({ binding: mockD1Binding() });
+        const session = makeSession();
+        const messages: Message[] = [
+          {
+            role: 'assistant',
+            content: 'calling tools',
+            toolCalls: [{ id: 'call_1', name: 'postSlack', arguments: { text: 'hi' } }],
+          },
+          { role: 'tool', content: '{"ts":"123"}', toolCallId: 'call_1', toolName: 'postSlack' },
+        ];
+
+        await store.appendMessagesAtomic(session.id, messages, session);
+
+        const loaded = await store.loadMessages(session.id);
+        expect(loaded).toEqual(messages);
+      });
+    });
+  });
 });

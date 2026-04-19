@@ -276,9 +276,63 @@ export function d1Store(options: D1StoreOptions): AgentStore {
       return result.results.map(rowToSession);
     },
 
-    async appendMessagesAtomic(_sessionId, _messages, _session) {
-      // Implemented in Phase 1 Task 3.
-      throw new Error('appendMessagesAtomic: not yet implemented for d1Store');
+    async appendMessagesAtomic(sessionId, messages, session) {
+      await ensureTables();
+
+      // One D1 batch: session upsert + N message inserts. D1 executes all
+      // statements in a single implicit transaction, so statements see
+      // prior inserts in the same batch — we use `COALESCE(MAX(seq), 0) + 1`
+      // in every INSERT's subquery to derive a monotonic seq without a
+      // pre-batch SELECT. The whole batch commits atomically or not at all.
+      // Per https://developers.cloudflare.com/d1/worker-api/prepared-statements/#batch-statements
+      const now = new Date().toISOString();
+      const statements: D1PreparedStatement[] = [
+        db
+          .prepare(
+            `INSERT INTO agent_sessions (id, agent_name, user_id, tenant_id, state, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+               user_id = excluded.user_id,
+               tenant_id = excluded.tenant_id,
+               state = excluded.state,
+               updated_at = excluded.updated_at`,
+          )
+          .bind(
+            session.id,
+            session.agentName,
+            session.userId,
+            session.tenantId,
+            session.state,
+            session.createdAt,
+            session.updatedAt,
+          ),
+      ];
+
+      for (const msg of messages) {
+        statements.push(
+          db
+            .prepare(
+              `INSERT INTO agent_messages (session_id, seq, role, content, tool_call_id, tool_name, tool_calls, created_at)
+               VALUES (
+                 ?,
+                 COALESCE((SELECT MAX(seq) FROM agent_messages WHERE session_id = ?), 0) + 1,
+                 ?, ?, ?, ?, ?, ?
+               )`,
+            )
+            .bind(
+              sessionId,
+              sessionId,
+              msg.role,
+              msg.content,
+              msg.toolCallId ?? null,
+              msg.toolName ?? null,
+              msg.toolCalls ? JSON.stringify(msg.toolCalls) : null,
+              now,
+            ),
+        );
+      }
+
+      await db.batch(statements);
     },
   };
 }
