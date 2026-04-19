@@ -65,7 +65,13 @@ impl ErrorBroadcaster {
     }
 
     /// Create a new error broadcaster with a root directory for terminal display.
+    ///
+    /// Resets the persisted `.vertz/dev/errors.json` log so stale errors from a
+    /// previous session (including ones that reference now-deleted files) do not
+    /// survive across restarts. See issue #2819.
     pub fn with_root_dir(root_dir: PathBuf) -> Self {
+        terminal::write_error_log(&[], &root_dir);
+
         let (broadcast_tx, _) = broadcast::channel(64);
         Self {
             broadcast_tx,
@@ -359,6 +365,29 @@ mod tests {
         let broadcaster = ErrorBroadcaster::new();
         assert!(!broadcaster.has_errors().await);
         assert_eq!(broadcaster.client_count().await, 0);
+    }
+
+    #[test]
+    fn test_with_root_dir_clears_stale_error_log() {
+        // A previous dev-server session left .vertz/dev/errors.json with stale
+        // errors referring to files that may no longer exist. Starting a new
+        // broadcaster must reset the file so it matches our fresh, empty state.
+        let tmp = tempfile::tempdir().unwrap();
+        let vertz_dir = tmp.path().join(".vertz").join("dev");
+        std::fs::create_dir_all(&vertz_dir).unwrap();
+        let log_path = vertz_dir.join("errors.json");
+        std::fs::write(
+            &log_path,
+            r#"{"errors":[{"category":"build","severity":"error","message":"stale","file":"src/deleted.tsx"}],"count":1,"timestamp":"0"}"#,
+        )
+        .unwrap();
+
+        let _broadcaster = ErrorBroadcaster::with_root_dir(tmp.path().to_path_buf());
+
+        let content = std::fs::read_to_string(&log_path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(parsed["count"], 0);
+        assert_eq!(parsed["errors"].as_array().unwrap().len(), 0);
     }
 
     #[tokio::test]
