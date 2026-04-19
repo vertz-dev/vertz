@@ -230,5 +230,10 @@ export function sqliteStore(options: SqliteStoreOptions): AgentStore {
       const rows = db.prepare<SessionRow, (string | number)[]>(query).all(...params);
       return rows.map(rowToSession);
     },
+
+    async appendMessagesAtomic(_sessionId, _messages, _session) {
+      // Implemented in Phase 1 Task 2.
+      throw new Error('appendMessagesAtomic: not yet implemented for sqliteStore');
+    },
   };
 }

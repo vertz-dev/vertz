@@ -275,5 +275,10 @@ export function d1Store(options: D1StoreOptions): AgentStore {
       const result = await stmt.all<SessionRow>();
       return result.results.map(rowToSession);
     },
+
+    async appendMessagesAtomic(_sessionId, _messages, _session) {
+      // Implemented in Phase 1 Task 3.
+      throw new Error('appendMessagesAtomic: not yet implemented for d1Store');
+    },
   };
 }
