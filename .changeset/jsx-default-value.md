@@ -1,7 +1,7 @@
 ---
 '@vertz/native-compiler': patch
 '@vertz/ui': patch
-'vtz': patch
+'@vertz/runtime': patch
 ---
 
 fix(jsx): honor `defaultValue` / `defaultChecked` on `<input>` and `<textarea>`

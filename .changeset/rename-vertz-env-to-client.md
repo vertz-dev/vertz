@@ -1,6 +1,6 @@
 ---
 'vertz': patch
-'create-vertz-app': patch
+'@vertz/create-vertz-app': patch
 ---
 
 Rename `vertz/env` → `vertz/client` so tsconfig `types` discoverability matches
