@@ -2,7 +2,7 @@
 
 **Issue:** [#2868](https://github.com/vertz-dev/vertz/issues/2868)
 **Status:** Design (rev 2, post three-agent review)
-**Depends on:** [#2850](https://github.com/vertz-dev/vertz/issues/2850) / [plans/jsonb-sqlite-parity.md](./jsonb-sqlite-parity.md) — merge order is **#2850 first, then this**. #2850 ships the `TDialect` thread and the keyed-never brand file this design extends. Both plans mutate `FilterType`'s column-value branch; whichever lands second rebases onto the first. This PR is authored against `main + #2850` and will not be opened until #2850 is merged.
+**Builds on:** [#2850](https://github.com/vertz-dev/vertz/issues/2850) / [plans/jsonb-sqlite-parity.md](./jsonb-sqlite-parity.md) — **already shipped** (PR #2870, merged 2026-04-19). #2850 delivered the `TDialect` thread, the keyed-never brand file (`jsonb-filter-brand.ts`), and the string-key path filter type-gate this design extends.
 
 **Open naming question (flagged for user sign-off):** `path` is a short, natural name but collides with Node.js's `path` module and with common user locals. Alternative: `jsonbPath`, which matches `d.jsonb()` + `jsonContains` + `jsonContainedBy` naming. Product review flagged this as "not a blocker given the typed chain disambiguates usage" but worth confirming before implementation. This doc uses `path` throughout; a rename is a mechanical s/path/jsonbPath/ on code occurrences (prose uses of "path" as a concept stay).
 
@@ -312,7 +312,7 @@ TS's excess-property checking on a literal `{ jsonContains: … }` prefers `Json
 
 ## Implementation Plan
 
-**Shipping discipline:** single PR, `@vertz/db` patch, authored against `main + #2850`. Type additions + runtime additions together (new runtime operators and the `JsonbPathDescriptor` handler). No array-op work in this PR (#2885 tracks that separately).
+**Shipping discipline:** single PR, `@vertz/db` patch. Type additions + runtime additions together (new runtime operators and the `JsonbPathDescriptor` handler). No array-op work in this PR (#2885 tracks that separately). #2850's infrastructure is already on `main`.
 
 ### Phase A — Runtime additions
 
@@ -621,9 +621,9 @@ No POC required. All mechanisms exist or are trivially extendable:
 ## Definition of Done
 
 Dependencies:
-- [ ] **#2850 merged first.** This PR is authored against `main + #2850`.
-- [ ] **#2885 filed** (array-operator type gating — deferred from this ticket).
-- [ ] **#2886 filed** (`hasAllKeys` / `hasAnyKey` — deferred from this ticket).
+- [x] **#2850 shipped** (PR #2870, merged 2026-04-19) — provides `TDialect` thread and brand file.
+- [x] **#2885 filed** (array-operator type gating — deferred from this ticket).
+- [x] **#2886 filed** (`hasAllKeys` / `hasAnyKey` — deferred from this ticket).
 
 Runtime (Phase A):
 - [ ] `path(selector)` records segments via Proxy with full JS-internal guards; terminal ops return `JsonbPathDescriptor`.
