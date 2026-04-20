@@ -1,0 +1,153 @@
+---
+title: Reading and Writing Files
+description: 'File I/O with the vtz runtime via node:fs and node:fs/promises.'
+---
+
+vtz exposes the Node.js `fs` API — no proprietary `vtz.readFile()` or custom global. If you've written a Node script, the code you already have works.
+
+```ts
+import { readFile, writeFile } from 'node:fs/promises';
+
+const data = await readFile('config.json', 'utf-8');
+await writeFile('output.txt', 'hello\n');
+```
+
+Imports go through `node:fs` (promise-returning) or `node:fs/promises` (promise namespace); synchronous variants come from `node:fs`.
+
+## Text vs binary
+
+Pass an encoding to get a string; omit it to get a `Buffer` (which is a `Uint8Array` subclass).
+
+```ts
+import { readFile, writeFile } from 'node:fs/promises';
+
+// Text
+const text: string = await readFile('notes.md', 'utf-8');
+await writeFile('notes.md', text);
+
+// Binary
+const bytes: Buffer = await readFile('image.png');
+await writeFile('copy.png', bytes);
+```
+
+Accepted encodings include `'utf-8'`, `'utf8'`, `'ascii'`, `'base64'`, `'hex'`, `'latin1'`. A plain `Uint8Array` is also a valid write payload.
+
+## Async vs sync
+
+Prefer the async forms for request handlers and long-running code — they don't block the event loop. Use sync variants for startup and scripts where you'd block anyway.
+
+```ts
+// Async — use in handlers, services, agents
+import { readFile } from 'node:fs/promises';
+const config = JSON.parse(await readFile('config.json', 'utf-8'));
+
+// Sync — use in config loaders, CLI scripts, tests
+import { readFileSync } from 'node:fs';
+const config = JSON.parse(readFileSync('config.json', 'utf-8'));
+```
+
+## Paths
+
+Always resolve paths relative to a known anchor. `process.cwd()` depends on where the script was invoked from; `import.meta.dirname` is stable.
+
+```ts
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
+const here = import.meta.dirname;
+const data = await readFile(join(here, '..', 'data', 'seed.json'), 'utf-8');
+```
+
+`file://` URLs also work anywhere a path is accepted:
+
+```ts
+const url = new URL('./seed.json', import.meta.url);
+const data = await readFile(url, 'utf-8');
+```
+
+## Directories
+
+```ts
+import { mkdir, readdir, rm } from 'node:fs/promises';
+
+await mkdir('uploads/2026', { recursive: true });
+
+const entries = await readdir('uploads');
+for (const name of entries) {
+  console.log(name);
+}
+
+await rm('uploads/old', { recursive: true, force: true });
+```
+
+`readdir` returns names only. Pair with `stat()` when you need file type or size:
+
+```ts
+import { readdir, stat } from 'node:fs/promises';
+import { join } from 'node:path';
+
+const dir = 'uploads';
+for (const name of await readdir(dir)) {
+  const info = await stat(join(dir, name));
+  if (info.isFile()) console.log(name, info.size);
+}
+```
+
+## Existence checks
+
+```ts
+import { existsSync } from 'node:fs';
+
+if (existsSync('config.json')) {
+  // ...
+}
+```
+
+Avoid the check-then-read pattern in hot paths — read and handle `ENOENT` instead, which is both faster and race-free:
+
+```ts
+import { readFile } from 'node:fs/promises';
+
+try {
+  return await readFile('config.json', 'utf-8');
+} catch (err) {
+  if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+  throw err;
+}
+```
+
+## Watching for changes
+
+`fs.watch()` is polling-based (~500ms interval) — good enough for scripts and dev tools, not suited for high-frequency filesystem monitoring.
+
+```ts
+import { watch } from 'node:fs';
+
+const watcher = watch('src', { recursive: true }, (event, filename) => {
+  console.log(event, filename);
+});
+
+// Later
+watcher.close();
+```
+
+## What's not supported
+
+| API                                    | Status                                                                                         |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `createReadStream` / `createWriteStream` | Not implemented. Read/write the full buffer, or chunk manually with `read()` / `write()` on an open `fd`. |
+| Callback-style async (`fs.readFile(path, cb)`) | Not implemented. Use `node:fs/promises` or `readFileSync`.                                     |
+| `fs.appendFile` (async)                | Not implemented. `appendFileSync` works; otherwise read → concat → write.                      |
+| Inode-based watchers                   | Polling only.                                                                                  |
+
+If your code relies on streams for a file that might be large, read into a `Buffer` and process chunks in memory — the runtime doesn't yet help you backpressure.
+
+## Security
+
+vtz deliberately does **not** sandbox file access. Any path your script names, it can open — the runtime trusts its own code, matching Node and Bun semantics. If you're executing untrusted input, validate and normalize paths yourself before passing them to `fs`.
+
+For desktop apps with permission-gated file access, see [`@vertz/desktop` → File System](/guides/desktop/fs).
+
+## Implementation
+
+Rust ops live in [`native/vtz/src/runtime/ops/fs.rs`](https://github.com/vertz-dev/vertz/blob/main/native/vtz/src/runtime/ops/fs.rs); the `node:fs` and `node:fs/promises` synthetic modules are wired in [`native/vtz/src/runtime/module_loader.rs`](https://github.com/vertz-dev/vertz/blob/main/native/vtz/src/runtime/module_loader.rs).
