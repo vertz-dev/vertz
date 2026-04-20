@@ -376,6 +376,107 @@ describe('buildWhere', () => {
       expect(result.params).toEqual([['ts', 'js']]);
     });
   });
+
+  describe('JSONB payload operators', () => {
+    it('jsonContains generates @> operator with ::jsonb cast and stringified param', () => {
+      const result = buildWhere({
+        meta: { jsonContains: { settings: { theme: 'dark' } } },
+      });
+      expect(result.sql).toBe('"meta" @> $1::jsonb');
+      expect(result.params).toEqual(['{"settings":{"theme":"dark"}}']);
+    });
+
+    it('jsonContainedBy generates <@ operator with ::jsonb cast', () => {
+      const result = buildWhere({
+        meta: { jsonContainedBy: { a: 1, b: 2 } },
+      });
+      expect(result.sql).toBe('"meta" <@ $1::jsonb');
+      expect(result.params).toEqual(['{"a":1,"b":2}']);
+    });
+
+    it('hasKey generates ? operator with text operand', () => {
+      const result = buildWhere({ meta: { hasKey: 'settings' } });
+      expect(result.sql).toBe('"meta" ? $1');
+      expect(result.params).toEqual(['settings']);
+    });
+
+    it('combines jsonContains with other filters', () => {
+      const result = buildWhere({
+        status: 'active',
+        meta: { jsonContains: { role: 'admin' } },
+      });
+      expect(result.sql).toBe('"status" = $1 AND "meta" @> $2::jsonb');
+      expect(result.params).toEqual(['active', '{"role":"admin"}']);
+    });
+  });
+
+  describe('JsonbPathDescriptor from path()', () => {
+    it('emits single-key path with text key and ->> final + eq operator', () => {
+      const result = buildWhere({
+        meta: {
+          _tag: 'JsonbPathDescriptor',
+          segments: [{ kind: 'key', value: 'settings' }],
+          op: { eq: 'dark' },
+        } as unknown,
+      });
+      expect(result.sql).toBe('"meta"->>\'settings\' = $1');
+      expect(result.params).toEqual(['dark']);
+    });
+
+    it('emits nested path with intermediate -> and final ->>', () => {
+      const result = buildWhere({
+        meta: {
+          _tag: 'JsonbPathDescriptor',
+          segments: [
+            { kind: 'key', value: 'settings' },
+            { kind: 'key', value: 'theme' },
+          ],
+          op: { eq: 'dark' },
+        } as unknown,
+      });
+      expect(result.sql).toBe('"meta"->\'settings\'->>\'theme\' = $1');
+      expect(result.params).toEqual(['dark']);
+    });
+
+    it('emits integer segments unquoted for array indexing', () => {
+      const result = buildWhere({
+        meta: {
+          _tag: 'JsonbPathDescriptor',
+          segments: [
+            { kind: 'key', value: 'tags' },
+            { kind: 'index', value: 0 },
+          ],
+          op: { eq: 'urgent' },
+        } as unknown,
+      });
+      expect(result.sql).toBe('"meta"->\'tags\'->>0 = $1');
+      expect(result.params).toEqual(['urgent']);
+    });
+
+    it('emits single integer segment unquoted as final', () => {
+      const result = buildWhere({
+        tags: {
+          _tag: 'JsonbPathDescriptor',
+          segments: [{ kind: 'index', value: 2 }],
+          op: { eq: 'x' },
+        } as unknown,
+      });
+      expect(result.sql).toBe('"tags"->>2 = $1');
+      expect(result.params).toEqual(['x']);
+    });
+
+    it('applies comparison operators (gt) to path leaves', () => {
+      const result = buildWhere({
+        meta: {
+          _tag: 'JsonbPathDescriptor',
+          segments: [{ kind: 'key', value: 'count' }],
+          op: { gt: 5 },
+        } as unknown,
+      });
+      expect(result.sql).toBe('"meta"->>\'count\' > $1');
+      expect(result.params).toEqual([5]);
+    });
+  });
 });
 
 describe('edge cases: empty IN/NOT IN arrays (Issue #1)', () => {

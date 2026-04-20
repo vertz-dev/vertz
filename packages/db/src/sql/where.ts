@@ -15,6 +15,7 @@
  */
 
 import { type Dialect, defaultPostgresDialect } from '../dialect';
+import { isJsonbPathDescriptor, type JsonbPathDescriptor, type PathSegment } from '../path';
 import { type CasingOverrides, camelToSnake } from './casing';
 
 export interface WhereResult {
@@ -38,6 +39,9 @@ interface FilterOperators {
   readonly arrayContains?: readonly unknown[];
   readonly arrayContainedBy?: readonly unknown[];
   readonly arrayOverlaps?: readonly unknown[];
+  readonly jsonContains?: unknown;
+  readonly jsonContainedBy?: unknown;
+  readonly hasKey?: string;
 }
 
 interface WhereFilter {
@@ -63,6 +67,9 @@ const OPERATOR_KEYS = new Set([
   'arrayContains',
   'arrayContainedBy',
   'arrayOverlaps',
+  'jsonContains',
+  'jsonContainedBy',
+  'hasKey',
 ]);
 
 function isOperatorObject(value: unknown): value is FilterOperators {
@@ -98,6 +105,34 @@ function escapeLikeValue(str: string): string {
  * Regular columns are just quoted with double quotes.
  * Single quotes in JSONB path segments are escaped to prevent SQL injection.
  */
+/**
+ * Resolve a column reference from a base column + typed path segments.
+ * Integer segments emit unquoted (`->N`) to match Postgres JSONB array semantics
+ * (Postgres `->'0'` on an array returns NULL; `->0` does not).
+ */
+function resolveColumnRefFromSegments(
+  baseKey: string,
+  segments: readonly PathSegment[],
+  overrides: CasingOverrides | undefined,
+  dialect: Dialect,
+): string {
+  if (!dialect.supportsJsonbPath) {
+    throw new Error(
+      'JSONB path operators (->>, ->) are not supported on SQLite. ' +
+        'Use json_extract() via raw SQL or switch to Postgres.',
+    );
+  }
+  const column = `"${camelToSnake(baseKey, overrides)}"`;
+  if (segments.length === 0) return column;
+  const emitIntermediate = (seg: PathSegment): string =>
+    seg.kind === 'index' ? `->${seg.value}` : `->'${escapeSingleQuotes(seg.value)}'`;
+  const emitFinal = (seg: PathSegment): string =>
+    seg.kind === 'index' ? `->>${seg.value}` : `->>'${escapeSingleQuotes(seg.value)}'`;
+  const intermediate = segments.slice(0, -1).map(emitIntermediate).join('');
+  const final = emitFinal(segments[segments.length - 1] as PathSegment);
+  return `${column}${intermediate}${final}`;
+}
+
 function resolveColumnRef(key: string, overrides?: CasingOverrides, dialect?: Dialect): string {
   if (key.includes('->')) {
     if (dialect && !dialect.supportsJsonbPath) {
@@ -238,6 +273,36 @@ function buildOperatorCondition(
     params.push(operators.arrayOverlaps);
     idx++;
   }
+  if (operators.jsonContains !== undefined) {
+    if (!dialect.supportsJsonbPath) {
+      throw new Error(
+        'jsonContains requires dialect: postgres. On SQLite, fetch with list() and filter in application code.',
+      );
+    }
+    clauses.push(`${columnRef} @> ${dialect.param(idx + 1)}::jsonb`);
+    params.push(JSON.stringify(operators.jsonContains));
+    idx++;
+  }
+  if (operators.jsonContainedBy !== undefined) {
+    if (!dialect.supportsJsonbPath) {
+      throw new Error(
+        'jsonContainedBy requires dialect: postgres. On SQLite, fetch with list() and filter in application code.',
+      );
+    }
+    clauses.push(`${columnRef} <@ ${dialect.param(idx + 1)}::jsonb`);
+    params.push(JSON.stringify(operators.jsonContainedBy));
+    idx++;
+  }
+  if (operators.hasKey !== undefined) {
+    if (!dialect.supportsJsonbPath) {
+      throw new Error(
+        'hasKey requires dialect: postgres. On SQLite, fetch with list() and filter in application code.',
+      );
+    }
+    clauses.push(`${columnRef} ? ${dialect.param(idx + 1)}`);
+    params.push(operators.hasKey);
+    idx++;
+  }
 
   return { clauses, params, nextIndex: idx };
 }
@@ -254,6 +319,19 @@ function buildFilterClauses(
 
   for (const [key, value] of Object.entries(filter)) {
     if (key === 'OR' || key === 'AND' || key === 'NOT') {
+      continue;
+    }
+
+    // Descriptor branch runs BEFORE isOperatorObject so a path() result
+    // (carrying _tag + segments + op) isn't mistaken for a direct equality
+    // value.
+    if (isJsonbPathDescriptor(value)) {
+      const descriptor = value as JsonbPathDescriptor;
+      const columnRef = resolveColumnRefFromSegments(key, descriptor.segments, overrides, dialect);
+      const result = buildOperatorCondition(columnRef, descriptor.op, idx, dialect);
+      clauses.push(...result.clauses);
+      allParams.push(...result.params);
+      idx = result.nextIndex;
       continue;
     }
 

@@ -64,15 +64,35 @@ export const d: {
   /**
    * JSONB column — stores a typed payload.
    *
-   * - **Postgres:** native JSONB type. Supports path filters (`'meta->k'`) and
-   *   array operators; both are available at the type level.
+   * - **Postgres:** native JSONB type. Supports string-keyed path filters
+   *   (`'meta->k'`), typed `path()` filters, and whole-payload operators
+   *   (`jsonContains`, `jsonContainedBy`, `hasKey`).
    * - **SQLite / Cloudflare D1:** stored as TEXT. On reads, values are
    *   automatically `JSON.parse`d into `T`. On writes, plain objects/arrays
    *   are automatically `JSON.stringify`d.
    *
-   * Path-based filters (`where: { 'meta->k': ... }`) are Postgres-only. On
-   * SQLite, fetch with `list()` and filter in application code. Inline the
-   * `where` object for the best TS diagnostic when the gate triggers.
+   * Path-based filters (`where: { 'meta->k': ... }`) and the typed operators
+   * are Postgres-only. On SQLite they resolve to a branded `never` type
+   * whose name reads as the recovery sentence. Fetch with `list()` and filter
+   * in application code, or switch dialects. Inline the `where` object for
+   * the best TS diagnostic when the gate triggers.
+   *
+   * Typed filter options (Postgres):
+   *
+   * ```ts
+   * import { path } from '@vertz/db';
+   * // Typed path — leaf type flows from the selector:
+   * where: { meta: path((m: InstallMeta) => m.settings.theme).eq('dark') }
+   * // Whole-payload subset containment (@>):
+   * where: { meta: { jsonContains: { settings: { theme: 'dark' } } } }
+   * // Top-level key existence (?):
+   * where: { meta: { hasKey: 'displayName' } }
+   * ```
+   *
+   * For `d.jsonb<string>()` (payloads that are themselves JSON-encoded strings),
+   * the column-level string `contains` operator does a text LIKE match on the
+   * raw JSON representation. Prefer `contains` for substring tests; `jsonContains`
+   * tests whole-payload subset containment.
    *
    * An optional `validator` (provided either as a `{ validator }` option or
    * as a schema-like object exposing `.parse()`) runs on both sides:

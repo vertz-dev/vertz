@@ -59,6 +59,9 @@ export type { createPostgresDriver, PostgresDriver } from './client/postgres-dri
 // Schema builder
 export { d } from './d';
 export type { EnumSchemaLike } from './d';
+// Typed JSONB path builder — `path((m: T) => m.x).eq(v)`
+export { path } from './path';
+export type { JsonbPathDescriptor, PathSegment } from './path';
 // Update expressions
 export type { DbExpr } from './sql/expr';
 export { isDbExpr } from './sql/expr';
