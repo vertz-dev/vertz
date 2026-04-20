@@ -5,8 +5,10 @@
  * Similar to Next.js `ImageResponse` — define the image as a component,
  * render to SVG via Satori, convert to PNG via resvg.
  *
- * Usage: bun run scripts/generate-og.ts
+ * Usage: node --experimental-strip-types scripts/generate-og.ts
  */
+import { writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
 
@@ -240,8 +242,8 @@ async function main() {
   });
   const png = resvg.render().asPng();
 
-  const outPath = `${import.meta.dir}/../public/og.png`;
-  await Bun.write(outPath, png);
+  const outPath = fileURLToPath(new URL('../public/og.png', import.meta.url));
+  writeFileSync(outPath, png);
   console.log(`✓ Generated OG image: public/og.png (${(png.byteLength / 1024).toFixed(1)} KB)`);
 }
 
