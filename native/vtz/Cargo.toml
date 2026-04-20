@@ -16,6 +16,7 @@ async-stream = "0.3"
 async-trait = "0.1"
 axum = { version = "0.7", features = ["ws"] }
 axum-server = { version = "0.8", features = ["tls-rustls"] }
+chromiumoxide = { version = "0.9", default-features = false }
 clap = { version = "4", features = ["derive"] }
 bitvec = "1"
 crossbeam-channel = "0.5"
