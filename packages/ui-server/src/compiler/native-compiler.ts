@@ -127,8 +127,15 @@ interface RawNativeCompiler {
 // ─── Loader ─────────────────────────────────────────────────────────
 
 import { existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+// When this module is bundled as pure ESM, the global `require` is not
+// defined at runtime. `createRequire` gives us a real CJS require scoped
+// to this module's URL — needed to load the `.node` binary and to resolve
+// subpath exports of `@vertz/native-compiler`.
+const esmRequire = createRequire(import.meta.url);
 
 let cachedCompiler: RawNativeCompiler | null = null;
 let nativeUnavailable = false;
@@ -152,7 +159,7 @@ function resolveBinaryName(): string {
 function resolveBinaryPath(binaryName: string): string | null {
   // Try 1: standard npm module resolution
   try {
-    return require.resolve(`@vertz/native-compiler/${binaryName}`);
+    return esmRequire.resolve(`@vertz/native-compiler/${binaryName}`);
   } catch {
     // Fall through to workspace resolution
   }
@@ -160,11 +167,9 @@ function resolveBinaryPath(binaryName: string): string | null {
   // Try 2: workspace-relative resolution (monorepo / CI)
   // Walk up from this file's directory to find `native/vertz-compiler/`
   const startDir =
-    (typeof import.meta !== 'undefined' && import.meta.dir) ||
     (typeof import.meta !== 'undefined' && import.meta.url
       ? dirname(fileURLToPath(import.meta.url))
-      : null) ||
-    (typeof __dirname !== 'undefined' ? __dirname : null);
+      : null) || (typeof __dirname !== 'undefined' ? __dirname : null);
   if (!startDir) return null;
 
   let dir = dirname(startDir);
@@ -199,7 +204,7 @@ export function loadNativeCompiler(): NativeCompiler {
     );
   }
 
-  cachedCompiler = require(binaryPath) as RawNativeCompiler;
+  cachedCompiler = esmRequire(binaryPath) as RawNativeCompiler;
   return wrapCompiler(cachedCompiler);
 }
 

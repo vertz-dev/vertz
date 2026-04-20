@@ -1,5 +1,20 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from '@vertz/test';
 import { loadNativeCompiler } from '../compiler/native-compiler';
+
+// Files that load modules via CJS require at module-init time. Bundled as ESM,
+// they must use `createRequire(import.meta.url)` — the global `require` is not
+// defined at runtime.
+const ESM_REQUIRE_SOURCES = [
+  new URL('../compiler/native-compiler.ts', import.meta.url),
+  new URL('../compiler/reactivity-manifest.ts', import.meta.url),
+  new URL('../build-plugin/plugin.ts', import.meta.url),
+];
+
+function stripComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
 
 // Check if the native binary is available on this platform
 function isNativeBinaryAvailable(): boolean {
@@ -64,6 +79,36 @@ describe('Feature: Native compiler loader', () => {
         expect(result.code).not.toContain('__register');
       });
     });
+  });
+
+  describe('Given the module is consumed as pure ESM', () => {
+    // Regression guard for #2875: the compiled ESM bundle cannot use the
+    // CJS `require` global (esbuild's `__require` shim throws at runtime).
+    // Every file that loads a module at init-time must use
+    // `createRequire(import.meta.url)` instead of the bare `require` global.
+    for (const url of ESM_REQUIRE_SOURCES) {
+      const filename = url.pathname.split('/').pop();
+      const source = readFileSync(fileURLToPath(url), 'utf8');
+      const stripped = stripComments(source);
+
+      describe(`When inspecting ${filename}`, () => {
+        it('Then the source imports createRequire from node:module', () => {
+          expect(source).toContain("import { createRequire } from 'node:module'");
+        });
+
+        it('Then the source instantiates createRequire(import.meta.url)', () => {
+          expect(source).toContain('createRequire(import.meta.url)');
+        });
+
+        it('Then the source contains no bare require(...) call', () => {
+          expect(stripped).not.toMatch(/(?<![a-zA-Z_.])require\(/);
+        });
+
+        it('Then the source contains no bare require.resolve(...) call', () => {
+          expect(stripped).not.toMatch(/(?<![a-zA-Z_.])require\.resolve\(/);
+        });
+      });
+    }
   });
 
   describe('Given the native compiler is required (no fallback)', () => {
