@@ -14,4 +14,5 @@ pub mod logging;
 pub mod mcp;
 pub mod mcp_events;
 pub mod module_server;
+pub mod screenshot;
 pub mod theme_css;
