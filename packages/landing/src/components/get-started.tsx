@@ -19,9 +19,9 @@ const s = css({
     '&': { overflowX: 'auto', borderRadius: '2px' },
   },
   terminalLine: { marginBottom: token.spacing[2] },
-  terminalCmd: [],
+  terminalCmd: {},
   successLine: { marginTop: token.spacing[4] },
-  success: [],
+  success: {},
 });
 
 export function GetStarted() {
