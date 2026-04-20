@@ -9,3 +9,4 @@
 //! - `artifacts` — filename generation, disk persistence
 
 pub mod artifacts;
+pub mod fetcher;
