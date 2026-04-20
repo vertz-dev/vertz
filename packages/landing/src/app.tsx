@@ -12,7 +12,10 @@ export const theme = landingTheme;
 export const styles = [themeGlobals.css, appGlobals.css];
 
 // ── Routes ─────────────────────────────────────────────────
-const routes = defineRoutes({
+// Exported so `vertz build`'s pre-render pipeline can enumerate them
+// via `collectPrerenderPaths(ssrModule.routes)` as a deterministic
+// fallback when runtime route discovery (render '/') fails.
+export const routes = defineRoutes({
   '/': { component: () => <HomePage /> },
   '/manifesto': { component: () => <ManifestoPage /> },
   '/openapi': { component: () => <OpenAPIPage /> },
