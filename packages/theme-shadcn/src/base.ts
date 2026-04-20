@@ -212,6 +212,7 @@ export function configureThemeBase(config?: ThemeConfig): ResolvedThemeBase {
       // compiles to `var(--radius-*)`, so these must resolve out of the box —
       // otherwise `border-radius` falls back to 0 and components ship with
       // squared corners (including radios, avatars, and other `full` shapes).
+      '--radius-none': '0',
       '--radius-xs': 'calc(var(--radius) - 6px)',
       '--radius-sm': 'calc(var(--radius) - 4px)',
       '--radius-md': 'calc(var(--radius) - 2px)',

@@ -15,6 +15,7 @@ describe('theme globals', () => {
   // calc-based scale plus `full` so the radius tokens resolve out of the box.
   it('emits shadcn-style calc-based radius scale vars so token.radius.* resolves', () => {
     const { globals } = configureThemeBase();
+    expect(globals.css).toContain('--radius-none: 0');
     expect(globals.css).toContain('--radius-xs: calc(var(--radius) - 6px)');
     expect(globals.css).toContain('--radius-sm: calc(var(--radius) - 4px)');
     expect(globals.css).toContain('--radius-md: calc(var(--radius) - 2px)');
