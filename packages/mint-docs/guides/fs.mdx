@@ -133,12 +133,12 @@ watcher.close();
 
 ## What's not supported
 
-| API                                    | Status                                                                                         |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `createReadStream` / `createWriteStream` | Not implemented. Read/write the full buffer, or chunk manually with `read()` / `write()` on an open `fd`. |
-| Callback-style async (`fs.readFile(path, cb)`) | Not implemented. Use `node:fs/promises` or `readFileSync`.                                     |
-| `fs.appendFile` (async)                | Not implemented. `appendFileSync` works; otherwise read → concat → write.                      |
-| Inode-based watchers                   | Polling only.                                                                                  |
+| API                                            | Status                                                                                                    |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `createReadStream` / `createWriteStream`       | Not implemented. Read/write the full buffer, or chunk manually with `read()` / `write()` on an open `fd`. |
+| Callback-style async (`fs.readFile(path, cb)`) | Not implemented. Use `node:fs/promises` or `readFileSync`.                                                |
+| `fs.appendFile` (async)                        | Not implemented. `appendFileSync` works; otherwise read → concat → write.                                 |
+| Inode-based watchers                           | Polling only.                                                                                             |
 
 If your code relies on streams for a file that might be large, read into a `Buffer` and process chunks in memory — the runtime doesn't yet help you backpressure.
 
