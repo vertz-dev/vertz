@@ -383,10 +383,11 @@ if (!listed.ok) {
 ```
 
 <Tip>
-  On SQLite specifically, `INSERT ... RETURNING` rows also pass through the read-side validator before
-  the write Result resolves. If your validator is non-idempotent (transforms input to a shape the
-  validator itself would reject), you'll see `JSONB_VALIDATION_ERROR` on the write even though the
-  INSERT succeeded at the driver. Keep validators idempotent — `parse(parse(x))` should equal `parse(x)`.
+  On SQLite specifically, `INSERT ... RETURNING` rows also pass through the read-side validator
+  before the write Result resolves. If your validator is non-idempotent (transforms input to a shape
+  the validator itself would reject), you'll see `JSONB_VALIDATION_ERROR` on the write even though
+  the INSERT succeeded at the driver. Keep validators idempotent — `parse(parse(x))` should equal
+  `parse(x)`.
 </Tip>
 
 ### JSONB filter operators are dialect-conditional
