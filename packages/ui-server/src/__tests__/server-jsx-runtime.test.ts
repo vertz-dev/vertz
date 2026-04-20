@@ -1,5 +1,7 @@
 import { describe, expect, it } from '@vertz/test';
 import { jsx } from '../jsx-runtime/index';
+import { renderToStream } from '../render-to-stream';
+import { streamToString } from '../streaming';
 
 // Regression guard: the Vertz reactive compiler passes children as
 // getter functions — e.g., `<Select.Item>Apple</Select.Item>` compiles to
@@ -25,6 +27,28 @@ describe('Server JSX Runtime — reactive getter children', () => {
     const vnode = jsx('div', { children: [() => 'Apple', jsx('span', { children: 'icon' })] });
     expect(vnode.children[0]).toBe('Apple');
     expect((vnode.children[1] as { tag: string }).tag).toBe('span');
+  });
+
+  it('unwraps nested thunks (thunk returning a thunk)', () => {
+    const vnode = jsx('div', { children: () => () => 'Deep' });
+    expect(vnode.children).toEqual(['Deep']);
+  });
+
+  it('renders function children to correct HTML via renderToStream (E2E guard)', async () => {
+    const vnode = jsx('div', {
+      role: 'option',
+      children: [() => 'Apple', jsx('span', { 'data-part': 'indicator' })],
+    });
+    const html = await streamToString(renderToStream(vnode));
+    expect(html).toBe('<div role="option">Apple<span data-part="indicator"></span></div>');
+    expect(html).not.toContain('=>');
+    expect(html).not.toContain('function');
+  });
+
+  it('caps recursion to catch circular thunks instead of hanging', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentional circular thunk
+    const cyclic: any = () => cyclic;
+    expect(() => jsx('div', { children: cyclic })).toThrow(/max thunk depth/);
   });
 });
 

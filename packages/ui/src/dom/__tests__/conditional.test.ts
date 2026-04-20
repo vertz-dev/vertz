@@ -106,6 +106,54 @@ describe('__conditional', () => {
     expect(container.innerHTML).not.toContain('=>');
   });
 
+  it('unwraps nested thunks (thunk returning a thunk returning a Node)', () => {
+    const show = signal(true);
+    const container = document.createElement('div');
+    const fragment = __conditional(
+      () => show.value,
+      () =>
+        (() => () => {
+          const span = document.createElement('span');
+          span.textContent = 'Deep';
+          return span;
+        }) as unknown as Node,
+      () => null,
+    );
+    container.appendChild(fragment);
+    expect(container.textContent).toBe('Deep');
+  });
+
+  it('caps thunk recursion to catch circular thunks', () => {
+    const show = signal(true);
+    const container = document.createElement('div');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentional circular thunk
+    const cyclic: any = () => cyclic;
+    expect(() => {
+      const fragment = __conditional(
+        () => show.value,
+        () => cyclic as Node,
+        () => null,
+      );
+      container.appendChild(fragment);
+    }).toThrow(/max thunk depth/);
+  });
+
+  it('preserves thunk unwrap across branch switches', () => {
+    const show = signal(true);
+    const container = document.createElement('div');
+    const fragment = __conditional(
+      () => show.value,
+      () => (() => 'yes') as unknown as Node,
+      () => (() => 'no') as unknown as Node,
+    );
+    container.appendChild(fragment);
+    expect(container.textContent).toBe('yes');
+
+    show.value = false;
+    expect(container.textContent).toBe('no');
+    expect(container.innerHTML).not.toContain('=>');
+  });
+
   it('null branch leaves only anchor and end marker (adjacent)', () => {
     const show = signal(true);
     const container = document.createElement('div');

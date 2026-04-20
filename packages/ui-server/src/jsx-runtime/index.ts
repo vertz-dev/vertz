@@ -35,7 +35,8 @@ function unwrapSignal(value: unknown): unknown {
  * Flattens nested arrays.
  * Converts numbers and other primitives to strings.
  */
-function normalizeChildren(children: unknown): (VNode | string | RawHtml)[] {
+const MAX_THUNK_DEPTH = 10;
+function normalizeChildren(children: unknown, depth = 0): (VNode | string | RawHtml)[] {
   if (children == null || children === false || children === true) {
     return [];
   }
@@ -45,11 +46,14 @@ function normalizeChildren(children: unknown): (VNode | string | RawHtml)[] {
   // server, invoke once and normalize the result. Without this, SSR emits the
   // function's source code as text and ships it to the client.
   if (typeof children === 'function') {
-    return normalizeChildren((children as () => unknown)());
+    if (depth >= MAX_THUNK_DEPTH) {
+      throw new Error('normalizeChildren: max thunk depth exceeded — possible circular thunk');
+    }
+    return normalizeChildren((children as () => unknown)(), depth + 1);
   }
 
   if (Array.isArray(children)) {
-    return children.flatMap(normalizeChildren);
+    return children.flatMap((c) => normalizeChildren(c, depth));
   }
 
   // VNode or RawHtml object
