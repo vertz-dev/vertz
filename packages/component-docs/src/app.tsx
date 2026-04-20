@@ -1,5 +1,6 @@
 import { getInjectedCSS, ThemeProvider } from '@vertz/ui';
-import { createRouter, defineRoutes, RouterView } from '@vertz/ui/router';
+import { createRouter, defineRoutes, RouterContext, RouterView } from '@vertz/ui/router';
+import { DocsLayout } from './components/docs-layout';
 import {
   applyAccent,
   applyPalette,
@@ -22,6 +23,9 @@ export const theme = docsTheme;
 export const styles = [themeGlobals.css, appGlobals.css];
 
 // ── Routes ─────────────────────────────────────────────────
+// DocsLayout is hoisted to App (see below) so the sidebar DOM node persists
+// across navigations. Routes only render the content area — RouterView
+// replaces the <main> children, the <aside> stays mounted.
 export const routes = defineRoutes({
   '/': {
     component: () => <IndexRedirect />,
@@ -68,7 +72,11 @@ export function App() {
   return (
     <ThemeContext.Provider value={{ theme: currentTheme, toggle }}>
       <ThemeProvider theme={currentTheme}>
-        <RouterView router={router} fallback={() => <div>Page not found</div>} />
+        <RouterContext.Provider value={router}>
+          <DocsLayout>
+            <RouterView router={router} fallback={() => <div>Page not found</div>} />
+          </DocsLayout>
+        </RouterContext.Provider>
       </ThemeProvider>
     </ThemeContext.Provider>
   );

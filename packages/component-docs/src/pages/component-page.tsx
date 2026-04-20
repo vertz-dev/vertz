@@ -1,5 +1,4 @@
 import { useParams } from '@vertz/ui/router';
-import { DocsLayout } from '../components/docs-layout';
 import { PrevNext } from '../components/prev-next';
 import { PrevNextCompact } from '../components/prev-next-compact';
 import { Content as AccordionContent } from '../content/accordion-content';
@@ -114,7 +113,7 @@ export function ComponentPage() {
 
   if (!entry) {
     return (
-      <DocsLayout>
+      <>
         <h1
           style={{
             fontSize: '30px',
@@ -136,20 +135,15 @@ export function ComponentPage() {
         >
           The component "{name}" does not exist in the documentation.
         </p>
-      </DocsLayout>
+      </>
     );
   }
 
   const description = descriptions[name];
   const ContentComponent = contentMap[name];
 
-  // Reset scroll position when navigating to a new component
-  if (typeof window !== 'undefined') {
-    window.scrollTo(0, 0);
-  }
-
   return (
-    <DocsLayout activeName={name}>
+    <>
       <h1
         style={{
           fontSize: '30px',
@@ -174,6 +168,6 @@ export function ComponentPage() {
       <PrevNextCompact prev={prev} next={next} />
       {ContentComponent ? <ContentComponent /> : null}
       <PrevNext prev={prev} next={next} />
-    </DocsLayout>
+    </>
   );
 }

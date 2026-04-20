@@ -24,7 +24,6 @@ import {
   Toggle,
   ToggleGroup,
 } from '@vertz/ui/components';
-import { Header } from '../components/header';
 
 // ── Shared styles ────────────────────────────────────────────
 const cardStyle: Record<string, string> = {
@@ -887,7 +886,6 @@ function TeamCardDemo() {
 export function OverviewPage() {
   return (
     <div>
-      <Header />
       <div
         style={{
           maxWidth: '1200px',

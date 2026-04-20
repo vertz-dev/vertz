@@ -1,12 +1,17 @@
-import { Link } from '@vertz/ui/router';
+import { Link, useRouter } from '@vertz/ui/router';
 import { getComponentsByCategory } from '../manifest';
 
-interface SidebarProps {
-  activeName?: string;
-}
-
-export function Sidebar({ activeName }: SidebarProps) {
+export function Sidebar() {
   const grouped = getComponentsByCategory();
+  const router = useRouter();
+
+  // Derive active state from the reactive route match so the sidebar DOM
+  // node stays mounted across navigations while the active link still updates.
+  function isActive(name: string): boolean {
+    const match = router.current;
+    if (name === '__overview') return match?.route.pattern === '/overview';
+    return match?.params.name === name;
+  }
 
   return (
     <aside
@@ -23,12 +28,12 @@ export function Sidebar({ activeName }: SidebarProps) {
     >
       <Link
         href="/overview"
-        className={activeName === '__overview' ? 'sidebar-link-active' : 'sidebar-link'}
+        className={isActive('__overview') ? 'sidebar-link-active' : 'sidebar-link'}
       >
         Overview
       </Link>
       <div style={{ height: '8px' }} />
-      {Array.from(grouped.entries()).map(([category, entries]) => (
+      {Array.from(grouped.entries()).map((group) => (
         <div>
           <div
             style={{
@@ -40,12 +45,12 @@ export function Sidebar({ activeName }: SidebarProps) {
               letterSpacing: '0.05em',
             }}
           >
-            {category}
+            {group[0]}
           </div>
-          {entries.map((entry) => (
+          {group[1].map((entry) => (
             <Link
               href={`/components/${entry.name}`}
-              className={entry.name === activeName ? 'sidebar-link-active' : 'sidebar-link'}
+              className={isActive(entry.name) ? 'sidebar-link-active' : 'sidebar-link'}
             >
               {entry.title}
             </Link>
