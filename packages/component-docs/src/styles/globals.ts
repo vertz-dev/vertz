@@ -26,10 +26,7 @@ export const appGlobals = globalCss({
     fontSize: '14px',
     color: 'var(--color-muted-foreground)',
   },
-  '.sidebar-link-active': {
-    display: 'block',
-    padding: '4px 24px',
-    fontSize: '14px',
+  '.sidebar-link.sidebar-link-active': {
     color: 'var(--color-foreground)',
     fontWeight: '500',
   },

@@ -1,17 +1,8 @@
-import { Link, useRouter } from '@vertz/ui/router';
+import { Link } from '@vertz/ui/router';
 import { getComponentsByCategory } from '../manifest';
 
 export function Sidebar() {
   const grouped = getComponentsByCategory();
-  const router = useRouter();
-
-  // Derive active state from the reactive route match so the sidebar DOM
-  // node stays mounted across navigations while the active link still updates.
-  function isActive(name: string): boolean {
-    const match = router.current;
-    if (name === '__overview') return match?.route.pattern === '/overview';
-    return match?.params.name === name;
-  }
 
   return (
     <aside
@@ -26,10 +17,7 @@ export function Sidebar() {
         flexShrink: '0',
       }}
     >
-      <Link
-        href="/overview"
-        className={isActive('__overview') ? 'sidebar-link-active' : 'sidebar-link'}
-      >
+      <Link href="/overview" className="sidebar-link" activeClass="sidebar-link-active">
         Overview
       </Link>
       <div style={{ height: '8px' }} />
@@ -50,7 +38,8 @@ export function Sidebar() {
           {group[1].map((entry) => (
             <Link
               href={`/components/${entry.name}`}
-              className={isActive(entry.name) ? 'sidebar-link-active' : 'sidebar-link'}
+              className="sidebar-link"
+              activeClass="sidebar-link-active"
             >
               {entry.title}
             </Link>

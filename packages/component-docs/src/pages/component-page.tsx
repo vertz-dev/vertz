@@ -1,3 +1,4 @@
+import { onMount } from '@vertz/ui';
 import { useParams } from '@vertz/ui/router';
 import { PrevNext } from '../components/prev-next';
 import { PrevNextCompact } from '../components/prev-next-compact';
@@ -106,14 +107,25 @@ const contentMap: Record<
   'toggle-group': ToggleGroupContent,
 };
 
+const PAGE_STYLE: Record<string, string> = {
+  padding: '32px 48px',
+  maxWidth: '800px',
+};
+
 export function ComponentPage() {
   const { name } = useParams<'/components/:name'>();
   const entry = findComponent(name);
   const { prev, next } = getAdjacentComponents(name);
 
+  // Reset window scroll on every component-page mount — runs after the new
+  // page is in the DOM, so each component nav starts at the top.
+  onMount(() => {
+    window.scrollTo(0, 0);
+  });
+
   if (!entry) {
     return (
-      <>
+      <div style={PAGE_STYLE}>
         <h1
           style={{
             fontSize: '30px',
@@ -135,7 +147,7 @@ export function ComponentPage() {
         >
           The component "{name}" does not exist in the documentation.
         </p>
-      </>
+      </div>
     );
   }
 
@@ -143,7 +155,7 @@ export function ComponentPage() {
   const ContentComponent = contentMap[name];
 
   return (
-    <>
+    <div style={PAGE_STYLE}>
       <h1
         style={{
           fontSize: '30px',
@@ -168,6 +180,6 @@ export function ComponentPage() {
       <PrevNextCompact prev={prev} next={next} />
       {ContentComponent ? <ContentComponent /> : null}
       <PrevNext prev={prev} next={next} />
-    </>
+    </div>
   );
 }

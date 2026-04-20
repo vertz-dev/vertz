@@ -50,9 +50,7 @@ export function DocsLayout({ children }: DocsLayoutProps) {
         style={{ display: 'flex', flex: '1', maxWidth: '1400px', margin: '0 auto', width: '100%' }}
       >
         <Sidebar />
-        <main style={{ flex: '1', minWidth: '0', padding: '32px 48px', maxWidth: '800px' }}>
-          {children}
-        </main>
+        <main style={{ flex: '1', minWidth: '0' }}>{children}</main>
       </div>
       <CommandPalette open={searchOpen} onClose={closeSearch} />
     </div>
