@@ -6,9 +6,9 @@
     "dev": "vtz dev",
     "dev:presence": "vtz run src/presence-dev-server.ts",
     "dev:all": "vtz run scripts/dev-all.ts",
-    "build": "vtz run scripts/generate-og.ts && vertz build",
-    "build:og": "vtz run scripts/og-images.ts",
-    "deploy": "vtz run build && vtzx wrangler deploy --define DEPLOY_VERSION:\"'$(date +%s)'\" --define PRESENCE_WS_URL:\"'wss://vertz.dev/__presence'\" && vtz run scripts/pre-warm.ts",
+    "build": "node --experimental-strip-types scripts/generate-og.ts && bun ../../node_modules/@vertz/cli/dist/vertz.js build",
+    "build:og": "node --experimental-strip-types scripts/generate-og.ts",
+    "deploy": "bun run build && vtzx wrangler deploy --define DEPLOY_VERSION:\"'$(date +%s)'\" --define PRESENCE_WS_URL:\"'wss://vertz.dev/__presence'\" && node --experimental-strip-types scripts/pre-warm.ts",
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
