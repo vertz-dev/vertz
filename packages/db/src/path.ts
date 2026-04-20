@@ -54,21 +54,40 @@ export function isJsonbPathDescriptor(value: unknown): value is JsonbPathDescrip
   );
 }
 
-/** Terminal operator chain. Runtime shape is permissive; TS layer narrows per leaf. */
-export interface PathChain<TLeaf> {
+/** Operators available on every leaf type. */
+interface PathCommonOps<TLeaf> {
   eq(value: TLeaf): JsonbPathDescriptor;
   ne(value: TLeaf): JsonbPathDescriptor;
+  in(values: readonly TLeaf[]): JsonbPathDescriptor;
+  notIn(values: readonly TLeaf[]): JsonbPathDescriptor;
+  isNull(value: boolean): JsonbPathDescriptor;
+}
+
+/** String-only operators; available only when the leaf is assignable to string. */
+interface PathStringOps {
+  contains(value: string): JsonbPathDescriptor;
+  startsWith(value: string): JsonbPathDescriptor;
+  endsWith(value: string): JsonbPathDescriptor;
+}
+
+/** Comparison operators; available only when the leaf is number / bigint / Date. */
+interface PathNumericOps<TLeaf> {
   gt(value: NonNullable<TLeaf>): JsonbPathDescriptor;
   gte(value: NonNullable<TLeaf>): JsonbPathDescriptor;
   lt(value: NonNullable<TLeaf>): JsonbPathDescriptor;
   lte(value: NonNullable<TLeaf>): JsonbPathDescriptor;
-  in(values: readonly TLeaf[]): JsonbPathDescriptor;
-  notIn(values: readonly TLeaf[]): JsonbPathDescriptor;
-  contains(value: string): JsonbPathDescriptor;
-  startsWith(value: string): JsonbPathDescriptor;
-  endsWith(value: string): JsonbPathDescriptor;
-  isNull(value: boolean): JsonbPathDescriptor;
 }
+
+/**
+ * Terminal operator chain. Operator availability narrows per leaf type:
+ * - string / string literal / nullable-string → common + string ops.
+ * - number / bigint / Date → common + numeric comparison ops.
+ * - boolean / object / array → common ops only.
+ * The runtime shape (see `makeChain`) is permissive; the type narrows at the API surface.
+ */
+export type PathChain<TLeaf> = PathCommonOps<TLeaf> &
+  ([NonNullable<TLeaf>] extends [string] ? PathStringOps : unknown) &
+  ([NonNullable<TLeaf>] extends [number | bigint | Date] ? PathNumericOps<TLeaf> : unknown);
 
 /** Non-recording property accesses that JS runtimes probe on any object. */
 const INTERNAL_STRING_KEYS = new Set<string>([
@@ -77,12 +96,30 @@ const INTERNAL_STRING_KEYS = new Set<string>([
   'valueOf',
   'toJSON',
   'constructor',
-  'Symbol(Symbol.toPrimitive)',
 ]);
 
 const INTEGER_INDEX_RE = /^(?:0|[1-9]\d*)$/;
 
-function makeChain(segments: readonly PathSegment[]): PathChain<unknown> {
+/**
+ * Runtime-side permissive chain shape. Holds every terminal operator; the
+ * public `PathChain<TLeaf>` type narrows which subset is callable per leaf.
+ */
+interface PermissiveChain {
+  eq(value: unknown): JsonbPathDescriptor;
+  ne(value: unknown): JsonbPathDescriptor;
+  gt(value: unknown): JsonbPathDescriptor;
+  gte(value: unknown): JsonbPathDescriptor;
+  lt(value: unknown): JsonbPathDescriptor;
+  lte(value: unknown): JsonbPathDescriptor;
+  in(values: readonly unknown[]): JsonbPathDescriptor;
+  notIn(values: readonly unknown[]): JsonbPathDescriptor;
+  contains(value: string): JsonbPathDescriptor;
+  startsWith(value: string): JsonbPathDescriptor;
+  endsWith(value: string): JsonbPathDescriptor;
+  isNull(value: boolean): JsonbPathDescriptor;
+}
+
+function makeChain(segments: readonly PathSegment[]): PermissiveChain {
   const mk = (op: PathFilterOp): JsonbPathDescriptor => ({
     _tag: 'JsonbPathDescriptor',
     segments,
@@ -105,6 +142,39 @@ function makeChain(segments: readonly PathSegment[]): PathChain<unknown> {
 }
 
 /**
+ * Per-proxy segment registry — keyed on the proxy object itself. Each proxy
+ * is associated with its accumulated segment list at creation time; child
+ * proxies close over the parent's segments so every `get` appends correctly.
+ *
+ * If the selector returns anything other than a child proxy (a primitive
+ * from coercion, a plain object, `m.a + m.b` triggering valueOf coercion
+ * which throws), we reject the call instead of emitting garbage segments.
+ */
+const SEGMENTS_FOR_PROXY = new WeakMap<object, readonly PathSegment[]>();
+
+const INVALID_SELECTOR_MESSAGE =
+  'path() selector must be a direct property access like (m) => m.x.y — ' +
+  'arithmetic or other non-access expressions are not allowed.';
+
+function makeRecorderProxy(segments: readonly PathSegment[]): object {
+  const proxy: object = new Proxy(
+    {},
+    {
+      get(_target, key) {
+        if (typeof key === 'symbol') return undefined;
+        if (INTERNAL_STRING_KEYS.has(key)) return undefined;
+        const segment: PathSegment = INTEGER_INDEX_RE.test(key)
+          ? { kind: 'index', value: Number(key) }
+          : { kind: 'key', value: key };
+        return makeRecorderProxy([...segments, segment]);
+      },
+    },
+  );
+  SEGMENTS_FOR_PROXY.set(proxy, segments);
+  return proxy;
+}
+
+/**
  * Build a typed JSONB path filter.
  *
  * ```ts
@@ -117,22 +187,32 @@ function makeChain(segments: readonly PathSegment[]): PathChain<unknown> {
  * Pass the JSONB column's payload type as the selector parameter annotation.
  * The leaf type flows through to the terminal operator's operand via TS's
  * normal return-type inference — no explicit generic required.
+ *
+ * The selector MUST be a direct property access (`(m) => m.x.y`). Arithmetic
+ * or other expressions (`(m) => m.a + m.b`) throw because the Proxy can't
+ * unambiguously record the intended path.
  */
 export function path<T, TLeaf>(selector: (m: T) => TLeaf): PathChain<TLeaf> {
-  const segments: PathSegment[] = [];
-  const handler: ProxyHandler<object> = {
-    get(_target, key) {
-      if (typeof key === 'symbol') return undefined;
-      if (INTERNAL_STRING_KEYS.has(key)) return undefined;
-      if (INTEGER_INDEX_RE.test(key)) {
-        segments.push({ kind: 'index', value: Number(key) });
-      } else {
-        segments.push({ kind: 'key', value: key });
-      }
-      return new Proxy({}, handler);
-    },
-  };
-  const proxy = new Proxy({}, handler) as T;
-  selector(proxy);
-  return makeChain(segments) as PathChain<TLeaf>;
+  const root = makeRecorderProxy([]);
+  let returned: unknown;
+  try {
+    returned = selector(root as T);
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(`${INVALID_SELECTOR_MESSAGE} Cause: ${message}`);
+  }
+  if (typeof returned !== 'object' || returned === null) {
+    throw new Error(INVALID_SELECTOR_MESSAGE);
+  }
+  const segments = SEGMENTS_FOR_PROXY.get(returned);
+  if (!segments || segments.length === 0) {
+    throw new Error(
+      'path() selector must access at least one property — e.g. (m) => m.x, not (m) => m.',
+    );
+  }
+  // Runtime chain has every operator (PermissiveChain); the public type
+  // narrows the subset callable for TLeaf. Two `as` hops are needed because
+  // PathChain<TLeaf> is a conditional intersection, not a supertype of
+  // PermissiveChain.
+  return makeChain(segments) as unknown as PathChain<TLeaf>;
 }

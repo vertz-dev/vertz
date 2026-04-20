@@ -110,4 +110,30 @@ describe('path() — Proxy-based selector', () => {
       expect(d.segments).toEqual([{ kind: 'key', value: 'a' }]);
     });
   });
+
+  describe('invalid selectors throw with a descriptive message', () => {
+    it('rejects m.a + m.b (arithmetic) instead of emitting garbage segments', () => {
+      interface T {
+        a: number;
+        b: number;
+      }
+      expect(() => path((m: T) => m.a + m.b).eq(1)).toThrow(/direct property access/);
+    });
+
+    it('rejects `m` with no property access (depth zero)', () => {
+      interface T {
+        a: string;
+      }
+      // @ts-expect-error — m is not assignable to PathChain, but we probe runtime
+      expect(() => path((m: T) => m).eq('x')).toThrow();
+    });
+
+    it('rejects a selector returning a constant', () => {
+      interface T {
+        a: string;
+      }
+      // @ts-expect-error — 'const' is not a TLeaf — probing runtime
+      expect(() => path((_m: T) => 'const').eq('x')).toThrow(/direct property access/);
+    });
+  });
 });

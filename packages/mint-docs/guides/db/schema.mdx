@@ -475,7 +475,9 @@ await pgDb.install.list({
 
 // jsonContainedBy (<@) — reverse containment.
 await pgDb.install.list({
-  where: { meta: { jsonContainedBy: { displayName: 'Acme', settings: { theme: 'dark', count: 1 } } } },
+  where: {
+    meta: { jsonContainedBy: { displayName: 'Acme', settings: { theme: 'dark', count: 1 } } },
+  },
 });
 
 // hasKey (?) — top-level key existence. Operand is keyof T & string.

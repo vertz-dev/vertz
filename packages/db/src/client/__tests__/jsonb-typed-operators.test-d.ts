@@ -148,6 +148,40 @@ const pgPathArrayIndex: FilterType<InstallColumns, 'postgres'> = {
 };
 void pgPathArrayIndex;
 
+// String leaf exposes contains/startsWith/endsWith.
+const pgPathStringContains: FilterType<InstallColumns, 'postgres'> = {
+  meta: path((m: InstallMeta) => m.displayName).contains('Ac'),
+};
+void pgPathStringContains;
+
+// ---------------------------------------------------------------------------
+// path() — per-leaf operator narrowing (negatives)
+// ---------------------------------------------------------------------------
+
+// .contains() is not available on numeric leaves.
+const pgPathNumContains: FilterType<InstallColumns, 'postgres'> = {
+  meta: path((m: InstallMeta) => m.settings.count)
+    // @ts-expect-error — contains is not available on number leaf
+    .contains('1'),
+};
+void pgPathNumContains;
+
+// .gt() is not available on string leaves (use eq / ne / in / contains).
+const pgPathStringGt: FilterType<InstallColumns, 'postgres'> = {
+  meta: path((m: InstallMeta) => m.settings.theme)
+    // @ts-expect-error — gt is not available on string leaf
+    .gt('dark'),
+};
+void pgPathStringGt;
+
+// .startsWith() is not available on numeric leaves.
+const pgPathNumStartsWith: FilterType<InstallColumns, 'postgres'> = {
+  meta: path((m: InstallMeta) => m.settings.count)
+    // @ts-expect-error — startsWith is not available on number leaf
+    .startsWith('1'),
+};
+void pgPathNumStartsWith;
+
 // Path descriptor assignable on a path-shaped string key too (cross-form
 // doesn't apply — descriptors go into the column slot, not the 'col->k' slot).
 
@@ -227,4 +261,78 @@ void pgDb.install.list({
   where: {
     meta: { hasKey: 'settings' },
   },
+});
+
+// ---------------------------------------------------------------------------
+// Collision — hasKey on a payload whose natural keys collide with operator names
+// ---------------------------------------------------------------------------
+//
+// When the user DOES write `{ hasKey: ... }` on the collision payload, the
+// operand is restricted to `JsonbKeyOf<CollisionPayload>` = 'jsonContains' | 'hasKey'.
+// Direct equality against the payload is covered by `pgCollisionDirect` above;
+// this case confirms the operator-form still type-checks with a valid key.
+
+const pgCollisionHasKey: FilterType<InstallColumns, 'postgres'> = {
+  coll: { hasKey: 'jsonContains' },
+};
+void pgCollisionHasKey;
+
+const pgCollisionHasKeyInvalid: FilterType<InstallColumns, 'postgres'> = {
+  // @ts-expect-error — 'bogus' is not a key of CollisionPayload
+  coll: { hasKey: 'bogus' },
+};
+void pgCollisionHasKeyInvalid;
+
+// ---------------------------------------------------------------------------
+// Inference-perf canary — 20 JSONB-heavy models typecheck under budget
+// ---------------------------------------------------------------------------
+
+interface CanaryMeta {
+  a: string;
+  b: { c: number };
+}
+
+const canaryFor = <TName extends string>(name: TName) =>
+  d.table(name, {
+    id: d.uuid().primary({ generate: 'cuid' }),
+    title: d.text(),
+    meta: d.jsonb<CanaryMeta>(),
+  });
+
+const canaryModels = {
+  c01: d.model(canaryFor('c01')),
+  c02: d.model(canaryFor('c02')),
+  c03: d.model(canaryFor('c03')),
+  c04: d.model(canaryFor('c04')),
+  c05: d.model(canaryFor('c05')),
+  c06: d.model(canaryFor('c06')),
+  c07: d.model(canaryFor('c07')),
+  c08: d.model(canaryFor('c08')),
+  c09: d.model(canaryFor('c09')),
+  c10: d.model(canaryFor('c10')),
+  c11: d.model(canaryFor('c11')),
+  c12: d.model(canaryFor('c12')),
+  c13: d.model(canaryFor('c13')),
+  c14: d.model(canaryFor('c14')),
+  c15: d.model(canaryFor('c15')),
+  c16: d.model(canaryFor('c16')),
+  c17: d.model(canaryFor('c17')),
+  c18: d.model(canaryFor('c18')),
+  c19: d.model(canaryFor('c19')),
+  c20: d.model(canaryFor('c20')),
+};
+
+const canaryDb = createDb({
+  dialect: 'postgres',
+  url: 'postgres://u:p@localhost/db',
+  models: canaryModels,
+  _queryFn: (async () => ({ rows: [], rowCount: 0 })) as never,
+});
+
+// Exercise the JSONB column-value branch across several delegate options —
+// if threading blew up inference, tsgo compile time would balloon here.
+void canaryDb.c01.list({ where: { meta: { jsonContains: { a: 'x' } } } });
+void canaryDb.c10.list({ where: { meta: { hasKey: 'a' } } });
+void canaryDb.c20.list({
+  where: { meta: path((m: CanaryMeta) => m.b.c).gt(5) },
 });

@@ -434,7 +434,7 @@ describe('buildWhere', () => {
           op: { eq: 'dark' },
         } as unknown,
       });
-      expect(result.sql).toBe('"meta"->\'settings\'->>\'theme\' = $1');
+      expect(result.sql).toBe("\"meta\"->'settings'->>'theme' = $1");
       expect(result.params).toEqual(['dark']);
     });
 

@@ -297,8 +297,8 @@ describe('SQLite feature guards', () => {
   });
 
   it('throws descriptive error for hasKey with SqliteDialect', () => {
-    expect(() =>
-      buildWhere({ meta: { hasKey: 'a' } }, 0, undefined, sqliteDialect),
-    ).toThrow('hasKey requires dialect: postgres');
+    expect(() => buildWhere({ meta: { hasKey: 'a' } }, 0, undefined, sqliteDialect)).toThrow(
+      'hasKey requires dialect: postgres',
+    );
   });
 });

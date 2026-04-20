@@ -15,7 +15,7 @@
  */
 
 import { type Dialect, defaultPostgresDialect } from '../dialect';
-import { isJsonbPathDescriptor, type JsonbPathDescriptor, type PathSegment } from '../path';
+import { isJsonbPathDescriptor, type PathSegment } from '../path';
 import { type CasingOverrides, camelToSnake } from './casing';
 
 export interface WhereResult {
@@ -94,6 +94,23 @@ function escapeSingleQuotes(str: string): string {
  */
 function escapeLikeValue(str: string): string {
   return str.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
+/**
+ * Stringify a JSONB operand (for `@>` / `<@` params). Wraps `JSON.stringify`
+ * so BigInt / circular inputs surface a descriptive error naming the
+ * operator, instead of an opaque `TypeError` from V8.
+ */
+function stringifyJsonbOperand(value: unknown, operator: string): string {
+  try {
+    return JSON.stringify(value);
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(
+      `${operator} operand is not JSON-serializable: ${message}. ` +
+        'BigInt, circular references, and non-plain values are not supported.',
+    );
+  }
 }
 
 /**
@@ -280,7 +297,7 @@ function buildOperatorCondition(
       );
     }
     clauses.push(`${columnRef} @> ${dialect.param(idx + 1)}::jsonb`);
-    params.push(JSON.stringify(operators.jsonContains));
+    params.push(stringifyJsonbOperand(operators.jsonContains, 'jsonContains'));
     idx++;
   }
   if (operators.jsonContainedBy !== undefined) {
@@ -290,7 +307,7 @@ function buildOperatorCondition(
       );
     }
     clauses.push(`${columnRef} <@ ${dialect.param(idx + 1)}::jsonb`);
-    params.push(JSON.stringify(operators.jsonContainedBy));
+    params.push(stringifyJsonbOperand(operators.jsonContainedBy, 'jsonContainedBy'));
     idx++;
   }
   if (operators.hasKey !== undefined) {
@@ -326,9 +343,8 @@ function buildFilterClauses(
     // (carrying _tag + segments + op) isn't mistaken for a direct equality
     // value.
     if (isJsonbPathDescriptor(value)) {
-      const descriptor = value as JsonbPathDescriptor;
-      const columnRef = resolveColumnRefFromSegments(key, descriptor.segments, overrides, dialect);
-      const result = buildOperatorCondition(columnRef, descriptor.op, idx, dialect);
+      const columnRef = resolveColumnRefFromSegments(key, value.segments, overrides, dialect);
+      const result = buildOperatorCondition(columnRef, value.op, idx, dialect);
       clauses.push(...result.clauses);
       allParams.push(...result.params);
       idx = result.nextIndex;
