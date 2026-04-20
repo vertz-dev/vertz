@@ -1,5 +1,12 @@
 # @vertz/ui-canvas
 
+## 0.2.76
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/ui@0.2.76
+
 ## 0.2.75
 
 ### Patch Changes
