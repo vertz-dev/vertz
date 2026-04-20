@@ -63,8 +63,8 @@ const s = css({
       padding: '0.75rem 1rem',
     },
   },
-  content: [{ '&': { display: 'grid', position: 'relative', 'min-width': '0' } }],
-  page: { display: 'flex', flexDirection: 'column', gap: token.spacing[6], '&': { minWidth: '0' } },
+  content: { display: 'grid', position: 'relative', minWidth: '0' },
+  page: { display: 'flex', flexDirection: 'column', gap: token.spacing[6], minWidth: '0' },
   pageTag: { fontSize: token.font.size.xs, letterSpacing: '0.1em', textTransform: 'uppercase' },
   pageTitle: {
     fontSize: token.font.size.xl,

@@ -45,8 +45,8 @@ const s = css({
       'color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), outline-color 150ms cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1), fill 150ms cubic-bezier(0.4, 0, 0.2, 1), stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
     '&': { background: 'none', border: 'none', outline: 'none', borderRadius: '2px' },
   },
-  panelWrap: [{ '&': { display: 'grid' } }],
-  panel: [],
+  panelWrap: { display: 'grid' },
+  panel: {},
   card: { padding: token.spacing[6], borderWidth: '1px' },
   barGroup: { display: 'flex', flexDirection: 'column', gap: token.spacing[3] },
   barRow: { display: 'flex', flexDirection: 'column', gap: token.spacing[1] },
@@ -54,7 +54,7 @@ const s = css({
   barName: { fontSize: token.font.size.xs },
   barValue: { fontSize: token.font.size.xs },
   barTrack: { position: 'relative' },
-  barFill: [],
+  barFill: {},
   footnote: { fontSize: token.font.size.xs, textAlign: 'center', marginTop: token.spacing[8] },
 });
 

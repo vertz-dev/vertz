@@ -20,7 +20,7 @@ const s = css({
     '&': { minWidth: '0' },
     '@media (min-width: 768px)': { gridTemplateColumns: '1fr 1fr' },
   },
-  gridItem: [{ '&': { 'min-width': '0' } }],
+  gridItem: { minWidth: '0' },
   columnLabel: {
     fontSize: token.font.size.xs,
     textTransform: 'uppercase',
