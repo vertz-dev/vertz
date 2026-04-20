@@ -77,20 +77,44 @@ function createStyleProxy(element: SSRElement): { display: string; [key: string]
   // Proxy's dynamic behavior.
   return new Proxy(styles, {
     set(_target, prop, value) {
-      if (typeof prop === 'string') {
-        // Store the value
-        styles[prop] = value;
-        // Update the style attribute on the element (convert camelCase to kebab-case)
-        const pairs = Object.entries(styles).map(([k, v]) => {
-          const key = k.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
-          return `${key}: ${v}`;
-        });
-        element.attrs.style = pairs.join('; ');
+      if (typeof prop !== 'string') return true;
+      // cssText replaces the entire style text — matching CSSStyleDeclaration
+      // semantics. Compiler-emitted JSX assigns `.style.cssText = ...` for
+      // string-form style attributes, so the SSR DOM shim must honor that
+      // instead of treating `cssText` as a regular CSS property (which would
+      // produce the ugly `css-text: top: 0; ...` attribute).
+      if (prop === 'cssText') {
+        // Clear individual properties; cssText "wins" over prior assignments.
+        for (const key of Object.keys(styles)) {
+          delete styles[key];
+        }
+        const str = value == null ? '' : String(value);
+        element.attrs.style = str;
+        // Parse "prop: value; prop: value" so style.foo reads still work.
+        for (const decl of str.split(';')) {
+          const colon = decl.indexOf(':');
+          if (colon === -1) continue;
+          const k = decl.slice(0, colon).trim();
+          const v = decl.slice(colon + 1).trim();
+          if (k) styles[k] = v;
+        }
+        return true;
       }
+      // Store the value
+      styles[prop] = value;
+      // Update the style attribute on the element (convert camelCase to kebab-case)
+      const pairs = Object.entries(styles).map(([k, v]) => {
+        const key = k.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+        return `${key}: ${v}`;
+      });
+      element.attrs.style = pairs.join('; ');
       return true;
     },
     get(_target, prop) {
       if (typeof prop === 'string') {
+        if (prop === 'cssText') {
+          return element.attrs.style ?? '';
+        }
         return styles[prop] ?? '';
       }
       return undefined;

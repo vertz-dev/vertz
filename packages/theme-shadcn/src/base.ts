@@ -1,10 +1,121 @@
-import type { GlobalCSSOutput, Theme } from '@vertz/ui';
+import type {
+  ColorTokens,
+  FontLineHeightTokens,
+  FontSizeTokens,
+  FontWeightTokens,
+  GlobalCSSOutput,
+  SpacingTokens,
+  Theme,
+} from '@vertz/ui';
 import { defineTheme, globalCss } from '@vertz/ui';
 
 import { deepMergeTokens } from './merge';
 import type { PaletteName } from './tokens';
 import { palettes } from './tokens';
 import type { PaletteTokens } from './types';
+
+// ─── Default scales ─────────────────────────────────────────────
+//
+// These back `token.spacing.*`, `token.font.size.*`, etc. Every app that
+// uses `configureThemeBase()` gets the same Tailwind-compatible defaults
+// so components that reference `token.spacing[4]` aren't silently broken
+// when the consumer forgets to define a spacing scale.
+//
+// Consumers can still override (or extend) any of these via the config.
+
+/** Tailwind-compatible numeric spacing scale — 0.25rem step, named by 4th increments. */
+const DEFAULT_SPACING: SpacingTokens = {
+  '0': '0',
+  px: '1px',
+  '0.5': '0.125rem',
+  '1': '0.25rem',
+  '1.5': '0.375rem',
+  '2': '0.5rem',
+  '2.5': '0.625rem',
+  '3': '0.75rem',
+  '3.5': '0.875rem',
+  '4': '1rem',
+  '5': '1.25rem',
+  '6': '1.5rem',
+  '7': '1.75rem',
+  '8': '2rem',
+  '9': '2.25rem',
+  '10': '2.5rem',
+  '11': '2.75rem',
+  '12': '3rem',
+  '14': '3.5rem',
+  '16': '4rem',
+  '20': '5rem',
+  '24': '6rem',
+  '28': '7rem',
+  '32': '8rem',
+  '36': '9rem',
+  '40': '10rem',
+  '44': '11rem',
+  '48': '12rem',
+  '52': '13rem',
+  '56': '14rem',
+  '60': '15rem',
+  '64': '16rem',
+  '72': '18rem',
+  '80': '20rem',
+  '96': '24rem',
+};
+
+/** Tailwind-compatible t-shirt font-size scale. */
+const DEFAULT_FONT_SIZE: FontSizeTokens = {
+  xs: '0.75rem',
+  sm: '0.875rem',
+  base: '1rem',
+  lg: '1.125rem',
+  xl: '1.25rem',
+  '2xl': '1.5rem',
+  '3xl': '1.875rem',
+  '4xl': '2.25rem',
+  '5xl': '3rem',
+  '6xl': '3.75rem',
+  '7xl': '4.5rem',
+  '8xl': '6rem',
+  '9xl': '8rem',
+};
+
+/** CSS font-weight keyword/numeric aliases. */
+const DEFAULT_FONT_WEIGHT: FontWeightTokens = {
+  thin: '100',
+  extralight: '200',
+  light: '300',
+  normal: '400',
+  medium: '500',
+  semibold: '600',
+  bold: '700',
+  extrabold: '800',
+  black: '900',
+};
+
+/** Line-height scale (unitless multipliers). */
+const DEFAULT_FONT_LINE_HEIGHT: FontLineHeightTokens = {
+  none: '1',
+  tight: '1.25',
+  snug: '1.375',
+  normal: '1.5',
+  relaxed: '1.625',
+  loose: '2',
+};
+
+/** Raw Tailwind gray ramp — populated on `theme.colors.gray` so `token.color.gray[500]` resolves. */
+const DEFAULT_GRAY_RAMP: Record<string, string> = {
+  '50': 'oklch(0.985 0 0)',
+  '100': 'oklch(0.97 0 0)',
+  '200': 'oklch(0.922 0 0)',
+  '300': 'oklch(0.87 0 0)',
+  '400': 'oklch(0.708 0 0)',
+  '500': 'oklch(0.556 0 0)',
+  '600': 'oklch(0.439 0 0)',
+  '700': 'oklch(0.371 0 0)',
+  '800': 'oklch(0.269 0 0)',
+  '900': 'oklch(0.205 0 0)',
+  '950': 'oklch(0.145 0 0)',
+};
 
 /**
  * Visual style preset. Each style applies different spacing, border-radius,
@@ -63,12 +174,23 @@ export function configureThemeBase(config?: ThemeConfig): ResolvedThemeBase {
   const radius = config?.radius ?? 'md';
   const baseTokens = palettes[palette];
 
-  // Apply color overrides
+  // Apply color overrides, then layer the raw gray ramp on top so
+  // `token.color.gray[500]` resolves out of the box.
   const colorOverrides = config?.colors ?? {};
   const mergedTokens: PaletteTokens = deepMergeTokens(baseTokens, colorOverrides);
+  const colorsWithGray: ColorTokens = {
+    ...(mergedTokens as ColorTokens),
+    gray: { ...DEFAULT_GRAY_RAMP, ...((mergedTokens as ColorTokens).gray ?? {}) },
+  };
 
-  // Build theme via defineTheme()
-  const theme = defineTheme({ colors: mergedTokens });
+  // Build theme via defineTheme() with the shared typography + spacing scales.
+  const theme = defineTheme({
+    colors: colorsWithGray,
+    spacing: DEFAULT_SPACING,
+    fontSize: DEFAULT_FONT_SIZE,
+    fontWeight: DEFAULT_FONT_WEIGHT,
+    fontLineHeight: DEFAULT_FONT_LINE_HEIGHT,
+  });
 
   // Build globals: CSS reset + base typography + radius + native form elements
   const globals = globalCss({

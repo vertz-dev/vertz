@@ -33,12 +33,27 @@ export type ColorTokens = Record<string, Record<string, string>>;
 /** Spacing tokens: a flat map of names to CSS values. */
 export type SpacingTokens = Record<string, string>;
 
+/** Font-size scale tokens — backs `token.font.size.*` → `var(--font-size-*)`. */
+export type FontSizeTokens = Record<string, string>;
+
+/** Font-weight scale tokens — backs `token.font.weight.*` → `var(--font-weight-*)`. */
+export type FontWeightTokens = Record<string, string>;
+
+/** Line-height scale tokens — backs `token.font.lineHeight.*` → `var(--font-line-height-*)`. */
+export type FontLineHeightTokens = Record<string, string>;
+
 /** Input to defineTheme(). */
 export interface ThemeInput {
   /** Color design tokens (raw shades and contextual variants). */
   colors: ColorTokens;
   /** Spacing scale tokens. */
   spacing?: SpacingTokens;
+  /** Font-size scale (xs, sm, base, lg, xl, ...). */
+  fontSize?: FontSizeTokens;
+  /** Font-weight scale (thin, normal, medium, semibold, bold, ...). */
+  fontWeight?: FontWeightTokens;
+  /** Line-height scale (none, tight, snug, normal, relaxed, loose). */
+  fontLineHeight?: FontLineHeightTokens;
   /** Font descriptors keyed by token name (e.g., sans, mono, display). */
   fonts?: Record<string, FontDescriptor>;
 }
@@ -49,6 +64,12 @@ export interface Theme {
   colors: ColorTokens;
   /** Spacing scale tokens. */
   spacing?: SpacingTokens;
+  /** Font-size scale. */
+  fontSize?: FontSizeTokens;
+  /** Font-weight scale. */
+  fontWeight?: FontWeightTokens;
+  /** Line-height scale. */
+  fontLineHeight?: FontLineHeightTokens;
   /** Font descriptors keyed by token name. */
   fonts?: Record<string, FontDescriptor>;
 }
@@ -83,6 +104,9 @@ export function defineTheme(input: ThemeInput): Theme {
   return {
     colors: input.colors,
     spacing: input.spacing,
+    fontSize: input.fontSize,
+    fontWeight: input.fontWeight,
+    fontLineHeight: input.fontLineHeight,
     fonts: input.fonts,
   };
 }
@@ -161,6 +185,32 @@ export function compileTheme(theme: Theme, options?: CompileThemeOptions): Compi
       const varName = `--spacing-${name}`;
       rootVars.push(`  ${varName}: ${sanitizeCssValue(value)};`);
       tokenPaths.push(`spacing.${name}`);
+    }
+  }
+
+  // Process typography scales. `token.font.size.lg` etc. stringify to
+  // `var(--font-size-lg)`, `var(--font-weight-medium)`,
+  // `var(--font-line-height-relaxed)` — so this pipeline must emit the
+  // matching :root declarations for any app that uses those tokens.
+  if (theme.fontSize) {
+    for (const [name, value] of Object.entries(theme.fontSize)) {
+      const varName = `--font-size-${name}`;
+      rootVars.push(`  ${varName}: ${sanitizeCssValue(value)};`);
+      tokenPaths.push(`font.size.${name}`);
+    }
+  }
+  if (theme.fontWeight) {
+    for (const [name, value] of Object.entries(theme.fontWeight)) {
+      const varName = `--font-weight-${name}`;
+      rootVars.push(`  ${varName}: ${sanitizeCssValue(value)};`);
+      tokenPaths.push(`font.weight.${name}`);
+    }
+  }
+  if (theme.fontLineHeight) {
+    for (const [name, value] of Object.entries(theme.fontLineHeight)) {
+      const varName = `--font-line-height-${name}`;
+      rootVars.push(`  ${varName}: ${sanitizeCssValue(value)};`);
+      tokenPaths.push(`font.lineHeight.${name}`);
     }
   }
 

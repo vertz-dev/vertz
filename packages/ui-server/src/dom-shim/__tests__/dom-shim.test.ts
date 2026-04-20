@@ -1109,6 +1109,46 @@ describe('DOM Shim', () => {
     });
   });
 
+  describe('style.cssText assignment', () => {
+    // Regression guard: the compiler emits `.style.cssText = ...` for string
+    // style attributes. Without special-casing, the proxy would serialize it
+    // as an ordinary property — producing `style="css-text: top: 0; ..."`,
+    // which every browser ignores. vertz.dev/manifesto shipped with that
+    // exact bug on 2026-04-20.
+    it('should write cssText verbatim to the style attribute', () => {
+      const el = new SSRElement('div');
+      (el.style as { cssText: string }).cssText = 'top: 0; left: 0; color: red';
+      expect(el.attrs.style).toBe('top: 0; left: 0; color: red');
+    });
+
+    it('should replace any prior style properties', () => {
+      const el = new SSRElement('div');
+      el.style.color = 'blue';
+      el.style.padding = '4px';
+      (el.style as { cssText: string }).cssText = 'margin: 0';
+      expect(el.attrs.style).toBe('margin: 0');
+    });
+
+    it('should expose parsed properties via style[prop] reads', () => {
+      const el = new SSRElement('div');
+      (el.style as { cssText: string }).cssText = 'top: 0; color: red';
+      expect(el.style.top).toBe('0');
+      expect(el.style.color).toBe('red');
+    });
+
+    it('should reflect the raw style attribute via style.cssText reads', () => {
+      const el = new SSRElement('div');
+      el.style.color = 'red';
+      expect((el.style as { cssText: string }).cssText).toBe('color: red');
+    });
+
+    it('should coerce null/undefined to empty string', () => {
+      const el = new SSRElement('div');
+      (el.style as { cssText: unknown }).cssText = null;
+      expect(el.attrs.style).toBe('');
+    });
+  });
+
   describe('comment markers in SSR (#2020)', () => {
     it('should preserve comment nodes when fragment is inserted via insertBefore on SSRDocumentFragment', () => {
       // Simulate __child CSR path: fragment with anchor + endMarker
