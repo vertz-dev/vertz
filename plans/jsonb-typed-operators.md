@@ -9,8 +9,8 @@
 ## Changes since rev 1
 
 - **`path<T>(sel)` + `path.for(col, sel)` — both dropped as primary.** Rev 2 uses the parameter-annotation form: `path((m: InstallMeta) => m.settings.theme).eq('dark')`. TS infers `T` from the selector parameter annotation, so no explicit generic *and* no column handle at query time. A column handle usually isn't in scope at query time (the `path.for` form was a paper feature — DX review blocker). The explicit generic form remains available via TS's normal `path<T>(...)` syntax but isn't documented — it's the same function.
-- **Array-operator type gating removed from scope.** Rev 1 pulled `arrayContains`/`arrayContainedBy`/`arrayOverlaps` into this ticket based on a line in `inference.ts`. The #2868 ticket body never mentioned array ops; this change expanded the array-column filter surface for every user of `d.textArray()` / `d.integerArray()` / `d.vector()` for reasons unrelated to JSONB. Tracked separately — **filed as #2883 before this PR merges** (Definition of Done item below).
-- **`hasAllKeys` / `hasAnyKey` deferred.** Rev 1 proposed five payload operators. 80/20 is `jsonContains` + `hasKey` + `path()`; the plural-key helpers have no cited consumer. Filed as follow-up — **#2884 before this PR merges**. Users can compose `hasAllKeys` with `AND: [{ meta: { hasKey: 'a' } }, { meta: { hasKey: 'b' } }]` in the meantime.
+- **Array-operator type gating removed from scope.** Rev 1 pulled `arrayContains`/`arrayContainedBy`/`arrayOverlaps` into this ticket based on a line in `inference.ts`. The #2868 ticket body never mentioned array ops; this change expanded the array-column filter surface for every user of `d.textArray()` / `d.integerArray()` / `d.vector()` for reasons unrelated to JSONB. Tracked separately — **filed as #2885 before this PR merges** (Definition of Done item below).
+- **`hasAllKeys` / `hasAnyKey` deferred.** Rev 1 proposed five payload operators. 80/20 is `jsonContains` + `hasKey` + `path()`; the plural-key helpers have no cited consumer. Filed as follow-up — **#2886 before this PR merges**. Users can compose `hasAllKeys` with `AND: [{ meta: { hasKey: 'a' } }, { meta: { hasKey: 'b' } }]` in the meantime.
 - **Array-index emission corrected.** Rev 1 claimed `->'0'` worked on Postgres for array indexing; it doesn't. Rev 2 emits integer segments unquoted (`->0`) when a selector records a positive-integer key, and the path recorder preserves integer vs. string distinctions.
 - **`hasKey` operand type constrained.** Rev 1 used `keyof T & string`, which distributes over unions and collapses to `never`. Rev 2 uses a dedicated `JsonbKeyOf<T>` helper that handles union payloads and rejects non-object `T` at the type level.
 - **Proxy selector guards expanded.** Rev 1 only guarded `'then'`. Rev 2 guards the full set of JS-internal keys (`Symbol.toPrimitive`, `Symbol.iterator`, `'toString'`, `'valueOf'`, etc.) to prevent garbage segments from `m.a + m.b` and from await/spread.
@@ -43,8 +43,8 @@ The runtime already does most of this for the string-key path. The gap is at the
 ## Non-Goals
 
 - **Replacing the string-key path filter.** It stays as an escape hatch for dynamic paths. `path()` is preferred for static paths.
-- **Array operator type gating.** Tracked as **#2883** — filed before this PR merges. The #2868 ticket body never mentioned array ops; scope is JSONB-only here.
-- **`hasAllKeys` / `hasAnyKey`.** Tracked as **#2884** — filed before this PR merges. Users can compose with `AND: [{ meta: { hasKey: 'a' } }, …]`.
+- **Array operator type gating.** Tracked as **#2885** — filed before this PR merges. The #2868 ticket body never mentioned array ops; scope is JSONB-only here.
+- **`hasAllKeys` / `hasAnyKey`.** Tracked as **#2886** — filed before this PR merges. Users can compose with `AND: [{ meta: { hasKey: 'a' } }, …]`.
 - **Typed reverse payload writes.** `jsonContainedBy` accepts a query-side value; we don't round-trip to column types.
 - **MySQL JSON operators.** No driver.
 - **Modifying reads.** `#2850` owns read-side parse + validator.
@@ -233,7 +233,7 @@ createDb<TModels, TDialect>(…)
                   ├─ JsonbPayloadOperators<T, TDialect>      (jsonContains, jsonContainedBy, hasKey)
                   └─ JsonbPathDescriptor<TLeaf, TDialect>    (from path((m: T) => leaf).op(v))
 
-Array columns: unchanged in this ticket. Array-op type gating is #2883 (separate).
+Array columns: unchanged in this ticket. Array-op type gating is #2885 (separate).
 ```
 
 ### Generics, from definition to consumer
@@ -312,7 +312,7 @@ TS's excess-property checking on a literal `{ jsonContains: … }` prefers `Json
 
 ## Implementation Plan
 
-**Shipping discipline:** single PR, `@vertz/db` patch, authored against `main + #2850`. Type additions + runtime additions together (new runtime operators and the `JsonbPathDescriptor` handler). No array-op work in this PR (#2883 tracks that separately).
+**Shipping discipline:** single PR, `@vertz/db` patch, authored against `main + #2850`. Type additions + runtime additions together (new runtime operators and the `JsonbPathDescriptor` handler). No array-op work in this PR (#2885 tracks that separately).
 
 ### Phase A — Runtime additions
 
@@ -622,8 +622,8 @@ No POC required. All mechanisms exist or are trivially extendable:
 
 Dependencies:
 - [ ] **#2850 merged first.** This PR is authored against `main + #2850`.
-- [ ] **#2883 filed** (array-operator type gating — deferred from this ticket).
-- [ ] **#2884 filed** (`hasAllKeys` / `hasAnyKey` — deferred from this ticket).
+- [ ] **#2885 filed** (array-operator type gating — deferred from this ticket).
+- [ ] **#2886 filed** (`hasAllKeys` / `hasAnyKey` — deferred from this ticket).
 
 Runtime (Phase A):
 - [ ] `path(selector)` records segments via Proxy with full JS-internal guards; terminal ops return `JsonbPathDescriptor`.
