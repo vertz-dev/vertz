@@ -4,6 +4,7 @@ import {
   CheckConstraintError,
   ConnectionError,
   ForeignKeyError,
+  JsonbValidationError,
   NotNullError,
   UniqueConstraintError,
 } from '../errors/db-error';
@@ -260,5 +261,45 @@ describe('toWriteError', () => {
     expect(result.message).toBe('42');
     expect((result as { sql?: string }).sql).toBe('INSERT INTO users');
     expect(result.cause).toBe(42);
+  });
+
+  it('maps JsonbValidationError to DbJsonbValidationError (table, column, value preserved)', () => {
+    const cause = new TypeError('missing displayName');
+    const err = new JsonbValidationError({
+      table: 'install',
+      column: 'meta',
+      value: { wrong: true },
+      cause,
+    });
+    const result = toWriteError(err);
+
+    expect(result.code).toBe('JSONB_VALIDATION_ERROR');
+    const typed = result as {
+      table?: string;
+      column?: string;
+      value?: unknown;
+      message: string;
+      cause: unknown;
+    };
+    expect(typed.table).toBe('install');
+    expect(typed.column).toBe('meta');
+    expect(typed.value).toEqual({ wrong: true });
+    expect(typed.message).toContain('install.meta');
+    expect(typed.cause).toBe(err);
+  });
+
+  it('classifies JsonbValidationError above the generic code-sniffing path (would otherwise collapse to QUERY_ERROR)', () => {
+    const err = new JsonbValidationError({
+      table: 't',
+      column: 'c',
+      value: 1,
+      cause: new Error('nope'),
+    });
+    // `JsonbValidationError extends DbError` which sets `this.code` — without
+    // the dedicated branch above the `'code' in error` fallback, this maps to
+    // QUERY_ERROR. Lock the correct ordering.
+    const result = toWriteError(err);
+    expect(result.code).not.toBe('QUERY_ERROR');
+    expect(result.code).toBe('JSONB_VALIDATION_ERROR');
   });
 });

@@ -11,7 +11,7 @@
 import type { Dialect } from '../dialect';
 import { defaultPostgresDialect } from '../dialect';
 import type { DialectName } from '../dialect/types';
-import { NotFoundError } from '../errors/db-error';
+import { JsonbValidationError, NotFoundError } from '../errors/db-error';
 import { generateId } from '../id/generators';
 import type { ColumnBuilder, ColumnMetadata } from '../schema/column';
 import type {
@@ -64,6 +64,73 @@ function fillGeneratedIds(
     }
   }
   return filled;
+}
+
+// ---------------------------------------------------------------------------
+// JSONB Validator on Writes
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-table memoised flag: does the table carry any column with a `validator`?
+ * The walk runs once per table on first use; subsequent writes pay one WeakMap
+ * lookup. Keeps `createMany` hot-path cheap on validator-free tables.
+ */
+const tableHasJsonbValidator = new WeakMap<TableDef<ColumnRecord>, boolean>();
+
+function hasJsonbValidator(table: TableDef<ColumnRecord>): boolean {
+  const cached = tableHasJsonbValidator.get(table);
+  if (cached !== undefined) return cached;
+  let found = false;
+  for (const col of Object.values(table._columns)) {
+    const meta = (col as ColumnBuilder<unknown, ColumnMetadata>)._meta;
+    if (meta.validator) {
+      found = true;
+      break;
+    }
+  }
+  tableHasJsonbValidator.set(table, found);
+  return found;
+}
+
+/**
+ * Run any column-attached `validator` over the write payload for that column.
+ * Returns a new object carrying the validator's output (so transforms persist).
+ *
+ * Skips:
+ * - columns without a validator
+ * - `null` / `undefined` values (nullable columns, omitted fields)
+ * - `DbExpr` values (SQL expressions like `arrayAppend(col, ...)`)
+ *
+ * Timestamp `'now'` sentinels are skipped structurally — timestamp columns
+ * have no `meta.validator`, so the `!meta.validator` short-circuit handles
+ * them without a value-type check that could collide with a jsonb payload
+ * legitimately equal to the string `'now'`.
+ *
+ * Throws `JsonbValidationError` on the first column whose validator rejects.
+ * The throw propagates through the CRUD function and is caught by the
+ * `toWriteError` wrapper in `database.ts`, surfacing as
+ * `{ ok: false, error: { code: 'JSONB_VALIDATION_ERROR', ... } }`.
+ */
+function runJsonbValidators(
+  table: TableDef<ColumnRecord>,
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!hasJsonbValidator(table)) return data;
+  const out: Record<string, unknown> = { ...data };
+  for (const [key, value] of Object.entries(data)) {
+    const col = table._columns[key];
+    if (!col) continue;
+    const meta = (col as ColumnBuilder<unknown, ColumnMetadata>)._meta;
+    if (!meta.validator) continue;
+    if (value === null || value === undefined) continue;
+    if (isDbExpr(value)) continue;
+    try {
+      out[key] = meta.validator.parse(value);
+    } catch (cause) {
+      throw new JsonbValidationError({ table: table._name, column: key, value, cause });
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -257,9 +324,11 @@ export async function create<TColumns extends ColumnRecord, T>(
     }),
   );
 
+  const validated = runJsonbValidators(table, filteredData);
+
   const result = buildInsert({
     table: table._name,
-    data: filteredData,
+    data: validated,
     returning: returningColumns,
     nowColumns,
     dialect,
@@ -291,7 +360,7 @@ export async function createMany<TColumns extends ColumnRecord>(
 
   const filteredData = (options.data as Record<string, unknown>[]).map((row) => {
     const withIds = fillGeneratedIds(table, row);
-    return Object.fromEntries(
+    const filtered = Object.fromEntries(
       Object.entries(withIds).filter(([key]) => {
         // Allow columns with generate strategy to pass through (they need to be inserted)
         const col = table._columns[key];
@@ -300,6 +369,7 @@ export async function createMany<TColumns extends ColumnRecord>(
         return !readOnlyCols.includes(key);
       }),
     );
+    return runJsonbValidators(table, filtered);
   });
 
   const result = buildInsert({
@@ -337,7 +407,7 @@ export async function createManyAndReturn<TColumns extends ColumnRecord, T>(
 
   const filteredData = (options.data as Record<string, unknown>[]).map((row) => {
     const withIds = fillGeneratedIds(table, row);
-    return Object.fromEntries(
+    const filtered = Object.fromEntries(
       Object.entries(withIds).filter(([key]) => {
         // Allow columns with generate strategy to pass through (they need to be inserted)
         const col = table._columns[key];
@@ -346,6 +416,7 @@ export async function createManyAndReturn<TColumns extends ColumnRecord, T>(
         return !readOnlyCols.includes(key);
       }),
     );
+    return runJsonbValidators(table, filtered);
   });
 
   const result = buildInsert({
@@ -407,10 +478,11 @@ export async function update<TColumns extends ColumnRecord, T>(
   }
 
   const allNowColumns = [...new Set([...nowColumns, ...autoUpdateCols])];
+  const validated = runJsonbValidators(table, filteredData);
 
   const result = buildUpdate({
     table: table._name,
-    data: filteredData,
+    data: validated,
     where: options.where,
     returning: returningColumns,
     nowColumns: allNowColumns,
@@ -465,10 +537,11 @@ export async function updateMany<TColumns extends ColumnRecord>(
   }
 
   const allNowColumns = [...new Set([...nowColumns, ...autoUpdateCols])];
+  const validated = runJsonbValidators(table, filteredData);
 
   const result = buildUpdate({
     table: table._name,
-    data: filteredData,
+    data: validated,
     where: options.where,
     nowColumns: allNowColumns,
     dialect,
@@ -539,18 +612,20 @@ export async function upsert<TColumns extends ColumnRecord, T>(
   }
 
   const allNowColumns = [...new Set([...nowColumns, ...autoUpdateCols])];
-  const updateColumns = Object.keys(filteredUpdate);
+  const validatedCreate = runJsonbValidators(table, filteredCreate);
+  const validatedUpdate = runJsonbValidators(table, filteredUpdate);
+  const updateColumns = Object.keys(validatedUpdate);
 
   const result = buildInsert({
     table: table._name,
-    data: filteredCreate,
+    data: validatedCreate,
     returning: returningColumns,
     nowColumns: allNowColumns,
     onConflict: {
       columns: conflictColumns,
       action: 'update',
       updateColumns,
-      updateValues: filteredUpdate,
+      updateValues: validatedUpdate,
     },
     dialect,
   });
