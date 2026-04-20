@@ -71,6 +71,59 @@ describe('discoverRoutes', () => {
 
     expect(patterns).toEqual([]);
   });
+
+  it('falls back to exported routes when rendering / throws', async () => {
+    // Simulates the landing-page regression: a broken component at the root
+    // threw during SSR render, so runtime discovery returned nothing and the
+    // whole pre-render pass was skipped even though `/manifesto` was healthy.
+    const module = {
+      default: () => {
+        throw new Error('home page component crashed');
+      },
+      routes: [
+        { pattern: '/', prerender: false },
+        { pattern: '/manifesto' },
+        { pattern: '/openapi' },
+      ],
+    };
+
+    const patterns = await discoverRoutes(module);
+
+    expect(patterns).toContain('/');
+    expect(patterns).toContain('/manifesto');
+    expect(patterns).toContain('/openapi');
+  });
+
+  it('falls back to exported routes when runtime discovery returns empty', async () => {
+    const module = {
+      default: () => document.createElement('div'),
+      routes: [{ pattern: '/foo' }, { pattern: '/bar' }],
+    };
+
+    const patterns = await discoverRoutes(module);
+
+    expect(patterns).toContain('/foo');
+    expect(patterns).toContain('/bar');
+  });
+
+  it('prefers runtime discovery over exported routes when both are available', async () => {
+    const module = {
+      default: () => {
+        const routes = defineRoutes({
+          '/runtime-only': { component: () => document.createElement('div') },
+        });
+        const router = createRouter(routes);
+        router.current.value;
+        return document.createElement('div');
+      },
+      routes: [{ pattern: '/static-only' }],
+    };
+
+    const patterns = await discoverRoutes(module);
+
+    expect(patterns).toContain('/runtime-only');
+    expect(patterns).not.toContain('/static-only');
+  });
 });
 
 describe('filterPrerenderableRoutes', () => {
@@ -368,5 +421,35 @@ describe('prerenderRoutes', () => {
     await expect(prerenderRoutes(module, template, { routes: ['/pricing'] })).rejects.toThrow(
       /Pre-render failed for \/pricing/,
     );
+  });
+
+  it('reports per-route errors via onRouteError and continues on remaining routes', async () => {
+    // Module throws on the first call, succeeds afterwards. Mimics the
+    // landing-page regression where a broken component at one route was
+    // blocking pre-render of every other static route.
+    let callCount = 0;
+    const module = {
+      default: () => {
+        callCount += 1;
+        if (callCount === 1) throw new Error('component crashed');
+        const el = document.createElement('div');
+        el.textContent = `rendered call #${callCount}`;
+        return el;
+      },
+    };
+
+    const errors: Array<{ path: string; message: string }> = [];
+    const results = await prerenderRoutes(module, template, {
+      routes: ['/', '/manifesto'],
+      onRouteError: (path, error) => {
+        errors.push({ path, message: error.message });
+      },
+    });
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.path).toBe('/');
+    expect(errors[0]?.message).toMatch(/Pre-render failed for \//);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.path).toBe('/manifesto');
   });
 });
