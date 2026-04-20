@@ -152,7 +152,12 @@
           },
           {
             "group": "Runtime",
-            "pages": ["guides/debugging", "guides/dev-server-tools", "guides/fs"]
+            "pages": [
+              "guides/debugging",
+              "guides/dev-server-tools",
+              "guides/fs",
+              "guides/child-process"
+            ]
           }
         ],
         "tab": "Guides"

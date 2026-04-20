@@ -1,0 +1,108 @@
+---
+title: Spawning Processes
+description: 'Run child processes from a request handler, a script, or an agent.'
+---
+
+vtz exposes a subset of `node:child_process`. Import what you need and use it the same way you would in Node.
+
+```ts
+import { spawn, execFile, execFileSync, execSync } from 'node:child_process';
+```
+
+## What works
+
+| API                              | Kind  | Use for                                                                          |
+| -------------------------------- | ----- | -------------------------------------------------------------------------------- |
+| `spawn(cmd, args, opts)`         | async | Long-running child, streaming stdout/stderr, manual kill.                        |
+| `execFile(file, args, opts, cb)` | async | One-shot execution, capture all output at the end.                               |
+| `execFileSync(file, args, opts)` | sync  | Build scripts, config loaders, tests.                                            |
+| `execSync(cmd, opts)`            | sync  | Same, but the command runs through a shell — prefer `execFileSync` when you can. |
+
+`spawnSync` and `fork` are not implemented.
+
+## From a request handler
+
+Use the async forms — `spawn` or `execFile` — so a slow subprocess doesn't block the event loop for other requests.
+
+```ts
+import { spawn } from 'node:child_process';
+
+app.post('/convert', async (req) => {
+  const input = req.body.path;
+  const child = spawn('ffmpeg', ['-i', input, '-f', 'mp4', '-'], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  const chunks: Buffer[] = [];
+  for await (const chunk of child.stdout) chunks.push(chunk);
+  const code = await new Promise<number>((resolve) => child.on('exit', resolve));
+  if (code !== 0) throw new Error('ffmpeg failed');
+
+  return new Response(Buffer.concat(chunks), {
+    headers: { 'content-type': 'video/mp4' },
+  });
+});
+```
+
+## Capturing output once
+
+When you don't need to stream, `execFile` collects stdout and stderr for you:
+
+```ts
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const run = promisify(execFile);
+
+const { stdout } = await run('git', ['rev-parse', 'HEAD']);
+const sha = stdout.trim();
+```
+
+## Sync in scripts only
+
+`execSync` / `execFileSync` block the whole runtime until the child exits. That's fine in a build script, a migration step, or a test. It is **not** fine in a request handler — a 10-second subprocess makes every concurrent request wait 10 seconds.
+
+```ts
+// scripts/seed.ts
+import { execFileSync } from 'node:child_process';
+
+execFileSync('psql', ['-f', 'migrations/0001_init.sql'], { stdio: 'inherit' });
+```
+
+## Input validation — no implicit sandbox
+
+vtz does not sandbox `spawn`. Any binary the host can run, a handler can run. Two practical rules:
+
+1. **Never build commands by string concatenation with user input.** `execSync('convert ' + userPath)` is a shell injection waiting to happen. Use `spawn` / `execFile` with an argument array — the child receives each arg verbatim, no shell expansion.
+
+   ```ts
+   // ❌ Shell injection — user can pass `a.png; rm -rf /`
+   execSync(`convert ${userPath} out.png`);
+
+   // ✅ Arg array — `userPath` is one argument, not a shell expression
+   execFile('convert', [userPath, 'out.png']);
+   ```
+
+2. **Validate paths and identifiers before they reach `spawn`.** Even with arg arrays, some tools interpret their own args (e.g. `ffmpeg` reads from URLs when passed one as input). Normalize and allowlist user-supplied values before they become command arguments.
+
+## Signals and cleanup
+
+`spawn` returns a `ChildProcess` with `.kill(signal)`. Supported signals: `SIGTERM` (default), `SIGKILL`, `SIGINT`, `SIGHUP`.
+
+```ts
+const child = spawn('long-running-task', []);
+const timeout = setTimeout(() => child.kill('SIGKILL'), 30_000);
+child.on('exit', () => clearTimeout(timeout));
+```
+
+If a handler abandons a child without waiting, the subprocess keeps running. Wire an `AbortSignal` or attach an `on('exit')` handler and await it — the same pattern as Node.
+
+## What's not supported
+
+- `spawnSync` — use `execFileSync` instead.
+- `fork` — no IPC channel with child Node processes. For worker-style concurrency, split work into separate services.
+- Bun-style `Bun.spawn()` / Deno-style `Deno.Command` — use `node:child_process`.
+
+## Implementation
+
+Rust ops live in [`native/vtz/src/runtime/ops/process.rs`](https://github.com/vertz-dev/vertz/blob/main/native/vtz/src/runtime/ops/process.rs); the `node:child_process` synthetic module is wired in [`native/vtz/src/runtime/module_loader.rs`](https://github.com/vertz-dev/vertz/blob/main/native/vtz/src/runtime/module_loader.rs).
