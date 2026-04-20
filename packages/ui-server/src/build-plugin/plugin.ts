@@ -15,6 +15,7 @@
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, relative, resolve } from 'node:path';
 import type { EncodedSourceMap } from '@ampproject/remapping';
 import remapping from '@ampproject/remapping';
@@ -155,9 +156,12 @@ export function createVertzBuildPlugin(options?: VertzBuildPluginOptions): Vertz
   // time. This enables the compiler to understand the reactivity shape of
   // imports from user files (custom hooks, barrel re-exports, etc.).
   const srcDir = options?.srcDir ?? resolve(projectRoot, 'src');
-  // Load the raw JSON manifest to avoid Set→Array round-trip
-  const frameworkManifestJson = require(
-    require.resolve('@vertz/ui/reactivity.json'),
+  // Load the raw JSON manifest to avoid Set→Array round-trip. `createRequire`
+  // gives us a real CJS require in ESM-bundled output where the global
+  // `require` is not defined.
+  const esmRequire = createRequire(import.meta.url);
+  const frameworkManifestJson = esmRequire(
+    esmRequire.resolve('@vertz/ui/reactivity.json'),
   ) as ReactivityManifest;
   const manifestResult = generateAllManifests({
     srcDir,

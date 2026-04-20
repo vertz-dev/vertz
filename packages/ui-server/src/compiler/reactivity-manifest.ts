@@ -4,6 +4,7 @@
  * Converts JSON manifest files (with string[] arrays) into runtime
  * representations (with Set<string>) for O(1) lookups.
  */
+import { createRequire } from 'node:module';
 import type {
   LoadedExportReactivityInfo,
   LoadedReactivityManifest,
@@ -83,8 +84,11 @@ let cachedFrameworkManifest: LoadedReactivityManifest | null = null;
 export function loadFrameworkManifest(): LoadedReactivityManifest {
   if (cachedFrameworkManifest) return cachedFrameworkManifest;
 
-  const manifestPath = require.resolve('@vertz/ui/reactivity.json');
-  const json = require(manifestPath) as ReactivityManifest;
+  // `createRequire` gives us a real CJS require in ESM-bundled output where
+  // the global `require` is not defined.
+  const esmRequire = createRequire(import.meta.url);
+  const manifestPath = esmRequire.resolve('@vertz/ui/reactivity.json');
+  const json = esmRequire(manifestPath) as ReactivityManifest;
   cachedFrameworkManifest = loadManifestFromJson(json);
   return cachedFrameworkManifest;
 }
