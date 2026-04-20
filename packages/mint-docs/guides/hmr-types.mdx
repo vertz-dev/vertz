@@ -3,11 +3,14 @@ title: HMR Types (`import.meta.hot`)
 description: 'Type `import.meta.hot` in a Vertz app using the `vertz/client` augmentation.'
 ---
 
-When you write `import.meta.hot?.accept()` in a Vertz app, TypeScript may complain that `hot` doesn't exist on `ImportMeta`. Add the framework's client-side type augmentation to your tsconfig.
+`import.meta.hot` is typed as `ImportMetaHot | undefined` as soon as any file in your app imports from one of the client-runtime subpaths (`vertz/ui`, `vertz/ui/components`, `vertz/ui-primitives`, `vertz/ui-auth`). Their declarations carry a triple-slash reference that auto-loads the `vertz/client` augmentation.
 
-## The fix
+## Explicit opt-in (optional)
+
+If a file uses `import.meta.hot` without importing from any of those subpaths (e.g. a standalone client entry that only imports from `@vertz/ui` directly), wire the types up explicitly:
 
 ```jsonc
+// tsconfig.json
 {
   "compilerOptions": {
     "types": ["vertz/client"],
@@ -15,9 +18,14 @@ When you write `import.meta.hot?.accept()` in a Vertz app, TypeScript may compla
 }
 ```
 
-Newly-scaffolded apps (via `create-vertz-app`) already include this — you only need to add it if you're setting up a Vertz app by hand, or you previously used the old `vertz/env` name.
+Or, per-file:
 
-Once `vertz/client` is in `types`, `import.meta.hot` is typed as `ImportMetaHot | undefined`.
+```ts
+/// <reference types="vertz/client" />
+import.meta.hot?.accept();
+```
+
+Newly-scaffolded apps (via `create-vertz-app`) already include the tsconfig entry.
 
 ## The `ImportMetaHot` surface
 
