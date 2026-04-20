@@ -40,6 +40,14 @@ function normalizeChildren(children: unknown): (VNode | string | RawHtml)[] {
     return [];
   }
 
+  // Reactive getter children — the Vertz compiler wraps text/expressions as
+  // `() => __staticText(...)` so they re-run reactively on the client. On the
+  // server, invoke once and normalize the result. Without this, SSR emits the
+  // function's source code as text and ships it to the client.
+  if (typeof children === 'function') {
+    return normalizeChildren((children as () => unknown)());
+  }
+
   if (Array.isArray(children)) {
     return children.flatMap(normalizeChildren);
   }

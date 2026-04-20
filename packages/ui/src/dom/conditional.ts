@@ -23,20 +23,35 @@ function clearBetween(start: Node, end: Node): void {
 }
 
 /**
+ * Unwrap reactive thunks (`() => value`) to their concrete value. The compiler
+ * wraps JSX expressions like `children ?? value` in __conditional, but the
+ * inner `children` may itself be a reactive getter (`() => __staticText(...)`).
+ * Without this, `trueFn()` returns a function and `String(fn)` ships the
+ * function's source code as visible text.
+ */
+function unwrapThunk(value: unknown): unknown {
+  while (typeof value === 'function') {
+    value = (value as () => unknown)();
+  }
+  return value;
+}
+
+/**
  * Insert content before the end marker.
  * Handles: null/boolean (nothing), Node/DocumentFragment (insertBefore),
  * primitives (text node).
  * No-ops if endMarker is not yet attached to the DOM.
  */
 function insertContentBefore(endMarker: Node, branchResult: unknown): void {
-  if (branchResult == null || typeof branchResult === 'boolean') return;
+  const resolved = unwrapThunk(branchResult);
+  if (resolved == null || typeof resolved === 'boolean') return;
   const parent = endMarker.parentNode;
   if (!parent) return;
-  if (isRenderNode(branchResult)) {
-    parent.insertBefore(branchResult as Node, endMarker);
+  if (isRenderNode(resolved)) {
+    parent.insertBefore(resolved as Node, endMarker);
     return;
   }
-  const text = getAdapter().createTextNode(String(branchResult)) as unknown as Node;
+  const text = getAdapter().createTextNode(String(resolved)) as unknown as Node;
   parent.insertBefore(text, endMarker);
 }
 
@@ -46,12 +61,13 @@ function insertContentBefore(endMarker: Node, branchResult: unknown): void {
  * primitives (text node).
  */
 function appendBranchContent(fragment: DocumentFragment, branchResult: unknown): void {
-  if (branchResult == null || typeof branchResult === 'boolean') return;
-  if (isRenderNode(branchResult)) {
-    fragment.appendChild(branchResult as Node);
+  const resolved = unwrapThunk(branchResult);
+  if (resolved == null || typeof resolved === 'boolean') return;
+  if (isRenderNode(resolved)) {
+    fragment.appendChild(resolved as Node);
     return;
   }
-  fragment.appendChild(getAdapter().createTextNode(String(branchResult)) as unknown as Node);
+  fragment.appendChild(getAdapter().createTextNode(String(resolved)) as unknown as Node);
 }
 
 /**

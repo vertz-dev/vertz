@@ -69,6 +69,43 @@ describe('__conditional', () => {
     expect((container.childNodes[2] as Comment).data).toBe('/conditional');
   });
 
+  // Regression guard: the compiler wraps `children ?? value` in __conditional,
+  // but `children` is itself a reactive getter — `() => __staticText("Apple")`.
+  // So trueFn() returns that inner thunk, not a Node. The conditional must
+  // unwrap thunks before inserting — otherwise the function's source code
+  // gets stringified and ships as visible text (see component-docs Select bug).
+  it('unwraps function branch results (thunked children returning a Node)', () => {
+    const show = signal(true);
+    const container = document.createElement('div');
+    const fragment = __conditional(
+      () => show.value,
+      () =>
+        (() => {
+          const span = document.createElement('span');
+          span.textContent = 'Apple';
+          return span;
+        }) as unknown as Node,
+      () => null,
+    );
+    container.appendChild(fragment);
+    expect(container.textContent).toBe('Apple');
+    expect(container.innerHTML).not.toContain('=>');
+    expect(container.innerHTML).not.toContain('function');
+  });
+
+  it('unwraps function branch results that return primitives', () => {
+    const show = signal(true);
+    const container = document.createElement('div');
+    const fragment = __conditional(
+      () => show.value,
+      () => (() => 'Banana') as unknown as Node,
+      () => null,
+    );
+    container.appendChild(fragment);
+    expect(container.textContent).toBe('Banana');
+    expect(container.innerHTML).not.toContain('=>');
+  });
+
   it('null branch leaves only anchor and end marker (adjacent)', () => {
     const show = signal(true);
     const container = document.createElement('div');
