@@ -329,6 +329,202 @@ describe('Feature: d.jsonb validator on writes', () => {
     });
   });
 
+  describe('Given a validator-attached jsonb column that is nullable', () => {
+    describe('When create() passes null for that column', () => {
+      it('Then the validator is NOT invoked and null persists', async () => {
+        let calls = 0;
+        const countingValidator: JsonbValidator<Meta> = {
+          parse(v) {
+            calls++;
+            return strictValidator.parse(v);
+          },
+        };
+        const nullableTable = d.table('nopt', {
+          id: d.uuid().primary({ generate: 'cuid' }),
+          meta: d.jsonb<Meta>({ validator: countingValidator }).nullable(),
+        });
+        const db = createDb({
+          dialect: 'sqlite',
+          path: ':memory:',
+          models: { nopt: d.model(nullableTable) },
+          migrations: { autoApply: true },
+        });
+        calls = 0;
+        const res = await db.nopt.create({ data: { meta: null } });
+        expect(res.ok).toBe(true);
+        if (!res.ok) throw new TypeError('create failed');
+        expect(calls).toBe(0);
+        const listed = await db.nopt.list({});
+        if (!listed.ok) throw new TypeError('list failed');
+        expect(listed.data[0]!.meta).toBe(null);
+      });
+    });
+  });
+
+  describe('Given a DbExpr value in update() data', () => {
+    describe('When a DbExpr is passed for a validator-attached column', () => {
+      it('Then the validator is NOT invoked on the DbExpr payload', async () => {
+        const { d: dInternal } = await import('../../d');
+        const seenRawInputs: unknown[] = [];
+        const shapedValidator: JsonbValidator<Meta> = {
+          parse(v) {
+            const obj = v as { tier?: unknown };
+            if (!(obj !== null && typeof obj === 'object' && 'tier' in obj)) {
+              seenRawInputs.push(v);
+            }
+            return strictValidator.parse(v);
+          },
+        };
+        // Counter column exercises d.increment (a DbExpr) on the same update.
+        const countsTable = d.table('counts', {
+          id: d.uuid().primary({ generate: 'cuid' }),
+          clicks: d.integer().default(0),
+          meta: d.jsonb<Meta>({ validator: shapedValidator }),
+        });
+        const db = createDb({
+          dialect: 'sqlite',
+          path: ':memory:',
+          models: { counts: d.model(countsTable) },
+          migrations: { autoApply: true },
+        });
+        const created = await db.counts.create({
+          data: { meta: { displayName: 'Init' } as Meta },
+        });
+        if (!created.ok) throw new TypeError('create failed');
+        seenRawInputs.length = 0;
+
+        // DbExpr on a non-jsonb column: validator must stay at 0 writes.
+        const upd = await db.counts.update({
+          where: { id: created.data.id },
+          data: { clicks: dInternal.increment(1) },
+        });
+        expect(upd.ok).toBe(true);
+        expect(seenRawInputs).toHaveLength(0);
+      });
+    });
+  });
+
+  describe('Given a valid payload that the validator transforms', () => {
+    describe('When createMany persists a batch', () => {
+      it("Then every row's persisted value equals the validator output", async () => {
+        const db = freshDb();
+        const res = await db.install.createMany({
+          data: [
+            {
+              tenantId: '019da74e-0000-0000-0000-0000000aa001',
+              meta: { displayName: 'A' } as Meta,
+            },
+            {
+              tenantId: '019da74e-0000-0000-0000-0000000aa002',
+              meta: { displayName: 'B' } as Meta,
+            },
+          ],
+        });
+        expect(res.ok).toBe(true);
+        const listed = await db.install.list({ orderBy: { tenantId: 'asc' } });
+        if (!listed.ok) throw new TypeError('list failed');
+        expect(listed.data.map((r) => r.meta)).toEqual([
+          { displayName: 'A', tier: 'free' },
+          { displayName: 'B', tier: 'free' },
+        ]);
+      });
+    });
+
+    describe('When createManyAndReturn persists a batch', () => {
+      it("Then every returned row's meta equals the validator output", async () => {
+        const db = freshDb();
+        const res = await db.install.createManyAndReturn({
+          data: [
+            {
+              tenantId: '019da74e-0000-0000-0000-0000000bb001',
+              meta: { displayName: 'X' } as Meta,
+            },
+            {
+              tenantId: '019da74e-0000-0000-0000-0000000bb002',
+              meta: { displayName: 'Y' } as Meta,
+            },
+          ],
+        });
+        expect(res.ok).toBe(true);
+        if (!res.ok) throw new TypeError('createManyAndReturn failed');
+        const sorted = [...res.data].sort((a, b) => a.tenantId.localeCompare(b.tenantId));
+        expect(sorted.map((r) => r.meta)).toEqual([
+          { displayName: 'X', tier: 'free' },
+          { displayName: 'Y', tier: 'free' },
+        ]);
+      });
+    });
+
+    describe('When updateMany transforms the payload', () => {
+      it("Then the row's persisted meta equals the validator output", async () => {
+        const db = freshDb();
+        const tenantId = '019da74e-0000-0000-0000-0000000cc001';
+        const created = await db.install.create({
+          data: { tenantId, meta: { displayName: 'Orig' } as Meta },
+        });
+        if (!created.ok) throw new TypeError('create failed');
+
+        const res = await db.install.updateMany({
+          where: { tenantId },
+          data: { meta: { displayName: 'Renamed' } as Meta },
+        });
+        expect(res.ok).toBe(true);
+        const listed = await db.install.list({});
+        if (!listed.ok) throw new TypeError('list failed');
+        expect(listed.data[0]!.meta).toEqual({ displayName: 'Renamed', tier: 'free' });
+      });
+    });
+
+    describe('When upsert() inserts via the create branch', () => {
+      it('Then the persisted meta equals the validator output', async () => {
+        const db = freshDb();
+        const fixedId = '019da74e-0000-0000-0000-0000000dd001';
+        const res = await db.install.upsert({
+          where: { id: fixedId },
+          create: {
+            id: fixedId,
+            tenantId: '019da74e-0000-0000-0000-0000000dd002',
+            meta: { displayName: 'UpsertIn' } as Meta,
+          },
+          update: { meta: { displayName: 'NotUsed' } as Meta },
+        });
+        expect(res.ok).toBe(true);
+        const listed = await db.install.list({});
+        if (!listed.ok) throw new TypeError('list failed');
+        expect(listed.data[0]!.meta).toEqual({ displayName: 'UpsertIn', tier: 'free' });
+      });
+    });
+
+    describe('When upsert() updates via the update branch', () => {
+      it("Then the row's meta equals the validator output", async () => {
+        const db = freshDb();
+        const fixedId = '019da74e-0000-0000-0000-0000000ee001';
+        const created = await db.install.create({
+          data: {
+            id: fixedId,
+            tenantId: '019da74e-0000-0000-0000-0000000ee002',
+            meta: { displayName: 'Original' } as Meta,
+          },
+        });
+        if (!created.ok) throw new TypeError('create failed');
+
+        const res = await db.install.upsert({
+          where: { id: fixedId },
+          create: {
+            id: fixedId,
+            tenantId: '019da74e-0000-0000-0000-0000000ee002',
+            meta: { displayName: 'NotUsed' } as Meta,
+          },
+          update: { meta: { displayName: 'Updated' } as Meta },
+        });
+        expect(res.ok).toBe(true);
+        const listed = await db.install.list({});
+        if (!listed.ok) throw new TypeError('list failed');
+        expect(listed.data[0]!.meta).toEqual({ displayName: 'Updated', tier: 'free' });
+      });
+    });
+  });
+
   describe('Given a table with no validator on any column (fast path)', () => {
     describe('When createMany runs with 100 rows', () => {
       it('Then all 100 rows persist without error', async () => {
