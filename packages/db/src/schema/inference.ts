@@ -1,6 +1,7 @@
 import type { DialectName } from '../dialect/types';
 import type { ColumnBuilder, InferColumnType } from './column';
 import type { JsonbPathFilter_Error_Requires_Dialect_Postgres_On_SQLite_Use_list_And_Filter_In_JS } from './jsonb-filter-brand';
+import type { JsonbColumnValue } from './path-chain';
 import type { RelationDef } from './relation';
 import type {
   AllAnnotations,
@@ -92,27 +93,43 @@ type JsonbPathValue<TDialect extends DialectName> = TDialect extends 'postgres'
   : JsonbPathFilter_Error_Requires_Dialect_Postgres_On_SQLite_Use_list_And_Filter_In_JS;
 
 /**
+ * Detect whether a column has JSONB metadata (`sqlType: 'jsonb' | 'json'`).
+ * Used to route the column's filter value through `JsonbColumnValue` instead
+ * of the generic `ColumnFilterOperators`.
+ */
+type IsJsonbColumn<C> =
+  C extends ColumnBuilder<unknown, infer M>
+    ? M extends { readonly sqlType: 'jsonb' } | { readonly sqlType: 'json' }
+      ? true
+      : false
+    : false;
+
+/**
  * FilterType<TColumns, TDialect> — typed where clause, dialect-conditional.
  *
  * Each key is one of:
- * - A column name mapping to a value (shorthand for `{ eq: value }`) or
- *   an object with typed filter operators.
+ * - A JSONB column — its value resolves to `JsonbColumnValue<T, TDialect>`
+ *   (direct payload equality, simple comparison, `jsonContains` /
+ *   `jsonContainedBy` / `hasKey`, or a `path()` descriptor). On SQLite the
+ *   payload operators resolve to a keyed-never brand.
+ * - Any other column — value (shorthand for `{ eq: value }`) or operator object.
  * - A path-shaped JSONB key (`'meta->field'`) on Postgres. On SQLite the
  *   same key accepts only a keyed-never brand whose name reads as the
- *   recovery sentence, so assigning `{ 'meta->k': { eq: 'v' } }` fails
- *   with that sentence in the diagnostic.
+ *   recovery sentence.
  *
  * Array operators (`arrayContains`, etc.) are runtime-only today and not
- * yet part of the TS surface — tracked as a follow-up in #2868.
+ * yet part of the TS surface — tracked as a follow-up in #2885.
  */
 export type FilterType<
   TColumns extends ColumnRecord,
   TDialect extends DialectName = DialectName,
 > = {
   [K in keyof TColumns | JsonbPathKey<TColumns>]?: K extends keyof TColumns
-    ?
-        | InferColumnType<TColumns[K]>
-        | ColumnFilterOperators<InferColumnType<TColumns[K]>, IsNullable<TColumns[K]>>
+    ? IsJsonbColumn<TColumns[K]> extends true
+      ? JsonbColumnValue<InferColumnType<TColumns[K]>, TDialect>
+      :
+          | InferColumnType<TColumns[K]>
+          | ColumnFilterOperators<InferColumnType<TColumns[K]>, IsNullable<TColumns[K]>>
     : JsonbPathValue<TDialect>;
 };
 

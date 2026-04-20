@@ -283,4 +283,22 @@ describe('SQLite feature guards', () => {
     expect(result.sql).toBe('"metadata"->>\'role\' = $1');
     expect(result.params).toEqual(['admin']);
   });
+
+  it('throws descriptive error for jsonContains with SqliteDialect', () => {
+    expect(() =>
+      buildWhere({ meta: { jsonContains: { a: 1 } } }, 0, undefined, sqliteDialect),
+    ).toThrow('jsonContains requires dialect: postgres');
+  });
+
+  it('throws descriptive error for jsonContainedBy with SqliteDialect', () => {
+    expect(() =>
+      buildWhere({ meta: { jsonContainedBy: { a: 1 } } }, 0, undefined, sqliteDialect),
+    ).toThrow('jsonContainedBy requires dialect: postgres');
+  });
+
+  it('throws descriptive error for hasKey with SqliteDialect', () => {
+    expect(() => buildWhere({ meta: { hasKey: 'a' } }, 0, undefined, sqliteDialect)).toThrow(
+      'hasKey requires dialect: postgres',
+    );
+  });
 });

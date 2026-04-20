@@ -418,6 +418,78 @@ On SQLite, fetch with `list()` and filter in application code, or switch dialect
   runtime throw still catches the problem, but the error happens later.
 </Tip>
 
+### Typed path filters with `path()`
+
+String-keyed path filters (`'meta->field'`) are an escape hatch — they work, but lose the payload's leaf type. For static paths, prefer `path()`: the selector preserves `T` through the leaf and conditionally exposes the operators that make sense for that leaf type.
+
+```ts
+import { path } from '@vertz/db';
+
+interface InstallMeta {
+  displayName: string;
+  settings: { theme: 'light' | 'dark'; count: number };
+  tags: readonly string[];
+}
+
+// Leaf type flows:
+await pgDb.install.list({
+  where: { meta: path((m: InstallMeta) => m.settings.theme).eq('dark') },
+});
+
+// TypeScript rejects an invalid literal at the leaf:
+await pgDb.install.list({
+  where: { meta: path((m: InstallMeta) => m.settings.theme).eq('foggy') },
+  //                                                              ^^^^^^^
+  // Error: 'foggy' is not assignable to 'light' | 'dark'.
+});
+
+// Operator availability matches the leaf type — string operators on strings:
+await pgDb.install.list({
+  where: { meta: path((m: InstallMeta) => m.displayName).contains('Acme') },
+});
+
+// Numeric comparisons on numbers:
+await pgDb.install.list({
+  where: { meta: path((m: InstallMeta) => m.settings.count).gt(5) },
+});
+
+// Numeric array indexing — Postgres emits integer index unquoted (->0 not ->'0'):
+await pgDb.install.list({
+  where: { meta: path((m: InstallMeta) => m.tags[0]).eq('urgent') },
+});
+```
+
+Pass the JSONB column's payload type as the selector parameter annotation (the same type you declared at `d.jsonb<T>()`). TypeScript infers the leaf type from the selector's return, so no explicit generic is needed on `path<T>()`.
+
+`path()` filters are Postgres-only — they resolve to `JsonbOperator_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS` on SQLite, with the same recovery-sentence-in-the-type-name mechanism as string-keyed path filters. Reach for the string-keyed form only when the path is computed at runtime.
+
+### Whole-payload JSONB operators
+
+Three operators filter against the payload as a whole, without a path:
+
+```ts
+// jsonContains (@>) — subset containment. Operand is DeepPartial<T>.
+await pgDb.install.list({
+  where: { meta: { jsonContains: { settings: { theme: 'dark' } } } },
+});
+
+// jsonContainedBy (<@) — reverse containment.
+await pgDb.install.list({
+  where: {
+    meta: { jsonContainedBy: { displayName: 'Acme', settings: { theme: 'dark', count: 1 } } },
+  },
+});
+
+// hasKey (?) — top-level key existence. Operand is keyof T & string.
+await pgDb.install.list({
+  where: { meta: { hasKey: 'displayName' } },
+});
+```
+
+`jsonContains` operands are deep-partials of `T` (recursion capped at 5 levels). `hasKey` checks **top-level** keys only — for nested key presence, use `path((m: T) => m.nested.key).isNull(false)`.
+
+All three are Postgres-only; on SQLite they resolve to the same `JsonbOperator_Error_…` brand.
+
 ## Multi-tenancy
 
 Declare the tenant root by calling `.tenant()` on the root table definition. The framework automatically derives all tenant scoping from the relation graph — no per-model configuration needed.

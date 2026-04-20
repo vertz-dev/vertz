@@ -24,3 +24,16 @@ declare const __JsonbPathFilterBrand: unique symbol;
 export interface JsonbPathFilter_Error_Requires_Dialect_Postgres_On_SQLite_Use_list_And_Filter_In_JS {
   readonly [__JsonbPathFilterBrand]: 'jsonb-path-filter-requires-postgres';
 }
+
+/**
+ * Brand for the typed-JSONB-operator surface introduced by #2868
+ * (`jsonContains`, `jsonContainedBy`, `hasKey`, and the `path()` builder).
+ * Resolves in the SQLite branch of the JSONB column filter value so that
+ * attempting any of these ops on a SQLite db produces a diagnostic that
+ * names this interface — the name IS the recovery sentence.
+ */
+declare const __JsonbOperatorBrand: unique symbol;
+
+export interface JsonbOperator_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS {
+  readonly [__JsonbOperatorBrand]: 'jsonb-operator-requires-postgres';
+}

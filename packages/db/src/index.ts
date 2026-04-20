@@ -59,6 +59,10 @@ export type { createPostgresDriver, PostgresDriver } from './client/postgres-dri
 // Schema builder
 export { d } from './d';
 export type { EnumSchemaLike } from './d';
+// Typed JSONB path builder — `path((m: T) => m.x).eq(v)`
+// The descriptor shape and PathSegment are intentionally not exported —
+// they are internal AST; users compose via `path().<op>()` only.
+export { path } from './path';
 // Update expressions
 export type { DbExpr } from './sql/expr';
 export { isDbExpr } from './sql/expr';
