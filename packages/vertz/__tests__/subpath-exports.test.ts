@@ -142,6 +142,17 @@ describe('exports point to built artifacts', () => {
     expect(pkg.exports['./env']).toBeUndefined();
     expect(fs.existsSync(path.resolve(import.meta.dirname, '..', 'env.d.ts'))).toBe(false);
   });
+
+  it.each(['ui.d.ts', 'ui-components.d.ts', 'ui-primitives.d.ts', 'ui-auth.d.ts'])(
+    'dist/%s carries a triple-slash reference to vertz/client so ImportMeta.hot types auto-load',
+    async (file) => {
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      const dts = path.resolve(import.meta.dirname, '..', 'dist', file);
+      const contents = fs.readFileSync(dts, 'utf-8');
+      expect(contents.startsWith('/// <reference types="vertz/client" />\n')).toBe(true);
+    },
+  );
 });
 
 describe('tree-shaking: subpaths are independent modules', () => {
