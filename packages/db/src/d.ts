@@ -74,9 +74,19 @@ export const d: {
    * SQLite, fetch with `list()` and filter in application code. Inline the
    * `where` object for the best TS diagnostic when the gate triggers.
    *
-   * An optional `validator` runs on the parsed value when rows are read, and
-   * surfaces `JsonbValidationError` through the existing Result machinery on
-   * failure.
+   * An optional `validator` (provided either as a `{ validator }` option or
+   * as a schema-like object exposing `.parse()`) runs on both sides:
+   *
+   * - **Reads:** the parsed value is passed through `validator.parse`; failures
+   *   surface as `{ ok: false, error: { code: 'JSONB_VALIDATION_ERROR', ... } }`.
+   * - **Writes (create / update / upsert):** the caller's payload is passed
+   *   through `validator.parse` before the SQL is built. Invalid payloads
+   *   surface as `{ code: 'JSONB_VALIDATION_ERROR' }` without reaching the
+   *   driver. The validator's return value (not the caller's input) is what
+   *   gets persisted — handy for Zod `.default()` / `.transform()` defaults.
+   *   `error.value` on failure is the raw caller-provided input, so avoid
+   *   attaching validators that carry secrets unless you're comfortable with
+   *   that input appearing in error logs.
    */
   jsonb<T = unknown>(
     schemaOrOpts?: SchemaLike<T> | { validator: JsonbValidator<T> },

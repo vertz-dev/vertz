@@ -104,9 +104,15 @@ export type ReadError =
   | DbJsonbValidationError;
 
 /**
- * Write operations can fail with connection errors, query errors, or constraint violations.
+ * Write operations can fail with connection errors, query errors, constraint
+ * violations, or JSONB validator failures (when a `d.jsonb<T>({ validator })`
+ * column rejects the write payload).
  */
-export type WriteError = DbConnectionError | DbQueryError | DbConstraintError;
+export type WriteError =
+  | DbConnectionError
+  | DbQueryError
+  | DbConstraintError
+  | DbJsonbValidationError;
 
 // ---------------------------------------------------------------------------
 // Helper functions
@@ -209,6 +215,21 @@ export function toReadError(error: unknown, query?: string): ReadError {
  * Categorizes PostgreSQL errors into appropriate error types.
  */
 export function toWriteError(error: unknown, query?: string): WriteError {
+  // JsonbValidationError is thrown from crud.ts before the SQL is built.
+  // `JsonbValidationError` extends `DbError` which exposes a `code`, so this
+  // branch MUST sit above the generic `'code' in error` path below — otherwise
+  // it collapses into QUERY_ERROR.
+  if (error instanceof JsonbValidationError) {
+    return {
+      code: 'JSONB_VALIDATION_ERROR',
+      message: error.message,
+      table: error.table,
+      column: error.column,
+      value: error.value,
+      cause: error,
+    };
+  }
+
   // Already a DbError subclass - constraint errors
   if (error instanceof UniqueConstraintError) {
     return {

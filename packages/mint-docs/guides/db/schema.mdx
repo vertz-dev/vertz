@@ -357,19 +357,37 @@ d.jsonb<Settings>(settingsSchema);
 - **Postgres:** native `JSONB` type. `postgres.js` parses values automatically on read.
 - **SQLite / D1:** stored as `TEXT`. Vertz parses JSON on read and stringifies plain objects / arrays on write. Everything non-JSON (`Date`, typed arrays, `Buffer`, `Map`, `Set`, `URL`, `RegExp`, class instances) passes through to the driver unchanged — no silent `JSON.stringify(new Map())` → `{}` corruption.
 
-If a validator is supplied, it runs on the parsed value on reads. A failed parse or a rejected validator surfaces via the existing error-as-value Result API:
+If a validator is supplied, it runs on **both sides** of the round-trip:
+
+- **Reads:** the parsed value flows through `validator.parse`. A failed parse or a rejected validator surfaces via the existing error-as-value Result API.
+- **Writes (`create` / `update` / `upsert`):** the caller's payload runs through `validator.parse` before the SQL is built. Invalid payloads surface as `{ ok: false, error: { code: 'JSONB_VALIDATION_ERROR' } }` without reaching the driver, and no row is written. The validator's return value (not the caller's input) is what gets persisted, so Zod `.default()` / `.transform()` on the schema land in the DB.
 
 ```ts
-const result = await db.install.list({});
-if (!result.ok) {
-  if (result.error.code === 'JSONB_PARSE_ERROR') {
-    // result.error.table, result.error.column, result.error.columnType
+const result = await db.install.create({ data: { meta: { wrong: true } } });
+if (!result.ok && result.error.code === 'JSONB_VALIDATION_ERROR') {
+  // result.error.table, result.error.column, result.error.value
+  // `value` is the raw caller input — pre-validator — so avoid attaching
+  // validators that carry secrets if you don't want them in error logs.
+}
+
+// On reads:
+const listed = await db.install.list({});
+if (!listed.ok) {
+  if (listed.error.code === 'JSONB_PARSE_ERROR') {
+    // listed.error.table, listed.error.column, listed.error.columnType
   }
-  if (result.error.code === 'JSONB_VALIDATION_ERROR') {
-    // result.error.table, result.error.column, result.error.value
+  if (listed.error.code === 'JSONB_VALIDATION_ERROR') {
+    // listed.error.table, listed.error.column, listed.error.value
   }
 }
 ```
+
+<Tip>
+  On SQLite specifically, `INSERT ... RETURNING` rows also pass through the read-side validator before
+  the write Result resolves. If your validator is non-idempotent (transforms input to a shape the
+  validator itself would reject), you'll see `JSONB_VALIDATION_ERROR` on the write even though the
+  INSERT succeeded at the driver. Keep validators idempotent — `parse(parse(x))` should equal `parse(x)`.
+</Tip>
 
 ### JSONB filter operators are dialect-conditional
 
