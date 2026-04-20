@@ -9,7 +9,7 @@
 
 ## What this doc delivers
 
-One new MCP tool: `vertz_browser_screenshot({ url, viewport?, fullPage?, target?, waitFor? })`. Headless `chromiumoxide`, lazy+TTL pool, Chrome for Testing download, artifacts in `.vertz/artifacts/screenshots/`, PNG returned as both MCP image content and local file URL. **No authentication, no overlay, no compiler changes, no current-tab capture, no Windows support.** Those live in future issues when their dependencies mature.
+One new MCP tool: `vertz_browser_screenshot({ url, viewport?, fullPage?, crop?, waitFor? })`. Headless `chromiumoxide`, lazy+TTL pool, Chrome for Testing download, artifacts in `.vertz/artifacts/screenshots/`, PNG returned as both MCP image content and local file URL. **No authentication, no overlay, no compiler changes, no current-tab capture, no Windows support.** Those live in future issues when their dependencies mature.
 
 ## Why just this
 
@@ -39,7 +39,7 @@ Phase 1 is successful when all of:
 - **P2. Cold-call latency with local Chrome.** First call with Chrome already on disk (e.g. system Chrome detected) returns in under 3000 ms. **Measured in:** same E2E test.
 - **P3. First-ever-call latency bound.** On a machine without a cached Chrome, first call completes in under 30 seconds on a 20+ Mbps connection (Chrome for Testing headless-shell is ~80 MB). If connection is slower, tool emits a progress event to `/__vertz_diagnostics` at least every 500 ms; no timeout fires before 300 s. **Measured in:** Task 8 CI job downloads fresh, asserts ≤30 s end-to-end.
 - **P4. Zero config default.** `npx create-vertz-app my-app && cd my-app && vtz dev` + MCP connect produces a working screenshot with no flags, no env vars, no `.vertz/config`. **Measured in:** scaffold test in `packages/create-vertz-app` generates a project, starts the server, issues one MCP call.
-- **P5. Dogfooding — concrete.** **Owner:** Matheus Poleza. **Target:** the `linear-clone` showcase, specifically the kanban-board work in `plans/linear-clone-kanban-board.md`. **Pass/fail:** three consecutive PRs touching `.tsx` in `apps/linear-clone/` include a screenshot artifact link in the PR body (produced by the agent, referencing `.vertz/artifacts/screenshots/…`). **Evaluated at:** the end of the Phase 1 implementation branch, before the Phase 1 feature PR merges to main.
+- **P5. Dogfooding — concrete.** **Owner:** Matheus Poleza. **Target:** the `examples/linear/` showcase (28 `.tsx` files). Since `linear-clone-kanban-board` has already shipped, the dogfooding sits on whichever of the remaining active linear plans is being worked during the Phase 1 window — currently `plans/linear-clone-projects-issues.md` (active) and `plans/linear-clone-multi-tenancy-redesign.md` (active). **Pass/fail:** the next three PRs (during or immediately after Phase 1 ships) that touch `.tsx` in `examples/linear/src/` include a screenshot artifact link in the PR body, produced by the agent via `vertz_browser_screenshot`. **Evaluated at:** a follow-up retrospective two weeks after Phase 1 merges — the evaluation window is NOT gated on the Phase 1 branch merging. **Fallback if no linear PRs land in the 2-week window:** dogfood on the next in-flight app work that touches `.tsx` (scaffolded hello-world, landing-page template, or an internal tool). The target is "3 real UI-touching PRs use it," not "3 specifically on linear."
 - **P6. LLM-first test.** Given **only** the MCP catalog, a fresh Claude Opus/Sonnet agent session answers "take a screenshot of the home page and describe what you see" with one correct tool call and one image observation. **Harness:** `native/vtz/tests/llm_first_screenshot.rs` runs this against the Anthropic API using a stable prompt; runs on the Phase 1 acceptance branch (not CI — costs API credits — manual gate).
 - **P7. No regression in existing MCP tools.** The 20 existing tools in `native/vtz/src/server/mcp.rs` continue to pass their existing tests unchanged. **Measured in:** `cargo test -p vtz` green.
 
@@ -72,14 +72,16 @@ type VertzBrowserScreenshotArgs = {
   /** If true, captures the full scrollable page (captureBeyondViewport). Default: false. */
   fullPage?: boolean;
   /**
-   * Element locator to crop the screenshot to a single element.
-   * Accepts the same shapes as vertz_browser_click's `target`:
+   * Crop the screenshot to a single element. Named `crop` (not `target`) to avoid
+   * semantic collision with vertz_browser_click.target — that tool's `target` accepts
+   * element refs from a snapshot; this tool does NOT share browser sessions so refs
+   * are meaningless here.
+   *
+   * Shapes:
    *   - CSS selector string: `".my-component"` or `"#submit"`
    *   - Text/name/label object: `{ text: "Save" }` | `{ name: "email" }` | `{ label: "Email" }`
-   * Note: Phase 1 does NOT accept browser-hub `ref=` strings — those are scoped
-   * to the connected-browser session, which this tool does not share.
    */
-  target?: string | { text: string } | { name: string } | { label: string };
+  crop?: string | { text: string } | { name: string } | { label: string };
   /**
    * When to take the screenshot. Default: "networkidle".
    *   - "domcontentloaded": fires when DOM is parsed, ignores async data
@@ -136,9 +138,9 @@ type VertzBrowserScreenshotError =
       finalUrl: string;
     }
   // Target resolution
-  | { code: 'SELECTOR_INVALID'; message: string; target: unknown }
-  | { code: 'SELECTOR_NOT_FOUND'; message: string; target: unknown }
-  | { code: 'SELECTOR_AMBIGUOUS'; message: string; target: unknown; matchCount: number }
+  | { code: 'SELECTOR_INVALID'; message: string; crop: unknown }
+  | { code: 'SELECTOR_NOT_FOUND'; message: string; crop: unknown }
+  | { code: 'SELECTOR_AMBIGUOUS'; message: string; crop: unknown; matchCount: number }
   // Inputs
   | { code: 'URL_INVALID'; message: string; reason: 'not-same-origin' | 'malformed' | 'external' }
   | { code: 'VIEWPORT_INVALID'; message: string; hint: string }
@@ -148,7 +150,11 @@ type VertzBrowserScreenshotError =
 ```
 
 - `hint` on `CHROME_LAUNCH_FAILED` points the agent at the download log path; if the user explicitly disabled capture via config, the hint says which config key. No `--no-screenshot` flag exists (see "Pool lifecycle" below — flags were removed).
-- **`AUTH_REQUIRED` is non-optional detection** — a screenshot of a login screen returned as "success" would silently mislead the agent. The heuristics fire on any of: redirect to a path matching `/(login|signin|signup|auth/.*)/`, presence of `<input type="password">` in the final DOM, or HTTP 401/403. If the agent *wants* the login screen PNG, they re-request with `allowAuthPage: true` (v2 flag; v1 never returns login-screen PNGs as success).
+- **`AUTH_REQUIRED` is non-optional detection** — a screenshot of a login screen returned as "success" would silently mislead the agent. Heuristics (specific and conservative to avoid false positives):
+  - **Path-based (primary):** final URL path, after redirects, equals `/login`, `/signin`, or `/signup` (exact match, ignoring trailing slash and query string). **Not** a regex like `/auth/.*` — that matched `/auth/callback` (success), `/dashboard/auth-overview` (unrelated), and was pulled.
+  - **Status-based:** HTTP 401 or 403.
+  - **DOM-based (secondary, only when path-based didn't match):** final DOM contains `<input type="password">` AND the page has no other substantial content (detected via a heuristic "primary element is a form" check — if the password input is an inline signup widget on a home page, it does NOT trigger).
+  - **No `allowAuthPage` escape hatch in v1.** An agent that *legitimately* wants to capture the login screen in Phase 1 can navigate to it via a route that doesn't match the auth path patterns (few apps qualify) or wait for Phase 2. This is an accepted limitation; the alternative (silently returning login PNGs as success) is worse.
 
 ### Tool description (what the LLM actually reads)
 
@@ -173,7 +179,7 @@ Use cases:
 - Show a human before/after of a fix
 - Capture a full scrollable page with fullPage: true
 - Check layout at mobile (375x667) and desktop (1280x720)
-- Crop to a single component via target: ".my-class" or { text: "Save" }
+- Crop to a single component via crop: ".my-class" or { text: "Save" }
 
 Tips:
 - Default waitFor is "networkidle" — catches query() resolution. Use
@@ -214,8 +220,8 @@ Multi-viewport check for layout changes:
     vertz_browser_screenshot({ url: '<route>', viewport: { width: 1280, height: 720 } })  // desktop
 
 Component-isolated check:
-    vertz_browser_screenshot({ url: '<route>', target: '.my-component' })      # CSS
-    vertz_browser_screenshot({ url: '<route>', target: { text: 'Save' } })      # text match
+    vertz_browser_screenshot({ url: '<route>', crop: '.my-component' })      # CSS
+    vertz_browser_screenshot({ url: '<route>', crop: { text: 'Save' } })      # text match
 
 Screenshots save to .vertz/artifacts/screenshots/ — these are working artifacts,
 reference them in your replies to the human.
@@ -228,7 +234,7 @@ reference them in your replies to the human.
 All of these were validated in the `poc/chromium-client` branch and are NOT open questions:
 
 - `chromiumoxide` 0.9.1 with `default-features = false` is the correct dep choice.
-- `Browser::launch`, `browser.set_cookies`, `page.screenshot` with viewport/fullPage/target (via `find_element` + `bounding_box` → `clip`), graceful `close` + `wait` — every API call we need is one method.
+- `Browser::launch`, `browser.set_cookies`, `page.screenshot` with viewport/fullPage/crop (via `find_element` + `bounding_box` → CDP `clip`), graceful `close` + `wait` — every API call we need is one method.
 - Release-build numbers: cold start 836 ms, viewport capture 37 ms, warm 22 ms. All well under the targets.
 - Binary delta vs vtz without the dep is estimated 3–4 MB; measurement in Task 6.
 - Chrome for Testing headless shell is the right Chromium distribution strategy.
@@ -277,9 +283,14 @@ on vtz dev SIGINT/SIGTERM (all states):
   ├── Browser::close() with 2 s timeout (via tokio::time::timeout)
   ├── if still alive → Browser::kill()
   ├── await Browser::wait() to reap the child
-  └── pool integrates with the existing `with_graceful_shutdown`
-      watch channel in native/vtz/src/server/http.rs
-      (does NOT install its own ctrl_c handler)
+  └── integrates with the existing server shutdown path in
+      native/vtz/src/server/http.rs:
+        - http.rs uses axum's .with_graceful_shutdown(shutdown_future)
+          where shutdown_future awaits shutdown_signal() (see line ~2028)
+        - the pool exposes `Pool::shutdown().await` that is called
+          inside the same shutdown_future, before axum's graceful
+          close completes — the pool does NOT install its own
+          tokio::signal::ctrl_c handler
 ```
 
 **Concurrency during Launching:** the state holds a `tokio::sync::OnceCell<Browser>` (or equivalent `BroadcastRx` over a "browser is ready" signal). Concurrent `capture` calls arriving in `Launching` await the same cell, then all proceed against the single Browser. No second Chromium process is spawned.
@@ -321,12 +332,12 @@ pub struct CaptureRequest {
     pub url: String,
     pub viewport: (u32, u32),
     pub full_page: bool,
-    pub target: Option<TargetSpec>,
+    pub crop: Option<CropSpec>,
     pub wait_for: WaitCondition,
 }
 
 #[derive(Debug, Clone)]
-pub enum TargetSpec {
+pub enum CropSpec {
     Css(String),
     Text(String),
     Name(String),
@@ -348,19 +359,73 @@ pub struct PageMeta {
 
 #[async_trait]
 pub trait BrowserSpawner: Send + Sync + 'static {
-    async fn launch(&self, config: LaunchConfig) -> Result<Box<dyn BrowserHandle>, crate::screenshot::Error>;
+    async fn launch(&self, config: LaunchConfig) -> Result<Arc<dyn BrowserHandle>, Error>;
 }
 
 #[async_trait]
 pub trait BrowserHandle: Send + Sync {
-    async fn capture(&mut self, req: CaptureRequest) -> Result<(Vec<u8>, PageMeta), crate::screenshot::Error>;
-    async fn close(&mut self) -> Result<(), crate::screenshot::Error>;
+    // &self (not &mut self) — impls use interior mutability.
+    // Enables concurrent warm captures against the same Browser
+    // (chromiumoxide's Browser exposes &self screenshot APIs).
+    async fn capture(&self, req: CaptureRequest) -> Result<(Vec<u8>, PageMeta), Error>;
+    async fn close(&self) -> Result<(), Error>;
 }
+
+// Error type — single enum that unifies variants across pool, fetcher, capture.
+// thiserror-derived; round-trips to the MCP JSON error shape via a From impl.
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("chrome launch failed: {message}")]
+    ChromeLaunchFailed { message: String, hint: Option<String> },
+    #[error("chrome download failed from {url}: {message}")]
+    ChromeDownloadFailed { message: String, url: String },
+    #[error("navigation failed for {url}: {message}")]
+    NavigationFailed { message: String, url: String },
+    #[error("navigation timeout after {timeout_ms}ms for {url}")]
+    NavigationTimeout { message: String, url: String, timeout_ms: u64 },
+    #[error("page returned HTTP {status} for {url}")]
+    PageHttpError { message: String, url: String, status: u16 },
+    #[error("page JS error on {url}: {message}")]
+    PageJsError { message: String, url: String, errors: Vec<PageJsErrorDetail> },
+    #[error("auth required at {url}: {message}")]
+    AuthRequired {
+        message: String,
+        url: String,
+        detected_by: Vec<AuthDetectionSignal>,
+        final_url: String,
+    },
+    #[error("crop selector invalid: {message}")]
+    SelectorInvalid { message: String, crop: serde_json::Value },
+    #[error("crop selector matched no element: {message}")]
+    SelectorNotFound { message: String, crop: serde_json::Value },
+    #[error("crop selector matched {match_count} elements (ambiguous)")]
+    SelectorAmbiguous { message: String, crop: serde_json::Value, match_count: u32 },
+    #[error("url invalid ({reason}): {message}")]
+    UrlInvalid { message: String, reason: UrlRejectionReason },
+    #[error("viewport invalid: {message}")]
+    ViewportInvalid { message: String, hint: String },
+    #[error("capture failed: {message}")]
+    CaptureFailed { message: String },
+    #[error("artifact write failed at {path}: {message}")]
+    ArtifactWriteFailed { message: String, path: std::path::PathBuf },
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PageJsErrorDetail { pub text: String, pub source: Option<String> }
+
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+pub enum AuthDetectionSignal { Redirect, PasswordInput, HttpStatus }
+
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum UrlRejectionReason { NotSameOrigin, Malformed, External }
 ```
 
-Production impl: `ChromiumoxideSpawner` wraps `chromiumoxide::Browser::launch`. Test impl: `FakeSpawner` returns canned 1x1 PNG bytes and can be configured to inject `NAVIGATION_TIMEOUT`, `SELECTOR_NOT_FOUND`, `AUTH_REQUIRED`, etc.
+Production impl: `ChromiumoxideSpawner` wraps `chromiumoxide::Browser::launch` and wraps the resulting `Browser` + default `Page` in an internal struct that holds a `parking_lot::Mutex<Option<chromiumoxide::Page>>` for tear-down. Test impl: `FakeSpawner` returns canned 1x1 PNG bytes and can be configured to inject `NavigationTimeout`, `SelectorNotFound`, `AuthRequired`, etc.
 
-The trait is deliberately narrow — no generic lifetimes, no associated types, no `'static` impls needed beyond `Send + Sync`. The `Box<dyn BrowserHandle>` return type avoids trait-object-vs-generic complexity in the pool.
+The trait is deliberately narrow — no generic lifetimes, no associated types. `Arc<dyn BrowserHandle>` (vs `Box`) lets the pool clone the handle to spawn captures concurrently without holding a `Mutex<Pool>` during the capture itself — that's what addresses the "warm captures serialize" concern.
 
 ### Artifact persistence
 
@@ -397,7 +462,7 @@ This is the URL returned in `VertzBrowserScreenshotMeta.url`. A human clicking i
 | Principle | Phase 1 posture |
 |---|---|
 | #1 "If it builds, it works" | MCP tool schema is typed; error variants are a discriminated union. Impossible to call the tool with wrong shape and have it "mostly work." |
-| #2 "One way to do things" | Exactly one tool, one pool strategy (no flags to toggle it — removed `--no-screenshot` and `--screenshot-pool`), one artifact location, one screenshot format (PNG). The `target` param accepts the same shapes as `vertz_browser_click` — no divergent locator dialect. |
+| #2 "One way to do things" | Exactly one tool, one pool strategy (no flags — removed `--no-screenshot` and `--screenshot-pool`), one artifact location, one screenshot format (PNG). The `crop` param uses the same locator shapes (CSS string / text / name / label) as `vertz_browser_click.target` — same dialect — but a different param name because this tool does not share browser sessions and therefore does not accept element refs. |
 | #3 "AI agents are first-class users" | Tool description is the LLM-facing API. Short, specific, includes when-to-use cases. Non-goal rail ("public routes only") in the description. |
 | #4 "Test what matters, nothing more" | Unit tests for: pool state machine, artifact naming, fetcher resolution path, error code mapping. Smoke E2E test for: tool returns valid PNG. No pixel-diff. |
 | #5 "If you can't test it, don't build it" | Pool is testable with a `trait BrowserSpawner` mock. Fetcher is testable with a fake HTTP server. MCP tool is testable by calling it directly. |
@@ -458,8 +523,8 @@ viewport: { width, height } → BrowserConfig::builder().viewport(...) (pool pre
                             OR Page.set_viewport(...) (if pool is warm with different viewport)
 fullPage: bool              → ScreenshotParams::builder().full_page(true)
                             AND artifact slug `<viewport>` becomes "full"
-target: string | {text} | {name} | {label}
-                            → TargetSpec::{Css|Text|Name|Label}  (Rust enum)
+crop: string | {text} | {name} | {label}
+                            → CropSpec::{Css|Text|Name|Label}  (Rust enum)
                             → page.find_element(locator) → bounding_box → ScreenshotParams.clip
                             OR SELECTOR_NOT_FOUND | SELECTOR_AMBIGUOUS | SELECTOR_INVALID
 waitFor: enum                → WaitCondition (Rust enum)
@@ -503,22 +568,28 @@ describe('Feature: vertz_browser_screenshot', () => {
     });
   });
 
-  describe('Given a valid CSS target pointing to a single element', () => {
-    describe('When the agent calls with target: ".my-component"', () => {
+  describe('Given a valid CSS crop pointing to a single element', () => {
+    describe('When the agent calls with crop: ".my-component"', () => {
       it('then the captured PNG dimensions match the element bounding box', () => {});
     });
 
-    describe('When the target is { text: "Save" } and matches one button', () => {
+    describe('When the crop is { text: "Save" } and matches one button', () => {
       it('then the captured PNG is cropped to that button', () => {});
     });
 
-    describe('When the target does not match any element', () => {
-      it('then returns SELECTOR_NOT_FOUND error with the original target', () => {});
+    describe('When the crop does not match any element', () => {
+      it('then returns SELECTOR_NOT_FOUND error with the original crop', () => {});
       it('then does not leave artifacts on disk', () => {});
     });
 
-    describe('When the target CSS string is syntactically invalid', () => {
+    describe('When the crop CSS string is syntactically invalid', () => {
       it('then returns SELECTOR_INVALID error', () => {});
+    });
+  });
+
+  describe('Given a crop that matches multiple elements', () => {
+    describe('When the agent calls with crop: ".card"', () => {
+      it('then returns SELECTOR_AMBIGUOUS with matchCount', () => {});
     });
   });
 
@@ -558,12 +629,6 @@ describe('Feature: vertz_browser_screenshot', () => {
   describe('Given a route that returns 500', () => {
     describe('When the tool is called', () => {
       it('then returns PAGE_HTTP_ERROR with status: 500', () => {});
-    });
-  });
-
-  describe('Given a target that matches multiple elements', () => {
-    describe('When the tool is called with target: ".card"', () => {
-      it('then returns SELECTOR_AMBIGUOUS with matchCount', () => {});
     });
   });
 
@@ -611,12 +676,13 @@ Per `.claude/rules/phase-implementation-plans.md`, max 5 files per task. Tasks a
 **What:** On a scratch branch, temporarily add `chromiumoxide = { version = "0.9", default-features = false }` to `native/vtz/Cargo.toml`. Build `vtz` release twice:
 
 ```bash
+# Cross-platform size-of-binary: `wc -c` works on macOS and Linux.
 git stash                                                  # baseline
 cargo build --release --manifest-path native/Cargo.toml -p vtz
-BEFORE=$(stat -f%z native/target/release/vtz)              # bytes
+BEFORE=$(wc -c < native/target/release/vtz)                # bytes
 git stash pop                                              # with chromiumoxide
 cargo build --release --manifest-path native/Cargo.toml -p vtz
-AFTER=$(stat -f%z native/target/release/vtz)
+AFTER=$(wc -c < native/target/release/vtz)
 echo "delta: $(( (AFTER - BEFORE) / 1024 / 1024 )) MB"
 ```
 
@@ -659,22 +725,23 @@ echo "delta: $(( (AFTER - BEFORE) / 1024 / 1024 )) MB"
 
 **What:** `BrowserSpawner` and `BrowserHandle` traits (signatures in the Architecture section above). Real impl wraps `chromiumoxide::Browser::launch`. `Pool` holds `Arc<dyn BrowserSpawner>`, a `tokio::sync::Mutex<PoolState>` (states: Idle, Launching, Warm), a `tokio::sync::OnceCell<...>` for the in-flight launch future, and an idle-timer.
 
-**Shutdown integration:** `Pool::install_shutdown(watch::Receiver<ShutdownSignal>)` subscribes to the existing `with_graceful_shutdown` watch channel in `native/vtz/src/server/http.rs`. Pool does NOT install its own `tokio::signal::ctrl_c` handler.
+**Shutdown integration:** `Pool::shutdown(&self) -> impl Future` is called inside the same `shutdown_future` that axum's `.with_graceful_shutdown(shutdown_future)` awaits in `native/vtz/src/server/http.rs` (the `shutdown_signal()` helper at ~line 2028 is the trigger). Pool does NOT install its own `tokio::signal::ctrl_c` handler. If a `watch::Sender<()>` indirection is needed for pool-internal cancellation points, Task 4 adds one locally — it does not try to subscribe to a non-existent central channel.
 
 **Acceptance:**
 - [ ] First call triggers Idle → Launching → Warm transition
 - [ ] Concurrent calls during Launching await the same `OnceCell`; exactly one Browser is spawned (assert with `FakeSpawner` call-count)
 - [ ] Post-TTL call relaunches (timer fires → Warm → Idle → next call triggers launch again)
 - [ ] Shutdown signal cancels an in-flight Launching future
-- [ ] Viewport/fullPage/target combinations each produce correct PNG (integration test in `native/vtz/tests/screenshot_integration.rs`, `#[ignore]`d because it spawns Chrome)
+- [ ] Viewport/fullPage/crop combinations each produce correct PNG (integration test in `native/vtz/tests/screenshot_integration.rs`, `#[ignore]`d because it spawns Chrome)
 - [ ] `BrowserSpawner` trait allows mocking: `FakeSpawner` unit-tests cover pool state transitions without touching Chromium
 
-### Task 5: MCP tool registration + `http.rs` artifact route
-**Files:** 4
+### Task 5: MCP tool registration + `http.rs` artifact route + test visibility
+**Files:** 5
 - `native/vtz/src/server/mcp.rs` (modify — register tool, add JSON schema, wire handler)
 - `native/vtz/src/server/http.rs` (modify — add `/__vertz_artifacts/screenshots/:filename` handler)
 - `native/vtz/src/server/diagnostics.rs` (modify — add `screenshotPool` field)
 - `native/vtz/src/server/screenshot/mod.rs` (modify — public `capture_tool(args) -> Result<...>` entrypoint)
+- `native/vtz/src/lib.rs` (modify — add `#[cfg(any(test, feature = "test-exports"))] pub use server::screenshot;` so `native/vtz/tests/` integration tests can reach the module. Alternative: put all screenshot integration tests as `#[tokio::test] async fn` inside the module itself under `#[cfg(test)]` — pick this if `lib.rs` exports are contentious)
 
 **What:** End-to-end wiring. MCP tool schema matches `VertzBrowserScreenshotArgs`. Error variants map to MCP `isError: true` with `code`, `message`, and variant-specific fields.
 
@@ -737,7 +804,7 @@ Narrow because no auth, no overlay, no external attack surface:
 
 ## Approval checklist
 
-- [ ] **DX:** Tool signature, description, error codes, viewport/fullPage/target/waitFor ergonomics
+- [ ] **DX:** Tool signature, description, error codes, viewport/fullPage/crop/waitFor ergonomics
 - [ ] **Product:** Scope matches the "Phase 1 only" agreement from the reviews on PR #2866; success criteria are measurable
 - [ ] **Technical:** POC numbers cover the "needs POC" slot from design-and-planning rule; implementation tasks are sized ≤5 files each; BrowserSpawner trait is the right seam for testability
 - [ ] **User (Matheus):** Final sign-off
@@ -752,8 +819,29 @@ PR #2866 was merged to main before this doc was written — the big doc is now h
 
 ## Changelog (post-initial-review revisions)
 
-This doc incorporates feedback from three adversarial reviews run against the initial version:
+This doc went through two rounds of adversarial review. Each round fixed concrete issues found in the previous version.
 
-- **DX review** → `target: union` locator (was CSS-only string); added `waitFor` param; added `AUTH_REQUIRED` / `PAGE_HTTP_ERROR` / `PAGE_JS_ERROR` / `SELECTOR_AMBIGUOUS` / `URL_INVALID` / `ARTIFACT_WRITE_FAILED` error codes; tool description rewritten to disambiguate from `vertz_browser_*` session tools and explicitly state auth-route behavior.
-- **Product review** → dogfooding criterion now has owner (Matheus), target (`linear-clone` kanban), and pass/fail (3 consecutive PRs); removed `--no-screenshot` and `--screenshot-pool` flags (violated #2); Task 6 (binary-size decision gate) moved to Task 2 (before the `chromiumoxide` dep lands); added P7 no-regression criterion.
-- **Technical review** → `BrowserSpawner` / `BrowserHandle` trait signatures now specified; pool state machine gained explicit `Launching` state with `OnceCell` serialization for concurrent calls; BDD scenarios explicitly map to Rust `#[tokio::test]` (not vitest); path sanitization moved from artifacts module (Task 1) to HTTP route (Task 5); `.local.rs` convention replaced with `#[ignore]`; `.dockerignore` claim corrected (scaffold doesn't write one today, add in Task 6); `$HOME` unwritable fallback added to Task 3.
+### v2 (first review round — addressed 8 blockers)
+
+- **DX** → `selector: string` → `target: union` locator (was CSS-only string); added `waitFor` param; added `AUTH_REQUIRED` / `PAGE_HTTP_ERROR` / `PAGE_JS_ERROR` / `SELECTOR_AMBIGUOUS` / `URL_INVALID` / `ARTIFACT_WRITE_FAILED` error codes; tool description rewritten.
+- **Product** → dogfooding criterion gained owner / target / pass-fail; removed `--no-screenshot` and `--screenshot-pool` flags; binary-size decision moved to Task 2; added P7 criterion.
+- **Technical** → `BrowserSpawner` / `BrowserHandle` trait signatures specified; pool gained `Launching` state with `OnceCell`; BDD scenarios mapped to Rust `#[tokio::test]`; path sanitization moved to HTTP route.
+
+### v3 (second review round — addressed regressions + new blockers)
+
+The v2 revision introduced a Product REGRESSION (CONDITIONAL → BLOCKED) and new Technical blockers. v3 fixes the factual errors and design issues the re-reviews caught:
+
+- **Factual corrections:**
+  - Dogfooding target path `apps/linear-clone/` → `examples/linear/` (the `apps/` path did not exist; showcase is at `examples/linear/` with 28 `.tsx` files)
+  - `linear-clone-kanban-board` dropped as the named target (it shipped in #1283/#1294 already) — replaced with a "any active linear plan during the Phase 1 window" spec, with fallback to non-linear UI work
+  - P5 evaluation window decoupled from the Phase 1 branch merge (Phase 1 is pure Rust, produces no `.tsx` changes itself — P5 is now a 2-week post-merge retro, not a pre-merge gate)
+  - Shutdown description: "watch channel" → axum's `.with_graceful_shutdown(shutdown_future)` + `shutdown_signal()` (verified at `native/vtz/src/server/http.rs` ~line 2015/2028)
+- **Design fixes:**
+  - Param `target` → `crop` — avoids semantic collision with `vertz_browser_click.target` (which accepts element refs; our tool does not, and same-name-different-semantics is the #3 "LLM-first" trap)
+  - `AUTH_REQUIRED` heuristic tightened: dropped `/auth/.*` regex (false-positive on `/auth/callback`, `/dashboard/auth-overview`); path-based check is now exact-match on `/login`/`/signin`/`/signup`; DOM-based check requires "form is primary element" to avoid flagging landing pages with inline sign-up widgets
+  - `BrowserHandle::capture(&mut self)` → `capture(&self)` with interior mutability; `Box<dyn BrowserHandle>` → `Arc<dyn BrowserHandle>` so the pool can clone and spawn warm captures concurrently (addresses the "Mutex<PoolState> serializes warm captures" critique)
+  - `crate::screenshot::Error` type now fully defined inline (thiserror-derived enum unifying every variant from fetcher/pool/capture)
+  - Task 2 `stat -f%z` (macOS-only) → `wc -c < binary` (portable)
+  - Task 5 grows from 4 to 5 files to include `lib.rs` `pub use` so `native/vtz/tests/` can reach the screenshot module
+  - Removed `allowAuthPage: true` from the `AUTH_REQUIRED` doc-block; it was referenced as a v2 flag but the tool description advertised it, creating inconsistency. Phase 1 accepts the limitation; Phase N re-evaluates.
+  - Carried `crop` naming through the entire doc (Type Flow, BDD scenarios, Rust enum → `CropSpec`, error fields `target` → `crop`, manifesto alignment row)
