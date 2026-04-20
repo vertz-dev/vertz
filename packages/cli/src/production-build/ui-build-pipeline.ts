@@ -666,11 +666,23 @@ ${modulepreloadLinks}
       }
 
       if (prerenderableRoutes.length > 0) {
-        // Pre-render each route
+        // Pre-render each route. Per-route failures are logged as warnings
+        // and skipped so one broken component doesn't sink the whole build
+        // — the healthy routes still get pre-rendered HTML.
+        const routeErrors: Array<{ path: string; error: Error }> = [];
         const results = await prerenderRoutes(ssrModule, html, {
           routes: prerenderableRoutes,
           fallbackMetrics,
+          onRouteError: (path, error) => {
+            routeErrors.push({ path, error });
+            console.log(`  ⚠ Pre-render failed for ${path}: ${error.message.split('\n')[0]}`);
+          },
         });
+        if (routeErrors.length > 0) {
+          console.log(
+            `  ⚠ ${routeErrors.length} of ${prerenderableRoutes.length} route(s) skipped due to render errors`,
+          );
+        }
 
         // Only strip JS from static pages when the app uses islands mode.
         // Detect islands mode: at least one pre-rendered page has a data-v-island marker.
