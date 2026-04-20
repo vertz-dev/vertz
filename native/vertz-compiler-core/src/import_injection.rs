@@ -190,6 +190,18 @@ fn strip_comments(code: &str) -> String {
                 }
                 continue;
             }
+            // `/` that's not a comment may start a regex literal. If so, skip
+            // it verbatim — otherwise a backtick INSIDE the regex body (e.g.
+            // `/`([^`]+)`/`) would be misread as a template-literal opener and
+            // swallow every helper call that follows. See #2878.
+            if is_regex_start(&chars, i) {
+                let end = skip_regex_literal(&chars, i);
+                for &c in &chars[i..end] {
+                    result.push(c);
+                }
+                i = end;
+                continue;
+            }
         }
 
         // Replace string literal contents with spaces to avoid false matches.
@@ -221,6 +233,123 @@ fn strip_comments(code: &str) -> String {
     }
 
     result
+}
+
+/// Decide whether `/` at `pos` starts a regex literal (versus a division
+/// operator). Uses the classic heuristic: if the previous non-whitespace
+/// character produces an expression value (identifier, number, `)`, `]`, `}`),
+/// `/` is division; otherwise it starts a regex.
+fn is_regex_start(chars: &[char], pos: usize) -> bool {
+    if pos + 1 >= chars.len() {
+        return false;
+    }
+    let next = chars[pos + 1];
+    // Comment starts are handled earlier; a regex body can't begin with `*`.
+    if next == '/' || next == '*' {
+        return false;
+    }
+    // An empty regex `//` is rejected above. A single `/` at EOF falls through.
+
+    // Walk backwards to the previous non-whitespace char.
+    let mut j = pos;
+    loop {
+        if j == 0 {
+            // No preceding token — we're at the top of the file, which is a
+            // valid regex context (e.g. an expression statement).
+            return true;
+        }
+        j -= 1;
+        if !chars[j].is_whitespace() {
+            break;
+        }
+    }
+    let prev = chars[j];
+    // Characters that end an expression value — a `/` after these is division.
+    if prev.is_ascii_alphanumeric() || prev == '_' || prev == '$' {
+        // Could still be a keyword (return, typeof, etc.) — check the token.
+        let token_end = j + 1;
+        let mut token_start = token_end;
+        while token_start > 0 {
+            let c = chars[token_start - 1];
+            if c.is_ascii_alphanumeric() || c == '_' || c == '$' {
+                token_start -= 1;
+            } else {
+                break;
+            }
+        }
+        let token: String = chars[token_start..token_end].iter().collect();
+        // Keywords that take an expression afterwards → the `/` starts a regex.
+        matches!(
+            token.as_str(),
+            "return"
+                | "typeof"
+                | "instanceof"
+                | "in"
+                | "of"
+                | "delete"
+                | "void"
+                | "new"
+                | "throw"
+                | "yield"
+                | "await"
+                | "case"
+                | "do"
+                | "else"
+        )
+    } else {
+        // Division follows `)`, `]`, `}` — otherwise it's a regex.
+        !matches!(prev, ')' | ']' | '}')
+    }
+}
+
+/// Scan a regex literal starting at `start` (which points at the opening `/`).
+/// Returns the index just past the closing `/` and any flags. If the regex is
+/// unterminated, returns the end of the line (regex literals can't span
+/// newlines outside a character class).
+///
+/// The caller copies the spanned range VERBATIM into the stripped output —
+/// that's intentional and load-bearing. `is_regex_start` is a heuristic and
+/// returns `true` for a few false positives (e.g. `i++ / 2`). Keeping the
+/// "regex" body verbatim means helper calls inside a false-positive body
+/// still get detected by `contains_standalone_call`, so the outcome stays
+/// correct even when the classification is wrong. Don't switch to erasing
+/// the body with spaces without first tightening the heuristic.
+fn skip_regex_literal(chars: &[char], start: usize) -> usize {
+    let len = chars.len();
+    debug_assert_eq!(chars[start], '/');
+    let mut i = start + 1;
+    let mut in_char_class = false;
+    while i < len {
+        match chars[i] {
+            '\\' if i + 1 < len => {
+                // Escape sequence — skip next char verbatim
+                i += 2;
+            }
+            '[' => {
+                in_char_class = true;
+                i += 1;
+            }
+            ']' if in_char_class => {
+                in_char_class = false;
+                i += 1;
+            }
+            '/' if !in_char_class => {
+                i += 1;
+                // Consume flag characters
+                while i < len && chars[i].is_ascii_alphabetic() {
+                    i += 1;
+                }
+                return i;
+            }
+            '\n' => {
+                // Unterminated regex — stop at the newline so we don't eat
+                // more of the file than necessary.
+                return i;
+            }
+            _ => i += 1,
+        }
+    }
+    i
 }
 
 /// Check if `name(` appears as a standalone call (not a method call like `obj.name(`
@@ -613,6 +742,61 @@ mod tests {
         let code = r#"const x = "computed(() => v)";"#;
         let result = inject(code);
         assert_eq!(result, code);
+    }
+
+    #[test]
+    fn backtick_in_regex_does_not_eat_rest_of_file() {
+        // Regex literals may contain literal backticks (e.g. `/`([^`]+)`/`).
+        // Before the fix, the scanner entered template-literal mode at the
+        // first backtick and kept scanning for a closing backtick to EOF,
+        // erasing every helper call that followed. See #2878.
+        let code = "
+function RichText(text) {
+  const parts = text.split(/`([^`]+)`/);
+  return parts.map((p) => p);
+}
+export function Features() {
+  __element('section');
+  __flushMountFrame();
+}
+";
+        let result = inject(code);
+        assert!(
+            result.contains("__element") && result.contains("__flushMountFrame"),
+            "expected both helpers to be injected; got: {result}"
+        );
+    }
+
+    #[test]
+    fn division_after_identifier_is_not_regex() {
+        // Regression guard: `a / b` must not be treated as a regex literal,
+        // otherwise normal division expressions would trigger regex-skipping.
+        let code = "function f() { const a = 10; const b = 2; const c = a / b; __element('div'); }";
+        let result = inject(code);
+        assert!(result.contains("__element"), "got: {result}");
+    }
+
+    #[test]
+    fn slash_inside_regex_char_class_does_not_terminate_scan() {
+        // `/[/]/` — the `/` inside the character class must NOT close the
+        // regex early; if it did, the rest of the literal would be parsed
+        // as source and the trailing `/` would (wrongly) start another regex.
+        let code = "function f() { const r = /[/]/; __element('div'); }";
+        let result = inject(code);
+        assert!(result.contains("__element"), "got: {result}");
+    }
+
+    #[test]
+    fn unterminated_regex_at_newline_stops_scan_at_newline() {
+        // Syntactically invalid source: a `/` that looks like a regex start
+        // but never terminates on the same line. The scanner must stop at
+        // `\n` so that helpers on later lines still get detected.
+        let code = "function broken() { const r = /oops\n__element('div');\n}";
+        let result = inject(code);
+        assert!(
+            result.contains("__element"),
+            "expected later-line helpers to still be detected; got: {result}"
+        );
     }
 
     // ── All DOM helpers detected ───────────────────────────────────
