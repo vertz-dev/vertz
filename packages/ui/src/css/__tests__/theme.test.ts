@@ -123,6 +123,40 @@ describe('compileTheme()', () => {
     expect(css).toContain('--spacing-lg: 1.5rem');
   });
 
+  it('generates font-size custom properties from fontSize scale', () => {
+    const theme = defineTheme({
+      colors: {},
+      fontSize: { xs: '0.75rem', base: '1rem', lg: '1.125rem' },
+    });
+    const { css, tokens } = compileTheme(theme);
+    expect(css).toContain('--font-size-xs: 0.75rem');
+    expect(css).toContain('--font-size-base: 1rem');
+    expect(css).toContain('--font-size-lg: 1.125rem');
+    expect(tokens).toContain('font.size.xs');
+  });
+
+  it('generates font-weight custom properties from fontWeight scale', () => {
+    const theme = defineTheme({
+      colors: {},
+      fontWeight: { medium: '500', semibold: '600' },
+    });
+    const { css, tokens } = compileTheme(theme);
+    expect(css).toContain('--font-weight-medium: 500');
+    expect(css).toContain('--font-weight-semibold: 600');
+    expect(tokens).toContain('font.weight.medium');
+  });
+
+  it('generates font-line-height custom properties from fontLineHeight scale', () => {
+    const theme = defineTheme({
+      colors: {},
+      fontLineHeight: { tight: '1.25', relaxed: '1.625' },
+    });
+    const { css, tokens } = compileTheme(theme);
+    expect(css).toContain('--font-line-height-tight: 1.25');
+    expect(css).toContain('--font-line-height-relaxed: 1.625');
+    expect(tokens).toContain('font.lineHeight.relaxed');
+  });
+
   it('dark block only contains dark overrides, not raw tokens', () => {
     const theme = defineTheme({
       colors: {

@@ -36,7 +36,17 @@ export type {
   NestedSelectorBlock,
 } from './global-css';
 export { globalCss } from './global-css';
-export type { CompiledTheme, CompileThemeOptions, Theme, ThemeInput } from './theme';
+export type {
+  ColorTokens,
+  CompiledTheme,
+  CompileThemeOptions,
+  FontLineHeightTokens,
+  FontSizeTokens,
+  FontWeightTokens,
+  SpacingTokens,
+  Theme,
+  ThemeInput,
+} from './theme';
 export { compileTheme, defineTheme } from './theme';
 export type {
   TokenPath,

@@ -337,6 +337,15 @@ ${modulepreloadLinks}
 
     writeFileSync(resolve(distClient, '_shell.html'), html);
 
+    // Seed `index.html` with the SPA shell. If `/` pre-renders successfully
+    // below, the pre-render step overwrites this with the static HTML. If
+    // not (e.g. the root component crashes during SSR), `index.html` is still
+    // a valid hydratable shell — which is what Cloudflare's
+    // `not_found_handling = "single-page-application"` expects to serve for
+    // any unknown route. Without this, a failed `/` pre-render produces a
+    // dist with no `index.html` and every unrendered path 404s.
+    writeFileSync(resolve(distClient, 'index.html'), html);
+
     // ── 4. Copy public/ → dist/client/ ────────────────────────────
     if (existsSync(publicDir)) {
       cpSync(publicDir, distClient, { recursive: true });
