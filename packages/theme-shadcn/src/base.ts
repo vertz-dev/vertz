@@ -208,6 +208,18 @@ export function configureThemeBase(config?: ThemeConfig): ResolvedThemeBase {
     },
     ':root': {
       '--radius': RADIUS_VALUES[radius] ?? '0.375rem',
+      // shadcn-style radius scale: `token.radius.xs|sm|md|lg|xl|2xl|3xl|full`
+      // compiles to `var(--radius-*)`, so these must resolve out of the box —
+      // otherwise `border-radius` falls back to 0 and components ship with
+      // squared corners (including radios, avatars, and other `full` shapes).
+      '--radius-xs': 'calc(var(--radius) - 6px)',
+      '--radius-sm': 'calc(var(--radius) - 4px)',
+      '--radius-md': 'calc(var(--radius) - 2px)',
+      '--radius-lg': 'var(--radius)',
+      '--radius-xl': 'calc(var(--radius) + 4px)',
+      '--radius-2xl': 'calc(var(--radius) + 8px)',
+      '--radius-3xl': 'calc(var(--radius) + 12px)',
+      '--radius-full': '9999px',
     },
     body: {
       fontFamily:

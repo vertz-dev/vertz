@@ -8,6 +8,22 @@ describe('theme globals', () => {
     expect(globals.css).toContain('dialog:not([open])');
     expect(globals.css).toContain('display: none');
   });
+
+  // Regression guard: `token.radius.lg` compiles to `var(--radius-lg)`, but
+  // only `--radius` was being emitted — so `border-radius` fell back to 0 and
+  // every button/card shipped with squared corners. Emit the shadcn-style
+  // calc-based scale plus `full` so the radius tokens resolve out of the box.
+  it('emits shadcn-style calc-based radius scale vars so token.radius.* resolves', () => {
+    const { globals } = configureThemeBase();
+    expect(globals.css).toContain('--radius-xs: calc(var(--radius) - 6px)');
+    expect(globals.css).toContain('--radius-sm: calc(var(--radius) - 4px)');
+    expect(globals.css).toContain('--radius-md: calc(var(--radius) - 2px)');
+    expect(globals.css).toContain('--radius-lg: var(--radius)');
+    expect(globals.css).toContain('--radius-xl: calc(var(--radius) + 4px)');
+    expect(globals.css).toContain('--radius-2xl: calc(var(--radius) + 8px)');
+    expect(globals.css).toContain('--radius-3xl: calc(var(--radius) + 12px)');
+    expect(globals.css).toContain('--radius-full: 9999px');
+  });
 });
 
 describe('configureThemeBase() default scales', () => {
