@@ -100,41 +100,64 @@ fn png_signature() -> [u8; 4] {
     [0x89, b'P', b'N', b'G']
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+/// Hard ceiling per test — hangs inside Chrome (common on slow CI runners,
+/// or when a sandbox/quarantine prompt blocks launch) become clear test
+/// failures instead of silent job-timeout cancellations. 45s comfortably
+/// covers cold-start + a couple captures on macos-latest.
+const TEST_DEADLINE: Duration = Duration::from_secs(45);
+
+async fn with_deadline<F, T>(name: &str, fut: F) -> T
+where
+    F: std::future::Future<Output = T>,
+{
+    match tokio::time::timeout(TEST_DEADLINE, fut).await {
+        Ok(v) => v,
+        Err(_) => panic!(
+            "[screenshot_e2e::{name}] exceeded {}s deadline — Chrome likely hung on launch or \
+             navigation. Check runner Chrome install / sandbox profile.",
+            TEST_DEADLINE.as_secs()
+        ),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "requires local Chrome; run via: cargo test -- --ignored screenshot_e2e"]
 async fn e2e_captures_viewport_png() {
     let Some(chrome) = require_local_chrome_or_skip("e2e_captures_viewport_png") else {
         return;
     };
-    let (url, _server) = spawn_fixture_server().await;
+    with_deadline("e2e_captures_viewport_png", async move {
+        let (url, _server) = spawn_fixture_server().await;
 
-    let pool = Pool::new(
-        Arc::new(ChromiumoxideSpawner::new()),
-        default_config(chrome),
-        DEFAULT_TTL,
-    );
-    let (bytes, meta) = pool
-        .capture(CaptureRequest {
-            url: url.clone(),
-            viewport: (1280, 720),
-            full_page: false,
-            crop: None,
-            wait_for: WaitCondition::NetworkIdle,
-        })
-        .await
-        .expect("capture");
+        let pool = Pool::new(
+            Arc::new(ChromiumoxideSpawner::new()),
+            default_config(chrome),
+            DEFAULT_TTL,
+        );
+        let (bytes, meta) = pool
+            .capture(CaptureRequest {
+                url: url.clone(),
+                viewport: (1280, 720),
+                full_page: false,
+                crop: None,
+                wait_for: WaitCondition::NetworkIdle,
+            })
+            .await
+            .expect("capture");
 
-    assert_eq!(&bytes[..4], &png_signature());
-    assert!(bytes.len() > 1024, "png payload looks too small");
-    assert!(
-        meta.final_url.starts_with("http://127.0.0.1"),
-        "unexpected final_url: {}",
-        meta.final_url
-    );
-    pool.shutdown().await;
+        assert_eq!(&bytes[..4], &png_signature());
+        assert!(bytes.len() > 1024, "png payload looks too small");
+        assert!(
+            meta.final_url.starts_with("http://127.0.0.1"),
+            "unexpected final_url: {}",
+            meta.final_url
+        );
+        pool.shutdown().await;
+    })
+    .await
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "requires local Chrome; run via: cargo test -- --ignored screenshot_e2e"]
 async fn e2e_full_page_exceeds_viewport_height() {
     let Some(chrome) = require_local_chrome_or_skip("e2e_full_page_exceeds_viewport_height") else {
@@ -191,7 +214,7 @@ async fn e2e_full_page_exceeds_viewport_height() {
     pool.shutdown().await;
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "requires local Chrome; run via: cargo test -- --ignored screenshot_e2e"]
 async fn e2e_css_crop_produces_small_image() {
     let Some(chrome) = require_local_chrome_or_skip("e2e_css_crop_produces_small_image") else {
@@ -227,7 +250,7 @@ async fn e2e_css_crop_produces_small_image() {
     pool.shutdown().await;
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "requires local Chrome; run via: cargo test -- --ignored screenshot_e2e"]
 async fn e2e_cold_start_under_budget() {
     let Some(chrome) = require_local_chrome_or_skip("e2e_cold_start_under_budget") else {
@@ -264,7 +287,7 @@ async fn e2e_cold_start_under_budget() {
     pool.shutdown().await;
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "requires local Chrome; run via: cargo test -- --ignored screenshot_e2e"]
 async fn e2e_warm_capture_reuses_browser() {
     let Some(chrome) = require_local_chrome_or_skip("e2e_warm_capture_reuses_browser") else {
@@ -313,7 +336,7 @@ async fn e2e_warm_capture_reuses_browser() {
     pool.shutdown().await;
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "requires local Chrome; run via: cargo test -- --ignored screenshot_e2e"]
 async fn e2e_pool_shutdown_leaves_no_orphan_chrome() {
     let Some(chrome) = require_local_chrome_or_skip("e2e_pool_shutdown_leaves_no_orphan_chrome")
