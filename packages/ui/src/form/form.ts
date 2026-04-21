@@ -1,7 +1,7 @@
 import type { Result } from '@vertz/fetch';
+import { coerceFormDataToSchema, coerceLeaf } from '@vertz/schema';
 import { computed, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal } from '../runtime/signal-types';
-import { coerceFormDataToSchema, coerceLeaf } from './coerce';
 import { createFieldState, type FieldState } from './field-state';
 import { formDataToObject } from './form-data';
 import type { FormSchema } from './validation';

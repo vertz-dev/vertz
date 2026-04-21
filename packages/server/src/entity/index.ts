@@ -13,7 +13,7 @@ export type {
   ListOptions,
   ListResult,
 } from './crud-pipeline';
-export { createCrudHandlers } from './crud-pipeline';
+export { createCrudHandlers, deriveEntityApiSchemas } from './crud-pipeline';
 export { entity } from './entity';
 export type { EntityOperations } from './entity-operations';
 export { EntityRegistry } from './entity-registry';

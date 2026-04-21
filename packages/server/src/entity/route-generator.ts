@@ -3,6 +3,7 @@ import { createActionHandler } from './action-pipeline';
 import { createEntityContext, type RequestInfo as EntityRequestInfo } from './context';
 import {
   createCrudHandlers,
+  deriveEntityApiSchemas,
   type EntityDbAdapter,
   type EntityId,
   type ListOptions,
@@ -167,6 +168,12 @@ export function generateEntityRoutes(
     closureStore: options?.closureStore,
     tenantLevels: options?.tenantLevels,
   });
+  // Derived once for form-body coercion on POST/PATCH routes. The CRUD pipeline
+  // still runs the canonical validation via safeParse and produces
+  // EntityValidationError on failure; these schemas only coerce string-valued
+  // form fields (booleans/numbers/dates) before the pipeline sees them.
+  const { createSchema: apiCreateSchema, updateSchema: apiUpdateSchema } =
+    deriveEntityApiSchemas(def);
   const inject = def.inject ?? {};
   const registryProxy =
     Object.keys(inject).length > 0
@@ -498,6 +505,7 @@ export function generateEntityRoutes(
       routes.push({
         method: 'POST',
         path: basePath,
+        coerceSchema: apiCreateSchema,
         handler: async (ctx: Record<string, unknown>) => {
           try {
             const entityCtx = makeEntityCtx(ctx);
@@ -553,6 +561,7 @@ export function generateEntityRoutes(
       routes.push({
         method: 'PATCH',
         path: `${basePath}${idPath}`,
+        coerceSchema: apiUpdateSchema,
         handler: async (ctx: Record<string, unknown>) => {
           try {
             const entityCtx = makeEntityCtx(ctx);
@@ -669,6 +678,7 @@ export function generateEntityRoutes(
       routes.push({
         method,
         path: actionPath,
+        coerceSchema: method === 'GET' ? undefined : actionDef.body,
         handler: async (ctx: Record<string, unknown>) => {
           try {
             const entityCtx = makeEntityCtx(ctx);

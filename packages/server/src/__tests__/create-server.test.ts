@@ -1267,3 +1267,157 @@ describe('createQueryParentIds', () => {
     expect(ids).toEqual([]);
   });
 });
+
+describe('createServer — server-side form coercion', () => {
+  const tasksTable = d.table('tasks', {
+    id: d.uuid().primary(),
+    title: d.text(),
+    done: d.boolean().default(false),
+    priority: d.integer().default(0),
+  });
+  const tasksModel = d.model(tasksTable);
+
+  function makeApp(captured: { body?: Record<string, unknown> }): ReturnType<typeof createServer> {
+    const mockDb = {
+      async get() {
+        return { id: '1', title: 'x', done: false, priority: 0 };
+      },
+      async list() {
+        return { data: [], total: 0 };
+      },
+      async create(data: Record<string, unknown>) {
+        captured.body = data;
+        return { id: '1', ...data };
+      },
+      async update(_id: string, data: Record<string, unknown>) {
+        captured.body = data;
+        return { id: '1', title: 'x', done: false, priority: 0, ...data };
+      },
+      async delete() {
+        return { id: '1' };
+      },
+    };
+
+    return createServer({
+      basePath: '/',
+      db: mockDb,
+      entities: [
+        {
+          name: 'tasks',
+          model: tasksModel,
+          access: {
+            list: () => true,
+            get: () => true,
+            create: () => true,
+            update: () => true,
+            delete: () => true,
+          },
+          before: {},
+          after: {},
+          actions: {},
+          relations: {},
+        },
+      ] as never[],
+    });
+  }
+
+  it('coerces x-www-form-urlencoded boolean+number fields on POST create', async () => {
+    const captured: { body?: Record<string, unknown> } = {};
+    const app = makeApp(captured);
+
+    const response = await app.handler(
+      new Request('http://localhost/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'title=buy+milk&done=on&priority=3',
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(captured.body).toEqual({ title: 'buy milk', done: true, priority: 3 });
+  });
+
+  it('leaves an unchecked boolean field as false on POST create when its key is absent', async () => {
+    const captured: { body?: Record<string, unknown> } = {};
+    const app = makeApp(captured);
+
+    const response = await app.handler(
+      new Request('http://localhost/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'title=only-title',
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(captured.body?.title).toBe('only-title');
+    expect(captured.body?.done).toBe(false);
+  });
+
+  it('coerces urlencoded fields on PATCH update', async () => {
+    const captured: { body?: Record<string, unknown> } = {};
+    const app = makeApp(captured);
+
+    const response = await app.handler(
+      new Request('http://localhost/api/tasks/1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'done=on&priority=5',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(captured.body?.done).toBe(true);
+    expect(captured.body?.priority).toBe(5);
+  });
+
+  it('reaches the same handler state from three submit modes (JSON, no-JS form post, curl --data-urlencode)', async () => {
+    // All three paths should produce `{ title: 'buy milk', done: true, priority: 3 }`
+    // at the handler. The JS form() path coerces client-side and sends JSON; the
+    // progressive-enhancement and curl paths send urlencoded strings that the
+    // server must coerce before handing to the handler.
+    const captured: { body?: Record<string, unknown> } = {};
+    const app = makeApp(captured);
+
+    // 1. JS form() path — already-coerced JSON
+    const jsonResponse = await app.handler(
+      new Request('http://localhost/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'buy milk', done: true, priority: 3 }),
+      }),
+    );
+    expect(jsonResponse.status).toBe(201);
+    const jsonBody = captured.body;
+
+    // 2. No-JS <form> submit — browser sends urlencoded strings
+    captured.body = undefined;
+    const noJsResponse = await app.handler(
+      new Request('http://localhost/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'title=buy+milk&done=on&priority=3',
+      }),
+    );
+    expect(noJsResponse.status).toBe(201);
+    const noJsBody = captured.body;
+
+    // 3. curl --data-urlencode — also urlencoded, may use different
+    // boolean spellings ("true") than the browser's checkbox "on".
+    captured.body = undefined;
+    const curlResponse = await app.handler(
+      new Request('http://localhost/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'title=buy%20milk&done=true&priority=3',
+      }),
+    );
+    expect(curlResponse.status).toBe(201);
+    const curlBody = captured.body;
+
+    // All three paths converge on the same coerced object.
+    expect(jsonBody).toEqual({ title: 'buy milk', done: true, priority: 3 });
+    expect(noJsBody).toEqual(jsonBody);
+    expect(curlBody).toEqual(jsonBody);
+  });
+});

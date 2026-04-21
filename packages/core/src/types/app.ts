@@ -31,6 +31,14 @@ export interface EntityRouteEntry {
   handler: (ctx: Record<string, unknown>) => unknown;
   paramsSchema?: SchemaLike;
   bodySchema?: SchemaLike;
+  /**
+   * Schema used to coerce form-encoded bodies (string fields → boolean/number/etc.)
+   * before the handler runs. Unlike `bodySchema`, the runtime does not enforce
+   * validation against this schema — handlers remain responsible for validation.
+   * Provided by route generators that want automatic form coercion without
+   * duplicating validation error formatting.
+   */
+  coerceSchema?: SchemaLike;
   querySchema?: SchemaLike;
   headersSchema?: SchemaLike;
   responseSchema?: SchemaLike;

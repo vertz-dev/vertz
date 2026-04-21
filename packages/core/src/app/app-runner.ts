@@ -98,6 +98,7 @@ interface RouteEntry {
   middlewares: ResolvedMiddleware[];
   paramsSchema?: SchemaLike;
   bodySchema?: SchemaLike;
+  coerceSchema?: SchemaLike;
   querySchema?: SchemaLike;
   headersSchema?: SchemaLike;
   responseSchema?: SchemaLike;
@@ -133,6 +134,7 @@ export function buildHandler(
         middlewares: [],
         paramsSchema: route.paramsSchema,
         bodySchema: route.bodySchema,
+        coerceSchema: route.coerceSchema,
         querySchema: route.querySchema,
         headersSchema: route.headersSchema,
         responseSchema: route.responseSchema,
@@ -164,7 +166,10 @@ export function buildHandler(
         return createJsonResponse({ error: { code: 'NotFound', message: 'Not Found' } }, 404);
       }
 
-      const body = await parseBody(request);
+      const entry = match.handler;
+      const body = await parseBody(request, {
+        coerceSchema: entry.coerceSchema ?? entry.bodySchema,
+      });
 
       const raw = {
         request: parsed.raw,
@@ -182,8 +187,6 @@ export function buildHandler(
       };
 
       const middlewareState = await runMiddlewareChain(resolvedMiddlewares, requestCtx);
-
-      const entry = match.handler;
 
       // Run route-level middlewares after global ones
       if (entry.middlewares.length > 0) {
