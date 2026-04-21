@@ -3,6 +3,7 @@ import {
   apiDevelopmentRuleTemplate,
   appComponentTemplate,
   claudeMdTemplate,
+  devServerToolsRuleTemplate,
   clientTemplate,
   dbTemplate,
   entryClientTemplate,
@@ -178,6 +179,38 @@ describe('templates', () => {
       expect(result).toContain('dist/');
       expect(result).toContain('.vertz/');
       expect(result).toContain('*.db');
+    });
+  });
+
+  describe('devServerToolsRuleTemplate', () => {
+    it('lists vertz_browser_screenshot in the tool table', () => {
+      const result = devServerToolsRuleTemplate();
+      expect(result).toContain('vertz_browser_screenshot');
+      expect(result).toContain('Headless pixel-perfect PNG');
+    });
+
+    it('includes the visual verification section', () => {
+      const result = devServerToolsRuleTemplate();
+      expect(result).toContain('Visual verification with screenshots');
+      expect(result).toContain("vertz_browser_screenshot({ url: '<the-affected-route>' })");
+    });
+
+    it('documents multi-viewport and component-isolated patterns', () => {
+      const result = devServerToolsRuleTemplate();
+      expect(result).toContain('375');
+      expect(result).toContain('1280');
+      expect(result).toContain("crop: '.my-component'");
+      expect(result).toContain("crop: { text: 'Save' }");
+    });
+
+    it('tells agents where screenshots are persisted', () => {
+      const result = devServerToolsRuleTemplate();
+      expect(result).toContain('.vertz/artifacts/screenshots/');
+    });
+
+    it('includes an explicit skip clause for non-UI changes', () => {
+      const result = devServerToolsRuleTemplate();
+      expect(result).toContain('When to skip screenshots');
     });
   });
 
