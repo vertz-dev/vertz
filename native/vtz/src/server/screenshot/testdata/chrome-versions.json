@@ -1,0 +1,34 @@
+{
+  "timestamp": "2026-04-15T09:00:00.000Z",
+  "channels": {
+    "Stable": {
+      "channel": "Stable",
+      "version": "125.0.6422.141",
+      "revision": "1287751",
+      "downloads": {
+        "chrome-headless-shell": [
+          {
+            "platform": "linux64",
+            "url": "https://edgedl.me.gvt1.example/chrome-for-testing/125.0.6422.141/linux64/chrome-headless-shell-linux64.zip"
+          },
+          {
+            "platform": "mac-arm64",
+            "url": "https://edgedl.me.gvt1.example/chrome-for-testing/125.0.6422.141/mac-arm64/chrome-headless-shell-mac-arm64.zip"
+          },
+          {
+            "platform": "mac-x64",
+            "url": "https://edgedl.me.gvt1.example/chrome-for-testing/125.0.6422.141/mac-x64/chrome-headless-shell-mac-x64.zip"
+          },
+          {
+            "platform": "win32",
+            "url": "https://edgedl.me.gvt1.example/chrome-for-testing/125.0.6422.141/win32/chrome-headless-shell-win32.zip"
+          },
+          {
+            "platform": "win64",
+            "url": "https://edgedl.me.gvt1.example/chrome-for-testing/125.0.6422.141/win64/chrome-headless-shell-win64.zip"
+          }
+        ]
+      }
+    }
+  }
+}
