@@ -10,6 +10,7 @@
   },
   "files": [
     "dist",
+    "client.d.ts",
     "reactivity.json"
   ],
   "type": "module",
@@ -62,6 +63,9 @@
     "./components": {
       "types": "./dist/components/index.d.ts",
       "import": "./dist/components/index.js"
+    },
+    "./client": {
+      "types": "./client.d.ts"
     },
     "./reactivity.json": "./reactivity.json"
   },

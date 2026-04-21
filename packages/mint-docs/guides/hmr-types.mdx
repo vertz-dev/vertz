@@ -7,13 +7,22 @@ description: 'Type `import.meta.hot` in a Vertz app using the `vertz/client` aug
 
 ## Explicit opt-in (optional)
 
-If a file uses `import.meta.hot` without importing from any of those subpaths (e.g. a standalone client entry that only imports from `@vertz/ui` directly), wire the types up explicitly:
+If a file uses `import.meta.hot` without importing from any of those subpaths (e.g. a standalone client entry that only imports from `@vertz/ui` directly), wire the types up explicitly. Pick the subpath that matches what you install:
 
 ```jsonc
-// tsconfig.json
+// tsconfig.json — apps on the full framework
 {
   "compilerOptions": {
     "types": ["vertz/client"],
+  },
+}
+```
+
+```jsonc
+// tsconfig.json — UI-only consumers (no `vertz` dependency)
+{
+  "compilerOptions": {
+    "types": ["@vertz/ui/client"],
   },
 }
 ```
@@ -22,10 +31,11 @@ Or, per-file:
 
 ```ts
 /// <reference types="vertz/client" />
+// or: /// <reference types="@vertz/ui/client" />
 import.meta.hot?.accept();
 ```
 
-Newly-scaffolded apps (via `create-vertz-app`) already include the tsconfig entry.
+Both subpaths resolve to the same augmentation — `vertz/client` re-exports `@vertz/ui/client` via a triple-slash reference, so they cannot drift. Newly-scaffolded apps (via `create-vertz-app`) already include the `vertz/client` tsconfig entry.
 
 ## The `ImportMetaHot` surface
 
