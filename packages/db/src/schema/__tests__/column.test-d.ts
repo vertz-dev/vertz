@@ -96,6 +96,16 @@ describe('column type inference', () => {
     const col = d.enum('role', ['admin', 'editor']);
     type _t1 = Expect<Equal<InferColumnType<typeof col>, 'admin' | 'editor'>>;
   });
+
+  it('d.bytea() infers Uint8Array', () => {
+    const col = d.bytea();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, Uint8Array>>;
+  });
+
+  it('d.bytea().nullable() infers Uint8Array | null', () => {
+    const col = d.bytea().nullable();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, Uint8Array | null>>;
+  });
 });
 
 describe('chainable builder type inference', () => {
@@ -248,6 +258,33 @@ describe('validation constraint type scoping', () => {
   it('d.uuid() does NOT support .min()', () => {
     // @ts-expect-error — uuid has no min
     d.uuid().min(1);
+  });
+
+  it('d.bytea() supports .min() and .max() for byte-length constraints', () => {
+    d.bytea().min(32);
+    d.bytea().max(1024);
+    d.bytea().min(1).max(64);
+  });
+
+  it('d.bytea() does NOT support .regex()', () => {
+    // @ts-expect-error — bytea has no regex
+    d.bytea().regex(/abc/);
+  });
+
+  it('d.bytea() rejects non-Uint8Array assignment at the type level', () => {
+    const col = d.bytea();
+    type T = InferColumnType<typeof col>;
+    const _valid: T = new Uint8Array([1, 2, 3]);
+    // @ts-expect-error — string is not assignable to Uint8Array
+    const _s: T = 'bytes';
+    // @ts-expect-error — number is not assignable to Uint8Array
+    const _n: T = 42;
+    // @ts-expect-error — number[] is not assignable to Uint8Array
+    const _arr: T = [1, 2, 3];
+    void _valid;
+    void _s;
+    void _n;
+    void _arr;
   });
 
   it('constraint methods survive chaining with base methods', () => {

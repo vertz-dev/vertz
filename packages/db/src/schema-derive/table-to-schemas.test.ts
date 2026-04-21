@@ -536,6 +536,61 @@ describe('tableToSchemas', () => {
     });
   });
 
+  describe('bytea columns', () => {
+    const withBytea = d.table('with_bytea', {
+      id: d.uuid().primary(),
+      payload: d.bytea(),
+      sig: d.bytea().min(2).max(4),
+    });
+
+    it('accepts Uint8Array for bytea columns', () => {
+      const { createBody } = tableToSchemas(withBytea);
+      const result = createBody.safeParse({
+        payload: new Uint8Array([1, 2, 3]),
+        sig: new Uint8Array([9, 9]),
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it('rejects non-Uint8Array values for bytea columns', () => {
+      const { createBody } = tableToSchemas(withBytea);
+      expect(createBody.safeParse({ payload: 'not bytes', sig: new Uint8Array([1, 2]) }).ok).toBe(
+        false,
+      );
+      expect(createBody.safeParse({ payload: [1, 2, 3], sig: new Uint8Array([1, 2]) }).ok).toBe(
+        false,
+      );
+    });
+
+    it('enforces min byte length for bytea columns', () => {
+      const { createBody } = tableToSchemas(withBytea);
+      const result = createBody.safeParse({
+        payload: new Uint8Array([0]),
+        sig: new Uint8Array([9]), // 1 byte, below min=2
+      });
+      expect(result.ok).toBe(false);
+    });
+
+    it('enforces max byte length for bytea columns', () => {
+      const { createBody } = tableToSchemas(withBytea);
+      const result = createBody.safeParse({
+        payload: new Uint8Array([0]),
+        sig: new Uint8Array([1, 2, 3, 4, 5]), // 5 bytes, above max=4
+      });
+      expect(result.ok).toBe(false);
+    });
+
+    it('accepts boundary byte lengths (inclusive min/max)', () => {
+      const { createBody } = tableToSchemas(withBytea);
+      expect(
+        createBody.safeParse({ payload: new Uint8Array(0), sig: new Uint8Array([1, 2]) }).ok,
+      ).toBe(true);
+      expect(
+        createBody.safeParse({ payload: new Uint8Array(0), sig: new Uint8Array([1, 2, 3, 4]) }).ok,
+      ).toBe(true);
+    });
+  });
+
   describe('email with constraints', () => {
     const withEmail = d.table('with_email', {
       id: d.uuid().primary(),

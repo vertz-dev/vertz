@@ -44,6 +44,9 @@ export class SqliteDialect implements Dialect {
         return 'INTEGER';
       case 'serial':
         return 'INTEGER';
+      case 'bytea':
+      case 'blob':
+        return 'BLOB';
       default:
         return 'TEXT';
     }

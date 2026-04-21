@@ -96,6 +96,14 @@ describe('PostgresDialect', () => {
     expect(dialect.mapColumnType('vector')).toBe('vector');
   });
 
+  it('mapColumnType: bytea -> BYTEA', () => {
+    expect(dialect.mapColumnType('bytea')).toBe('BYTEA');
+  });
+
+  it('mapColumnType: blob (snapshot alias) -> BYTEA', () => {
+    expect(dialect.mapColumnType('blob')).toBe('BYTEA');
+  });
+
   it('mapColumnType: unknown type -> TEXT', () => {
     expect(dialect.mapColumnType('unknown')).toBe('TEXT');
   });

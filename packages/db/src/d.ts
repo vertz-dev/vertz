@@ -1,4 +1,5 @@
 import type {
+  BytesColumnBuilder,
   ColumnBuilder,
   DecimalMeta,
   DefaultMeta,
@@ -113,6 +114,43 @@ export const d: {
   jsonb<T = unknown>(
     schemaOrOpts?: SchemaLike<T> | { validator: JsonbValidator<T> },
   ): ColumnBuilder<T, DefaultMeta<'jsonb'>>;
+  /**
+   * Binary column — stores an opaque byte sequence.
+   *
+   * - **Postgres:** native `BYTEA` type.
+   * - **SQLite / Cloudflare D1:** native `BLOB` type.
+   *
+   * TypeScript infers `Uint8Array`. Reads round-trip losslessly on both
+   * dialects:
+   * - SQLite read path normalizes driver output (`Buffer`, `ArrayBuffer`) to a
+   *   plain `Uint8Array` so callers never see backend-specific objects.
+   * - Postgres (via the `postgres` package / `pg`) returns `Buffer`, which *is*
+   *   a `Uint8Array` subclass — `instanceof Uint8Array` is `true` and all
+   *   `Uint8Array` methods work — but keeps its `Buffer` prototype rather than
+   *   being slice-copied. Reference checks like
+   *   `Object.getPrototypeOf(v) === Uint8Array.prototype` will be `false` on
+   *   Postgres.
+   *
+   * `.min(n)` and `.max(n)` validate byte length (reuses the string-length
+   * constraint pipeline).
+   *
+   * **Driver support:** Cloudflare D1, `better-sqlite3`, `bun:sqlite`, and the
+   * `postgres` / `pg` packages all handle `BYTEA`/`BLOB` parameters natively.
+   * The built-in `vtz` runtime's native SQLite binding (`@vertz/sqlite`) does
+   * not yet support binary parameters — see [#2920](https://github.com/vertz-dev/vertz/issues/2920).
+   * Use a Node / Bun / Workers target when you need `d.bytea()` in a local
+   * SQLite file today.
+   *
+   * @example
+   * ```ts
+   * const tenant = d.table('tenant', {
+   *   id: d.uuid().primary(),
+   *   encryptedDek: d.bytea(),
+   *   sig: d.bytea().min(64).max(64), // exactly 64 bytes
+   * });
+   * ```
+   */
+  bytea(): BytesColumnBuilder<Uint8Array, DefaultMeta<'bytea'>>;
   textArray(): ColumnBuilder<string[], DefaultMeta<'text[]'>>;
   integerArray(): ColumnBuilder<number[], DefaultMeta<'integer[]'>>;
   vector<TDimensions extends number>(
@@ -223,6 +261,11 @@ export const d: {
       opts?.validator ? { validator: opts.validator } : {},
     );
   },
+  bytea: () =>
+    createColumn<Uint8Array, DefaultMeta<'bytea'>>('bytea') as unknown as BytesColumnBuilder<
+      Uint8Array,
+      DefaultMeta<'bytea'>
+    >,
   vector: <TDimensions extends number>(dimensions: TDimensions) => {
     if (!Number.isInteger(dimensions) || dimensions < 1 || dimensions > 16000) {
       throw new Error(

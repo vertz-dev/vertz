@@ -144,6 +144,63 @@ export interface StringColumnBuilder<
   check(sql: string): StringColumnBuilder<TType, Omit<TMeta, 'check'> & { readonly check: string }>;
 }
 
+/** Bytes column builder — adds .min(), .max() for byte-length constraints. */
+export interface BytesColumnBuilder<
+  TType,
+  TMeta extends ColumnMetadata = ColumnMetadata,
+> extends ColumnBuilder<TType, TMeta> {
+  min(n: number): BytesColumnBuilder<TType, TMeta>;
+  max(n: number): BytesColumnBuilder<TType, TMeta>;
+
+  // Redeclare base methods to preserve BytesColumnBuilder return type through chaining
+  primary(options?: {
+    generate?: 'cuid' | 'uuid' | 'nanoid';
+    generated?: boolean;
+  }): BytesColumnBuilder<
+    TType,
+    Omit<TMeta, 'primary' | 'hasDefault' | 'generate'> & {
+      readonly primary: true;
+      readonly hasDefault: true;
+      readonly generate?: 'cuid' | 'uuid' | 'nanoid';
+    }
+  >;
+  unique(): BytesColumnBuilder<TType, Omit<TMeta, 'unique'> & { readonly unique: true }>;
+  nullable(): BytesColumnBuilder<
+    TType | null,
+    Omit<TMeta, 'nullable'> & { readonly nullable: true }
+  >;
+  default(
+    value: TType | 'now',
+  ): BytesColumnBuilder<
+    TType,
+    Omit<TMeta, 'hasDefault'> & { readonly hasDefault: true; readonly defaultValue: TType | 'now' }
+  >;
+  is<TFlag extends string>(
+    flag: TFlag,
+  ): BytesColumnBuilder<
+    TType,
+    Omit<TMeta, '_annotations'> & {
+      readonly _annotations: TMeta['_annotations'] & { readonly [K in TFlag]: true };
+    }
+  >;
+  hidden(): BytesColumnBuilder<
+    TType,
+    Omit<TMeta, '_annotations'> & {
+      readonly _annotations: TMeta['_annotations'] & { readonly hidden: true };
+    }
+  >;
+  readOnly(): BytesColumnBuilder<TType, Omit<TMeta, 'isReadOnly'> & { readonly isReadOnly: true }>;
+  autoUpdate(): BytesColumnBuilder<
+    TType,
+    Omit<TMeta, 'isAutoUpdate' | 'isReadOnly' | 'hasDefault'> & {
+      readonly isAutoUpdate: true;
+      readonly isReadOnly: true;
+      readonly hasDefault: true;
+    }
+  >;
+  check(sql: string): BytesColumnBuilder<TType, Omit<TMeta, 'check'> & { readonly check: string }>;
+}
+
 /** Numeric column builder — adds .min(), .max() for numeric-type columns. */
 export interface NumericColumnBuilder<
   TType,
@@ -333,14 +390,14 @@ function createColumnWithMeta(meta: ColumnMetadata): ColumnBuilderImpl {
     },
     min(n: number) {
       const sqlType = this._meta.sqlType;
-      if (sqlType === 'text' || sqlType === 'varchar') {
+      if (sqlType === 'text' || sqlType === 'varchar' || sqlType === 'bytea') {
         return cloneWith(this, { _minLength: n });
       }
       return cloneWith(this, { _minValue: n });
     },
     max(n: number) {
       const sqlType = this._meta.sqlType;
-      if (sqlType === 'text' || sqlType === 'varchar') {
+      if (sqlType === 'text' || sqlType === 'varchar' || sqlType === 'bytea') {
         return cloneWith(this, { _maxLength: n });
       }
       return cloneWith(this, { _maxValue: n });

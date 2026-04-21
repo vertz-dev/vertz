@@ -49,6 +49,9 @@ export class PostgresDialect implements Dialect {
         return meta?.enumName ?? 'TEXT';
       case 'vector':
         return meta?.dimensions ? `vector(${meta.dimensions})` : 'vector';
+      case 'bytea':
+      case 'blob':
+        return 'BYTEA';
       default:
         return 'TEXT';
     }

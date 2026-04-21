@@ -65,6 +65,14 @@ describe('SqliteDialect', () => {
       expect(dialect.mapColumnType('serial')).toBe('INTEGER');
     });
 
+    it('maps bytea to BLOB', () => {
+      expect(dialect.mapColumnType('bytea')).toBe('BLOB');
+    });
+
+    it('maps introspect alias "blob" to BLOB (SQLite introspect emits lowercase blob)', () => {
+      expect(dialect.mapColumnType('blob')).toBe('BLOB');
+    });
+
     it('maps unknown types to TEXT', () => {
       expect(dialect.mapColumnType('unknown')).toBe('TEXT');
     });

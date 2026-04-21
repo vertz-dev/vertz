@@ -121,4 +121,108 @@ describe('SQLite integration (via D1 mock)', () => {
     // Value conversion: SQLite returned ISO string, JS gets Date
     expect(result[0].createdAt).toBeInstanceOf(Date);
   });
+
+  // -------------------------------------------------------------------------
+  // d.bytea() round-trip (issue #2843)
+  // -------------------------------------------------------------------------
+
+  const secretsTable = d.table('secrets', {
+    id: d.uuid().primary(),
+    dek: d.bytea(),
+    nonce: d.bytea().nullable(),
+  });
+  const byteaModels = { secrets: d.model(secretsTable) };
+
+  function createByteaMockD1(listRow: Record<string, unknown>): {
+    d1: D1Database;
+    bindCalls: unknown[][];
+  } {
+    const bindCalls: unknown[][] = [];
+    const d1: D1Database = {
+      prepare: mock(() => {
+        const stmt: D1PreparedStatement = {
+          bind: mock(function (this: D1PreparedStatement, ...values: unknown[]) {
+            bindCalls.push(values);
+            return this;
+          }),
+          all: mock(async () => ({
+            results: [listRow],
+            success: true,
+          })),
+          run: mock(async () => ({
+            results: [listRow],
+            success: true,
+            meta: { changes: 1 },
+          })),
+          first: mock(async () => null),
+        } as unknown as D1PreparedStatement;
+        return stmt;
+      }),
+    } as unknown as D1Database;
+    return { d1, bindCalls };
+  }
+
+  it('SQLite bytea: round-trips a small Uint8Array with Buffer → Uint8Array normalization', async () => {
+    const stored = new Uint8Array([0xde, 0xad, 0xbe, 0xef, 0x00, 0xff]);
+    // Simulate Node-style drivers returning a Buffer; the converter must
+    // normalize it to a plain Uint8Array on read.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Buffer probe
+    const asBuffer = (globalThis as any).Buffer?.from(stored) ?? stored;
+    const { d1, bindCalls } = createByteaMockD1({ id: 'bytea-1', dek: asBuffer, nonce: null });
+
+    const db = createDb({ dialect: 'sqlite', d1, models: byteaModels });
+    const created = unwrap(await db.secrets.create({ data: { id: 'bytea-1', dek: stored } }));
+    expect(created.dek).toBeInstanceOf(Uint8Array);
+    expect(Array.from(created.dek)).toEqual(Array.from(stored));
+
+    const sawBytea = bindCalls.some((params) =>
+      params.some(
+        (p) => p instanceof Uint8Array && Array.from(p).join(',') === '222,173,190,239,0,255',
+      ),
+    );
+    expect(sawBytea).toBe(true);
+
+    const [row] = unwrap(await db.secrets.list());
+    expect(row.dek).toBeInstanceOf(Uint8Array);
+    expect(Object.getPrototypeOf(row.dek)).toBe(Uint8Array.prototype);
+    expect(Array.from(row.dek)).toEqual(Array.from(stored));
+  });
+
+  it('SQLite bytea: empty Uint8Array(0) round-trips as zero-length buffer', async () => {
+    const empty = new Uint8Array(0);
+    const { d1 } = createByteaMockD1({ id: 'empty-1', dek: empty, nonce: null });
+
+    const db = createDb({ dialect: 'sqlite', d1, models: byteaModels });
+    const created = unwrap(await db.secrets.create({ data: { id: 'empty-1', dek: empty } }));
+    expect(created.dek).toBeInstanceOf(Uint8Array);
+    expect(created.dek.byteLength).toBe(0);
+  });
+
+  it('SQLite bytea: large (~256 KB) payload round-trips without truncation', async () => {
+    const size = 256 * 1024;
+    const payload = new Uint8Array(size);
+    for (let i = 0; i < size; i++) payload[i] = i & 0xff;
+    const { d1 } = createByteaMockD1({ id: 'big-1', dek: payload, nonce: null });
+
+    const db = createDb({ dialect: 'sqlite', d1, models: byteaModels });
+    const created = unwrap(await db.secrets.create({ data: { id: 'big-1', dek: payload } }));
+    expect(created.dek.byteLength).toBe(size);
+    expect(created.dek[0]).toBe(0);
+    expect(created.dek[size - 1]).toBe((size - 1) & 0xff);
+  });
+
+  it('SQLite bytea: nullable column passes null through on reads', async () => {
+    const { d1 } = createByteaMockD1({
+      id: 'nullable-1',
+      dek: new Uint8Array([1, 2, 3]),
+      nonce: null,
+    });
+    const db = createDb({ dialect: 'sqlite', d1, models: byteaModels });
+    const created = unwrap(
+      await db.secrets.create({
+        data: { id: 'nullable-1', dek: new Uint8Array([1, 2, 3]), nonce: null },
+      }),
+    );
+    expect(created.nonce).toBe(null);
+  });
 });

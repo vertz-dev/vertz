@@ -1,5 +1,5 @@
 import type { SchemaAny } from '@vertz/schema';
-import { NumberSchema, StringSchema, s } from '@vertz/schema';
+import { InstanceOfSchema, NumberSchema, StringSchema, s } from '@vertz/schema';
 import type { ColumnMetadata } from '../schema/column';
 
 /**
@@ -56,6 +56,8 @@ function mapSqlType(meta: ColumnMetadata): SchemaAny {
       return s.string();
     case 'jsonb':
       return s.unknown();
+    case 'bytea':
+      return s.instanceof(Uint8Array);
     case 'text[]':
       return s.array(s.string());
     case 'integer[]':
@@ -91,6 +93,24 @@ function applyConstraints(schema: SchemaAny, meta: ColumnMetadata): SchemaAny {
     }
     if (meta._maxValue != null) {
       result = (result as NumberSchema).max(meta._maxValue);
+    }
+  }
+
+  // Byte-length constraints for bytea (reuse _minLength / _maxLength).
+  if (meta.sqlType === 'bytea' && result instanceof InstanceOfSchema) {
+    const min = meta._minLength;
+    const max = meta._maxLength;
+    if (min != null) {
+      result = result.refine(
+        (v: Uint8Array) => v instanceof Uint8Array && v.byteLength >= min,
+        `Byte length must be at least ${min}`,
+      );
+    }
+    if (max != null) {
+      result = result.refine(
+        (v: Uint8Array) => v instanceof Uint8Array && v.byteLength <= max,
+        `Byte length must be at most ${max}`,
+      );
     }
   }
 

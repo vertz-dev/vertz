@@ -139,6 +139,7 @@ export { createSnapshot } from './migration/snapshot';
 export { validateIndexes } from './migration/validate-indexes';
 // Schema types
 export type {
+  BytesColumnBuilder,
   ColumnBuilder,
   ColumnMetadata,
   DecimalMeta,
