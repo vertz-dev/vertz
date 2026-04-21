@@ -541,9 +541,8 @@ describe('Feature: d.jsonb validator on writes', () => {
         const rows = Array.from({ length: 100 }, (_, i) => ({ name: `r${i}` }));
         const res = await db.plain.createMany({ data: rows });
         expect(res.ok).toBe(true);
-        // Note: SQLite's INSERT-without-RETURNING path doesn't surface a
-        // driver-level rowCount today (separate issue from this ticket), so we
-        // verify persistence via list() rather than `res.data.count`.
+        if (!res.ok) throw new TypeError('createMany failed');
+        expect(res.data.count).toBe(100);
         const listed = await db.plain.list({});
         expect(listed.ok).toBe(true);
         if (!listed.ok) throw new TypeError('list failed');

@@ -109,6 +109,98 @@ export function isReadQuery(sqlStr: string): boolean {
   return upper.startsWith('SELECT');
 }
 
+/**
+ * Strip SQL comments (`--`, `/* ... * /`) AND string literals (`'...'`,
+ * `"..."`) in a single left-to-right pass, replacing each with an equivalent
+ * amount of whitespace so column positions (and therefore `\b` word
+ * boundaries) are preserved. Doubled quotes (`''`, `""`) escape.
+ *
+ * Unterminated comments / strings consume the remaining tail. Used by the
+ * write-routing heuristic below so trailing / mid-statement comments don't
+ * produce false-negatives when they happen to contain SQL keywords.
+ */
+function stripSqlCommentsAndStrings(sql: string): string {
+  let out = '';
+  let i = 0;
+  while (i < sql.length) {
+    const a = sql[i];
+    const b = sql[i + 1];
+    // Line comment: -- ... \n
+    if (a === '-' && b === '-') {
+      const nl = sql.indexOf('\n', i + 2);
+      if (nl === -1) {
+        out += ' '.repeat(sql.length - i);
+        return out;
+      }
+      out += ' '.repeat(nl - i);
+      i = nl; // keep the newline
+      continue;
+    }
+    // Block comment: /* ... */
+    if (a === '/' && b === '*') {
+      const end = sql.indexOf('*/', i + 2);
+      if (end === -1) {
+        out += ' '.repeat(sql.length - i);
+        return out;
+      }
+      out += ' '.repeat(end + 2 - i);
+      i = end + 2;
+      continue;
+    }
+    // String literal: '...' or "..."
+    if (a === "'" || a === '"') {
+      const quote = a;
+      out += ' ';
+      i++;
+      while (i < sql.length) {
+        if (sql[i] === quote) {
+          if (sql[i + 1] === quote) {
+            out += '  ';
+            i += 2;
+            continue;
+          }
+          out += ' ';
+          i++;
+          break;
+        }
+        out += ' ';
+        i++;
+      }
+      continue;
+    }
+    out += a;
+    i++;
+  }
+  return out;
+}
+
+/**
+ * Detect a top-level write statement (`INSERT` / `UPDATE` / `DELETE` /
+ * `TRUNCATE` / `REPLACE`) that does **not** carry a `RETURNING` clause.
+ *
+ * The SQLite queryFn wrapper uses this to dispatch such statements through
+ * `driver.execute()` (`stmt.run()`), which reports `changes` — rather than
+ * `driver.query()` (`stmt.all()`), which returns an empty result set for
+ * writes without a RETURNING clause, causing `rowCount` to collapse to `0`.
+ *
+ * Writable CTEs (`WITH ... INSERT/UPDATE/DELETE`) are NOT classified as
+ * write-without-RETURNING by this helper, because their outer wrapper is a
+ * `SELECT` that must still go through `query()` to surface rows.
+ */
+export function isWriteWithoutReturning(sql: string): boolean {
+  const normalized = stripSqlCommentsAndStrings(sql).trim();
+  if (!normalized) return false;
+  const upper = normalized.toUpperCase();
+  const startsWithWrite =
+    upper.startsWith('INSERT ') ||
+    upper.startsWith('UPDATE ') ||
+    upper.startsWith('DELETE ') ||
+    upper.startsWith('REPLACE ') ||
+    upper.startsWith('TRUNCATE ');
+  if (!startsWithWrite) return false;
+  return !/\bRETURNING\b/i.test(normalized);
+}
+
 // ---------------------------------------------------------------------------
 // Pool configuration
 // ---------------------------------------------------------------------------
@@ -1003,11 +1095,20 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
       const tableSchema = buildTableSchema(models);
       sqliteDriver = createSqliteDriver(options.d1, tableSchema);
 
-      // Return a query function that wraps the SQLite driver
-      // SQLite driver returns rows[], but QueryFn expects { rows, rowCount }
+      // Return a query function that wraps the SQLite driver.
+      //
+      // SQLite driver splits rows vs. changes between two methods: `query()`
+      // (`stmt.all()`) returns rows and cannot see `changes`; `execute()`
+      // (`stmt.run()`) reports `changes` but returns no rows. Writes without
+      // a RETURNING clause therefore MUST go through `execute()` — otherwise
+      // `rowCount` collapses to the length of an empty row array (see #2890).
       return async <T>(sqlStr: string, params: readonly unknown[]) => {
         if (!sqliteDriver) {
           throw new Error('SQLite driver not initialized');
+        }
+        if (isWriteWithoutReturning(sqlStr)) {
+          const res = await sqliteDriver.execute(sqlStr, params as unknown[]);
+          return { rows: [] as T[], rowCount: res.rowsAffected };
         }
         const rows = await sqliteDriver.query<T>(sqlStr, params as unknown[]);
         return { rows, rowCount: rows.length };
@@ -1057,6 +1158,10 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
       return async <T>(sqlStr: string, params: readonly unknown[]) => {
         const driver = await ensureDriver();
         await ensureMigrated();
+        if (isWriteWithoutReturning(sqlStr)) {
+          const res = await driver.execute(sqlStr, params as unknown[]);
+          return { rows: [] as T[], rowCount: res.rowsAffected };
+        }
         const rows = await driver.query<T>(sqlStr, params as unknown[]);
         return { rows, rowCount: rows.length };
       };
