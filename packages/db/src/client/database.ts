@@ -110,55 +110,65 @@ export function isReadQuery(sqlStr: string): boolean {
 }
 
 /**
- * Strip leading SQL comments (`--`, `/* ... * /`, `//`) and whitespace.
- * Returns the first non-comment / non-whitespace slice of `sql`. If a comment
- * is unterminated, returns the empty string — callers treat that as "no
- * detectable verb" and fall back to their safe default.
+ * Strip SQL comments (`--`, `/* ... * /`) AND string literals (`'...'`,
+ * `"..."`) in a single left-to-right pass, replacing each with an equivalent
+ * amount of whitespace so column positions (and therefore `\b` word
+ * boundaries) are preserved. Doubled quotes (`''`, `""`) escape.
+ *
+ * Unterminated comments / strings consume the remaining tail. Used by the
+ * write-routing heuristic below so trailing / mid-statement comments don't
+ * produce false-negatives when they happen to contain SQL keywords.
  */
-function stripLeadingSqlComments(sql: string): string {
-  let s = sql.trim();
-  while (s.startsWith('--') || s.startsWith('/*') || s.startsWith('//')) {
-    if (s.startsWith('--') || s.startsWith('//')) {
-      const nl = s.indexOf('\n');
-      if (nl === -1) return '';
-      s = s.slice(nl + 1).trim();
-    } else {
-      const end = s.indexOf('*/');
-      if (end === -1) return '';
-      s = s.slice(end + 2).trim();
-    }
-  }
-  return s;
-}
-
-/**
- * Strip SQL string literals (both `'...'` and `"..."`) from a statement so
- * word-boundary scans don't match keywords that appear inside values /
- * identifiers. Doubled quotes (`''`, `""`) are treated as escapes.
- */
-function stripSqlStringLiterals(sql: string): string {
+function stripSqlCommentsAndStrings(sql: string): string {
   let out = '';
   let i = 0;
   while (i < sql.length) {
-    const ch = sql.charCodeAt(i);
-    if (ch === 39 /* ' */ || ch === 34 /* " */) {
-      const quote = sql[i]!;
+    const a = sql[i];
+    const b = sql[i + 1];
+    // Line comment: -- ... \n
+    if (a === '-' && b === '-') {
+      const nl = sql.indexOf('\n', i + 2);
+      if (nl === -1) {
+        out += ' '.repeat(sql.length - i);
+        return out;
+      }
+      out += ' '.repeat(nl - i);
+      i = nl; // keep the newline
+      continue;
+    }
+    // Block comment: /* ... */
+    if (a === '/' && b === '*') {
+      const end = sql.indexOf('*/', i + 2);
+      if (end === -1) {
+        out += ' '.repeat(sql.length - i);
+        return out;
+      }
+      out += ' '.repeat(end + 2 - i);
+      i = end + 2;
+      continue;
+    }
+    // String literal: '...' or "..."
+    if (a === "'" || a === '"') {
+      const quote = a;
+      out += ' ';
       i++;
       while (i < sql.length) {
         if (sql[i] === quote) {
           if (sql[i + 1] === quote) {
-            // Escaped quote — skip both and keep scanning inside the literal.
+            out += '  ';
             i += 2;
             continue;
           }
+          out += ' ';
           i++;
           break;
         }
+        out += ' ';
         i++;
       }
       continue;
     }
-    out += sql[i];
+    out += a;
     i++;
   }
   return out;
@@ -166,7 +176,7 @@ function stripSqlStringLiterals(sql: string): string {
 
 /**
  * Detect a top-level write statement (`INSERT` / `UPDATE` / `DELETE` /
- * `TRUNCATE`) that does **not** carry a `RETURNING` clause.
+ * `TRUNCATE` / `REPLACE`) that does **not** carry a `RETURNING` clause.
  *
  * The SQLite queryFn wrapper uses this to dispatch such statements through
  * `driver.execute()` (`stmt.run()`), which reports `changes` — rather than
@@ -178,17 +188,17 @@ function stripSqlStringLiterals(sql: string): string {
  * `SELECT` that must still go through `query()` to surface rows.
  */
 export function isWriteWithoutReturning(sql: string): boolean {
-  const trimmed = stripLeadingSqlComments(sql);
-  if (!trimmed) return false;
-  const upper = trimmed.toUpperCase();
+  const normalized = stripSqlCommentsAndStrings(sql).trim();
+  if (!normalized) return false;
+  const upper = normalized.toUpperCase();
   const startsWithWrite =
     upper.startsWith('INSERT ') ||
     upper.startsWith('UPDATE ') ||
     upper.startsWith('DELETE ') ||
+    upper.startsWith('REPLACE ') ||
     upper.startsWith('TRUNCATE ');
   if (!startsWithWrite) return false;
-  const withoutStrings = stripSqlStringLiterals(trimmed);
-  return !/\bRETURNING\b/i.test(withoutStrings);
+  return !/\bRETURNING\b/i.test(normalized);
 }
 
 // ---------------------------------------------------------------------------

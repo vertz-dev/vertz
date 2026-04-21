@@ -234,5 +234,83 @@ describe('Feature: SQLite rowCount for write-without-RETURNING (#2890)', () => {
         isWriteWithoutReturning("INSERT INTO t (note) VALUES ('RETURNING is just text')"),
       ).toBe(true);
     });
+
+    it('ignores RETURNING inside trailing line or block comments', () => {
+      // Trailing line comment — real statement has no RETURNING
+      expect(isWriteWithoutReturning('INSERT INTO t VALUES (1) -- RETURNING is fake')).toBe(true);
+      // Mid-statement block comment — real statement has no RETURNING
+      expect(isWriteWithoutReturning('UPDATE t SET a = 1 /* RETURNING x */')).toBe(true);
+      // Block comment before the verb — real RETURNING still present
+      expect(
+        isWriteWithoutReturning('/* note: RETURNING is inline */ UPDATE t SET a = 1 RETURNING id'),
+      ).toBe(false);
+    });
+
+    it('recognises REPLACE INTO (SQLite write verb) without RETURNING', () => {
+      expect(isWriteWithoutReturning('REPLACE INTO t (id, a) VALUES (1, 2)')).toBe(true);
+      expect(isWriteWithoutReturning('replace into t (id, a) values (1, 2) returning id')).toBe(
+        false,
+      );
+    });
+
+    it('does not classify writable CTEs as write-without-RETURNING (outer wrapper is SELECT)', () => {
+      expect(
+        isWriteWithoutReturning(
+          'WITH cte AS (INSERT INTO t VALUES (1) RETURNING id) SELECT * FROM cte',
+        ),
+      ).toBe(false);
+      expect(
+        isWriteWithoutReturning('with cte as (insert into t values (1)) select * from cte'),
+      ).toBe(false);
+      expect(
+        isWriteWithoutReturning('WITH cte AS (DELETE FROM t WHERE id = 1) SELECT * FROM cte'),
+      ).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Transactions — the new routing must also apply inside db.transaction()
+  // -------------------------------------------------------------------------
+
+  describe('Given a local :memory: SQLite database inside a transaction', () => {
+    describe('When createMany / updateMany run via tx delegates', () => {
+      it('Then each call surfaces accurate { count } and the writes commit', async () => {
+        const plain = d.table('plain', {
+          id: d.uuid().primary({ generate: 'cuid' }),
+          name: d.text(),
+          status: d.text().default('draft'),
+        });
+        const db = createDb({
+          dialect: 'sqlite',
+          path: ':memory:',
+          models: { plain: d.model(plain) },
+          migrations: { autoApply: true },
+        });
+
+        const result = await db.transaction(async (tx) => {
+          const created = await tx.plain.createMany({
+            data: [
+              { name: 'a', status: 'draft' },
+              { name: 'b', status: 'draft' },
+              { name: 'c', status: 'published' },
+            ],
+          });
+          if (!created.ok) throw new TypeError('createMany failed');
+          const updated = await tx.plain.updateMany({
+            where: { status: 'draft' },
+            data: { status: 'archived' },
+          });
+          if (!updated.ok) throw new TypeError('updateMany failed');
+          return { createdCount: created.data.count, updatedCount: updated.data.count };
+        });
+
+        expect(result.createdCount).toBe(3);
+        expect(result.updatedCount).toBe(2);
+
+        const listed = await db.plain.list({});
+        if (!listed.ok) throw new TypeError('list failed');
+        expect(listed.data).toHaveLength(3);
+      });
+    });
   });
 });
