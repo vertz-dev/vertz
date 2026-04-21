@@ -134,6 +134,65 @@ function runJsonbValidators(
 }
 
 // ---------------------------------------------------------------------------
+// SQLite jsonb write marshaling
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-table memoised flag: does the table carry any jsonb/json column? Keeps
+ * the write hot-path cheap on tables with no jsonb columns at all (the vast
+ * majority).
+ */
+const tableHasJsonbColumn = new WeakMap<TableDef<ColumnRecord>, boolean>();
+
+function hasJsonbColumn(table: TableDef<ColumnRecord>): boolean {
+  const cached = tableHasJsonbColumn.get(table);
+  if (cached !== undefined) return cached;
+  let found = false;
+  for (const col of Object.values(table._columns)) {
+    const meta = (col as ColumnBuilder<unknown, ColumnMetadata>)._meta;
+    if (meta.sqlType === 'jsonb' || meta.sqlType === 'json') {
+      found = true;
+      break;
+    }
+  }
+  tableHasJsonbColumn.set(table, found);
+  return found;
+}
+
+/**
+ * SQLite stores `d.jsonb<T>()` as TEXT and the read path always runs
+ * `JSON.parse` on the raw cell. For primitives (strings, numbers, booleans)
+ * written without JSON encoding the parse step would throw — Postgres's JSONB
+ * driver encodes everything automatically, so SQLite needs to match.
+ *
+ * This pass runs after `runJsonbValidators` (so validator output, not caller
+ * input, is what gets serialized) and wraps every jsonb/json column value in
+ * `JSON.stringify`. `null` / `undefined` / `DbExpr` values are skipped so the
+ * SQL generator can emit `NULL` / raw SQL fragments unchanged.
+ *
+ * Postgres writes are unchanged — the pg driver accepts JS values directly.
+ */
+function marshalJsonbWritesForSqlite(
+  table: TableDef<ColumnRecord>,
+  data: Record<string, unknown>,
+  dialect: Dialect,
+): Record<string, unknown> {
+  if (dialect.name !== 'sqlite') return data;
+  if (!hasJsonbColumn(table)) return data;
+  const out: Record<string, unknown> = { ...data };
+  for (const [key, value] of Object.entries(data)) {
+    const col = table._columns[key];
+    if (!col) continue;
+    const meta = (col as ColumnBuilder<unknown, ColumnMetadata>)._meta;
+    if (meta.sqlType !== 'jsonb' && meta.sqlType !== 'json') continue;
+    if (value === null || value === undefined) continue;
+    if (isDbExpr(value)) continue;
+    out[key] = JSON.stringify(value);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Safety guard
 // ---------------------------------------------------------------------------
 
@@ -325,10 +384,11 @@ export async function create<TColumns extends ColumnRecord, T>(
   );
 
   const validated = runJsonbValidators(table, filteredData);
+  const marshaled = marshalJsonbWritesForSqlite(table, validated, dialect);
 
   const result = buildInsert({
     table: table._name,
-    data: validated,
+    data: marshaled,
     returning: returningColumns,
     nowColumns,
     dialect,
@@ -369,7 +429,8 @@ export async function createMany<TColumns extends ColumnRecord>(
         return !readOnlyCols.includes(key);
       }),
     );
-    return runJsonbValidators(table, filtered);
+    const validated = runJsonbValidators(table, filtered);
+    return marshalJsonbWritesForSqlite(table, validated, dialect);
   });
 
   const result = buildInsert({
@@ -416,7 +477,8 @@ export async function createManyAndReturn<TColumns extends ColumnRecord, T>(
         return !readOnlyCols.includes(key);
       }),
     );
-    return runJsonbValidators(table, filtered);
+    const validated = runJsonbValidators(table, filtered);
+    return marshalJsonbWritesForSqlite(table, validated, dialect);
   });
 
   const result = buildInsert({
@@ -479,10 +541,11 @@ export async function update<TColumns extends ColumnRecord, T>(
 
   const allNowColumns = [...new Set([...nowColumns, ...autoUpdateCols])];
   const validated = runJsonbValidators(table, filteredData);
+  const marshaled = marshalJsonbWritesForSqlite(table, validated, dialect);
 
   const result = buildUpdate({
     table: table._name,
-    data: validated,
+    data: marshaled,
     where: options.where,
     returning: returningColumns,
     nowColumns: allNowColumns,
@@ -538,10 +601,11 @@ export async function updateMany<TColumns extends ColumnRecord>(
 
   const allNowColumns = [...new Set([...nowColumns, ...autoUpdateCols])];
   const validated = runJsonbValidators(table, filteredData);
+  const marshaled = marshalJsonbWritesForSqlite(table, validated, dialect);
 
   const result = buildUpdate({
     table: table._name,
-    data: validated,
+    data: marshaled,
     where: options.where,
     nowColumns: allNowColumns,
     dialect,
@@ -614,18 +678,20 @@ export async function upsert<TColumns extends ColumnRecord, T>(
   const allNowColumns = [...new Set([...nowColumns, ...autoUpdateCols])];
   const validatedCreate = runJsonbValidators(table, filteredCreate);
   const validatedUpdate = runJsonbValidators(table, filteredUpdate);
-  const updateColumns = Object.keys(validatedUpdate);
+  const marshaledCreate = marshalJsonbWritesForSqlite(table, validatedCreate, dialect);
+  const marshaledUpdate = marshalJsonbWritesForSqlite(table, validatedUpdate, dialect);
+  const updateColumns = Object.keys(marshaledUpdate);
 
   const result = buildInsert({
     table: table._name,
-    data: validatedCreate,
+    data: marshaledCreate,
     returning: returningColumns,
     nowColumns: allNowColumns,
     onConflict: {
       columns: conflictColumns,
       action: 'update',
       updateColumns,
-      updateValues: validatedUpdate,
+      updateValues: marshaledUpdate,
     },
     dialect,
   });

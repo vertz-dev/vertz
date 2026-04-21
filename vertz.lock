@@ -1155,15 +1155,6 @@
   resolved "https://registry.npmjs.org/@esbuild/darwin-arm64/-/darwin-arm64-0.27.3.tgz"
   integrity "sha512-Re491k7ByTVRy0t3EKWajdLIr0gz2kKKfzafkth4Q8A5n1xTHrkqZgLLjFEHVD+AXdUGgQMq+Godfq45mGpCKg=="
 
-@esbuild/darwin-arm64@0.27.7:
-  version "0.27.7"
-  resolved "https://registry.npmjs.org/@esbuild/darwin-arm64/-/darwin-arm64-0.27.7.tgz"
-  integrity "sha512-5lckdqeuBPlKUwvoCXIgI2D9/ABmPq3Rdp7IfL70393YgaASt7tbju3Ac+ePVi3KDH6N2RqePfHnXkaDtY9fkw=="
-  os:
-    "darwin"
-  cpu:
-    "arm64"
-
 @floating-ui/core@^1.7.5:
   version "1.7.5"
   resolved "https://registry.npmjs.org/@floating-ui/core/-/core-1.7.5.tgz"
@@ -1936,10 +1927,14 @@
   resolved "https://registry.npmjs.org/@rolldown/pluginutils/-/pluginutils-1.0.0-rc.3.tgz"
   integrity "sha512-eybk3TjzzzV97Dlj5c+XrBFW57eTNhzod66y9HrBlzJ6NsCrWCp/2kaPS3K9wJmurBC0Tdw4yPjXKZqlznim3Q=="
 
-@rollup/rollup-darwin-arm64@4.60.1:
-  version "4.60.1"
-  resolved "https://registry.npmjs.org/@rollup/rollup-darwin-arm64/-/rollup-darwin-arm64-4.60.1.tgz"
-  integrity "sha512-mjCpF7GmkRtSJwon+Rq1N8+pI+8l7w5g9Z3vWj4T7abguC4Czwi3Yu/pFaLvA3TTeMVjnu3ctigusqWUfjZzvw=="
+@rollup/rollup-darwin-arm64@4.60.2:
+  version "4.60.2"
+  resolved "https://registry.npmjs.org/@rollup/rollup-darwin-arm64/-/rollup-darwin-arm64-4.60.2.tgz"
+  integrity "sha512-UwRE7CGpvSVEQS8gUMBe1uADWjNnVgP3Iusyda1nSRwNDCsRjnGc7w6El6WLQsXmZTbLZx9cecegumcitNfpmA=="
+  os:
+    "darwin"
+  cpu:
+    "arm64"
 
 @shikijs/core@4.0.2:
   version "4.0.2"
@@ -2858,7 +2853,7 @@
     "satori" "0.16.0"
 
 @vertz-benchmarks/vertz-app@link:benchmarks/vertz:
-  version "0.0.69"
+  version "0.0.74"
   resolved "link:benchmarks/vertz"
   integrity ""
 
@@ -2873,12 +2868,12 @@
   integrity ""
 
 @vertz-examples/task-manager@link:examples/task-manager:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:examples/task-manager"
   integrity ""
 
 @vertz/agents@link:packages/agents:
-  version "0.2.47"
+  version "0.2.48"
   resolved "link:packages/agents"
   integrity ""
 
@@ -2893,27 +2888,27 @@
   integrity ""
 
 @vertz/cli-runtime@link:packages/cli-runtime:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/cli-runtime"
   integrity ""
 
 @vertz/cli@link:packages/cli:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/cli"
   integrity ""
 
 @vertz/cloudflare@link:packages/cloudflare:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/cloudflare"
   integrity ""
 
 @vertz/codegen@link:packages/codegen:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/codegen"
   integrity ""
 
 @vertz/compiler@link:packages/compiler:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/compiler"
   integrity ""
 
@@ -2923,22 +2918,22 @@
   integrity ""
 
 @vertz/core@link:packages/core:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/core"
   integrity ""
 
 @vertz/create-vertz-app@link:packages/create-vertz-app:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/create-vertz-app"
   integrity ""
 
 @vertz/db@link:packages/db:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/db"
   integrity ""
 
 @vertz/desktop@link:packages/desktop:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/desktop"
   integrity ""
 
@@ -2953,17 +2948,17 @@
   integrity ""
 
 @vertz/errors@link:packages/errors:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/errors"
   integrity ""
 
 @vertz/fetch@link:packages/fetch:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/fetch"
   integrity ""
 
 @vertz/icons@link:packages/icons:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/icons"
   integrity ""
 
@@ -2998,27 +2993,27 @@
   integrity ""
 
 @vertz/native-compiler-darwin-arm64@link:packages/native-compiler-darwin-arm64:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/native-compiler-darwin-arm64"
   integrity ""
 
 @vertz/native-compiler-darwin-x64@link:packages/native-compiler-darwin-x64:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/native-compiler-darwin-x64"
   integrity ""
 
 @vertz/native-compiler-linux-arm64@link:packages/native-compiler-linux-arm64:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/native-compiler-linux-arm64"
   integrity ""
 
 @vertz/native-compiler-linux-x64@link:packages/native-compiler-linux-x64:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/native-compiler-linux-x64"
   integrity ""
 
 @vertz/native-compiler@link:native/vertz-compiler:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:native/vertz-compiler"
   integrity ""
 
@@ -3028,42 +3023,42 @@
   integrity ""
 
 @vertz/openapi@link:packages/openapi:
-  version "0.1.10"
+  version "0.1.11"
   resolved "link:packages/openapi"
   integrity ""
 
 @vertz/runtime-darwin-arm64@link:packages/runtime-darwin-arm64:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/runtime-darwin-arm64"
   integrity ""
 
 @vertz/runtime-darwin-x64@link:packages/runtime-darwin-x64:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/runtime-darwin-x64"
   integrity ""
 
 @vertz/runtime-linux-arm64@link:packages/runtime-linux-arm64:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/runtime-linux-arm64"
   integrity ""
 
 @vertz/runtime-linux-x64@link:packages/runtime-linux-x64:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/runtime-linux-x64"
   integrity ""
 
 @vertz/runtime@link:packages/runtime:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/runtime"
   integrity ""
 
 @vertz/schema@link:packages/schema:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/schema"
   integrity ""
 
 @vertz/server@link:packages/server:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/server"
   integrity ""
 
@@ -3078,47 +3073,47 @@
   integrity ""
 
 @vertz/test@link:packages/test:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/test"
   integrity ""
 
 @vertz/testing@link:packages/testing:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/testing"
   integrity ""
 
 @vertz/theme-shadcn@link:packages/theme-shadcn:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/theme-shadcn"
   integrity ""
 
 @vertz/tui@link:packages/tui:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/tui"
   integrity ""
 
 @vertz/ui-auth@link:packages/ui-auth:
-  version "0.2.19"
+  version "0.2.20"
   resolved "link:packages/ui-auth"
   integrity ""
 
 @vertz/ui-canvas@link:packages/ui-canvas:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/ui-canvas"
   integrity ""
 
 @vertz/ui-primitives@link:packages/ui-primitives:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/ui-primitives"
   integrity ""
 
 @vertz/ui-server@link:packages/ui-server:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/ui-server"
   integrity ""
 
 @vertz/ui@link:packages/ui:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/ui"
   integrity ""
 
@@ -3160,16 +3155,6 @@
     "chai" "^6.2.2"
     "tinyrainbow" "^3.1.0"
 
-@vitest/mocker@4.1.4:
-  version "4.1.4"
-  resolved "https://registry.npmjs.org/@vitest/mocker/-/mocker-4.1.4.tgz"
-  integrity "sha512-R9HTZBhW6yCSGbGQnDnH3QHfJxokKN4KB+Yvk9Q1le7eQNYwiCyKxmLmurSpFy6BzJanSLuEUDrD+j97Q+ZLPg=="
-  overridden true
-  dependencies:
-    "@vitest/spy" "4.1.4"
-    "estree-walker" "^3.0.3"
-    "magic-string" "^0.30.21"
-
 @vitest/pretty-format@4.1.4:
   version "4.1.4"
   resolved "https://registry.npmjs.org/@vitest/pretty-format/-/pretty-format-4.1.4.tgz"
@@ -3199,6 +3184,11 @@
   version "4.1.4"
   resolved "https://registry.npmjs.org/@vitest/spy/-/spy-4.1.4.tgz"
   integrity "sha512-XxNdAsKW7C+FLydqFJLb5KhJtl3PGCMmYwFRfhvIgxJvLSXhhVI1zM8f1qD3Zg7RCjTSzDVyct6sghs9UEgBEQ=="
+
+@vitest/spy@4.1.5:
+  version "4.1.5"
+  resolved "https://registry.npmjs.org/@vitest/spy/-/spy-4.1.5.tgz"
+  integrity "sha512-2lNOsh6+R2Idnf1TCZqSwYlKN2E/iDlD8sgU59kYVl+OMDmvldO1VDk39smRfpUNwYpNRVn3w4YfuC7KfbBnkQ=="
 
 @vitest/utils@4.1.4:
   version "4.1.4"
@@ -3647,7 +3637,7 @@ cookie@^1.0.2:
   integrity "sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ=="
 
 create-vertz@link:packages/create-vertz:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/create-vertz"
   integrity ""
 
@@ -3966,6 +3956,34 @@ esbuild@0.27.3:
   version "0.27.3"
   resolved "https://registry.npmjs.org/esbuild/-/esbuild-0.27.3.tgz"
   integrity "sha512-8VwMnyGCONIs6cWue2IdpHxHnAjzxnw2Zr7MkVxB2vjmQ2ivqGFb4LEG3SMnv0Gb2F/G/2yA8zUaiL1gywDCCg=="
+  overridden true
+  optionalDependencies:
+    "@esbuild/aix-ppc64" "0.27.3"
+    "@esbuild/android-arm" "0.27.3"
+    "@esbuild/android-arm64" "0.27.3"
+    "@esbuild/android-x64" "0.27.3"
+    "@esbuild/darwin-arm64" "0.27.3"
+    "@esbuild/darwin-x64" "0.27.3"
+    "@esbuild/freebsd-arm64" "0.27.3"
+    "@esbuild/freebsd-x64" "0.27.3"
+    "@esbuild/linux-arm" "0.27.3"
+    "@esbuild/linux-arm64" "0.27.3"
+    "@esbuild/linux-ia32" "0.27.3"
+    "@esbuild/linux-loong64" "0.27.3"
+    "@esbuild/linux-mips64el" "0.27.3"
+    "@esbuild/linux-ppc64" "0.27.3"
+    "@esbuild/linux-riscv64" "0.27.3"
+    "@esbuild/linux-s390x" "0.27.3"
+    "@esbuild/linux-x64" "0.27.3"
+    "@esbuild/netbsd-arm64" "0.27.3"
+    "@esbuild/netbsd-x64" "0.27.3"
+    "@esbuild/openbsd-arm64" "0.27.3"
+    "@esbuild/openbsd-x64" "0.27.3"
+    "@esbuild/openharmony-arm64" "0.27.3"
+    "@esbuild/sunos-x64" "0.27.3"
+    "@esbuild/win32-arm64" "0.27.3"
+    "@esbuild/win32-ia32" "0.27.3"
+    "@esbuild/win32-x64" "0.27.3"
   bin:
     "esbuild" "bin/esbuild"
 
@@ -3973,40 +3991,69 @@ esbuild@^0.27.0:
   version "0.27.3"
   resolved "https://registry.npmjs.org/esbuild/-/esbuild-0.27.3.tgz"
   integrity "sha512-8VwMnyGCONIs6cWue2IdpHxHnAjzxnw2Zr7MkVxB2vjmQ2ivqGFb4LEG3SMnv0Gb2F/G/2yA8zUaiL1gywDCCg=="
+  overridden true
+  optionalDependencies:
+    "@esbuild/aix-ppc64" "0.27.3"
+    "@esbuild/android-arm" "0.27.3"
+    "@esbuild/android-arm64" "0.27.3"
+    "@esbuild/android-x64" "0.27.3"
+    "@esbuild/darwin-arm64" "0.27.3"
+    "@esbuild/darwin-x64" "0.27.3"
+    "@esbuild/freebsd-arm64" "0.27.3"
+    "@esbuild/freebsd-x64" "0.27.3"
+    "@esbuild/linux-arm" "0.27.3"
+    "@esbuild/linux-arm64" "0.27.3"
+    "@esbuild/linux-ia32" "0.27.3"
+    "@esbuild/linux-loong64" "0.27.3"
+    "@esbuild/linux-mips64el" "0.27.3"
+    "@esbuild/linux-ppc64" "0.27.3"
+    "@esbuild/linux-riscv64" "0.27.3"
+    "@esbuild/linux-s390x" "0.27.3"
+    "@esbuild/linux-x64" "0.27.3"
+    "@esbuild/netbsd-arm64" "0.27.3"
+    "@esbuild/netbsd-x64" "0.27.3"
+    "@esbuild/openbsd-arm64" "0.27.3"
+    "@esbuild/openbsd-x64" "0.27.3"
+    "@esbuild/openharmony-arm64" "0.27.3"
+    "@esbuild/sunos-x64" "0.27.3"
+    "@esbuild/win32-arm64" "0.27.3"
+    "@esbuild/win32-ia32" "0.27.3"
+    "@esbuild/win32-x64" "0.27.3"
   bin:
     "esbuild" "bin/esbuild"
 
 esbuild@^0.27.3:
-  version "0.27.7"
-  resolved "https://registry.npmjs.org/esbuild/-/esbuild-0.27.7.tgz"
-  integrity "sha512-IxpibTjyVnmrIQo5aqNpCgoACA/dTKLTlhMHihVHhdkxKyPO1uBBthumT0rdHmcsk9uMonIWS0m4FljWzILh3w=="
+  version "0.27.3"
+  resolved "https://registry.npmjs.org/esbuild/-/esbuild-0.27.3.tgz"
+  integrity "sha512-8VwMnyGCONIs6cWue2IdpHxHnAjzxnw2Zr7MkVxB2vjmQ2ivqGFb4LEG3SMnv0Gb2F/G/2yA8zUaiL1gywDCCg=="
+  overridden true
   optionalDependencies:
-    "@esbuild/aix-ppc64" "0.27.7"
-    "@esbuild/android-arm" "0.27.7"
-    "@esbuild/android-arm64" "0.27.7"
-    "@esbuild/android-x64" "0.27.7"
-    "@esbuild/darwin-arm64" "0.27.7"
-    "@esbuild/darwin-x64" "0.27.7"
-    "@esbuild/freebsd-arm64" "0.27.7"
-    "@esbuild/freebsd-x64" "0.27.7"
-    "@esbuild/linux-arm" "0.27.7"
-    "@esbuild/linux-arm64" "0.27.7"
-    "@esbuild/linux-ia32" "0.27.7"
-    "@esbuild/linux-loong64" "0.27.7"
-    "@esbuild/linux-mips64el" "0.27.7"
-    "@esbuild/linux-ppc64" "0.27.7"
-    "@esbuild/linux-riscv64" "0.27.7"
-    "@esbuild/linux-s390x" "0.27.7"
-    "@esbuild/linux-x64" "0.27.7"
-    "@esbuild/netbsd-arm64" "0.27.7"
-    "@esbuild/netbsd-x64" "0.27.7"
-    "@esbuild/openbsd-arm64" "0.27.7"
-    "@esbuild/openbsd-x64" "0.27.7"
-    "@esbuild/openharmony-arm64" "0.27.7"
-    "@esbuild/sunos-x64" "0.27.7"
-    "@esbuild/win32-arm64" "0.27.7"
-    "@esbuild/win32-ia32" "0.27.7"
-    "@esbuild/win32-x64" "0.27.7"
+    "@esbuild/aix-ppc64" "0.27.3"
+    "@esbuild/android-arm" "0.27.3"
+    "@esbuild/android-arm64" "0.27.3"
+    "@esbuild/android-x64" "0.27.3"
+    "@esbuild/darwin-arm64" "0.27.3"
+    "@esbuild/darwin-x64" "0.27.3"
+    "@esbuild/freebsd-arm64" "0.27.3"
+    "@esbuild/freebsd-x64" "0.27.3"
+    "@esbuild/linux-arm" "0.27.3"
+    "@esbuild/linux-arm64" "0.27.3"
+    "@esbuild/linux-ia32" "0.27.3"
+    "@esbuild/linux-loong64" "0.27.3"
+    "@esbuild/linux-mips64el" "0.27.3"
+    "@esbuild/linux-ppc64" "0.27.3"
+    "@esbuild/linux-riscv64" "0.27.3"
+    "@esbuild/linux-s390x" "0.27.3"
+    "@esbuild/linux-x64" "0.27.3"
+    "@esbuild/netbsd-arm64" "0.27.3"
+    "@esbuild/netbsd-x64" "0.27.3"
+    "@esbuild/openbsd-arm64" "0.27.3"
+    "@esbuild/openbsd-x64" "0.27.3"
+    "@esbuild/openharmony-arm64" "0.27.3"
+    "@esbuild/sunos-x64" "0.27.3"
+    "@esbuild/win32-arm64" "0.27.3"
+    "@esbuild/win32-ia32" "0.27.3"
+    "@esbuild/win32-x64" "0.27.3"
   bin:
     "esbuild" "bin/esbuild"
 
@@ -6138,38 +6185,38 @@ reusify@^1.0.4:
   integrity "sha512-g6QUff04oZpHs0eG5p83rFLhHeV00ug/Yf9nZM6fLeUrPguBTkTQOdpAWWspMh55TZfVQDPaN3NQJfbVRAxdIw=="
 
 rollup@^4.43.0:
-  version "4.60.1"
-  resolved "https://registry.npmjs.org/rollup/-/rollup-4.60.1.tgz"
-  integrity "sha512-VmtB2rFU/GroZ4oL8+ZqXgSA38O6GR8KSIvWmEFv63pQ0G6KaBH9s07PO8XTXP4vI+3UJUEypOfjkGfmSBBR0w=="
+  version "4.60.2"
+  resolved "https://registry.npmjs.org/rollup/-/rollup-4.60.2.tgz"
+  integrity "sha512-J9qZyW++QK/09NyN/zeO0dG/1GdGfyp9lV8ajHnRVLfo/uFsbji5mHnDgn/qYdUHyCkM2N+8VyspgZclfAh0eQ=="
   overridden true
   dependencies:
     "@types/estree" "1.0.8"
   optionalDependencies:
-    "@rollup/rollup-android-arm-eabi" "4.60.1"
-    "@rollup/rollup-android-arm64" "4.60.1"
-    "@rollup/rollup-darwin-arm64" "4.60.1"
-    "@rollup/rollup-darwin-x64" "4.60.1"
-    "@rollup/rollup-freebsd-arm64" "4.60.1"
-    "@rollup/rollup-freebsd-x64" "4.60.1"
-    "@rollup/rollup-linux-arm-gnueabihf" "4.60.1"
-    "@rollup/rollup-linux-arm-musleabihf" "4.60.1"
-    "@rollup/rollup-linux-arm64-gnu" "4.60.1"
-    "@rollup/rollup-linux-arm64-musl" "4.60.1"
-    "@rollup/rollup-linux-loong64-gnu" "4.60.1"
-    "@rollup/rollup-linux-loong64-musl" "4.60.1"
-    "@rollup/rollup-linux-ppc64-gnu" "4.60.1"
-    "@rollup/rollup-linux-ppc64-musl" "4.60.1"
-    "@rollup/rollup-linux-riscv64-gnu" "4.60.1"
-    "@rollup/rollup-linux-riscv64-musl" "4.60.1"
-    "@rollup/rollup-linux-s390x-gnu" "4.60.1"
-    "@rollup/rollup-linux-x64-gnu" "4.60.1"
-    "@rollup/rollup-linux-x64-musl" "4.60.1"
-    "@rollup/rollup-openbsd-x64" "4.60.1"
-    "@rollup/rollup-openharmony-arm64" "4.60.1"
-    "@rollup/rollup-win32-arm64-msvc" "4.60.1"
-    "@rollup/rollup-win32-ia32-msvc" "4.60.1"
-    "@rollup/rollup-win32-x64-gnu" "4.60.1"
-    "@rollup/rollup-win32-x64-msvc" "4.60.1"
+    "@rollup/rollup-android-arm-eabi" "4.60.2"
+    "@rollup/rollup-android-arm64" "4.60.2"
+    "@rollup/rollup-darwin-arm64" "4.60.2"
+    "@rollup/rollup-darwin-x64" "4.60.2"
+    "@rollup/rollup-freebsd-arm64" "4.60.2"
+    "@rollup/rollup-freebsd-x64" "4.60.2"
+    "@rollup/rollup-linux-arm-gnueabihf" "4.60.2"
+    "@rollup/rollup-linux-arm-musleabihf" "4.60.2"
+    "@rollup/rollup-linux-arm64-gnu" "4.60.2"
+    "@rollup/rollup-linux-arm64-musl" "4.60.2"
+    "@rollup/rollup-linux-loong64-gnu" "4.60.2"
+    "@rollup/rollup-linux-loong64-musl" "4.60.2"
+    "@rollup/rollup-linux-ppc64-gnu" "4.60.2"
+    "@rollup/rollup-linux-ppc64-musl" "4.60.2"
+    "@rollup/rollup-linux-riscv64-gnu" "4.60.2"
+    "@rollup/rollup-linux-riscv64-musl" "4.60.2"
+    "@rollup/rollup-linux-s390x-gnu" "4.60.2"
+    "@rollup/rollup-linux-x64-gnu" "4.60.2"
+    "@rollup/rollup-linux-x64-musl" "4.60.2"
+    "@rollup/rollup-openbsd-x64" "4.60.2"
+    "@rollup/rollup-openharmony-arm64" "4.60.2"
+    "@rollup/rollup-win32-arm64-msvc" "4.60.2"
+    "@rollup/rollup-win32-ia32-msvc" "4.60.2"
+    "@rollup/rollup-win32-x64-gnu" "4.60.2"
+    "@rollup/rollup-win32-x64-msvc" "4.60.2"
     "fsevents" "~2.3.2"
   bin:
     "rollup" "dist/bin/rollup"
@@ -6875,7 +6922,7 @@ uuid@^13.0.0:
     "uuid" "dist-node/bin/uuid"
 
 vertz@link:packages/vertz:
-  version "0.2.71"
+  version "0.2.76"
   resolved "link:packages/vertz"
   integrity ""
 

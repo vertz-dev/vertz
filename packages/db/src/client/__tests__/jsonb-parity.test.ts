@@ -75,6 +75,192 @@ describe('Feature: d.jsonb<T>() SQLite parity', () => {
         if (!listed.ok) throw new TypeError('list failed');
         expect(listed.data[0]!.meta).toBe(null);
       });
+
+      it('Then bare strings round-trip as strings', async () => {
+        const strTable = d.table('strnote', {
+          id: d.uuid().primary({ generate: 'cuid' }),
+          note: d.jsonb<string>(),
+        });
+        const db = createDb({
+          dialect: 'sqlite',
+          path: ':memory:',
+          models: { strnote: d.model(strTable) },
+          migrations: { autoApply: true },
+        });
+        const created = await db.strnote.create({ data: { note: 'hello' } });
+        expect(created.ok).toBe(true);
+        if (!created.ok) throw new TypeError('create failed');
+        const listed = await db.strnote.list({});
+        expect(listed.ok).toBe(true);
+        if (!listed.ok) throw new TypeError('list failed');
+        expect(listed.data[0]!.note).toBe('hello');
+      });
+
+      it('Then numbers round-trip as numbers', async () => {
+        const numTable = d.table('numnote', {
+          id: d.uuid().primary({ generate: 'cuid' }),
+          score: d.jsonb<number>(),
+        });
+        const db = createDb({
+          dialect: 'sqlite',
+          path: ':memory:',
+          models: { numnote: d.model(numTable) },
+          migrations: { autoApply: true },
+        });
+        const created = await db.numnote.create({ data: { score: 42 } });
+        expect(created.ok).toBe(true);
+        if (!created.ok) throw new TypeError('create failed');
+        const listed = await db.numnote.list({});
+        expect(listed.ok).toBe(true);
+        if (!listed.ok) throw new TypeError('list failed');
+        expect(listed.data[0]!.score).toBe(42);
+      });
+
+      it('Then booleans round-trip as booleans', async () => {
+        const boolTable = d.table('boolnote', {
+          id: d.uuid().primary({ generate: 'cuid' }),
+          flag: d.jsonb<boolean>(),
+        });
+        const db = createDb({
+          dialect: 'sqlite',
+          path: ':memory:',
+          models: { boolnote: d.model(boolTable) },
+          migrations: { autoApply: true },
+        });
+        const created = await db.boolnote.create({ data: { flag: true } });
+        expect(created.ok).toBe(true);
+        if (!created.ok) throw new TypeError('create failed');
+        const listed = await db.boolnote.list({});
+        expect(listed.ok).toBe(true);
+        if (!listed.ok) throw new TypeError('list failed');
+        expect(listed.data[0]!.flag).toBe(true);
+      });
+
+      it('Then primitives round-trip after update()', async () => {
+        const strTable = d.table('updnote', {
+          id: d.text().primary(),
+          note: d.jsonb<string>(),
+        });
+        const db = createDb({
+          dialect: 'sqlite',
+          path: ':memory:',
+          models: { updnote: d.model(strTable) },
+          migrations: { autoApply: true },
+        });
+        const created = await db.updnote.create({ data: { id: 'a', note: 'first' } });
+        expect(created.ok).toBe(true);
+        const updated = await db.updnote.update({ where: { id: 'a' }, data: { note: 'second' } });
+        expect(updated.ok).toBe(true);
+        if (!updated.ok) throw new TypeError('update failed');
+        expect(updated.data.note).toBe('second');
+      });
+
+      it('Then primitives round-trip after createMany()', async () => {
+        const strTable = d.table('mnote', {
+          id: d.text().primary(),
+          note: d.jsonb<string>(),
+        });
+        const db = createDb({
+          dialect: 'sqlite',
+          path: ':memory:',
+          models: { mnote: d.model(strTable) },
+          migrations: { autoApply: true },
+        });
+        const res = await db.mnote.createMany({
+          data: [
+            { id: 'a', note: 'alpha' },
+            { id: 'b', note: 'beta' },
+          ],
+        });
+        expect(res.ok).toBe(true);
+        if (!res.ok) throw new TypeError('createMany failed');
+        expect(res.data.count).toBe(2);
+        const listed = await db.mnote.list({ orderBy: { id: 'asc' } });
+        expect(listed.ok).toBe(true);
+        if (!listed.ok) throw new TypeError('list failed');
+        expect(listed.data.map((r) => r.note)).toEqual(['alpha', 'beta']);
+      });
+
+      it('Then primitives round-trip after createManyAndReturn()', async () => {
+        const strTable = d.table('mrnote', {
+          id: d.text().primary(),
+          note: d.jsonb<string>(),
+        });
+        const db = createDb({
+          dialect: 'sqlite',
+          path: ':memory:',
+          models: { mrnote: d.model(strTable) },
+          migrations: { autoApply: true },
+        });
+        const res = await db.mrnote.createManyAndReturn({
+          data: [{ id: 'a', note: 'one' }],
+        });
+        expect(res.ok).toBe(true);
+        if (!res.ok) throw new TypeError('createManyAndReturn failed');
+        expect(res.data[0]!.note).toBe('one');
+      });
+
+      it('Then primitives round-trip after updateMany()', async () => {
+        const strTable = d.table('umnote', {
+          id: d.text().primary(),
+          group: d.text(),
+          note: d.jsonb<string>(),
+        });
+        const db = createDb({
+          dialect: 'sqlite',
+          path: ':memory:',
+          models: { umnote: d.model(strTable) },
+          migrations: { autoApply: true },
+        });
+        await db.umnote.createMany({
+          data: [
+            { id: 'a', group: 'g1', note: 'old' },
+            { id: 'b', group: 'g1', note: 'old' },
+          ],
+        });
+        const res = await db.umnote.updateMany({
+          where: { group: 'g1' },
+          data: { note: 'new' },
+        });
+        expect(res.ok).toBe(true);
+        if (!res.ok) throw new TypeError('updateMany failed');
+        expect(res.data.count).toBe(2);
+        const listed = await db.umnote.list({ orderBy: { id: 'asc' } });
+        expect(listed.ok).toBe(true);
+        if (!listed.ok) throw new TypeError('list failed');
+        expect(listed.data.map((r) => r.note)).toEqual(['new', 'new']);
+      });
+
+      it('Then primitives round-trip after upsert() on both create and update branches', async () => {
+        const strTable = d.table('upnote', {
+          id: d.text().primary(),
+          note: d.jsonb<string>(),
+        });
+        const db = createDb({
+          dialect: 'sqlite',
+          path: ':memory:',
+          models: { upnote: d.model(strTable) },
+          migrations: { autoApply: true },
+        });
+        // Insert branch: row doesn't exist, create.note is a primitive.
+        const inserted = await db.upnote.upsert({
+          where: { id: 'a' },
+          create: { id: 'a', note: 'created' },
+          update: { note: 'updated' },
+        });
+        expect(inserted.ok).toBe(true);
+        if (!inserted.ok) throw new TypeError('upsert insert failed');
+        expect(inserted.data.note).toBe('created');
+        // Update branch: row now exists, update.note is a primitive.
+        const updated = await db.upnote.upsert({
+          where: { id: 'a' },
+          create: { id: 'a', note: 'ignored' },
+          update: { note: 'updated' },
+        });
+        expect(updated.ok).toBe(true);
+        if (!updated.ok) throw new TypeError('upsert update failed');
+        expect(updated.data.note).toBe('updated');
+      });
     });
 
     describe('When a jsonb TEXT cell contains malformed JSON', () => {
