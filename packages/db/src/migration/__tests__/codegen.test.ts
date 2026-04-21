@@ -446,7 +446,7 @@ describe('generateSchemaCode — Postgres type mapping', () => {
     expect(file.content).not.toContain('// TODO');
   });
 
-  it('maps bytea to d.text() with binary TODO comment', () => {
+  it('maps bytea to d.bytea() (native binary column)', () => {
     const snapshot = makeSnapshot({
       files: {
         columns: {
@@ -466,8 +466,8 @@ describe('generateSchemaCode — Postgres type mapping', () => {
     });
 
     const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
-    expect(file.content).toContain('d.text().nullable()');
-    expect(file.content).toContain('// TODO: binary type');
+    expect(file.content).toContain('d.bytea().nullable()');
+    expect(file.content).not.toContain('// TODO: binary type');
   });
 
   it('escapes single quotes in enum values', () => {
@@ -546,7 +546,8 @@ describe('generateSchemaCode — SQLite type mapping', () => {
     expect(file.content).toContain('id: d.integer().primary()');
     expect(file.content).toContain('name: d.text()');
     expect(file.content).toContain('score: d.real().nullable()');
-    expect(file.content).toContain('// TODO: binary type');
+    expect(file.content).toContain('data: d.bytea().nullable()');
+    expect(file.content).not.toContain('// TODO: binary type');
   });
 });
 

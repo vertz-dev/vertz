@@ -162,4 +162,50 @@ describe('fromSqliteValue', () => {
   it('throws JsonbParseError on invalid JSON for jsonb columns', () => {
     expect(() => fromSqliteValue('not json', 'jsonb')).toThrow(JsonbParseError);
   });
+
+  describe('bytea columns', () => {
+    it('passes through Uint8Array unchanged for bytea columns', () => {
+      const buf = new Uint8Array([1, 2, 3, 255]);
+      const result = fromSqliteValue(buf, 'bytea');
+      expect(result).toBeInstanceOf(Uint8Array);
+      expect(Array.from(result as Uint8Array)).toEqual([1, 2, 3, 255]);
+    });
+
+    it('normalizes Node Buffer to plain Uint8Array for bytea columns', () => {
+      // Buffer is a Uint8Array subclass; normalize so callers don't receive
+      // Node-specific objects.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Buffer is a test-only subclass probe
+      const Buffer = (globalThis as any).Buffer as { from(arr: number[]): Uint8Array } | undefined;
+      if (!Buffer) return;
+      const buf = Buffer.from([1, 2, 3]);
+      const result = fromSqliteValue(buf, 'bytea');
+      expect(result).toBeInstanceOf(Uint8Array);
+      // Strict Uint8Array, not Buffer
+      expect(Object.getPrototypeOf(result)).toBe(Uint8Array.prototype);
+      expect(Array.from(result as Uint8Array)).toEqual([1, 2, 3]);
+    });
+
+    it('converts ArrayBuffer to Uint8Array for bytea columns', () => {
+      const ab = new ArrayBuffer(3);
+      new Uint8Array(ab).set([7, 8, 9]);
+      const result = fromSqliteValue(ab, 'bytea');
+      expect(result).toBeInstanceOf(Uint8Array);
+      expect(Array.from(result as Uint8Array)).toEqual([7, 8, 9]);
+    });
+
+    it('passes through null for bytea columns', () => {
+      expect(fromSqliteValue(null, 'bytea')).toBe(null);
+    });
+
+    it('passes through undefined for bytea columns', () => {
+      expect(fromSqliteValue(undefined, 'bytea')).toBe(undefined);
+    });
+
+    it('passes through non-bytes values unchanged for bytea columns', () => {
+      // Defensive: if a driver ever returns a string/number, return it as-is
+      // rather than silently constructing a Uint8Array from it.
+      expect(fromSqliteValue('not-bytes', 'bytea')).toBe('not-bytes');
+      expect(fromSqliteValue(42, 'bytea')).toBe(42);
+    });
+  });
 });

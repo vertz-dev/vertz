@@ -206,8 +206,6 @@ function generateColumnCode(
     comment = '// Source: timestamp without time zone';
   } else if (col.type === 'bigint' && col.default?.startsWith('nextval(')) {
     comment = '// Source: bigserial';
-  } else if (builder.isBinary) {
-    comment = '// TODO: binary type';
   } else if (builder.fallback) {
     comment = `// TODO: unmapped type "${col.type}"`;
   }
@@ -244,7 +242,6 @@ interface BuilderResult {
   code: string;
   fallback?: boolean;
   skipDefault?: boolean;
-  isBinary?: boolean;
 }
 
 function mapColumnType(col: ColumnSnapshot, snapshot: SchemaSnapshot): BuilderResult {
@@ -305,7 +302,7 @@ function mapColumnType(col: ColumnSnapshot, snapshot: SchemaSnapshot): BuilderRe
       return { code: 'd.text()' };
     case 'blob':
     case 'bytea':
-      return { code: 'd.text()', isBinary: true };
+      return { code: 'd.bytea()' };
     default:
       return { code: 'd.text()', fallback: true };
   }

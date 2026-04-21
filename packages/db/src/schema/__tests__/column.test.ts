@@ -95,6 +95,14 @@ describe('column type primitives', () => {
     expect(col._meta.sqlType).toBe('integer[]');
   });
 
+  it('d.bytea() creates a column with sqlType bytea', () => {
+    const col = d.bytea();
+    expect(col._meta.sqlType).toBe('bytea');
+    expect(col._meta.primary).toBe(false);
+    expect(col._meta.nullable).toBe(false);
+    expect(col._meta.hasDefault).toBe(false);
+  });
+
   it('d.enum(name, values) creates a column with enum type', () => {
     const col = d.enum('user_role', ['admin', 'editor', 'viewer']);
     expect(col._meta.sqlType).toBe('enum');
@@ -318,6 +326,27 @@ describe('string validation constraints', () => {
     const withMin = original.min(3);
     expect(original._meta._minLength).toBeUndefined();
     expect(withMin._meta._minLength).toBe(3);
+  });
+});
+
+describe('bytes validation constraints', () => {
+  it('d.bytea().min(n) stores _minLength in metadata (byte length)', () => {
+    const col = d.bytea().min(32);
+    expect(col._meta._minLength).toBe(32);
+    expect(col._meta.sqlType).toBe('bytea');
+  });
+
+  it('d.bytea().max(n) stores _maxLength in metadata (byte length)', () => {
+    const col = d.bytea().max(1024);
+    expect(col._meta._maxLength).toBe(1024);
+  });
+
+  it('d.bytea() chains .min() and .max() with other builders', () => {
+    const col = d.bytea().min(1).max(32).nullable().is('sensitive');
+    expect(col._meta._minLength).toBe(1);
+    expect(col._meta._maxLength).toBe(32);
+    expect(col._meta.nullable).toBe(true);
+    expect(col._meta._annotations.sensitive).toBe(true);
   });
 });
 

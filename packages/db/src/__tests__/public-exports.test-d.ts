@@ -1,6 +1,7 @@
 import { describe, it } from '@vertz/test';
 import {
   d,
+  type BytesColumnBuilder,
   type ColumnBuilder,
   type ColumnRecord,
   type DefaultMeta,
@@ -42,6 +43,11 @@ describe('Public API exports — issue #2778', () => {
   it('SerialMeta names the return metadata of d.serial()', () => {
     type SerialReturn = ReturnType<typeof d.serial>;
     type _t1 = Expect<Equal<SerialReturn, NumericColumnBuilder<number, SerialMeta>>>;
+  });
+
+  it('BytesColumnBuilder names the return type of d.bytea()', () => {
+    type ByteaReturn = ReturnType<typeof d.bytea>;
+    type _t1 = Expect<Equal<ByteaReturn, BytesColumnBuilder<Uint8Array, DefaultMeta<'bytea'>>>>;
   });
 
   it('VectorMeta names the return metadata of d.vector()', () => {

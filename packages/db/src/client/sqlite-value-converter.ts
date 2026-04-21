@@ -53,5 +53,33 @@ export function fromSqliteValue(value: unknown, columnType: string): unknown {
       throw new JsonbParseError({ columnType, cause });
     }
   }
+  if (columnType === 'bytea') {
+    return normalizeBytea(value);
+  }
+  return value;
+}
+
+/**
+ * Normalize a driver-returned BLOB value to a plain `Uint8Array`.
+ *
+ * Different SQLite bindings return different concrete types:
+ *   - `Buffer` (a `Uint8Array` subclass) — better-sqlite3 / node
+ *   - `Uint8Array` — bun:sqlite / @vertz/sqlite
+ *   - `ArrayBuffer` — Cloudflare D1
+ *
+ * Callers always see a plain `Uint8Array` regardless of backend.
+ */
+function normalizeBytea(value: unknown): unknown {
+  if (value instanceof Uint8Array) {
+    // Strip Buffer (and other subclass) prototypes so consumers always see a
+    // plain Uint8Array. `slice()` allocates a fresh Uint8Array view.
+    if (Object.getPrototypeOf(value) === Uint8Array.prototype) {
+      return value;
+    }
+    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength).slice();
+  }
+  if (value instanceof ArrayBuffer) {
+    return new Uint8Array(value).slice();
+  }
   return value;
 }
