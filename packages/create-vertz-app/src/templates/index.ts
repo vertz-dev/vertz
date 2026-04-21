@@ -2015,6 +2015,40 @@ curl -X POST http://localhost:3001/command \\\\
 | \`vertz_browser_submit\` | Submit a form (waits for navigation) |
 | \`vertz_browser_press_key\` | Press a keyboard key (Enter, Escape, Tab, etc.) |
 | \`vertz_browser_wait\` | Wait for a condition (text, selector, URL, element removal) |
+| \`vertz_browser_screenshot\` | Headless pixel-perfect PNG of any public route — agent sees the image + a local URL |
+
+### Visual verification with screenshots
+
+Before claiming a UI change is complete, call:
+
+\`\`\`
+vertz_browser_screenshot({ url: '<the-affected-route>' })
+\`\`\`
+
+Compare the returned image against what the task asked for. The PNG renders
+inline in your UI, and the metadata includes a local file URL you can share
+with humans.
+
+**Multi-viewport check for layout changes:**
+
+\`\`\`
+vertz_browser_screenshot({ url: '<route>', viewport: { width: 375,  height: 667 } })  // mobile
+vertz_browser_screenshot({ url: '<route>', viewport: { width: 1280, height: 720 } })  // desktop
+\`\`\`
+
+**Component-isolated check:**
+
+\`\`\`
+vertz_browser_screenshot({ url: '<route>', crop: '.my-component' })       // CSS
+vertz_browser_screenshot({ url: '<route>', crop: { text: 'Save' } })       // text match
+\`\`\`
+
+Screenshots save to \`.vertz/artifacts/screenshots/\` — these are working
+artifacts, reference them in your replies to the human.
+
+**When to skip screenshots:** pure backend changes (API only, no UI touched),
+docs-only edits, test-only edits. If the user can't see the diff without
+opening a browser, skip. If they can, screenshot.
 
 ## MANDATORY: Verify Before Reporting Success
 
