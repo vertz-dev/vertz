@@ -27,6 +27,22 @@ fn write_bin_stub(bin_dir: &Path, bin_name: &str, target: &str) -> PmResult<()> 
         )
     };
 
+    // Remove any pre-existing entry before writing. Critical: std::fs::write
+    // follows symlinks, so if `.bin/<name>` is a leftover symlink pointing at
+    // the package's own bin target (e.g., from a prior bun/npm install), the
+    // write would clobber the real package file — breaking the binary with
+    // self-recursion. See #2908.
+    match std::fs::remove_file(&stub_path) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(source) => {
+            return Err(PmError::WriteFile {
+                path: stub_path.clone(),
+                source,
+            });
+        }
+    }
+
     std::fs::write(&stub_path, stub_content).map_err(|source| PmError::WriteFile {
         path: stub_path.clone(),
         source,
@@ -625,6 +641,76 @@ mod tests {
             "workspace bin should take precedence: {}",
             content
         );
+    }
+
+    /// Regression for #2908: if `.bin/<name>` is left over as a symlink pointing
+    /// into the package's own bin target (e.g., from a prior `bun install` or
+    /// older vtz version), `std::fs::write` follows the symlink and overwrites
+    /// the real file inside the package with the shell shim content — breaking
+    /// the binary with infinite self-recursion.
+    ///
+    /// The stub write must replace the `.bin/<name>` entry in place (as a fresh
+    /// regular file) without following any pre-existing symlink.
+    #[cfg(unix)]
+    #[test]
+    fn test_pre_existing_symlink_in_bin_does_not_clobber_target() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        // Set up a fake typescript package with a real bin target
+        let pkg_bin_dir = root.join("node_modules/typescript/bin");
+        std::fs::create_dir_all(&pkg_bin_dir).unwrap();
+        let pkg_bin_target = pkg_bin_dir.join("tsc");
+        let real_content = "#!/usr/bin/env node\nrequire('../lib/tsc.js')\n";
+        std::fs::write(&pkg_bin_target, real_content).unwrap();
+
+        // Pre-existing symlink in .bin/ pointing at the package's bin target
+        // (this is what bun/npm/pnpm leave behind).
+        let bin_dir = root.join("node_modules/.bin");
+        std::fs::create_dir_all(&bin_dir).unwrap();
+        std::os::unix::fs::symlink("../typescript/bin/tsc", bin_dir.join("tsc")).unwrap();
+
+        // Now run the stub generator — it must produce a fresh file at
+        // `.bin/tsc` without writing through the symlink into the package.
+        let mut graph = ResolvedGraph::default();
+        let mut bin = BTreeMap::new();
+        bin.insert("tsc".to_string(), "./bin/tsc".to_string());
+        graph.packages.insert(
+            "typescript@5.9.3".to_string(),
+            ResolvedPackage {
+                name: "typescript".to_string(),
+                version: "5.9.3".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin,
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        generate_bin_stubs(root, &graph, &[]).unwrap();
+
+        // The package's own bin target must remain intact.
+        let after = std::fs::read_to_string(&pkg_bin_target).unwrap();
+        assert_eq!(
+            after, real_content,
+            "package bin target was clobbered through symlink at .bin/tsc"
+        );
+
+        // The `.bin/tsc` entry must now be a regular file holding the shim —
+        // not a dangling/forwarding symlink.
+        let stub_path = bin_dir.join("tsc");
+        let meta = std::fs::symlink_metadata(&stub_path).unwrap();
+        assert!(
+            !meta.file_type().is_symlink(),
+            ".bin/tsc must be a regular file, not a symlink"
+        );
+        let stub = std::fs::read_to_string(&stub_path).unwrap();
+        assert!(stub.starts_with("#!/bin/sh"));
+        assert!(stub.contains("../typescript/bin/tsc"));
     }
 
     #[test]
