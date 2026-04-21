@@ -40,7 +40,7 @@ vtz dev
 
 ## Available tools
 
-The dev server provides **20 MCP tools** that agents can call — 9 observability tools and 11 browser interaction tools:
+The dev server provides **21 MCP tools** that agents can call — 9 observability tools and 12 browser interaction tools (11 connected-tab + 1 headless screenshot):
 
 ### `vertz_get_errors`
 
@@ -249,6 +249,85 @@ Waits for a condition to be met in the browser, polling every 100ms.
 { "condition": { "url": "/tasks" } }
 { "condition": { "absent": ".loading-spinner" } }
 ```
+
+### `vertz_browser_screenshot`
+
+Headless pixel-perfect PNG of any route served by the dev server. Returns the image inline (the
+agent sees it) plus a local file path and URL that a human can click to open the PNG.
+
+```json
+{ "url": "/" }
+{ "url": "/tasks", "viewport": { "width": 375, "height": 667 } }
+{ "url": "/tasks", "fullPage": true }
+{ "url": "/", "crop": ".hero" }
+{ "url": "/", "crop": { "text": "Get started" } }
+{ "url": "/", "waitFor": "networkidle" }
+```
+
+**Parameters**
+
+| Param      | Type                                            | Default         | Description                                                                                                            |
+| ---------- | ----------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `url`      | `string` (required)                             | —               | Path (`/`, `/tasks`) or a same-origin URL (`http://localhost:PORT/...`). External hosts are rejected.                  |
+| `viewport` | `{ width: number, height: number }`             | `1280x720`      | Viewport size. Max 4096x4096.                                                                                          |
+| `fullPage` | `boolean`                                       | `false`         | Capture the full scrollable page (uses `captureBeyondViewport`).                                                       |
+| `crop`     | `string \| { text \| name \| label: string }`   | `null`          | Clip to a single element. CSS string or a single-key object using the same locator dialect as the other browser tools. |
+| `waitFor`  | `"domcontentloaded" \| "networkidle" \| "load"` | `"networkidle"` | When to take the screenshot. `networkidle` catches `query()` resolution.                                               |
+
+**Response**
+
+Two MCP content blocks: an `image` block with the base64-encoded PNG and a `text` block with
+stringified metadata:
+
+```json
+{
+  "path": "/absolute/path/.vertz/artifacts/screenshots/2026-04-21T12-00-00Z-tasks-1280x720.png",
+  "url": "http://localhost:3000/__vertz_artifacts/screenshots/2026-04-21T12-00-00Z-tasks-1280x720.png",
+  "dimensions": { "width": 1280, "height": 720 },
+  "pageUrl": "http://localhost:3000/tasks",
+  "capturedInMs": 142
+}
+```
+
+The returned image renders inline in the agent's UI. The `url` field is a local dev-server link —
+share it with humans in chat messages; they can click it to open the PNG directly.
+
+**Error codes** (MCP `isError: true` with stringified JSON in the `text` block):
+
+| Code                   | When it fires                                                                                                                                                                 |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `URL_INVALID`          | External host, protocol-relative URL, or malformed input                                                                                                                      |
+| `CHROME_LAUNCH_FAILED` | No Chrome / Chromium on the machine (set `VERTZ_CHROME_PATH` or install one)                                                                                                  |
+| `NAVIGATION_FAILED`    | Browser failed to navigate to the route                                                                                                                                       |
+| `SELECTOR_INVALID`     | `crop` was provided but is malformed (e.g., bad CSS)                                                                                                                          |
+| `SELECTOR_NOT_FOUND`   | `crop` matched no element                                                                                                                                                     |
+| `CAPTURE_FAILED`       | Screenshot request itself failed                                                                                                                                              |
+| `AUTH_REQUIRED`        | Final URL looked like an auth page (`/login`, `/signin`, `/sign_in`, etc.) — the tool refuses to silently return a login screen. See `finalUrl` in the error body to confirm. |
+
+**Scope limits (v1)**
+
+- **Same-origin only.** Paths and `localhost` / `127.0.0.1` / `::1` URLs pass; everything else returns `URL_INVALID`.
+- **Public routes only.** If the route redirects to an auth gate, the tool returns `AUTH_REQUIRED` rather than screenshotting the login screen. Authenticated-route capture ships in a later phase.
+- **No session sharing.** Each call launches an isolated Chromium page — cookies and local storage don't carry over from the `vertz_browser_*` connected-tab tools.
+
+**Artifacts**
+
+Every successful call writes one PNG to `.vertz/artifacts/screenshots/` (gitignored). Filenames are
+`<UTC-iso>-<slug>-<viewport>.png`, lexicographically sortable so the newest is last:
+
+```
+.vertz/artifacts/screenshots/
+├── 2026-04-21T11-48-12Z-1280x720.png
+├── 2026-04-21T11-49-03Z-tasks-375x667.png
+└── 2026-04-21T11-50-44Z-tasks-full.png
+```
+
+**Tips**
+
+- Before reporting a UI change as done, call `vertz_browser_screenshot({ url: '<the-affected-route>' })` and compare against what the task asked for.
+- Check layout at mobile AND desktop with two calls that differ only in `viewport`.
+- Narrow noisy full-page captures with `crop` — either a CSS selector or `{ text: "..." }`.
+- `waitFor: "networkidle"` is the safest default; use `"domcontentloaded"` only when you explicitly want to see a loading state.
 
 ### Element targeting
 
