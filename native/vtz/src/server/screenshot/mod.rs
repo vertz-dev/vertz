@@ -9,4 +9,6 @@
 //! - `artifacts` — filename generation, disk persistence
 
 pub mod artifacts;
+pub mod chromium;
 pub mod fetcher;
+pub mod pool;
