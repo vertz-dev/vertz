@@ -327,22 +327,34 @@ function buildOperatorCondition(
   if (operators.hasAllKeys !== undefined) {
     if (!dialect.supportsJsonbPath) {
       throw new Error(
-        'hasAllKeys requires dialect: postgres. On SQLite, fetch with list() and filter in application code.',
+        'hasAllKeys requires dialect: postgres. On SQLite, fetch with list() and filter in application code, ' +
+          'or compose AND: [{ col: { hasKey: "a" } }, { col: { hasKey: "b" } }].',
       );
     }
-    clauses.push(`${columnRef} ?& ${dialect.param(idx + 1)}::text[]`);
-    params.push(operators.hasAllKeys);
-    idx++;
+    if (operators.hasAllKeys.length === 0) {
+      // Universal quantifier over empty set is TRUE — matches in/notIn convention.
+      clauses.push('TRUE');
+    } else {
+      clauses.push(`${columnRef} ?& ${dialect.param(idx + 1)}::text[]`);
+      params.push(operators.hasAllKeys);
+      idx++;
+    }
   }
   if (operators.hasAnyKey !== undefined) {
     if (!dialect.supportsJsonbPath) {
       throw new Error(
-        'hasAnyKey requires dialect: postgres. On SQLite, fetch with list() and filter in application code.',
+        'hasAnyKey requires dialect: postgres. On SQLite, fetch with list() and filter in application code, ' +
+          'or compose OR: [{ col: { hasKey: "a" } }, { col: { hasKey: "b" } }].',
       );
     }
-    clauses.push(`${columnRef} ?| ${dialect.param(idx + 1)}::text[]`);
-    params.push(operators.hasAnyKey);
-    idx++;
+    if (operators.hasAnyKey.length === 0) {
+      // Existential quantifier over empty set is FALSE — matches in/notIn convention.
+      clauses.push('FALSE');
+    } else {
+      clauses.push(`${columnRef} ?| ${dialect.param(idx + 1)}::text[]`);
+      params.push(operators.hasAnyKey);
+      idx++;
+    }
   }
 
   return { clauses, params, nextIndex: idx };

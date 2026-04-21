@@ -412,6 +412,35 @@ describe('buildWhere', () => {
       expect(result.params).toEqual([['capacity', 'createdAt']]);
     });
 
+    it('hasAllKeys with empty array produces TRUE (universal over empty set)', () => {
+      const result = buildWhere({ meta: { hasAllKeys: [] } });
+      expect(result.sql).toBe('TRUE');
+      expect(result.params).toEqual([]);
+    });
+
+    it('hasAnyKey with empty array produces FALSE (existential over empty set)', () => {
+      const result = buildWhere({ meta: { hasAnyKey: [] } });
+      expect(result.sql).toBe('FALSE');
+      expect(result.params).toEqual([]);
+    });
+
+    it('combines hasAllKeys with other top-level filters and numbers params correctly', () => {
+      const result = buildWhere({
+        status: 'active',
+        meta: { hasAllKeys: ['a', 'b'] },
+      });
+      expect(result.sql).toBe('"status" = $1 AND "meta" ?& $2::text[]');
+      expect(result.params).toEqual(['active', ['a', 'b']]);
+    });
+
+    it('combines hasAllKeys and hasAnyKey on the same column and advances param indices', () => {
+      const result = buildWhere({
+        meta: { hasAllKeys: ['a'], hasAnyKey: ['b', 'c'] },
+      });
+      expect(result.sql).toBe('"meta" ?& $1::text[] AND "meta" ?| $2::text[]');
+      expect(result.params).toEqual([['a'], ['b', 'c']]);
+    });
+
     it('combines jsonContains with other filters', () => {
       const result = buildWhere({
         status: 'active',
