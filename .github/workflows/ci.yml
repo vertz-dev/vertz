@@ -387,3 +387,49 @@ jobs:
       - name: Run NAPI binding tests
         working-directory: native/vertz-compiler
         run: bun test __tests__/*.test.ts
+
+  # ---------------------------------------------------------------------------
+  # Screenshot E2E — real Chromium captures.
+  #
+  # Runs the #[ignore]d tests in native/vtz/tests/screenshot_e2e.rs against
+  # the platform-installed Chrome. Gated on native changes to avoid paying
+  # the Chromium download / warm-up cost on doc-only PRs.
+  #
+  # Phase 1 runs on `ubuntu-latest` only. `macos-latest` coverage is tracked
+  # as a follow-up — browser-actions/setup-chrome@v1 on macOS ARM hangs in
+  # Browser::launch (likely Gatekeeper / xattr quarantine on the installed
+  # Chrome.app). The pool + spawner themselves are platform-agnostic
+  # Rust — the gap is runner environment, not our code.
+  # ---------------------------------------------------------------------------
+  screenshot-e2e:
+    name: Screenshot E2E (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      - name: Install Google Chrome
+        uses: browser-actions/setup-chrome@v1
+        id: setup-chrome
+        with:
+          chrome-version: stable
+
+      - name: Expose Chrome path
+        run: echo "VERTZ_CHROME_PATH=${{ steps.setup-chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
+
+      - name: Run screenshot E2E
+        working-directory: native
+        run: cargo test -p vtz --test screenshot_e2e -- --ignored --test-threads=1 --nocapture
