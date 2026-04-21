@@ -113,16 +113,16 @@ pub enum PlatformError {
 /// that the fetcher needs: the Stable channel's version + revision and the
 /// chrome-headless-shell download URL per platform.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ChromeVersions {
-    pub version: String,
-    pub revision: String,
-    pub downloads: Vec<PlatformDownload>,
+pub(crate) struct ChromeVersions {
+    pub(crate) version: String,
+    pub(crate) revision: String,
+    pub(crate) downloads: Vec<PlatformDownload>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlatformDownload {
-    pub platform: String,
-    pub url: String,
+pub(crate) struct PlatformDownload {
+    pub(crate) platform: String,
+    pub(crate) url: String,
 }
 
 /// Errors while parsing or querying the Chrome for Testing JSON index.
@@ -139,7 +139,7 @@ pub enum VersionsError {
 }
 
 /// Parse the public CfT index and return the Stable channel's metadata.
-pub fn parse_versions(json: &str) -> Result<ChromeVersions, VersionsError> {
+pub(crate) fn parse_versions(json: &str) -> Result<ChromeVersions, VersionsError> {
     #[derive(serde::Deserialize)]
     struct Root {
         channels: Channels,
@@ -188,7 +188,7 @@ pub fn parse_versions(json: &str) -> Result<ChromeVersions, VersionsError> {
 impl ChromeVersions {
     /// Return the download URL for the given platform, or
     /// `Err(VersionsError::PlatformNotFound)` if the index lacks one.
-    pub fn url_for(&self, platform: Platform) -> Result<&str, VersionsError> {
+    pub(crate) fn url_for(&self, platform: Platform) -> Result<&str, VersionsError> {
         self.downloads
             .iter()
             .find(|d| d.platform == platform.cft_id())
@@ -270,7 +270,14 @@ pub enum DownloadError {
     Io(#[from] std::io::Error),
     #[error("server returned HTTP {status} for {url}")]
     HttpStatus { status: u16, url: String },
+    #[error("download exceeded size cap of {max_bytes} bytes")]
+    SizeCap { max_bytes: u64 },
 }
+
+/// Upper bound for any single Chrome download. Sized generously above the
+/// current headless-shell payload (~100 MB) but low enough to stop a hostile
+/// or misconfigured server from exhausting memory.
+pub(crate) const MAX_DOWNLOAD_BYTES: u64 = 500 * 1024 * 1024;
 
 /// Options for [`ensure_chrome`]. All fields are borrowed from the caller; this
 /// struct stores no state of its own and is cheap to construct per call.
@@ -300,6 +307,8 @@ pub struct EnsureOptions<'a> {
 pub enum EnsureError {
     #[error("versions index fetch failed: {0}")]
     VersionsFetch(#[from] reqwest::Error),
+    #[error("versions index returned HTTP {status} for {url}")]
+    VersionsHttpStatus { status: u16, url: String },
     #[error("versions index parse failed: {0}")]
     VersionsParse(#[from] VersionsError),
     #[error("download failed: {0}")]
@@ -310,6 +319,10 @@ pub enum EnsureError {
     Unpack(#[from] UnpackError),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("expected_sha256 must be 64 lowercase hex chars, got {got:?}")]
+    InvalidExpectedSha { got: String },
+    #[error("another vtz process is currently downloading Chrome; try again")]
+    CacheBusy,
 }
 
 /// Resolve a Chrome binary, downloading from Chrome for Testing if nothing
@@ -327,6 +340,12 @@ pub enum EnsureError {
 /// The zip artifact is removed after successful unpack — the cache holds the
 /// extracted binary only.
 pub async fn ensure_chrome(opts: &EnsureOptions<'_>) -> Result<PathBuf, EnsureError> {
+    if !is_valid_sha256_hex(opts.expected_sha256) {
+        return Err(EnsureError::InvalidExpectedSha {
+            got: opts.expected_sha256.to_string(),
+        });
+    }
+
     if let Some(local) = resolve_local_chrome(opts.env_chrome_path, opts.probe_paths) {
         return Ok(local);
     }
@@ -338,15 +357,52 @@ pub async fn ensure_chrome(opts: &EnsureOptions<'_>) -> Result<PathBuf, EnsureEr
         }
     }
 
-    let versions_body = reqwest::get(opts.versions_url).await?.text().await?;
+    // Coordinate with any other vtz process trying to populate the same cache
+    // directory. `fs2::try_lock_exclusive` returns immediately so we can map
+    // contention to a clear error instead of blocking forever.
+    std::fs::create_dir_all(opts.cache_dir)?;
+    let lock_path = opts.cache_dir.join(".lock");
+    let lock_file = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(&lock_path)?;
+    use fs2::FileExt as _;
+    if lock_file.try_lock_exclusive().is_err() {
+        return Err(EnsureError::CacheBusy);
+    }
+    // Re-check the manifest now that we hold the lock: a sibling process may
+    // have populated it while we were waiting.
+    if let Some(manifest) = read_manifest(opts.cache_dir) {
+        if manifest.revision == opts.expected_revision && is_executable_file(&manifest.binary_path)
+        {
+            let _ = fs2::FileExt::unlock(&lock_file);
+            return Ok(manifest.binary_path);
+        }
+    }
+
+    let versions_response = reqwest::get(opts.versions_url).await?;
+    if !versions_response.status().is_success() {
+        let _ = fs2::FileExt::unlock(&lock_file);
+        return Err(EnsureError::VersionsHttpStatus {
+            status: versions_response.status().as_u16(),
+            url: opts.versions_url.to_string(),
+        });
+    }
+    let versions_body = versions_response.text().await?;
     let versions = parse_versions(&versions_body)?;
     let url = versions.url_for(opts.platform)?;
 
     let rev_dir = opts.cache_dir.join(&versions.revision);
     std::fs::create_dir_all(&rev_dir)?;
     let zip_path = rev_dir.join("chrome-headless-shell.zip");
-    download_to_file(url, &zip_path).await?;
 
+    // Scope guard: if any of download/verify/unpack errors, tear the
+    // half-populated rev_dir down so the next run starts clean.
+    let cleanup_guard = CleanupOnDrop { path: &rev_dir };
+
+    download_to_file(url, &zip_path, MAX_DOWNLOAD_BYTES).await?;
     verify_sha256(&zip_path, opts.expected_sha256)?;
     let binary = unpack_chrome_zip(&zip_path, &rev_dir)?;
     remove_quarantine(&binary);
@@ -361,7 +417,35 @@ pub async fn ensure_chrome(opts: &EnsureOptions<'_>) -> Result<PathBuf, EnsureEr
     )?;
 
     let _ = std::fs::remove_file(&zip_path);
+    cleanup_guard.disarm();
+    let _ = fs2::FileExt::unlock(&lock_file);
     Ok(binary)
+}
+
+/// `true` iff `s` is exactly 64 hex digits (either case). Bans the empty
+/// string and nonsense like `"deadbeef"` from accidentally disabling
+/// integrity enforcement.
+fn is_valid_sha256_hex(s: &str) -> bool {
+    s.len() == 64 && s.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// RAII guard that removes `path` on drop unless [`disarm`](Self::disarm)
+/// is called first. Used to clean up half-populated revision directories
+/// when `ensure_chrome` fails partway through.
+struct CleanupOnDrop<'a> {
+    path: &'a Path,
+}
+
+impl CleanupOnDrop<'_> {
+    fn disarm(self) {
+        std::mem::forget(self);
+    }
+}
+
+impl Drop for CleanupOnDrop<'_> {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(self.path);
+    }
 }
 
 /// Persisted metadata about a cached Chrome download.
@@ -369,28 +453,28 @@ pub async fn ensure_chrome(opts: &EnsureOptions<'_>) -> Result<PathBuf, EnsureEr
 /// Stored at `<cache_dir>/current.json` so subsequent `vtz` invocations can
 /// skip re-resolution and use the existing binary directly.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct CacheManifest {
+pub(crate) struct CacheManifest {
     /// Chrome for Testing revision (from the public index).
-    pub revision: String,
+    pub(crate) revision: String,
     /// Absolute path to the extracted `chrome-headless-shell` binary.
-    pub binary_path: PathBuf,
+    pub(crate) binary_path: PathBuf,
     /// Wall-clock time of the successful download, in seconds since
     /// Unix epoch. Chosen over RFC3339 to avoid a chrono dep; still
     /// human-inspectable and trivially sortable.
-    pub downloaded_at_epoch_secs: u64,
+    pub(crate) downloaded_at_epoch_secs: u64,
 }
 
 /// Filename convention for the cache manifest.
-pub fn manifest_path(cache_dir: &Path) -> PathBuf {
+pub(crate) fn manifest_path(cache_dir: &Path) -> PathBuf {
     cache_dir.join("current.json")
 }
 
 /// Atomically write `manifest` as JSON at `<cache_dir>/current.json`.
 /// Creates the directory if it doesn't exist.
-pub fn write_manifest(cache_dir: &Path, manifest: &CacheManifest) -> std::io::Result<()> {
+pub(crate) fn write_manifest(cache_dir: &Path, manifest: &CacheManifest) -> std::io::Result<()> {
     std::fs::create_dir_all(cache_dir)?;
     let final_path = manifest_path(cache_dir);
-    let tmp = final_path.with_extension("json.tmp");
+    let tmp = cache_dir.join("current.json.tmp");
     let json = serde_json::to_vec_pretty(manifest)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
     std::fs::write(&tmp, &json)?;
@@ -401,14 +485,14 @@ pub fn write_manifest(cache_dir: &Path, manifest: &CacheManifest) -> std::io::Re
 /// Read the cache manifest. Returns `None` if the file is missing, unreadable,
 /// or contains invalid JSON — the caller is expected to fall back to a fresh
 /// download in that case.
-pub fn read_manifest(cache_dir: &Path) -> Option<CacheManifest> {
+pub(crate) fn read_manifest(cache_dir: &Path) -> Option<CacheManifest> {
     let bytes = std::fs::read(manifest_path(cache_dir)).ok()?;
     serde_json::from_slice(&bytes).ok()
 }
 
 /// Return the current wall-clock time in seconds since the Unix epoch,
 /// or `0` if the system clock is before the epoch.
-pub fn now_epoch_secs() -> u64 {
+pub(crate) fn now_epoch_secs() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -422,11 +506,12 @@ pub fn now_epoch_secs() -> u64 {
 /// No-op on non-macOS. Silently logs (never fails) on macOS if `xattr` is
 /// missing or the attribute doesn't exist — per the design doc:
 /// "failure to invoke xattr is non-fatal, logged".
-pub fn remove_quarantine(path: &Path) {
+pub(crate) fn remove_quarantine(path: &Path) {
     #[cfg(target_os = "macos")]
     {
         use std::process::Command;
-        let output = Command::new("xattr")
+        // Absolute path defeats PATH-injection — xattr ships with macOS base.
+        let output = Command::new("/usr/bin/xattr")
             .args(["-d", "com.apple.quarantine"])
             .arg(path)
             .output();
@@ -450,9 +535,19 @@ pub fn remove_quarantine(path: &Path) {
     }
 }
 
-/// Stream the body at `url` into `dest`, creating parent directories as needed.
-/// Fails on any non-2xx response with [`DownloadError::HttpStatus`].
-pub async fn download_to_file(url: &str, dest: &Path) -> Result<(), DownloadError> {
+/// Stream the body at `url` into `dest` in bytes_stream chunks, creating
+/// parent directories as needed. Aborts when the running total exceeds
+/// `max_bytes`, or when the server's `Content-Length` already exceeds
+/// `max_bytes` before any bytes arrive. Fails on any non-2xx response with
+/// [`DownloadError::HttpStatus`].
+pub(crate) async fn download_to_file(
+    url: &str,
+    dest: &Path,
+    max_bytes: u64,
+) -> Result<(), DownloadError> {
+    use futures_util::StreamExt;
+    use std::io::Write as _;
+
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -463,8 +558,25 @@ pub async fn download_to_file(url: &str, dest: &Path) -> Result<(), DownloadErro
             url: url.to_string(),
         });
     }
-    let bytes = response.bytes().await?;
-    std::fs::write(dest, &bytes)?;
+    if let Some(declared) = response.content_length() {
+        if declared > max_bytes {
+            return Err(DownloadError::SizeCap { max_bytes });
+        }
+    }
+
+    let mut file = std::fs::File::create(dest)?;
+    let mut written: u64 = 0;
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        written = written.saturating_add(chunk.len() as u64);
+        if written > max_bytes {
+            drop(file);
+            let _ = std::fs::remove_file(dest);
+            return Err(DownloadError::SizeCap { max_bytes });
+        }
+        file.write_all(&chunk)?;
+    }
     Ok(())
 }
 
@@ -489,7 +601,7 @@ pub enum UnpackError {
 ///   paths; any such entry returns [`UnpackError::UnsafePath`].
 /// - Unix permissions are preserved when present so the extracted binary
 ///   stays executable.
-pub fn unpack_chrome_zip(zip_path: &Path, dest_dir: &Path) -> Result<PathBuf, UnpackError> {
+pub(crate) fn unpack_chrome_zip(zip_path: &Path, dest_dir: &Path) -> Result<PathBuf, UnpackError> {
     use std::io::copy;
 
     let file = std::fs::File::open(zip_path)?;
@@ -505,6 +617,18 @@ pub fn unpack_chrome_zip(zip_path: &Path, dest_dir: &Path) -> Result<PathBuf, Un
             .ok_or_else(|| UnpackError::UnsafePath(entry.name().to_string()))?;
         let out_path = dest_dir.join(&relative);
 
+        // Reject symlink entries outright. CfT zips don't contain them, and
+        // extracting one would either let an attacker redirect subsequent
+        // writes outside `dest_dir` or break us into executing a file that
+        // points somewhere else on disk.
+        if let Some(mode) = entry.unix_mode() {
+            const S_IFMT: u32 = 0o170000;
+            const S_IFLNK: u32 = 0o120000;
+            if mode & S_IFMT == S_IFLNK {
+                return Err(UnpackError::UnsafePath(entry.name().to_string()));
+            }
+        }
+
         if entry.is_dir() {
             std::fs::create_dir_all(&out_path)?;
             continue;
@@ -519,7 +643,10 @@ pub fn unpack_chrome_zip(zip_path: &Path, dest_dir: &Path) -> Result<PathBuf, Un
         #[cfg(unix)]
         if let Some(mode) = entry.unix_mode() {
             use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&out_path, std::fs::Permissions::from_mode(mode))?;
+            // Mask off the file-type bits — we've already rejected symlinks;
+            // keep only the permission bits.
+            let perm_bits = mode & 0o7777;
+            std::fs::set_permissions(&out_path, std::fs::Permissions::from_mode(perm_bits))?;
         }
 
         if out_path
@@ -536,7 +663,7 @@ pub fn unpack_chrome_zip(zip_path: &Path, dest_dir: &Path) -> Result<PathBuf, Un
 
 /// Read `path` in chunks and compare its SHA-256 hex digest against
 /// `expected_hex` (case-insensitive).
-pub fn verify_sha256(path: &Path, expected_hex: &str) -> Result<(), VerifyError> {
+pub(crate) fn verify_sha256(path: &Path, expected_hex: &str) -> Result<(), VerifyError> {
     use sha2::{Digest, Sha256};
     use std::io::Read;
 
@@ -993,7 +1120,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let dest = dir.path().join("downloaded.zip");
         let url = format!("{}/chrome.zip", server.uri());
-        download_to_file(&url, &dest).await.unwrap();
+        download_to_file(&url, &dest, MAX_DOWNLOAD_BYTES)
+            .await
+            .unwrap();
 
         assert_eq!(fs::read(&dest).unwrap(), b"zipbytes");
     }
@@ -1012,8 +1141,58 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let dest = dir.path().join("x.zip");
         let url = format!("{}/missing.zip", server.uri());
-        let err = download_to_file(&url, &dest).await.unwrap_err();
+        let err = download_to_file(&url, &dest, MAX_DOWNLOAD_BYTES)
+            .await
+            .unwrap_err();
         assert!(matches!(err, DownloadError::HttpStatus { status: 404, .. }));
+    }
+
+    #[tokio::test]
+    async fn download_to_file_rejects_content_length_over_cap() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        // Set a Content-Length header that exceeds our cap.
+        Mock::given(method("GET"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-length", "1000")
+                    .set_body_bytes(vec![0u8; 1000]),
+            )
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("big.zip");
+        let url = format!("{}/big.zip", server.uri());
+        let err = download_to_file(&url, &dest, 500).await.unwrap_err();
+        assert!(matches!(err, DownloadError::SizeCap { max_bytes: 500 }));
+        // No partial file left behind.
+        assert!(!dest.exists());
+    }
+
+    #[tokio::test]
+    async fn download_to_file_aborts_when_stream_exceeds_cap() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        // Chunked response (no Content-Length known up-front) that exceeds the
+        // cap. wiremock sends the whole body in one go, but we still assert
+        // the byte-counting path fires.
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(vec![7u8; 200]))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("big.zip");
+        let url = format!("{}/big.zip", server.uri());
+        let err = download_to_file(&url, &dest, 50).await.unwrap_err();
+        assert!(matches!(err, DownloadError::SizeCap { max_bytes: 50 }));
+        // Partial download removed on abort.
+        assert!(!dest.exists());
     }
 
     #[tokio::test]
@@ -1027,7 +1206,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let dest = dir.path().join("x.zip");
         let url = format!("http://127.0.0.1:{port}/x.zip");
-        let err = download_to_file(&url, &dest).await.unwrap_err();
+        let err = download_to_file(&url, &dest, MAX_DOWNLOAD_BYTES)
+            .await
+            .unwrap_err();
         assert!(matches!(err, DownloadError::Request(_)));
     }
 
@@ -1105,6 +1286,12 @@ mod tests {
 
     // ----- ensure_chrome orchestrator -----
 
+    /// A syntactically valid-but-fake 64-char hex SHA-256 that never matches
+    /// any real payload. Use when a test is meant to exercise a short-circuit
+    /// path that MUST return before `verify_sha256` runs — if the short-circuit
+    /// regresses, the test fails on verification instead of hiding the bug.
+    const DUMMY_SHA256: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+
     /// Minimal JSON index matching the fixture's Stable-channel entry but
     /// pointing at a given `base_url`, so tests can stand up a wiremock
     /// server and have the parser route to it.
@@ -1145,7 +1332,7 @@ mod tests {
             cache_dir: &cache,
             versions_url: "http://127.0.0.1:1/should-never-be-called",
             expected_revision: "1",
-            expected_sha256: "deadbeef",
+            expected_sha256: DUMMY_SHA256,
             platform: Platform::Linux64,
         };
         let resolved = ensure_chrome(&opts).await.unwrap();
@@ -1175,7 +1362,7 @@ mod tests {
             cache_dir: &cache,
             versions_url: "http://127.0.0.1:1/should-never-be-called",
             expected_revision: "1287751",
-            expected_sha256: "deadbeef",
+            expected_sha256: DUMMY_SHA256,
             platform: Platform::Linux64,
         };
         let resolved = ensure_chrome(&opts).await.unwrap();
@@ -1270,6 +1457,136 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn ensure_chrome_rejects_invalid_sha_format() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = dir.path().join("cache");
+        for bad in [
+            "",
+            "deadbeef",
+            &"g".repeat(64),
+            &"a".repeat(63),
+            &"a".repeat(65),
+        ] {
+            let opts = EnsureOptions {
+                env_chrome_path: None,
+                probe_paths: &[],
+                cache_dir: &cache,
+                versions_url: "http://127.0.0.1:1",
+                expected_revision: "1",
+                expected_sha256: bad,
+                platform: Platform::Linux64,
+            };
+            let err = ensure_chrome(&opts).await.unwrap_err();
+            assert!(
+                matches!(err, EnsureError::InvalidExpectedSha { .. }),
+                "bad={bad:?} produced {err:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn ensure_chrome_errors_on_versions_http_error() {
+        use wiremock::matchers::{method, path as wpath};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wpath("/versions.json"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let cache = dir.path().join("cache");
+        let versions_url = format!("{}/versions.json", server.uri());
+        let opts = EnsureOptions {
+            env_chrome_path: None,
+            probe_paths: &[],
+            cache_dir: &cache,
+            versions_url: &versions_url,
+            expected_revision: "1",
+            expected_sha256: DUMMY_SHA256,
+            platform: Platform::Linux64,
+        };
+        let err = ensure_chrome(&opts).await.unwrap_err();
+        assert!(matches!(
+            err,
+            EnsureError::VersionsHttpStatus { status: 500, .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn ensure_chrome_cleans_up_rev_dir_on_failure() {
+        use wiremock::matchers::{method, path as wpath};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        let revision = "1287751";
+        let versions_body = build_versions_json(&server.uri(), revision);
+        Mock::given(method("GET"))
+            .and(wpath("/versions.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(versions_body))
+            .mount(&server)
+            .await;
+        // Serve bytes whose SHA won't match the (valid-format) expected_sha256.
+        Mock::given(method("GET"))
+            .and(wpath("/linux64/chrome.zip"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"wrong-content"))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let cache = dir.path().join("cache");
+        let versions_url = format!("{}/versions.json", server.uri());
+        let opts = EnsureOptions {
+            env_chrome_path: None,
+            probe_paths: &[],
+            cache_dir: &cache,
+            versions_url: &versions_url,
+            expected_revision: revision,
+            expected_sha256: DUMMY_SHA256,
+            platform: Platform::Linux64,
+        };
+        let err = ensure_chrome(&opts).await.unwrap_err();
+        assert!(matches!(err, EnsureError::Verify(_)));
+        // Scope guard should have removed the rev directory.
+        assert!(!cache.join(revision).exists(), "rev dir leaked on failure");
+    }
+
+    #[tokio::test]
+    async fn ensure_chrome_returns_cache_busy_when_lock_held() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = dir.path().join("cache");
+        std::fs::create_dir_all(&cache).unwrap();
+        // Pre-create + lock the lock file from outside the function so our
+        // try_lock_exclusive call definitely fails.
+        let lock_path = cache.join(".lock");
+        let held = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(&lock_path)
+            .unwrap();
+        use fs2::FileExt as _;
+        held.try_lock_exclusive().unwrap();
+
+        let opts = EnsureOptions {
+            env_chrome_path: None,
+            probe_paths: &[],
+            cache_dir: &cache,
+            versions_url: "http://127.0.0.1:1/should-never-be-called",
+            expected_revision: "1287751",
+            expected_sha256: DUMMY_SHA256,
+            platform: Platform::Linux64,
+        };
+        let err = ensure_chrome(&opts).await.unwrap_err();
+        assert!(matches!(err, EnsureError::CacheBusy));
+
+        let _ = fs2::FileExt::unlock(&held);
+    }
+
+    #[tokio::test]
     async fn ensure_chrome_redownloads_when_revision_mismatches_manifest() {
         use wiremock::matchers::{method, path as wpath};
         use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -1348,8 +1665,34 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let dest = dir.path().join("nested").join("sub").join("out.zip");
         let url = format!("{}/x.zip", server.uri());
-        download_to_file(&url, &dest).await.unwrap();
+        download_to_file(&url, &dest, MAX_DOWNLOAD_BYTES)
+            .await
+            .unwrap();
         assert_eq!(fs::read(&dest).unwrap(), b"ok");
+    }
+
+    #[test]
+    fn unpack_chrome_zip_rejects_symlink_entries() {
+        use zip::write::SimpleFileOptions;
+
+        let dir = tempfile::tempdir().unwrap();
+        let zip_path = dir.path().join("evil.zip");
+        let mut buf = std::io::Cursor::new(Vec::new());
+        {
+            let mut w = zip::ZipWriter::new(&mut buf);
+            // `add_symlink` marks the entry with the S_IFLNK mode bits on
+            // read-back, which is what our unpacker must refuse.
+            w.add_symlink(
+                "chrome-headless-shell-linux64/link",
+                "/etc/passwd",
+                SimpleFileOptions::default(),
+            )
+            .unwrap();
+            w.finish().unwrap();
+        }
+        std::fs::write(&zip_path, buf.into_inner()).unwrap();
+        let err = unpack_chrome_zip(&zip_path, &dir.path().join("out")).unwrap_err();
+        assert!(matches!(err, UnpackError::UnsafePath(_)));
     }
 
     #[test]
