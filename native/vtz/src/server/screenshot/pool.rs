@@ -62,6 +62,13 @@ pub enum CropSpec {
 }
 
 /// When to take the screenshot relative to the navigation.
+///
+/// All variants currently collapse to the same "wait_for_navigation" in
+/// [`ChromiumoxideHandle`](super::chromium::ChromiumoxideHandle). Task 5
+/// will wire per-variant behavior via CDP events (DOMContentLoaded vs
+/// Load vs a real network-idle detector). The variants are defined here
+/// so the MCP tool schema is stable from Task 5 onward; until then the
+/// enum is a preview of the public contract, not a behavioral switch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WaitCondition {
     DomContentLoaded,
@@ -77,8 +84,12 @@ pub struct PageMeta {
 }
 
 /// Errors shared by the spawner, the pool, and the capture path.
-/// The fetcher's `EnsureError` wraps into `PoolError::Launch` at the Pool
-/// boundary so callers can pattern-match a single enum.
+///
+/// `NavigationTimeout` / `PageHttpError` / `SelectorAmbiguous` variants
+/// belong on this enum in spirit (they're documented MCP response codes
+/// in the design doc), but they're emitted in Task 5 when the MCP tool
+/// plumbing is wired — keeping them here as a preview would be dead
+/// code, so they'll land with their emitters.
 #[derive(Debug, thiserror::Error)]
 pub enum PoolError {
     #[error("chrome launch failed: {message}")]
@@ -88,24 +99,10 @@ pub enum PoolError {
     },
     #[error("navigation failed for {url}: {message}")]
     NavigationFailed { message: String, url: String },
-    #[error("navigation timeout after {timeout_ms}ms for {url}")]
-    NavigationTimeout {
-        message: String,
-        url: String,
-        timeout_ms: u64,
-    },
-    #[error("page returned HTTP {status} for {url}")]
-    PageHttpError {
-        message: String,
-        url: String,
-        status: u16,
-    },
     #[error("crop selector invalid: {message}")]
     SelectorInvalid { message: String },
     #[error("crop selector matched no element: {message}")]
     SelectorNotFound { message: String },
-    #[error("crop selector matched {match_count} elements (ambiguous)")]
-    SelectorAmbiguous { message: String, match_count: u32 },
     #[error("capture failed: {message}")]
     CaptureFailed { message: String },
     #[error("pool is shutting down")]
@@ -189,17 +186,39 @@ impl Pool {
                         *last_used = Instant::now();
                         return Ok(handle);
                     }
-                    // Expired — close and fall back to launching.
-                    let handle = Arc::clone(handle);
+                    // TTL expired. Flip to Idle so the next iteration
+                    // launches a fresh browser; defer the close to a
+                    // background task. close() grabs the handle's write
+                    // lock which waits for any in-flight captures to
+                    // release their read locks, so a long-running capture
+                    // that spans the TTL boundary is never interrupted.
+                    // (Regression guard for B2 from the Task 4 review.)
+                    let expired = Arc::clone(handle);
                     *state = State::Idle;
                     drop(state);
-                    let _ = handle.close().await;
+                    tokio::spawn(async move {
+                        let _ = expired.close().await;
+                    });
                     continue;
                 }
                 State::Launching(shared) => {
                     let shared = shared.clone();
                     drop(state);
-                    match shared.await {
+                    let outcome = shared.await;
+                    // Re-check shutdown before returning — a sibling
+                    // shutdown may have flipped state while we were
+                    // awaiting, in which case we must close and bail.
+                    // (Regression guard for B1 from the Task 4 review.)
+                    let state = self.state.lock().await;
+                    if matches!(*state, State::ShuttingDown) {
+                        drop(state);
+                        if let Ok(handle) = outcome {
+                            let _ = handle.close().await;
+                        }
+                        return Err(PoolError::ShuttingDown);
+                    }
+                    drop(state);
+                    match outcome {
                         Ok(handle) => return Ok(handle),
                         Err(arc_err) => return Err(clone_pool_error(&arc_err)),
                     }
@@ -283,7 +302,8 @@ pub enum PoolStatus {
 
 /// `PoolError` isn't `Clone`, so we re-create the variant manually when a
 /// Shared launch future fails — every awaiter gets an independent error
-/// value they can own.
+/// value they can own. Rust's exhaustive-match check forces this function
+/// to be updated when a new variant is added.
 fn clone_pool_error(arc_err: &Arc<PoolError>) -> PoolError {
     match arc_err.as_ref() {
         PoolError::Launch { message, hint } => PoolError::Launch {
@@ -294,36 +314,11 @@ fn clone_pool_error(arc_err: &Arc<PoolError>) -> PoolError {
             message: message.clone(),
             url: url.clone(),
         },
-        PoolError::NavigationTimeout {
-            message,
-            url,
-            timeout_ms,
-        } => PoolError::NavigationTimeout {
-            message: message.clone(),
-            url: url.clone(),
-            timeout_ms: *timeout_ms,
-        },
-        PoolError::PageHttpError {
-            message,
-            url,
-            status,
-        } => PoolError::PageHttpError {
-            message: message.clone(),
-            url: url.clone(),
-            status: *status,
-        },
         PoolError::SelectorInvalid { message } => PoolError::SelectorInvalid {
             message: message.clone(),
         },
         PoolError::SelectorNotFound { message } => PoolError::SelectorNotFound {
             message: message.clone(),
-        },
-        PoolError::SelectorAmbiguous {
-            message,
-            match_count,
-        } => PoolError::SelectorAmbiguous {
-            message: message.clone(),
-            match_count: *match_count,
         },
         PoolError::CaptureFailed { message } => PoolError::CaptureFailed {
             message: message.clone(),
@@ -337,28 +332,32 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU32, Ordering};
 
-    /// Test spawner — counts launches, lets each test configure a per-call
-    /// delay so we can drive concurrent-launch-coalescing scenarios.
+    /// Test spawner — counts launches, notifies when launch enters (so
+    /// tests can synchronize without `sleep`), and can gate launch
+    /// completion on a signal to exercise shutdown-during-launch and
+    /// long-running-capture scenarios deterministically.
     struct FakeSpawner {
         launch_count: AtomicU32,
-        launch_delay: Duration,
         capture_count: Arc<AtomicU32>,
         fail_launch: bool,
+        launch_entered: Arc<tokio::sync::Notify>,
+        /// Blocks every launch until this flag flips to true. Tests flip
+        /// the flag via `release_launch`. Default is "don't block".
+        launch_gate: Arc<(tokio::sync::Mutex<bool>, tokio::sync::Notify)>,
+        capture_delay: Duration,
     }
 
     impl FakeSpawner {
         fn new() -> Self {
+            let gate_mutex = tokio::sync::Mutex::new(true); // true = released
             Self {
                 launch_count: AtomicU32::new(0),
-                launch_delay: Duration::ZERO,
                 capture_count: Arc::new(AtomicU32::new(0)),
                 fail_launch: false,
+                launch_entered: Arc::new(tokio::sync::Notify::new()),
+                launch_gate: Arc::new((gate_mutex, tokio::sync::Notify::new())),
+                capture_delay: Duration::ZERO,
             }
-        }
-
-        fn with_launch_delay(mut self, d: Duration) -> Self {
-            self.launch_delay = d;
-            self
         }
 
         fn failing() -> Self {
@@ -367,15 +366,41 @@ mod tests {
                 ..Self::new()
             }
         }
+
+        fn with_gated_launch(self) -> Self {
+            // Tests call `release_launch` when they want a launch to complete.
+            Self {
+                launch_gate: Arc::new((tokio::sync::Mutex::new(false), tokio::sync::Notify::new())),
+                ..self
+            }
+        }
+
+        fn with_capture_delay(mut self, d: Duration) -> Self {
+            self.capture_delay = d;
+            self
+        }
+
+        async fn release_launch(&self) {
+            let (mutex, notify) = &*self.launch_gate;
+            *mutex.lock().await = true;
+            notify.notify_waiters();
+        }
     }
 
     #[async_trait]
     impl BrowserSpawner for FakeSpawner {
         async fn launch(&self, _config: LaunchConfig) -> Result<Arc<dyn BrowserHandle>, PoolError> {
             self.launch_count.fetch_add(1, Ordering::SeqCst);
-            if self.launch_delay > Duration::ZERO {
-                tokio::time::sleep(self.launch_delay).await;
+            self.launch_entered.notify_waiters();
+
+            let (mutex, notify) = &*self.launch_gate;
+            loop {
+                if *mutex.lock().await {
+                    break;
+                }
+                notify.notified().await;
             }
+
             if self.fail_launch {
                 return Err(PoolError::Launch {
                     message: "fake failure".into(),
@@ -385,6 +410,7 @@ mod tests {
             Ok(Arc::new(FakeHandle {
                 capture_count: Arc::clone(&self.capture_count),
                 closed: Arc::new(AtomicU32::new(0)),
+                capture_delay: self.capture_delay,
             }))
         }
     }
@@ -392,13 +418,16 @@ mod tests {
     struct FakeHandle {
         capture_count: Arc<AtomicU32>,
         closed: Arc<AtomicU32>,
+        capture_delay: Duration,
     }
 
     #[async_trait]
     impl BrowserHandle for FakeHandle {
         async fn capture(&self, req: CaptureRequest) -> Result<(Vec<u8>, PageMeta), PoolError> {
             self.capture_count.fetch_add(1, Ordering::SeqCst);
-            // 1×1 PNG signature bytes are fine for tests.
+            if self.capture_delay > Duration::ZERO {
+                tokio::time::sleep(self.capture_delay).await;
+            }
             Ok((
                 vec![0x89, b'P', b'N', b'G'],
                 PageMeta {
@@ -446,22 +475,28 @@ mod tests {
 
     #[tokio::test]
     async fn concurrent_captures_during_launch_share_one_browser() {
-        let spawner = Arc::new(FakeSpawner::new().with_launch_delay(Duration::from_millis(50)));
+        let spawner = Arc::new(FakeSpawner::new().with_gated_launch());
         let pool = Arc::new(Pool::new(
             Arc::clone(&spawner) as _,
             default_config(),
             DEFAULT_TTL,
         ));
 
+        // Fan out captures, each parked inside `acquire_warm` awaiting the
+        // same Shared launch future.
         let n = 16;
-        let mut handles = Vec::with_capacity(n);
+        let mut joins = Vec::with_capacity(n);
+        let entered = Arc::clone(&spawner.launch_entered);
         for _ in 0..n {
             let pool = Arc::clone(&pool);
-            handles.push(tokio::spawn(async move {
+            joins.push(tokio::spawn(async move {
                 pool.capture(default_request()).await
             }));
         }
-        for h in handles {
+        // Wait for the launch to actually enter, then release it. No sleep.
+        entered.notified().await;
+        spawner.release_launch().await;
+        for h in joins {
             h.await.unwrap().unwrap();
         }
 
@@ -486,15 +521,18 @@ mod tests {
 
     #[tokio::test]
     async fn ttl_expiry_triggers_relaunch() {
+        // TTL near zero: every post-capture check fires the expiry path.
         let spawner = Arc::new(FakeSpawner::new());
         let pool = Pool::new(
             Arc::clone(&spawner) as _,
             default_config(),
-            Duration::from_millis(20),
+            Duration::from_nanos(1),
         );
 
         pool.capture(default_request()).await.unwrap();
-        tokio::time::sleep(Duration::from_millis(40)).await;
+        // tokio::time::sleep(0) still yields, which is enough for
+        // last_used.elapsed() to have advanced a tick and exceed 1ns.
+        tokio::task::yield_now().await;
         pool.capture(default_request()).await.unwrap();
 
         assert_eq!(spawner.launch_count.load(Ordering::SeqCst), 2);
@@ -537,7 +575,7 @@ mod tests {
 
     #[tokio::test]
     async fn shutdown_during_launch_closes_the_new_browser() {
-        let spawner = Arc::new(FakeSpawner::new().with_launch_delay(Duration::from_millis(30)));
+        let spawner = Arc::new(FakeSpawner::new().with_gated_launch());
         let pool = Arc::new(Pool::new(
             Arc::clone(&spawner) as _,
             default_config(),
@@ -548,18 +586,96 @@ mod tests {
         let capture_task =
             tokio::spawn(async move { capture_pool.capture(default_request()).await });
 
-        // Give the launch a chance to start.
-        tokio::time::sleep(Duration::from_millis(5)).await;
-        pool.shutdown().await;
+        // Deterministically wait for the launch to have entered before
+        // calling shutdown — no race, no sleep-for-"long enough".
+        spawner.launch_entered.notified().await;
+        let shutdown_fut = tokio::spawn({
+            let pool = Arc::clone(&pool);
+            async move { pool.shutdown().await }
+        });
+        // Now let the launch complete so shutdown can proceed.
+        spawner.release_launch().await;
+        shutdown_fut.await.unwrap();
 
         let res = capture_task.await.unwrap();
         assert!(matches!(res, Err(PoolError::ShuttingDown)));
         assert_eq!(pool.status().await, PoolStatus::ShuttingDown);
     }
 
+    /// B1 regression — concurrent awaiters of a Launching Shared future
+    /// must respect a shutdown that fires mid-launch. Before the fix,
+    /// non-initiator awaiters happily returned `Ok(handle)` to the caller
+    /// while the pool flipped to ShuttingDown, leaking the handle.
+    #[tokio::test]
+    async fn b1_shutdown_mid_launch_rejects_all_awaiters() {
+        let spawner = Arc::new(FakeSpawner::new().with_gated_launch());
+        let pool = Arc::new(Pool::new(
+            Arc::clone(&spawner) as _,
+            default_config(),
+            DEFAULT_TTL,
+        ));
+
+        let n = 4;
+        let mut captures = Vec::new();
+        for _ in 0..n {
+            let pool = Arc::clone(&pool);
+            captures.push(tokio::spawn(async move {
+                pool.capture(default_request()).await
+            }));
+        }
+        spawner.launch_entered.notified().await;
+
+        // Fire shutdown while the launch is gated. All awaiters should
+        // bail with ShuttingDown once the launch completes.
+        let shutdown_pool = Arc::clone(&pool);
+        let shutdown_task = tokio::spawn(async move { shutdown_pool.shutdown().await });
+        spawner.release_launch().await;
+        shutdown_task.await.unwrap();
+
+        let mut shutting_down_count = 0;
+        for c in captures {
+            match c.await.unwrap() {
+                Err(PoolError::ShuttingDown) => shutting_down_count += 1,
+                other => panic!("expected ShuttingDown, got {other:?}"),
+            }
+        }
+        assert_eq!(shutting_down_count, n);
+        assert_eq!(spawner.launch_count.load(Ordering::SeqCst), 1);
+    }
+
+    /// B2 regression — a long-running capture must not be interrupted by
+    /// a TTL-triggered close. Before the fix, the pool synchronously
+    /// called `close()` on the shared handle while another task was
+    /// still mid-capture, which in chromiumoxide would have torn down
+    /// the browser underneath it.
+    #[tokio::test]
+    async fn b2_long_capture_survives_ttl_expiry() {
+        let spawner = Arc::new(FakeSpawner::new().with_capture_delay(Duration::from_millis(30)));
+        let pool = Arc::new(Pool::new(
+            Arc::clone(&spawner) as _,
+            default_config(),
+            Duration::from_nanos(1),
+        ));
+
+        // Kick off a long capture.
+        let long_pool = Arc::clone(&pool);
+        let long_capture = tokio::spawn(async move { long_pool.capture(default_request()).await });
+        // Wait until it's started (launch has entered).
+        spawner.launch_entered.notified().await;
+        // Trigger a second capture that observes TTL expired and
+        // schedules a background close of the existing handle.
+        let trigger_pool = Arc::clone(&pool);
+        let _trigger = tokio::spawn(async move { trigger_pool.capture(default_request()).await });
+
+        // Original capture must succeed — no spurious ShuttingDown from
+        // the handle being closed under it.
+        let (bytes, _) = long_capture.await.unwrap().unwrap();
+        assert_eq!(&bytes[..4], &[0x89, b'P', b'N', b'G']);
+    }
+
     #[tokio::test]
     async fn pool_status_reports_lifecycle() {
-        let spawner = Arc::new(FakeSpawner::new().with_launch_delay(Duration::from_millis(30)));
+        let spawner = Arc::new(FakeSpawner::new().with_gated_launch());
         let pool = Arc::new(Pool::new(
             Arc::clone(&spawner) as _,
             default_config(),
@@ -569,9 +685,10 @@ mod tests {
 
         let pool_clone = Arc::clone(&pool);
         let join = tokio::spawn(async move { pool_clone.capture(default_request()).await });
-        tokio::time::sleep(Duration::from_millis(5)).await;
+        spawner.launch_entered.notified().await;
         assert_eq!(pool.status().await, PoolStatus::Launching);
 
+        spawner.release_launch().await;
         join.await.unwrap().unwrap();
         assert_eq!(pool.status().await, PoolStatus::Warm);
     }

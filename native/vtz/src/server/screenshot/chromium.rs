@@ -10,11 +10,12 @@ use chromiumoxide::cdp::browser_protocol::page::{CaptureScreenshotFormat, Viewpo
 use chromiumoxide::page::ScreenshotParams;
 use futures::StreamExt;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
+#[cfg(test)]
+use crate::server::screenshot::pool::WaitCondition;
 use crate::server::screenshot::pool::{
     BrowserHandle, BrowserSpawner, CaptureRequest, CropSpec, LaunchConfig, PageMeta, PoolError,
-    WaitCondition,
 };
 
 /// Production spawner. Each `launch` call spins up a fresh headless
@@ -72,53 +73,55 @@ impl BrowserSpawner for ChromiumoxideSpawner {
         });
 
         Ok(Arc::new(ChromiumoxideHandle {
-            browser: Mutex::new(Some(browser)),
-            handler_task: Mutex::new(Some(handler_task)),
+            browser: RwLock::new(Some(browser)),
+            handler_task: std::sync::Mutex::new(Some(handler_task)),
         }))
     }
 }
 
-/// Per-browser handle. Holds the owned `Browser` behind a `Mutex<Option<_>>`
-/// so `close()` can move it out for shutdown while the trait methods stay on
-/// `&self` (enabling concurrent warm captures).
+/// Per-browser handle.
+///
+/// The Browser lives behind a `tokio::sync::RwLock<Option<_>>`:
+/// - `capture()` takes a **read guard** for its whole duration, so concurrent
+///   captures can share one Browser without serializing on a mutex (the
+///   CDP message handler is off-thread so there's no actual contention).
+/// - `close()` takes a **write guard**, which blocks until every in-flight
+///   capture has released its read guard. This is how we guarantee a
+///   long-running capture is never interrupted by a TTL-triggered close
+///   (B2 from the Task 4 review).
 pub struct ChromiumoxideHandle {
-    browser: Mutex<Option<Browser>>,
-    handler_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    browser: RwLock<Option<Browser>>,
+    handler_task: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 #[async_trait]
 impl BrowserHandle for ChromiumoxideHandle {
     async fn capture(&self, req: CaptureRequest) -> Result<(Vec<u8>, PageMeta), PoolError> {
-        // Scope the lock so we only borrow `&Browser` for new_page; the
-        // resulting `Page` is owned and can be used without the lock.
-        let page = {
-            let guard = self.browser.lock().await;
-            let browser = guard.as_ref().ok_or(PoolError::ShuttingDown)?;
+        // Hold a read guard for the ENTIRE capture. close() takes the write
+        // guard and will wait for all active captures to release.
+        let guard = self.browser.read().await;
+        let browser = guard.as_ref().ok_or(PoolError::ShuttingDown)?;
+
+        let page =
             browser
                 .new_page(req.url.as_str())
                 .await
                 .map_err(|e| PoolError::NavigationFailed {
                     message: e.to_string(),
                     url: req.url.clone(),
-                })?
-        };
+                })?;
 
-        match req.wait_for {
-            WaitCondition::DomContentLoaded | WaitCondition::Load | WaitCondition::NetworkIdle => {
-                page.wait_for_navigation()
-                    .await
-                    .map_err(|e| PoolError::NavigationFailed {
-                        message: e.to_string(),
-                        url: req.url.clone(),
-                    })?;
-            }
-        }
-        // NetworkIdle: crude best-effort — let the event loop breathe for
-        // 500 ms after DOMContentLoaded so async fetches settle. Task 5
-        // upgrades this to real idle-detection via CDP events.
-        if matches!(req.wait_for, WaitCondition::NetworkIdle) {
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        }
+        page.wait_for_navigation()
+            .await
+            .map_err(|e| PoolError::NavigationFailed {
+                message: e.to_string(),
+                url: req.url.clone(),
+            })?;
+        // WaitCondition variants currently collapse to the same wait —
+        // Task 5 will add real DOMContentLoaded / NetworkIdle dispatch via
+        // CDP events. Documenting the plan so consumers see consistent
+        // behavior until then.
+        let _ = req.wait_for;
 
         let final_url = page
             .url()
@@ -128,7 +131,7 @@ impl BrowserHandle for ChromiumoxideHandle {
             })?
             .unwrap_or_else(|| req.url.clone());
 
-        let params = build_screenshot_params(&page, &req).await?;
+        let (params, crop_dims) = build_screenshot_params(&page, &req).await?;
         let bytes = page
             .screenshot(params)
             .await
@@ -136,20 +139,20 @@ impl BrowserHandle for ChromiumoxideHandle {
                 message: format!("screenshot: {e}"),
             })?;
 
-        // The captured image's dimensions — for `clip` we know them
-        // exactly; otherwise mirror the request viewport (Chrome will
-        // resize the DPR-less output to match).
-        let dimensions = if let Some(CropSpec::Css(_)) = &req.crop {
-            // We measured the element above; the returned PNG matches its
-            // bounding box dimensions but build_screenshot_params doesn't
-            // thread them back. Revisit if Task 5 needs exact numbers; for
-            // Phase 1 acceptance the viewport fallback is accurate enough
-            // since consumers use the returned bytes, not these dims.
-            req.viewport
-        } else {
-            req.viewport
+        // Dimensions honesty: fall back to viewport only when we genuinely
+        // don't know. Crop → element bounding box; full_page → the
+        // captured PNG's content size isn't available here without
+        // re-decoding so we signal that by zero dims (Task 5 can decode
+        // the PNG to populate them if the MCP metadata needs it).
+        let dimensions = match (&req.crop, req.full_page) {
+            (Some(_), _) => crop_dims.unwrap_or(req.viewport),
+            (None, true) => (0, 0),
+            (None, false) => req.viewport,
         };
-        let _ = page.close().await;
+
+        if let Err(e) = page.close().await {
+            eprintln!("[screenshot] page.close failed (leaking page): {e}");
+        }
 
         Ok((
             bytes,
@@ -161,7 +164,10 @@ impl BrowserHandle for ChromiumoxideHandle {
     }
 
     async fn close(&self) -> Result<(), PoolError> {
-        if let Some(mut browser) = self.browser.lock().await.take() {
+        // Write guard blocks until every in-flight capture drops its read
+        // guard, so we never tear a browser out from under running work.
+        let mut guard = self.browser.write().await;
+        if let Some(mut browser) = guard.take() {
             let close_fut = async {
                 let _ = browser.close().await;
                 let _ = browser.wait().await;
@@ -170,7 +176,13 @@ impl BrowserHandle for ChromiumoxideHandle {
             // shutdown forever (design doc target: 2s).
             let _ = tokio::time::timeout(std::time::Duration::from_secs(2), close_fut).await;
         }
-        if let Some(task) = self.handler_task.lock().await.take() {
+        drop(guard);
+        let task_opt = self
+            .handler_task
+            .lock()
+            .expect("handler_task mutex poisoned")
+            .take();
+        if let Some(task) = task_opt {
             task.abort();
             let _ = task.await;
         }
@@ -179,14 +191,18 @@ impl BrowserHandle for ChromiumoxideHandle {
 }
 
 /// Turn a [`CaptureRequest`] into `chromiumoxide` screenshot params.
+///
+/// Returns the crop dimensions alongside so `capture` can populate an
+/// accurate `PageMeta.dimensions` instead of lying with `req.viewport`.
 async fn build_screenshot_params(
     page: &chromiumoxide::Page,
     req: &CaptureRequest,
-) -> Result<ScreenshotParams, PoolError> {
+) -> Result<(ScreenshotParams, Option<(u32, u32)>), PoolError> {
     let mut builder = ScreenshotParams::builder().format(CaptureScreenshotFormat::Png);
     if req.full_page {
         builder = builder.full_page(true).capture_beyond_viewport(true);
     }
+    let mut crop_dims = None;
     if let Some(crop) = &req.crop {
         let selector = match crop {
             CropSpec::Css(s) => s.clone(),
@@ -209,6 +225,7 @@ async fn build_screenshot_params(
             .map_err(|e| PoolError::SelectorNotFound {
                 message: format!("bounding_box({selector}): {e}"),
             })?;
+        crop_dims = Some((bbox.width as u32, bbox.height as u32));
         builder = builder
             .clip(Viewport {
                 x: bbox.x,
@@ -219,7 +236,7 @@ async fn build_screenshot_params(
             })
             .capture_beyond_viewport(true);
     }
-    Ok(builder.build())
+    Ok((builder.build(), crop_dims))
 }
 
 #[cfg(test)]
