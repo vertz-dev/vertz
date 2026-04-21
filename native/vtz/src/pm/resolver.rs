@@ -507,69 +507,85 @@ async fn resolve_one_task<'a>(
 /// (`github:`, `link:`, dist-tags) — those can't be reasoned about from the
 /// range string alone.
 pub fn dedup(graph: &mut ResolvedGraph, root_deps: &BTreeMap<String, String>) {
-    // Group graph keys by package name
-    let mut by_name: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for (key, pkg) in &graph.packages {
-        by_name
-            .entry(pkg.name.clone())
-            .or_default()
-            .push(key.clone());
-    }
-
-    // Collect every declared range per name: root-level (deps + devDeps +
-    // optionalDeps, merged by the caller) plus every transitive.
-    let mut ranges_by_name: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for (name, range) in root_deps {
-        ranges_by_name
-            .entry(name.clone())
-            .or_default()
-            .push(range.clone());
-    }
-    for pkg in graph.packages.values() {
-        for (dep_name, dep_range) in pkg
-            .dependencies
-            .iter()
-            .chain(pkg.optional_dependencies.iter())
-        {
-            ranges_by_name
-                .entry(dep_name.clone())
+    // Iterate until fixpoint: dropping one version removes its contributed
+    // ranges, which can unblock dedup of packages that previously had no
+    // satisfying version. Concretely (see #2912): when `esbuild@0.27.7` is
+    // collapsed into `esbuild@0.27.3`, its `"@esbuild/darwin-arm64": "0.27.7"`
+    // optional-dep range must disappear so the orphan binary can itself be
+    // dedup'd in a later pass. Without this loop, the orphan survives and
+    // hoist promotes it to root — producing a host/binary version skew.
+    loop {
+        // Group current graph keys by package name
+        let mut by_name: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        for (key, pkg) in &graph.packages {
+            by_name
+                .entry(pkg.name.clone())
                 .or_default()
-                .push(dep_range.clone());
-        }
-    }
-
-    for (name, keys) in &by_name {
-        if keys.len() < 2 {
-            continue;
+                .push(key.clone());
         }
 
-        let Some(ranges) = ranges_by_name.get(name) else {
-            continue;
-        };
-
-        // Non-semver specs (dist-tags, github:, link:) can't be checked against
-        // a version string — bail out rather than guess.
-        if ranges.iter().any(|r| is_non_semver_spec(r)) {
-            continue;
+        // Collect every declared range per name: root-level (deps + devDeps +
+        // optionalDeps, merged by the caller) plus every transitive in the
+        // CURRENT graph state.
+        let mut ranges_by_name: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        for (name, range) in root_deps {
+            ranges_by_name
+                .entry(name.clone())
+                .or_default()
+                .push(range.clone());
+        }
+        for pkg in graph.packages.values() {
+            for (dep_name, dep_range) in pkg
+                .dependencies
+                .iter()
+                .chain(pkg.optional_dependencies.iter())
+            {
+                ranges_by_name
+                    .entry(dep_name.clone())
+                    .or_default()
+                    .push(dep_range.clone());
+            }
         }
 
-        // Pick the highest version that satisfies every declared range.
-        let winner = keys
-            .iter()
-            .filter(|k| {
-                let v = &graph.packages[*k].version;
-                ranges.iter().all(|r| version_satisfies_range(v, r))
-            })
-            .max_by_key(|k| Version::parse(&graph.packages[*k].version).ok())
-            .cloned();
+        let mut changed = false;
+        for (name, keys) in &by_name {
+            if keys.len() < 2 {
+                continue;
+            }
 
-        if let Some(winner_key) = winner {
-            for key in keys {
-                if key != &winner_key {
-                    graph.packages.remove(key);
-                    graph.scripts.remove(key);
+            let Some(ranges) = ranges_by_name.get(name) else {
+                continue;
+            };
+
+            // Non-semver specs (dist-tags, github:, link:) can't be checked against
+            // a version string — bail out rather than guess.
+            if ranges.iter().any(|r| is_non_semver_spec(r)) {
+                continue;
+            }
+
+            // Pick the highest version that satisfies every declared range.
+            let winner = keys
+                .iter()
+                .filter(|k| {
+                    let v = &graph.packages[*k].version;
+                    ranges.iter().all(|r| version_satisfies_range(v, r))
+                })
+                .max_by_key(|k| Version::parse(&graph.packages[*k].version).ok())
+                .cloned();
+
+            if let Some(winner_key) = winner {
+                for key in keys {
+                    if key != &winner_key {
+                        graph.packages.remove(key);
+                        graph.scripts.remove(key);
+                        changed = true;
+                    }
                 }
             }
+        }
+
+        if !changed {
+            break;
         }
     }
 }
@@ -1462,6 +1478,285 @@ mod tests {
 
         // Both remain — we can't verify "latest" satisfaction from a range string alone
         assert_eq!(graph.packages.len(), 2);
+    }
+
+    // #2912: when a package like `esbuild` exists at two versions and one gets
+    // dedup'd away, the ranges contributed by the dropped version's
+    // optionalDependencies must not linger and prevent dedup of the binary
+    // packages in the same pass. Concretely:
+    //   esbuild@0.27.3 (optDeps: "@esbuild/darwin-arm64": "0.27.3")
+    //   esbuild@0.27.7 (optDeps: "@esbuild/darwin-arm64": "0.27.7")
+    //   @esbuild/darwin-arm64@0.27.3, @esbuild/darwin-arm64@0.27.7
+    // Root/transitives pin esbuild such that 0.27.3 wins. A single-pass dedup
+    // fails to collapse @esbuild/darwin-arm64 because it still sees the
+    // "0.27.7" range from the about-to-be-dropped esbuild@0.27.7; hoist then
+    // promotes @esbuild/darwin-arm64@0.27.7 to root → host/binary skew.
+    #[test]
+    fn test_dedup_drops_orphan_optional_binaries_of_dropped_parent() {
+        let mut graph = ResolvedGraph::default();
+
+        let mut esbuild_327_opt = BTreeMap::new();
+        esbuild_327_opt.insert("@esbuild/darwin-arm64".to_string(), "0.27.3".to_string());
+        graph.packages.insert(
+            "esbuild@0.27.3".to_string(),
+            ResolvedPackage {
+                name: "esbuild".to_string(),
+                version: "0.27.3".to_string(),
+                tarball_url: "esbuild-0.27.3-url".to_string(),
+                integrity: "esbuild-0.27.3-i".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: esbuild_327_opt,
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        let mut esbuild_277_opt = BTreeMap::new();
+        esbuild_277_opt.insert("@esbuild/darwin-arm64".to_string(), "0.27.7".to_string());
+        graph.packages.insert(
+            "esbuild@0.27.7".to_string(),
+            ResolvedPackage {
+                name: "esbuild".to_string(),
+                version: "0.27.7".to_string(),
+                tarball_url: "esbuild-0.27.7-url".to_string(),
+                integrity: "esbuild-0.27.7-i".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: esbuild_277_opt,
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        graph.packages.insert(
+            "@esbuild/darwin-arm64@0.27.3".to_string(),
+            ResolvedPackage {
+                name: "@esbuild/darwin-arm64".to_string(),
+                version: "0.27.3".to_string(),
+                tarball_url: "bin-0.27.3-url".to_string(),
+                integrity: "bin-0.27.3-i".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+        graph.packages.insert(
+            "@esbuild/darwin-arm64@0.27.7".to_string(),
+            ResolvedPackage {
+                name: "@esbuild/darwin-arm64".to_string(),
+                version: "0.27.7".to_string(),
+                tarball_url: "bin-0.27.7-url".to_string(),
+                integrity: "bin-0.27.7-i".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        // A transitive parent like wrangler pins esbuild exactly — this is what
+        // makes esbuild@0.27.3 the unique dedup winner (0.27.7 doesn't satisfy "0.27.3").
+        let mut wrangler_deps = BTreeMap::new();
+        wrangler_deps.insert("esbuild".to_string(), "0.27.3".to_string());
+        graph.packages.insert(
+            "wrangler@4.69.0".to_string(),
+            ResolvedPackage {
+                name: "wrangler".to_string(),
+                version: "4.69.0".to_string(),
+                tarball_url: "wrangler-url".to_string(),
+                integrity: "wrangler-i".to_string(),
+                dependencies: wrangler_deps,
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        // Another transitive (tsx-like) with a loose ~0.27.0 — both versions satisfy.
+        let mut tsx_deps = BTreeMap::new();
+        tsx_deps.insert("esbuild".to_string(), "~0.27.0".to_string());
+        graph.packages.insert(
+            "tsx@4.21.0".to_string(),
+            ResolvedPackage {
+                name: "tsx".to_string(),
+                version: "4.21.0".to_string(),
+                tarball_url: "tsx-url".to_string(),
+                integrity: "tsx-i".to_string(),
+                dependencies: tsx_deps,
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        let mut root_deps = BTreeMap::new();
+        root_deps.insert("esbuild".to_string(), "^0.27.3".to_string());
+        root_deps.insert("wrangler".to_string(), "^4.69.0".to_string());
+        root_deps.insert("tsx".to_string(), "^4.21.0".to_string());
+
+        dedup(&mut graph, &root_deps);
+
+        assert!(
+            graph.packages.contains_key("esbuild@0.27.3"),
+            "esbuild@0.27.3 must win — only version satisfying exact pin"
+        );
+        assert!(
+            !graph.packages.contains_key("esbuild@0.27.7"),
+            "esbuild@0.27.7 must be dropped"
+        );
+        assert!(
+            graph.packages.contains_key("@esbuild/darwin-arm64@0.27.3"),
+            "matching optional binary must survive"
+        );
+        assert!(
+            !graph.packages.contains_key("@esbuild/darwin-arm64@0.27.7"),
+            "orphan optional binary of a dropped parent must also be dropped — \
+             otherwise hoist promotes it to root and node resolves a host/binary \
+             version skew (e.g. esbuild JS 0.27.3 loading @esbuild binary 0.27.7)"
+        );
+    }
+
+    // Cascading dedup across a 3-deep chain: A → B → C where every level has
+    // two versions and the collapse at each level depends on the prior level
+    // being dropped first. Proves the fixpoint loop handles more than the
+    // 2-pass esbuild case.
+    #[test]
+    fn test_dedup_cascades_through_multi_level_chain() {
+        let mut graph = ResolvedGraph::default();
+
+        // A@1 depends on B@1 (exact), A@2 depends on B@2 (exact).
+        let mut a1_deps = BTreeMap::new();
+        a1_deps.insert("b".to_string(), "1.0.0".to_string());
+        graph.packages.insert(
+            "a@1.0.0".to_string(),
+            ResolvedPackage {
+                name: "a".to_string(),
+                version: "1.0.0".to_string(),
+                tarball_url: "a1".to_string(),
+                integrity: "a1i".to_string(),
+                dependencies: a1_deps,
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+        let mut a2_deps = BTreeMap::new();
+        a2_deps.insert("b".to_string(), "2.0.0".to_string());
+        graph.packages.insert(
+            "a@2.0.0".to_string(),
+            ResolvedPackage {
+                name: "a".to_string(),
+                version: "2.0.0".to_string(),
+                tarball_url: "a2".to_string(),
+                integrity: "a2i".to_string(),
+                dependencies: a2_deps,
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        // B@1 depends on C@1 (exact), B@2 depends on C@2 (exact).
+        let mut b1_deps = BTreeMap::new();
+        b1_deps.insert("c".to_string(), "1.0.0".to_string());
+        graph.packages.insert(
+            "b@1.0.0".to_string(),
+            ResolvedPackage {
+                name: "b".to_string(),
+                version: "1.0.0".to_string(),
+                tarball_url: "b1".to_string(),
+                integrity: "b1i".to_string(),
+                dependencies: b1_deps,
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+        let mut b2_deps = BTreeMap::new();
+        b2_deps.insert("c".to_string(), "2.0.0".to_string());
+        graph.packages.insert(
+            "b@2.0.0".to_string(),
+            ResolvedPackage {
+                name: "b".to_string(),
+                version: "2.0.0".to_string(),
+                tarball_url: "b2".to_string(),
+                integrity: "b2i".to_string(),
+                dependencies: b2_deps,
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        graph.packages.insert(
+            "c@1.0.0".to_string(),
+            ResolvedPackage {
+                name: "c".to_string(),
+                version: "1.0.0".to_string(),
+                tarball_url: "c1".to_string(),
+                integrity: "c1i".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+        graph.packages.insert(
+            "c@2.0.0".to_string(),
+            ResolvedPackage {
+                name: "c".to_string(),
+                version: "2.0.0".to_string(),
+                tarball_url: "c2".to_string(),
+                integrity: "c2i".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        // Root pins A@1 exactly → forces A@2 out, which frees B, which frees C.
+        let mut root_deps = BTreeMap::new();
+        root_deps.insert("a".to_string(), "1.0.0".to_string());
+
+        dedup(&mut graph, &root_deps);
+
+        assert!(graph.packages.contains_key("a@1.0.0"));
+        assert!(!graph.packages.contains_key("a@2.0.0"));
+        assert!(graph.packages.contains_key("b@1.0.0"));
+        assert!(
+            !graph.packages.contains_key("b@2.0.0"),
+            "b@2.0.0 should collapse after a@2.0.0 drops"
+        );
+        assert!(graph.packages.contains_key("c@1.0.0"));
+        assert!(
+            !graph.packages.contains_key("c@2.0.0"),
+            "c@2.0.0 should collapse after b@2.0.0 drops — requires ≥3 fixpoint iterations"
+        );
     }
 
     #[test]
