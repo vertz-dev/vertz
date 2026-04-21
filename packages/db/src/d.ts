@@ -68,8 +68,10 @@ export const d: {
    *   (`'meta->k'`), typed `path()` filters, and whole-payload operators
    *   (`jsonContains`, `jsonContainedBy`, `hasKey`).
    * - **SQLite / Cloudflare D1:** stored as TEXT. On reads, values are
-   *   automatically `JSON.parse`d into `T`. On writes, plain objects/arrays
-   *   are automatically `JSON.stringify`d.
+   *   automatically `JSON.parse`d into `T`. On writes, every JSON-compatible
+   *   value — objects, arrays, strings, numbers, booleans — is automatically
+   *   `JSON.stringify`d so the cell always holds valid JSON text. `null`
+   *   passes through as SQL `NULL`.
    *
    * Path-based filters (`where: { 'meta->k': ... }`) and the typed operators
    * are Postgres-only. On SQLite they resolve to a branded `never` type
