@@ -198,6 +198,29 @@ async fn test_sqlite_transaction() {
     }
 }
 
+/// `d.bytea()` round-trips `Uint8Array` params through `@vertz/sqlite` for
+/// small/empty/~1MB payloads, .all() reads, mixed columns, and NULL blobs.
+/// Regression guard for #2920.
+#[tokio::test]
+async fn test_vertz_sqlite_bytea_round_trip() {
+    let mut rt = create_runtime();
+    let entry = fixtures_dir().join("bytea-test.js");
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert!(
+        output
+            .stdout
+            .iter()
+            .any(|s| s.contains("bytea round-trip test passed")),
+        "bytea test did not pass. stdout: {:?}, stderr: {:?}",
+        output.stdout,
+        output.stderr
+    );
+}
+
 /// Phase 3: @vertz/db integration patterns — queryFn bridge, transactions,
 /// introspection, stmt.get(), db.run() DDL
 #[tokio::test]
