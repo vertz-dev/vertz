@@ -487,6 +487,93 @@ async fn resolve_one_task<'a>(
     Ok((true, deps))
 }
 
+/// Collapse redundant versions of the same package when a single version
+/// can satisfy every declared range.
+///
+/// Without this pass, a root exact-pin (`"@vertz/schema": "0.2.73"`) and a
+/// transitive range (`"^0.2.68"` from a dependency) produce two separate graph
+/// entries — the exact version at root and the highest matching version nested
+/// under the transitive parent. TypeScript then sees two distinct module paths
+/// for the same package and treats types with private/protected fields as
+/// incompatible (see #2894).
+///
+/// Runs BEFORE `hoist()`. For each package name with multiple versions, if a
+/// single version in the graph satisfies every declared range (root deps +
+/// every transitive `dependencies`/`optional_dependencies` entry), the other
+/// versions are dropped from the graph and from `graph.scripts`. Ties pick the
+/// highest version.
+///
+/// Skipped for packages where any declared range is a non-semver spec
+/// (`github:`, `link:`, dist-tags) — those can't be reasoned about from the
+/// range string alone.
+pub fn dedup(graph: &mut ResolvedGraph, root_deps: &BTreeMap<String, String>) {
+    // Group graph keys by package name
+    let mut by_name: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (key, pkg) in &graph.packages {
+        by_name
+            .entry(pkg.name.clone())
+            .or_default()
+            .push(key.clone());
+    }
+
+    // Collect every declared range per name: root-level (deps + devDeps +
+    // optionalDeps, merged by the caller) plus every transitive.
+    let mut ranges_by_name: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (name, range) in root_deps {
+        ranges_by_name
+            .entry(name.clone())
+            .or_default()
+            .push(range.clone());
+    }
+    for pkg in graph.packages.values() {
+        for (dep_name, dep_range) in pkg
+            .dependencies
+            .iter()
+            .chain(pkg.optional_dependencies.iter())
+        {
+            ranges_by_name
+                .entry(dep_name.clone())
+                .or_default()
+                .push(dep_range.clone());
+        }
+    }
+
+    for (name, keys) in &by_name {
+        if keys.len() < 2 {
+            continue;
+        }
+
+        let Some(ranges) = ranges_by_name.get(name) else {
+            continue;
+        };
+
+        // Non-semver specs (dist-tags, github:, link:) can't be checked against
+        // a version string — bail out rather than guess.
+        if ranges.iter().any(|r| is_non_semver_spec(r)) {
+            continue;
+        }
+
+        // Pick the highest version that satisfies every declared range.
+        let winner = keys
+            .iter()
+            .filter(|k| {
+                let v = &graph.packages[*k].version;
+                ranges.iter().all(|r| version_satisfies_range(v, r))
+            })
+            .max_by_key(|k| Version::parse(&graph.packages[*k].version).ok())
+            .cloned();
+
+        if let Some(winner_key) = winner {
+            for key in keys {
+                if key != &winner_key {
+                    graph.packages.remove(key);
+                    graph.scripts.remove(key);
+                }
+            }
+        }
+    }
+}
+
 /// Hoisting algorithm: determine which packages go at root vs nested
 ///
 /// Two-pass approach:
@@ -1103,6 +1190,278 @@ mod tests {
             lockfile_entry_satisfies_range(&fresh, "^0.27.3"),
             "fresh lockfile entry pinned to 0.27.3 must satisfy ^0.27.3"
         );
+    }
+
+    // #2894: if the root declares an exact pin and a transitive dep declares a
+    // range that would be satisfied by the same pinned version, the resolver
+    // must NOT install a second, newer copy nested under the transitive parent.
+    // Prior behavior: two graph entries — one hoisted (root), one nested
+    // (transitive) — which broke TypeScript's structural-typing for any type
+    // with a private field (private/protected declarations tie identity to
+    // module path; two file paths → two incompatible types).
+    #[test]
+    fn test_dedup_collapses_when_root_pin_satisfies_transitive_range() {
+        let mut graph = ResolvedGraph::default();
+
+        // Root picks @vertz/schema@0.2.73 (exact pin)
+        graph.packages.insert(
+            "@vertz/schema@0.2.73".to_string(),
+            ResolvedPackage {
+                name: "@vertz/schema".to_string(),
+                version: "0.2.73".to_string(),
+                tarball_url: "schema-0.2.73-url".to_string(),
+                integrity: "schema-0.2.73-integrity".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        // Transitive from agents picks @vertz/schema@0.2.76 (latest matching ^0.2.68)
+        graph.packages.insert(
+            "@vertz/schema@0.2.76".to_string(),
+            ResolvedPackage {
+                name: "@vertz/schema".to_string(),
+                version: "0.2.76".to_string(),
+                tarball_url: "schema-0.2.76-url".to_string(),
+                integrity: "schema-0.2.76-integrity".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        // @vertz/agents@0.2.47 declares "@vertz/schema": "^0.2.68"
+        let mut agents_deps = BTreeMap::new();
+        agents_deps.insert("@vertz/schema".to_string(), "^0.2.68".to_string());
+        graph.packages.insert(
+            "@vertz/agents@0.2.47".to_string(),
+            ResolvedPackage {
+                name: "@vertz/agents".to_string(),
+                version: "0.2.47".to_string(),
+                tarball_url: "agents-url".to_string(),
+                integrity: "agents-integrity".to_string(),
+                dependencies: agents_deps,
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        // Root declares "@vertz/schema": "0.2.73" (exact) and "@vertz/agents": "0.2.47"
+        let mut root_deps = BTreeMap::new();
+        root_deps.insert("@vertz/schema".to_string(), "0.2.73".to_string());
+        root_deps.insert("@vertz/agents".to_string(), "0.2.47".to_string());
+        dedup(&mut graph, &root_deps);
+
+        // After dedup: only 0.2.73 remains (it satisfies both "0.2.73" and "^0.2.68")
+        assert!(
+            graph.packages.contains_key("@vertz/schema@0.2.73"),
+            "exact-pin version must be kept — it satisfies both ranges"
+        );
+        assert!(
+            !graph.packages.contains_key("@vertz/schema@0.2.76"),
+            "redundant transitive version must be dropped when the root pin covers its range"
+        );
+        assert!(
+            graph.packages.contains_key("@vertz/agents@0.2.47"),
+            "unrelated packages must be preserved"
+        );
+    }
+
+    // Dedup must NOT merge when no single version satisfies all declared ranges.
+    #[test]
+    fn test_dedup_keeps_both_when_ranges_are_incompatible() {
+        let mut graph = ResolvedGraph::default();
+
+        graph.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: "zod3-url".to_string(),
+                integrity: "zod3".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+        graph.packages.insert(
+            "zod@4.0.0".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "4.0.0".to_string(),
+                tarball_url: "zod4-url".to_string(),
+                integrity: "zod4".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        // foo@1.0.0 depends on zod@^4.0.0
+        let mut foo_deps = BTreeMap::new();
+        foo_deps.insert("zod".to_string(), "^4.0.0".to_string());
+        graph.packages.insert(
+            "foo@1.0.0".to_string(),
+            ResolvedPackage {
+                name: "foo".to_string(),
+                version: "1.0.0".to_string(),
+                tarball_url: "foo-url".to_string(),
+                integrity: "foo".to_string(),
+                dependencies: foo_deps,
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        // Root: "zod": "^3.0.0" and "foo": "^1.0.0"
+        let mut root_deps = BTreeMap::new();
+        root_deps.insert("zod".to_string(), "^3.0.0".to_string());
+        root_deps.insert("foo".to_string(), "^1.0.0".to_string());
+        dedup(&mut graph, &root_deps);
+
+        assert!(graph.packages.contains_key("zod@3.24.4"));
+        assert!(graph.packages.contains_key("zod@4.0.0"));
+    }
+
+    // #2894 follow-up: root `optionalDependencies` ranges must participate in
+    // the satisfies-all check. Caller (`pm::mod`) merges deps + devDeps +
+    // optionalDeps into one map, so root optional pins aren't silently ignored
+    // when a transitive would otherwise let a newer version win.
+    #[test]
+    fn test_dedup_respects_root_optional_dep_pin() {
+        let mut graph = ResolvedGraph::default();
+
+        // Root optional declares `"some-pkg": "1.0.0"` (exact pin).
+        graph.packages.insert(
+            "some-pkg@1.0.0".to_string(),
+            ResolvedPackage {
+                name: "some-pkg".to_string(),
+                version: "1.0.0".to_string(),
+                tarball_url: "url-1.0.0".to_string(),
+                integrity: "i-1.0.0".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        // A transitive parent declares `"some-pkg": "^1.0.0"` → picked 1.2.0.
+        graph.packages.insert(
+            "some-pkg@1.2.0".to_string(),
+            ResolvedPackage {
+                name: "some-pkg".to_string(),
+                version: "1.2.0".to_string(),
+                tarball_url: "url-1.2.0".to_string(),
+                integrity: "i-1.2.0".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        let mut parent_deps = BTreeMap::new();
+        parent_deps.insert("some-pkg".to_string(), "^1.0.0".to_string());
+        graph.packages.insert(
+            "parent@1.0.0".to_string(),
+            ResolvedPackage {
+                name: "parent".to_string(),
+                version: "1.0.0".to_string(),
+                tarball_url: "parent-url".to_string(),
+                integrity: "parent-i".to_string(),
+                dependencies: parent_deps,
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        // Caller passes a merged map with the root optional range included.
+        let mut root_deps = BTreeMap::new();
+        root_deps.insert("parent".to_string(), "^1.0.0".to_string());
+        root_deps.insert("some-pkg".to_string(), "1.0.0".to_string());
+
+        dedup(&mut graph, &root_deps);
+
+        assert!(
+            graph.packages.contains_key("some-pkg@1.0.0"),
+            "root optional pin must be preserved by dedup"
+        );
+        assert!(
+            !graph.packages.contains_key("some-pkg@1.2.0"),
+            "transitive version must be dropped when root pin covers its range"
+        );
+    }
+
+    // Dist-tag ranges (e.g. "latest") cannot be reasoned about after resolution —
+    // dedup must be a no-op rather than guess.
+    #[test]
+    fn test_dedup_skips_when_any_range_is_dist_tag() {
+        let mut graph = ResolvedGraph::default();
+
+        graph.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+        graph.packages.insert(
+            "zod@4.0.0".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "4.0.0".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        let mut root_deps = BTreeMap::new();
+        root_deps.insert("zod".to_string(), "latest".to_string());
+        dedup(&mut graph, &root_deps);
+
+        // Both remain — we can't verify "latest" satisfaction from a range string alone
+        assert_eq!(graph.packages.len(), 2);
     }
 
     #[test]
