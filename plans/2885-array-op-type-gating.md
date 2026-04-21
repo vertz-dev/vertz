@@ -69,7 +69,7 @@ Resolves to `string` / `number` for the three supported array column types.
 ```ts
 declare const __ArrayFilterBrand: unique symbol;
 
-export interface ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Not_Supported {
+export interface ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS {
   readonly [__ArrayFilterBrand]: 'array-filter-requires-postgres';
 }
 ```
@@ -106,7 +106,7 @@ Current branching in `inference.ts:123-134`:
   : JsonbPathValue<TDialect>;
 ```
 
-New shape:
+New shape — a **3-way union** for the array-column branch:
 
 ```ts
 [K in keyof TColumns | JsonbPathKey<TColumns>]?: K extends keyof TColumns
@@ -115,15 +115,15 @@ New shape:
     : IsArrayColumn<TColumns[K]> extends true
       ?
           | InferColumnType<TColumns[K]>
-          | (ColumnFilterOperators<InferColumnType<TColumns[K]>, IsNullable<TColumns[K]>> &
-              ArrayOperatorSlots<ArrayElementOf<TColumns[K]>, TDialect>)
+          | ColumnFilterOperators<InferColumnType<TColumns[K]>, IsNullable<TColumns[K]>>
+          | ArrayOperatorSlots<ArrayElementOf<TColumns[K]>, TDialect>
       :
           | InferColumnType<TColumns[K]>
           | ColumnFilterOperators<InferColumnType<TColumns[K]>, IsNullable<TColumns[K]>>
   : JsonbPathValue<TDialect>;
 ```
 
-Array column value is the direct payload shorthand OR a composite operator object with **both** standard operators (`eq` / `ne` / `in` / `notIn` / `isNull` when nullable) **and** the three array operators. Intersection is safe — the key sets don't overlap.
+The array column value is the direct payload shorthand OR `ColumnFilterOperators` (eq / ne / in / notIn / isNull-when-nullable) OR `ArrayOperatorSlots` (arrayContains / arrayContainedBy / arrayOverlaps). TypeScript's union contextual typing is still permissive enough to accept a mixed literal (`{ eq: [...], arrayOverlaps: [...] }`) — excess-property checking across union arms is not strict when every arm's properties are optional — and the runtime processes every recognized operator key as an AND of clauses, so mixing works end-to-end.
 
 ### 6. Example usage (Postgres)
 
@@ -164,7 +164,7 @@ const lite = createDb({ dialect: 'sqlite', path: ':memory:', models: { post: d.m
 await lite.post.list({
   where: {
     tags: {
-      // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Not_Supported
+      // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS
       arrayContains: ['typescript'],
     },
   },
@@ -181,16 +181,16 @@ The brand name appears verbatim in the TS diagnostic — the **type alias name I
 
 Rejected alternative: **deriving array-ness from `InferColumnType<C> extends readonly U[]`**. This would also accept a hypothetical future `d.bytea()`-like column typed as `readonly number[]`. Using `sqlType` is narrower and aligns with how `IsJsonbColumn` already works.
 
-Rejected alternative: **making `ArrayOperatorSlots` a standalone union member in `FilterType`** (alongside the existing `InferColumnType<TColumns[K]> | ColumnFilterOperators<…>`). Intersection with `ColumnFilterOperators` composes better: users can write `{ eq: [...], arrayOverlaps: [...] }` in one object. A standalone branch would force an either/or.
+Rejected alternative: **intersection arm (`ColumnFilterOperators & ArrayOperatorSlots`) as a single non-direct union member.** Empirically, TypeScript reports operand-element mismatches at the outer-level property (`TS2322` on `tags: { arrayContains: [42] }` as a whole, not on the inner `arrayContains:` line) for _both_ the intersection form and the 3-way union form — neither enables inner-line `@ts-expect-error` placement. The 3-way union ships because it's slightly easier to read and it keeps each semantic cluster (direct payload / standard ops / array ops) as its own named arm, which matches how JSONB already models `JsonbColumnValue<T, TDialect>` — same precedent, same shape. Both forms accept a mixed-ops literal (`{ eq: [...], arrayOverlaps: [...] }`); the runtime processes such a literal as an AND of clauses, which is correct.
 
 ## Type Flow Map
 
-| Generic                         | Source                              | Flows to                                                   |
-| ------------------------------- | ----------------------------------- | ---------------------------------------------------------- |
-| `TDialect` (of `FilterType`)    | `createDb({ dialect })`             | `ArrayOperatorSlots<_, TDialect>` → brand-vs-typed branch |
-| `TColumns[K]` (column builder)  | `d.table({ tags: d.textArray() })`  | `IsArrayColumn`, `ArrayElementOf`                          |
-| `InferColumnType<TColumns[K]>`  | Column phantom type (`string[]`)    | Direct-payload shorthand slot                              |
-| `ArrayElementOf<TColumns[K]>`   | `string[]` → `string`                | Operand element of `arrayContains` etc.                    |
+| Generic                        | Source                             | Flows to                                                  |
+| ------------------------------ | ---------------------------------- | --------------------------------------------------------- |
+| `TDialect` (of `FilterType`)   | `createDb({ dialect })`            | `ArrayOperatorSlots<_, TDialect>` → brand-vs-typed branch |
+| `TColumns[K]` (column builder) | `d.table({ tags: d.textArray() })` | `IsArrayColumn`, `ArrayElementOf`                         |
+| `InferColumnType<TColumns[K]>` | Column phantom type (`string[]`)   | Direct-payload shorthand slot                             |
+| `ArrayElementOf<TColumns[K]>`  | `string[]` → `string`              | Operand element of `arrayContains` etc.                   |
 
 Every generic terminates at a consumer. `TDialect` in particular now reaches array columns in addition to JSONB path and payload operators.
 
@@ -245,7 +245,7 @@ void pgMixed;
 // SQLite: brand diagnostic
 const liteContains: FilterType<Cols, 'sqlite'> = {
   tags: {
-    // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Not_Supported
+    // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS
     arrayContains: ['typescript'],
   },
 };
@@ -253,7 +253,7 @@ void liteContains;
 
 const liteContainedBy: FilterType<Cols, 'sqlite'> = {
   tags: {
-    // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Not_Supported
+    // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS
     arrayContainedBy: ['typescript'],
   },
 };
@@ -261,7 +261,7 @@ void liteContainedBy;
 
 const liteOverlaps: FilterType<Cols, 'sqlite'> = {
   tags: {
-    // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Not_Supported
+    // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS
     arrayOverlaps: ['typescript'],
   },
 };

@@ -7,8 +7,8 @@
  * of these ops on a SQLite db produces a diagnostic that names this
  * interface — the alias name IS the recovery sentence.
  *
- * Same pattern as `JsonbPathFilter_Error_…` (#2850) and
- * `JsonbOperator_Error_…` (#2868). See `jsonb-filter-brand.ts` for the
+ * Same pattern and naming convention as `JsonbPathFilter_Error_…` (#2850)
+ * and `JsonbOperator_Error_…` (#2868). See `jsonb-filter-brand.ts` for the
  * rationale on why the diagnostic name encodes the recovery sentence.
  *
  * Known limitation: excess-property checks only fire on fresh object
@@ -18,6 +18,6 @@
  */
 declare const __ArrayFilterBrand: unique symbol;
 
-export interface ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Not_Supported {
+export interface ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS {
   readonly [__ArrayFilterBrand]: 'array-filter-requires-postgres';
 }

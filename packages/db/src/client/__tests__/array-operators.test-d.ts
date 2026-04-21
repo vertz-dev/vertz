@@ -148,31 +148,31 @@ void pgPlainNoArrayOps;
 // ---------------------------------------------------------------------------
 
 const liteContains: FilterType<PostColumns, 'sqlite'> = {
-  // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Not_Supported
+  // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS
   tags: { arrayContains: ['typescript'] },
 };
 void liteContains;
 
 const liteContainedBy: FilterType<PostColumns, 'sqlite'> = {
-  // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Not_Supported
+  // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS
   tags: { arrayContainedBy: ['typescript'] },
 };
 void liteContainedBy;
 
 const liteOverlaps: FilterType<PostColumns, 'sqlite'> = {
-  // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Not_Supported
+  // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS
   tags: { arrayOverlaps: ['typescript'] },
 };
 void liteOverlaps;
 
 const liteIntContains: FilterType<PostColumns, 'sqlite'> = {
-  // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Not_Supported
+  // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS
   ratings: { arrayContains: [5] },
 };
 void liteIntContains;
 
 const liteVectorOverlaps: FilterType<PostColumns, 'sqlite'> = {
-  // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Not_Supported
+  // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS
   embedding: { arrayOverlaps: [0.5] },
 };
 void liteVectorOverlaps;
@@ -209,7 +209,7 @@ const sqliteDb = createDb({
 
 void sqliteDb.post.list({
   where: {
-    // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Not_Supported
+    // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS
     tags: { arrayContains: ['typescript'] },
   },
 });
@@ -217,7 +217,7 @@ void sqliteDb.post.list({
 void sqliteDb.post.aggregate({
   _count: true,
   where: {
-    // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Not_Supported
+    // @ts-expect-error — ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS
     ratings: { arrayOverlaps: [5] },
   },
 });

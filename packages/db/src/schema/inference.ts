@@ -1,5 +1,5 @@
 import type { DialectName } from '../dialect/types';
-import type { ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Not_Supported } from './array-filter-brand';
+import type { ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS } from './array-filter-brand';
 import type { ColumnBuilder, InferColumnType } from './column';
 import type { JsonbPathFilter_Error_Requires_Dialect_Postgres_On_SQLite_Use_list_And_Filter_In_JS } from './jsonb-filter-brand';
 import type { JsonbColumnValue } from './path-chain';
@@ -148,9 +148,9 @@ type ArrayOperatorSlots<TElem, TDialect extends DialectName> = TDialect extends 
       readonly arrayOverlaps?: readonly TElem[];
     }
   : {
-      readonly arrayContains?: ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Not_Supported;
-      readonly arrayContainedBy?: ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Not_Supported;
-      readonly arrayOverlaps?: ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Not_Supported;
+      readonly arrayContains?: ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS;
+      readonly arrayContainedBy?: ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS;
+      readonly arrayOverlaps?: ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS;
     };
 
 /**
