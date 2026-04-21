@@ -36,7 +36,7 @@ jobs:
       native: ${{ steps.filter.outputs.native }}
       db: ${{ steps.filter.outputs.db }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -217,7 +217,7 @@ jobs:
     if: needs.changes.outputs.src == 'true'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Lint runs oxlint/oxfmt directly — no cargo build needed; pull a
       # published vtz binary just to drive `vtz install`.
@@ -251,7 +251,7 @@ jobs:
     if: needs.changes.outputs.src == 'true'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -322,7 +322,7 @@ jobs:
     if: needs.changes.outputs.native == 'true'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -355,7 +355,7 @@ jobs:
     if: needs.changes.outputs.native == 'true'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
 
