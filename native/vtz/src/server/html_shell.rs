@@ -251,6 +251,34 @@ mod tests {
     }
 
     #[test]
+    fn test_generate_html_shell_exposes_hot_context_api() {
+        let html = generate_html_shell(
+            &PathBuf::from("/project/src/app.tsx"),
+            &PathBuf::from("/project"),
+            &[],
+            None,
+            "Vertz App",
+            &test_plugin(),
+        );
+
+        // The hot-context lookup that compiler-rewritten `import.meta.hot`
+        // calls must be exposed by the HMR client asset.
+        assert!(
+            html.contains("globalThis.__vtz_hot = getHotContext"),
+            "HTML shell should expose globalThis.__vtz_hot"
+        );
+
+        // All Vite-parity methods on the hot context must be present.
+        for method in ["invalidate", "decline", "on", "off", "accept", "dispose"] {
+            assert!(
+                html.contains(method),
+                "HMR client asset should define `{}` method",
+                method
+            );
+        }
+    }
+
+    #[test]
     fn test_generate_html_shell_hmr_scripts_before_app_module() {
         let html = generate_html_shell(
             &PathBuf::from("/project/src/app.tsx"),

@@ -1382,21 +1382,209 @@ fn remove_cross_specifier_duplicates(code: &str) -> String {
     result.join("\n")
 }
 
-/// Strip `import.meta.hot` lines entirely.
+/// Rewrite `import.meta.hot` references to the Vertz runtime hot-context lookup.
 ///
-/// `import.meta.hot` is Bun's bundler-level HMR API (accept/decline/dispose).
-/// Our native server uses WebSocket-based HMR — this API doesn't apply.
-/// We strip the lines entirely instead of shimming them.
-fn strip_import_meta_hot(code: &str) -> String {
-    let lines: Vec<&str> = code.lines().collect();
-    let mask = template_literal_mask(&lines);
-    lines
-        .iter()
-        .enumerate()
-        .filter(|(idx, line)| mask[*idx] || !line.trim().starts_with("import.meta.hot"))
-        .map(|(_, line)| *line)
-        .collect::<Vec<_>>()
-        .join("\n")
+/// The native vtz dev server doesn't use Bun's bundler-level `import.meta.hot`
+/// API. Instead, the HMR client runtime exposes a per-module hot context via
+/// `globalThis.__vtz_hot(moduleUrl)`. We rewrite source references so that code
+/// written against the standard `import.meta.hot` API resolves to our runtime
+/// at evaluation time.
+///
+/// In production (no HMR runtime present) `globalThis.__vtz_hot` is undefined,
+/// so the optional-call chain short-circuits to `undefined` — preserving the
+/// `ImportMetaHot | undefined` type contract exposed in `vertz/client`.
+///
+/// Rewrite rules:
+/// - Replace every `import.meta.hot` occurrence with
+///   `globalThis.__vtz_hot?.(import.meta.url)`.
+/// - Skip occurrences inside string literals (`'…'`, `"…"`), template literals
+///   (backticks), and comments (`// …`, `/* … */`).
+fn rewrite_import_meta_hot(code: &str) -> String {
+    const NEEDLE: &str = "import.meta.hot";
+    const REPLACEMENT: &str = "globalThis.__vtz_hot?.(import.meta.url)";
+
+    let bytes = code.as_bytes();
+    let len = bytes.len();
+    let mut result = String::with_capacity(len);
+    let mut i = 0;
+
+    // Advance `i` past the next char starting at byte `i`, pushing that char's
+    // bytes to `result` verbatim. Preserves UTF-8 multi-byte sequences because
+    // we advance by the full codepoint width each step.
+    let step = |result: &mut String, i: &mut usize| {
+        let start = *i;
+        let byte = bytes[start];
+        let width = if byte < 0x80 {
+            1
+        } else if byte < 0xC0 {
+            // Continuation byte appearing outside a multi-byte sequence — treat
+            // as a single byte so we never slice in the middle of a codepoint.
+            1
+        } else if byte < 0xE0 {
+            2
+        } else if byte < 0xF0 {
+            3
+        } else {
+            4
+        };
+        let end = (start + width).min(len);
+        result.push_str(&code[start..end]);
+        *i = end;
+    };
+
+    while i < len {
+        let c = bytes[i];
+
+        // Line comment: preserve verbatim to end of line.
+        if c == b'/' && i + 1 < len && bytes[i + 1] == b'/' {
+            while i < len && bytes[i] != b'\n' {
+                step(&mut result, &mut i);
+            }
+            continue;
+        }
+
+        // Block comment: preserve verbatim through closing `*/`.
+        if c == b'/' && i + 1 < len && bytes[i + 1] == b'*' {
+            result.push_str("/*");
+            i += 2;
+            while i + 1 < len && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
+                step(&mut result, &mut i);
+            }
+            if i + 1 < len {
+                result.push_str("*/");
+                i += 2;
+            }
+            continue;
+        }
+
+        // String or template literal: preserve contents verbatim.
+        if c == b'\'' || c == b'"' || c == b'`' {
+            result.push(c as char);
+            i += 1;
+            while i < len && bytes[i] != c {
+                if bytes[i] == b'\\' && i + 1 < len {
+                    // Copy escape byte + next char (may be multi-byte).
+                    result.push('\\');
+                    i += 1;
+                    if i < len {
+                        step(&mut result, &mut i);
+                    }
+                    continue;
+                }
+                step(&mut result, &mut i);
+            }
+            if i < len {
+                result.push(c as char);
+                i += 1;
+            }
+            continue;
+        }
+
+        // Regex literal: preserve verbatim. Uses the classic "previous token is
+        // an operator" heuristic to distinguish from division. If this `/` does
+        // not start a regex (i.e. it is division), we fall through to the normal
+        // step and the rewrite check.
+        if c == b'/' && is_regex_start(bytes, i) {
+            let end = skip_regex_literal(bytes, i);
+            result.push_str(&code[i..end]);
+            i = end;
+            continue;
+        }
+
+        // Replace `import.meta.hot` when it appears as a bare token.
+        let prev_is_ident = i > 0 && is_ident_char(bytes[i - 1]);
+        let prev_is_dot = i > 0 && bytes[i - 1] == b'.';
+        if i + NEEDLE.len() <= len
+            && &bytes[i..i + NEEDLE.len()] == NEEDLE.as_bytes()
+            && !prev_is_ident
+            && !prev_is_dot
+            && (i + NEEDLE.len() == len || !is_ident_char(bytes[i + NEEDLE.len()]))
+        {
+            result.push_str(REPLACEMENT);
+            i += NEEDLE.len();
+            continue;
+        }
+
+        step(&mut result, &mut i);
+    }
+
+    result
+}
+
+/// True if `/` at `pos` in `bytes` starts a regex literal (versus a division
+/// operator). Classic heuristic: the previous non-whitespace token must not
+/// produce a value (identifier, number, `)`, `]`, `}`).
+fn is_regex_start(bytes: &[u8], pos: usize) -> bool {
+    if pos + 1 >= bytes.len() {
+        return false;
+    }
+    let next = bytes[pos + 1];
+    // Comments have already been handled earlier; a regex body can't begin
+    // with `*` or `/`.
+    if next == b'/' || next == b'*' {
+        return false;
+    }
+    // Walk back to the previous non-whitespace byte.
+    let mut j = pos;
+    loop {
+        if j == 0 {
+            return true;
+        }
+        j -= 1;
+        if !matches!(bytes[j], b' ' | b'\t' | b'\n' | b'\r') {
+            break;
+        }
+    }
+    let prev = bytes[j];
+    // If the previous token ends with a value-producing char, `/` is division.
+    if is_ident_char(prev) || matches!(prev, b')' | b']') {
+        return false;
+    }
+    // `}` is ambiguous (block close vs object-literal close). Regex after `}`
+    // is rare in practice; treat as division to stay conservative — matches
+    // the existing heuristic in `vertz-compiler-core/src/import_injection.rs`.
+    if prev == b'}' {
+        return false;
+    }
+    true
+}
+
+/// Walk past a regex literal starting at `pos` (where `bytes[pos] == b'/'`).
+/// Returns the byte index one past the closing `/` + flags. Handles escapes
+/// and character classes (brackets) so that `/[^/]*/` is read as one regex.
+fn skip_regex_literal(bytes: &[u8], pos: usize) -> usize {
+    let len = bytes.len();
+    let mut i = pos + 1;
+    let mut in_class = false;
+    while i < len {
+        let c = bytes[i];
+        if c == b'\\' && i + 1 < len {
+            i += 2;
+            continue;
+        }
+        if c == b'[' {
+            in_class = true;
+        } else if c == b']' {
+            in_class = false;
+        } else if c == b'/' && !in_class {
+            i += 1;
+            // Skip trailing flags (letters).
+            while i < len && bytes[i].is_ascii_alphabetic() {
+                i += 1;
+            }
+            return i;
+        } else if c == b'\n' {
+            // Unterminated regex — bail out at end of line.
+            return i;
+        }
+        i += 1;
+    }
+    len
+}
+
+/// True if `b` is a valid continuation character for a JavaScript identifier.
+fn is_ident_char(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_' || b == b'$'
 }
 
 /// Fix the `__$moduleId` to use a URL-relative path instead of an absolute filesystem path.
@@ -1426,12 +1614,12 @@ pub fn fix_module_id(code: &str, file_path: &Path, root_dir: &Path) -> String {
 /// These are framework-agnostic transforms that any plugin can use:
 /// 1. Strip leftover TypeScript syntax artifacts
 /// 2. Deduplicate imports to prevent "already been declared" errors
-/// 3. Strip import.meta.hot (Bun HMR API)
+/// 3. Rewrite `import.meta.hot` references to the Vertz runtime hot-context lookup
 pub fn generic_post_process(code: &str) -> String {
     let cleaned = strip_leftover_typescript(code);
     let deduped = deduplicate_imports(&cleaned);
     let no_cross_dupes = remove_cross_specifier_duplicates(&deduped);
-    strip_import_meta_hot(&no_cross_dupes)
+    rewrite_import_meta_hot(&no_cross_dupes)
 }
 
 /// Apply all post-processing fixes including Vertz-specific ones.
@@ -2325,31 +2513,166 @@ export function App() {
         assert!(result.contains("function domEffect()"));
     }
 
-    // ── strip_import_meta_hot ───────────────────────────────────────
+    // ── rewrite_import_meta_hot ─────────────────────────────────────
 
     #[test]
-    fn test_strip_import_meta_hot() {
-        let code = "const x = 1;\nimport.meta.hot.accept();\nconst y = 2;";
-        let result = strip_import_meta_hot(code);
-        assert!(!result.contains("import.meta.hot"));
+    fn test_rewrite_import_meta_hot_replaces_reference() {
+        let code = "const x = 1;\nimport.meta.hot?.accept();\nconst y = 2;";
+        let result = rewrite_import_meta_hot(code);
+        assert!(
+            !result.contains("import.meta.hot"),
+            "raw import.meta.hot should be rewritten, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("globalThis.__vtz_hot?.(import.meta.url)?.accept();"),
+            "expected rewritten call, got:\n{}",
+            result
+        );
         assert!(result.contains("const x = 1;"));
         assert!(result.contains("const y = 2;"));
     }
 
     #[test]
-    fn test_strip_import_meta_hot_none() {
+    fn test_rewrite_import_meta_hot_no_references_passthrough() {
         let code = "const x = 1;";
-        let result = strip_import_meta_hot(code);
+        let result = rewrite_import_meta_hot(code);
         assert_eq!(result, code);
     }
 
     #[test]
-    fn test_strip_import_meta_hot_preserves_template_literal() {
+    fn test_rewrite_import_meta_hot_preserves_template_literal() {
         let code = "const tpl = `\nimport.meta.hot.accept();\n`;";
-        let result = strip_import_meta_hot(code);
+        let result = rewrite_import_meta_hot(code);
         assert!(
-            result.contains("import.meta.hot"),
+            result.contains("`\nimport.meta.hot.accept();\n`"),
             "import.meta.hot inside template literal should be preserved. Got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_rewrite_import_meta_hot_preserves_string_literals() {
+        let code = "const msg = \"import.meta.hot is cool\";\nimport.meta.hot?.accept();";
+        let result = rewrite_import_meta_hot(code);
+        assert!(
+            result.contains("\"import.meta.hot is cool\""),
+            "string literal contents should be untouched, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("globalThis.__vtz_hot?.(import.meta.url)?.accept();"),
+            "code reference should be rewritten, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_rewrite_import_meta_hot_preserves_comments() {
+        let code = "// example: import.meta.hot.accept()\nimport.meta.hot?.decline();";
+        let result = rewrite_import_meta_hot(code);
+        assert!(
+            result.contains("// example: import.meta.hot.accept()"),
+            "comment contents should be untouched, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("globalThis.__vtz_hot?.(import.meta.url)?.decline();"),
+            "code reference should be rewritten, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_rewrite_import_meta_hot_preserves_utf8() {
+        let code = "const greeting = '日本語';\nimport.meta.hot?.accept();\n// comment 🎉\nconst emoji = \"🎨\";";
+        let result = rewrite_import_meta_hot(code);
+        assert!(
+            result.contains("'日本語'"),
+            "UTF-8 string contents must survive rewrite intact, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("🎉"),
+            "UTF-8 in comments must survive rewrite intact, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("\"🎨\""),
+            "UTF-8 in double-quoted strings must survive, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("globalThis.__vtz_hot?.(import.meta.url)?.accept();"),
+            "rewrite should still apply, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_rewrite_import_meta_hot_preserves_regex_literal() {
+        let code = "const re = /import\\.meta\\.hot/g;\nimport.meta.hot?.accept();";
+        let result = rewrite_import_meta_hot(code);
+        assert!(
+            result.contains("/import\\.meta\\.hot/g"),
+            "regex literal should be preserved, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("globalThis.__vtz_hot?.(import.meta.url)?.accept();"),
+            "code reference should still be rewritten, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_rewrite_import_meta_hot_rewrites_at_file_start() {
+        let code = "import.meta.hot?.accept();";
+        let result = rewrite_import_meta_hot(code);
+        assert_eq!(result, "globalThis.__vtz_hot?.(import.meta.url)?.accept();");
+    }
+
+    #[test]
+    fn test_rewrite_import_meta_hot_skips_character_class_with_slashes() {
+        // Regex with `/` inside a [class] must read as one regex, not split.
+        let code = "const re = /[/]import\\.meta\\.hot/;";
+        let result = rewrite_import_meta_hot(code);
+        assert_eq!(result, code, "regex with inner `/` got corrupted");
+    }
+
+    #[test]
+    fn test_rewrite_import_meta_hot_division_not_treated_as_regex() {
+        // After an identifier or `)` — `/` is division, so the `import.meta.hot`
+        // that follows must still be rewritten.
+        let code = "const q = x / y;\nimport.meta.hot?.decline();";
+        let result = rewrite_import_meta_hot(code);
+        assert!(
+            result.contains("const q = x / y;"),
+            "division should be preserved, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("globalThis.__vtz_hot?.(import.meta.url)?.decline();"),
+            "code reference should be rewritten, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_rewrite_import_meta_hot_rewrites_inside_if_guard() {
+        let code = "if (import.meta.hot) { import.meta.hot.accept(); }";
+        let result = rewrite_import_meta_hot(code);
+        assert!(
+            !result.contains("import.meta.hot)"),
+            "raw import.meta.hot in guard should be rewritten, got:\n{}",
+            result
+        );
+        assert_eq!(
+            result
+                .matches("globalThis.__vtz_hot?.(import.meta.url)")
+                .count(),
+            2,
+            "both occurrences on one line should be rewritten, got:\n{}",
             result
         );
     }
@@ -2396,8 +2719,9 @@ export function App() {
         let result = generic_post_process(code);
         // import type stripped
         assert!(!result.contains("import type"));
-        // import.meta.hot stripped
-        assert!(!result.contains("import.meta.hot"));
+        // import.meta.hot rewritten to runtime hot-context lookup
+        assert!(!result.contains(" import.meta.hot"));
+        assert!(result.contains("globalThis.__vtz_hot?.(import.meta.url).accept();"));
         // duplicates removed
         assert!(result.contains("const y = 1"));
         // Does NOT fix Vertz-specific API names (that's not generic)
@@ -2417,10 +2741,14 @@ export function App() {
     // ── post_process_compiled (integration) ─────────────────────────
 
     #[test]
-    fn test_post_process_strips_import_meta_hot() {
+    fn test_post_process_rewrites_import_meta_hot() {
         let code = "const x = 1;\nimport.meta.hot.accept();\nexport { x };";
         let result = post_process_compiled(code);
-        assert!(!result.contains("import.meta.hot"));
+        assert!(
+            result.contains("globalThis.__vtz_hot?.(import.meta.url).accept();"),
+            "expected rewritten call, got:\n{}",
+            result
+        );
         assert!(result.contains("const x = 1;"));
     }
 
@@ -2432,8 +2760,8 @@ export function App() {
         assert!(!result.contains("import type"));
         // effect renamed to domEffect and moved to internals
         assert!(result.contains("domEffect"));
-        // import.meta.hot stripped
-        assert!(!result.contains("import.meta.hot"));
+        // import.meta.hot rewritten to runtime hot-context lookup
+        assert!(result.contains("globalThis.__vtz_hot?.(import.meta.url).accept();"));
         // signal deduped
         assert!(result.contains("signal"));
     }

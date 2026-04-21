@@ -29,13 +29,17 @@ Newly-scaffolded apps (via `create-vertz-app`) already include the tsconfig entr
 
 ## The `ImportMetaHot` surface
 
-| Member              | Description                                                                   |
-| ------------------- | ----------------------------------------------------------------------------- |
-| `accept()`          | Self-accept — this module handles its own HMR updates.                        |
-| `accept(cb)`        | Self-accept with a callback receiving the new module.                         |
-| `accept(deps, cb?)` | Accept updates for specific dependency paths.                                 |
-| `dispose(cb)`       | Runs before this module is replaced. Receives a persistent `data` record.     |
-| `data`              | `Record<string, unknown>` — persisted across HMR updates in the same session. |
+| Member                 | Description                                                                               |
+| ---------------------- | ----------------------------------------------------------------------------------------- |
+| `accept()`             | Self-accept — this module handles its own HMR updates.                                    |
+| `accept(cb)`           | Self-accept with a callback receiving the new module.                                     |
+| `accept(deps, cb?)`    | Accept updates for specific dependency paths.                                             |
+| `dispose(cb)`          | Runs before this module is replaced. Receives a persistent `data` record.                 |
+| `data`                 | `Record<string, unknown>` — persisted across HMR updates in the same session.             |
+| `invalidate(message?)` | Mark this module as unable to apply an update; triggers a full reload with the message.   |
+| `decline()`            | Opt out of HMR for this module. The next update targeting it falls back to a full reload. |
+| `on(event, cb)`        | Subscribe to an HMR runtime event (see below).                                            |
+| `off(event, cb)`       | Remove a previously-registered listener (must be the same callback reference).            |
 
 ## Why `hot` is `| undefined`
 
@@ -59,13 +63,35 @@ import.meta.hot?.dispose((data) => {
 const prev = import.meta.hot?.data.lastCount as number | undefined;
 ```
 
+## Events
+
+`hot.on(event, cb)` subscribes to runtime events. Each event delivers a typed payload:
+
+| Event                    | Payload                                | When it fires                                                 |
+| ------------------------ | -------------------------------------- | ------------------------------------------------------------- |
+| `vertz:beforeUpdate`     | `{ module: string }`                   | Before a module is re-imported for an HMR update.             |
+| `vertz:afterUpdate`      | `{ module: string }`                   | After a module has been re-imported and Fast Refresh has run. |
+| `vertz:beforeFullReload` | `{ reason?: string }`                  | Before `location.reload()` is invoked (any cause).            |
+| `vertz:invalidate`       | `{ module: string; message?: string }` | Another module called `hot.invalidate()`.                     |
+| `vertz:error`            | `{ module: string; error: unknown }`   | An HMR update failed to apply.                                |
+
+```ts
+import.meta.hot?.on('vertz:beforeUpdate', (p) => {
+  console.log('about to update', p.module);
+});
+```
+
+## Decline vs invalidate
+
+Both fall back to a full page reload, but at different times:
+
+- `decline()` marks a module as "do not try HMR." The next time the server pushes an update that includes this module, the client performs a full reload instead of a hot swap. Use when a module holds state that can't be re-created safely (e.g., a global WebSocket).
+- `invalidate(message?)` triggers a full reload immediately. Use from inside an `accept()` callback when you discover at runtime that the new module can't take over (e.g., a new dependency version is incompatible with live state).
+
 ## Runtime behavior
 
-- Under `vtz dev`, the runtime strips `import.meta.hot.*` lines server-side and handles HMR through its own WebSocket protocol.
-- Under the Bun build plugin, a guarded self-accept (`if (import.meta.hot) import.meta.hot.accept()`) is injected after user code.
-
-Both paths make `import.meta.hot?.*` calls a no-op when `hot` isn't real — safe in all environments.
+Under `vtz dev`, the compiler rewrites `import.meta.hot` references to a runtime hot-context lookup. In production (no HMR runtime present) the lookup is undefined, so `import.meta.hot?.*` remains a no-op — safe in all environments.
 
 ## What's not here
 
-The current surface matches the subset of Vite's HMR API that Vertz implements today. Extras like `invalidate()`, `on()`, `off()`, `send()`, `prune()`, and `decline()` are tracked as a follow-up (requires dev-server + build-plugin runtime support, not just types).
+`send()` (custom client → server events) and `prune()` (cleanup when a module is no longer imported anywhere) are not implemented yet. They require bidirectional WebSocket support and module-removal tracking respectively; tracked for a follow-up.

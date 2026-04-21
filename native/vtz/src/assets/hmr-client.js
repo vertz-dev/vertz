@@ -29,6 +29,142 @@
   var toastEl = null;
   var toastTimer = null;
 
+  // moduleUrl → HotContext. Keyed by normalized URL-relative pathname.
+  var hotContexts = Object.create(null);
+
+  // ── Hot Context API (import.meta.hot) ──────────────────────────
+
+  /**
+   * Normalize any module URL into a URL-relative pathname.
+   * The compiler passes `import.meta.url` (a full http(s) URL in the browser).
+   * The server broadcasts URL-relative paths (e.g. "/src/app.tsx").
+   * This converts both into the same key form: the pathname, without query/hash.
+   */
+  function normalizeModuleUrl(raw) {
+    if (typeof raw !== 'string') return '';
+    if (raw.indexOf('://') !== -1) {
+      try {
+        return new URL(raw).pathname;
+      } catch (_) {
+        return raw;
+      }
+    }
+    var q = raw.indexOf('?');
+    if (q !== -1) raw = raw.slice(0, q);
+    var h = raw.indexOf('#');
+    if (h !== -1) raw = raw.slice(0, h);
+    return raw;
+  }
+
+  /**
+   * Create a per-module hot context. Stores dispose callbacks, event
+   * listeners, persistent data, and the declined flag. Returned object
+   * is the runtime shape of `import.meta.hot` (matches ImportMetaHot in
+   * vertz/client type declarations).
+   */
+  function createHotContext(moduleUrl) {
+    var disposeCallbacks = [];
+    var selfAcceptCallbacks = [];
+    var listeners = Object.create(null);
+    var declined = false;
+    var data = {};
+
+    var ctx = {
+      accept: function(depsOrCb, cb) {
+        // Self-accept with no callback — no-op beyond "this module handles
+        // its own updates." vtz always self-accepts via the Fast Refresh
+        // registry, so the bare form is purely informational.
+        if (typeof depsOrCb === 'function') {
+          selfAcceptCallbacks.push(depsOrCb);
+        } else if (typeof depsOrCb !== 'undefined' && typeof cb === 'function') {
+          // Dependency-array form. We don't currently track per-dependency
+          // accept chains; invoke the callback with an empty module list when
+          // this module updates, matching the self-accept semantics.
+          selfAcceptCallbacks.push(function(_newModule) { cb([]); });
+        }
+      },
+      dispose: function(cb) {
+        if (typeof cb === 'function') disposeCallbacks.push(cb);
+      },
+      data: data,
+      invalidate: function(message) {
+        // Notify listeners on this context so they can react before reload.
+        ctx._emit('vertz:invalidate', { module: moduleUrl, message: message });
+        // Route through the main full-reload path so `vertz:beforeFullReload`
+        // fires on every context — keeps a single reload entry point.
+        handleFullReload({
+          reason: 'invalidated: ' + moduleUrl + (message ? ' (' + message + ')' : ''),
+        });
+      },
+      decline: function() {
+        declined = true;
+      },
+      on: function(event, cb) {
+        if (typeof event !== 'string' || typeof cb !== 'function') return;
+        if (!listeners[event]) listeners[event] = [];
+        listeners[event].push(cb);
+      },
+      off: function(event, cb) {
+        var subs = listeners[event];
+        if (!subs) return;
+        var filtered = [];
+        for (var i = 0; i < subs.length; i++) {
+          if (subs[i] !== cb) filtered.push(subs[i]);
+        }
+        listeners[event] = filtered;
+      },
+    };
+
+    // Internal hooks used by the HMR transport. Prefixed with `_` so they are
+    // visible as developer-facing API only if someone explicitly looks for
+    // them; they are not part of ImportMetaHot.
+    ctx._emit = function(event, payload) {
+      var subs = listeners[event];
+      if (!subs) return;
+      for (var i = 0; i < subs.length; i++) {
+        try { subs[i](payload); } catch (err) {
+          console.error('[vertz-hmr] Listener for', event, 'threw:', err);
+        }
+      }
+    };
+    // Snapshot-and-clear the pre-import callback lists so the new module
+    // evaluation can freely register a new generation without racing the
+    // old one. Returns the snapshot for the caller to fire after import.
+    ctx._takeSnapshot = function() {
+      var disposed = disposeCallbacks;
+      var accepted = selfAcceptCallbacks;
+      disposeCallbacks = [];
+      selfAcceptCallbacks = [];
+      return { dispose: disposed, accept: accepted };
+    };
+    ctx._fireDispose = function(list) {
+      for (var i = 0; i < list.length; i++) {
+        try { list[i](data); } catch (err) {
+          console.error('[vertz-hmr] dispose callback threw:', err);
+        }
+      }
+    };
+    ctx._fireAccept = function(list, newModule) {
+      for (var i = 0; i < list.length; i++) {
+        try { list[i](newModule); } catch (err) {
+          console.error('[vertz-hmr] accept callback threw:', err);
+        }
+      }
+    };
+    ctx._isDeclined = function() { return declined; };
+
+    return ctx;
+  }
+
+  function getHotContext(moduleUrl) {
+    var key = normalizeModuleUrl(moduleUrl);
+    if (!hotContexts[key]) hotContexts[key] = createHotContext(key);
+    return hotContexts[key];
+  }
+
+  // Expose for compiler-rewritten `import.meta.hot` references.
+  globalThis.__vtz_hot = getHotContext;
+
   // ── Reconnect Tracking ─────────────────────────────────────────
 
   function trackReconnect() {
@@ -136,17 +272,39 @@
     var timestamp = data.timestamp || Date.now();
     var errors = [];
 
+    // If any module in this batch has been marked declined by user code, fall
+    // back to a full page reload — the module owner has opted out of HMR.
+    for (var d = 0; d < modules.length; d++) {
+      var declinedKey = normalizeModuleUrl(modules[d]);
+      var declinedCtx = hotContexts[declinedKey];
+      if (declinedCtx && declinedCtx._isDeclined()) {
+        console.log('[vertz-hmr] Module declined HMR — full reload:', declinedKey);
+        handleFullReload({ reason: 'module declined HMR: ' + declinedKey });
+        return;
+      }
+    }
+
     for (var i = 0; i < modules.length; i++) {
       var mod = modules[i];
+      var ctx = getHotContext(mod);
+      ctx._emit('vertz:beforeUpdate', { module: normalizeModuleUrl(mod) });
+      // Snapshot old-generation dispose + accept callbacks BEFORE the import
+      // so the new module's top-level can register a fresh generation.
+      var prev = ctx._takeSnapshot();
+      ctx._fireDispose(prev.dispose);
       try {
         // Dynamic re-import with cache-bust timestamp
-        await import(mod + '?t=' + timestamp);
+        var newModule = await import(mod + '?t=' + timestamp);
+        // Fire the previous-generation accept callbacks with the new module.
+        ctx._fireAccept(prev.accept, newModule);
         // Trigger Fast Refresh for the updated module
         performFastRefresh(mod);
+        ctx._emit('vertz:afterUpdate', { module: normalizeModuleUrl(mod) });
       } catch (err) {
         var errMsg = err.message || String(err);
         console.error('[vertz-hmr] Failed to import', mod, err);
         errors.push({ message: errMsg, file: mod });
+        ctx._emit('vertz:error', { module: normalizeModuleUrl(mod), error: err });
       }
     }
 
@@ -208,6 +366,11 @@
   function handleFullReload(data) {
     showToast('Full reload');
     console.log('[vertz-hmr] Full reload:', data.reason);
+    // Emit beforeFullReload on every known hot context so user code can
+    // snapshot state or clean up before the page is destroyed.
+    for (var key in hotContexts) {
+      hotContexts[key]._emit('vertz:beforeFullReload', { reason: data.reason });
+    }
     // Small delay to show the toast
     setTimeout(function() {
       location.reload();
