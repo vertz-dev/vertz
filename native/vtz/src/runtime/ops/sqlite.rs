@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 
 use deno_core::error::AnyError;
 use deno_core::op2;
@@ -6,6 +7,9 @@ use deno_core::OpDecl;
 use deno_core::OpState;
 use rusqlite::types::Value as SqliteValue;
 use rusqlite::Connection;
+use serde::de::{MapAccess, SeqAccess, Visitor};
+use serde::ser::SerializeMap;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 // ---------------------------------------------------------------------------
 // Handle store — opaque db_id in OpState
@@ -49,8 +53,137 @@ impl SqliteStore {
 }
 
 // ---------------------------------------------------------------------------
-// Helper: convert serde_json::Value params to rusqlite params
+// SqliteParam — accepts either a JSON-compatible value or a byte array
 // ---------------------------------------------------------------------------
+
+/// A single parameter passed to a prepared statement. Carries either a
+/// JSON-compatible scalar (mapped to `INTEGER`/`REAL`/`TEXT`/`NULL`) or an
+/// opaque byte sequence (mapped to `BLOB`).
+///
+/// `serde_json::Value` alone cannot represent a `Uint8Array` because it has
+/// no byte-array variant; it rejects `serde_v8`'s `visit_byte_buf` with
+/// `"invalid type: byte array, expected any valid JSON value"`. This enum
+/// intercepts `visit_bytes`/`visit_byte_buf` before delegating everything
+/// else to `serde_json::Value`.
+#[derive(Debug)]
+pub enum SqliteParam {
+    Bytes(Vec<u8>),
+    Json(serde_json::Value),
+}
+
+impl<'de> Deserialize<'de> for SqliteParam {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_any(SqliteParamVisitor)
+    }
+}
+
+struct SqliteParamVisitor;
+
+impl<'de> Visitor<'de> for SqliteParamVisitor {
+    type Value = SqliteParam;
+
+    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("a JSON scalar, JSON compound value, or Uint8Array")
+    }
+
+    fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(SqliteParam::Bytes(v.to_vec()))
+    }
+
+    fn visit_byte_buf<E>(self, v: Vec<u8>) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(SqliteParam::Bytes(v))
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(SqliteParam::Json(serde_json::Value::Null))
+    }
+
+    fn visit_none<E>(self) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(SqliteParam::Json(serde_json::Value::Null))
+    }
+
+    fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(SqliteParam::Json(serde_json::Value::Bool(v)))
+    }
+
+    fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(SqliteParam::Json(serde_json::Value::from(v)))
+    }
+
+    fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(SqliteParam::Json(serde_json::Value::from(v)))
+    }
+
+    fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(SqliteParam::Json(serde_json::Value::from(v)))
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(SqliteParam::Json(serde_json::Value::String(v.to_owned())))
+    }
+
+    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(SqliteParam::Json(serde_json::Value::String(v)))
+    }
+
+    fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        let value =
+            serde_json::Value::deserialize(serde::de::value::SeqAccessDeserializer::new(seq))?;
+        Ok(SqliteParam::Json(value))
+    }
+
+    fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let value =
+            serde_json::Value::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
+        Ok(SqliteParam::Json(value))
+    }
+}
+
+fn sqlite_param_to_value(p: &SqliteParam) -> SqliteValue {
+    match p {
+        SqliteParam::Bytes(b) => SqliteValue::Blob(b.clone()),
+        SqliteParam::Json(v) => json_to_sqlite_value(v),
+    }
+}
 
 fn json_to_sqlite_value(v: &serde_json::Value) -> SqliteValue {
     match v {
@@ -71,15 +204,98 @@ fn json_to_sqlite_value(v: &serde_json::Value) -> SqliteValue {
     }
 }
 
-fn sqlite_value_to_json(v: SqliteValue) -> serde_json::Value {
-    match v {
-        SqliteValue::Null => serde_json::Value::Null,
-        SqliteValue::Integer(i) => serde_json::json!(i),
-        SqliteValue::Real(f) => serde_json::json!(f),
-        SqliteValue::Text(s) => serde_json::json!(s),
-        SqliteValue::Blob(b) => {
-            // Best-effort: encode as array of bytes
-            serde_json::json!(b)
+// ---------------------------------------------------------------------------
+// SqliteCell / SqliteRow — serialize SQLite column values, with BLOBs as
+// Uint8Array (via `serialize_bytes`, which serde_v8 maps to a typed array).
+// ---------------------------------------------------------------------------
+
+/// A single SQLite cell. Mirrors `rusqlite::types::Value` but serializes
+/// blobs as byte strings so `serde_v8` emits a `Uint8Array` to JS.
+#[derive(Debug)]
+enum SqliteCell {
+    Null,
+    Integer(i64),
+    Real(f64),
+    Text(String),
+    Blob(Vec<u8>),
+}
+
+impl From<SqliteValue> for SqliteCell {
+    fn from(v: SqliteValue) -> Self {
+        match v {
+            SqliteValue::Null => SqliteCell::Null,
+            SqliteValue::Integer(i) => SqliteCell::Integer(i),
+            SqliteValue::Real(f) => SqliteCell::Real(f),
+            SqliteValue::Text(s) => SqliteCell::Text(s),
+            SqliteValue::Blob(b) => SqliteCell::Blob(b),
+        }
+    }
+}
+
+impl Serialize for SqliteCell {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            SqliteCell::Null => serializer.serialize_unit(),
+            SqliteCell::Integer(i) => serializer.serialize_i64(*i),
+            SqliteCell::Real(f) => serializer.serialize_f64(*f),
+            SqliteCell::Text(s) => serializer.serialize_str(s),
+            SqliteCell::Blob(b) => serializer.serialize_bytes(b),
+        }
+    }
+}
+
+/// A row of `(column_name, cell)` pairs. Preserves column order by using a
+/// `Vec` and emitting a V8 object via a custom `Serialize` impl.
+#[derive(Debug, Default)]
+struct SqliteRow {
+    cells: Vec<(String, SqliteCell)>,
+}
+
+impl SqliteRow {
+    fn with_capacity(cap: usize) -> Self {
+        Self {
+            cells: Vec::with_capacity(cap),
+        }
+    }
+
+    fn push(&mut self, name: String, cell: SqliteCell) {
+        self.cells.push((name, cell));
+    }
+}
+
+impl Serialize for SqliteRow {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.cells.len()))?;
+        for (k, v) in &self.cells {
+            map.serialize_entry(k, v)?;
+        }
+        map.end()
+    }
+}
+
+/// A row that can be either a full `SqliteRow` object or `null`. Used as the
+/// return type of `op_sqlite_query_get`, which returns `null` when no row
+/// matched. Serializes to a V8 object or `null`.
+#[derive(Debug)]
+enum SqliteRowOrNull {
+    Row(SqliteRow),
+    None,
+}
+
+impl Serialize for SqliteRowOrNull {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            SqliteRowOrNull::Row(row) => row.serialize(serializer),
+            SqliteRowOrNull::None => serializer.serialize_none(),
         }
     }
 }
@@ -113,30 +329,30 @@ pub fn op_sqlite_query_all(
     state: &mut OpState,
     #[smi] db_id: u32,
     #[string] sql: String,
-    #[serde] params: Vec<serde_json::Value>,
-) -> Result<Vec<serde_json::Value>, AnyError> {
+    #[serde] params: Vec<SqliteParam>,
+) -> Result<Vec<SqliteRow>, AnyError> {
     let store = state.borrow::<SqliteStore>();
     let conn = store.get(db_id)?;
 
     let mut stmt = conn.prepare(&sql)?;
     let column_names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
 
-    let sqlite_params: Vec<SqliteValue> = params.iter().map(json_to_sqlite_value).collect();
+    let sqlite_params: Vec<SqliteValue> = params.iter().map(sqlite_param_to_value).collect();
     let param_refs: Vec<&dyn rusqlite::types::ToSql> = sqlite_params
         .iter()
         .map(|v| v as &dyn rusqlite::types::ToSql)
         .collect();
 
-    let mut rows_result: Vec<serde_json::Value> = Vec::new();
+    let mut rows_result: Vec<SqliteRow> = Vec::new();
     let mut rows = stmt.query(param_refs.as_slice())?;
 
     while let Some(row) = rows.next()? {
-        let mut obj = serde_json::Map::new();
+        let mut out = SqliteRow::with_capacity(column_names.len());
         for (i, col_name) in column_names.iter().enumerate() {
             let val: SqliteValue = row.get(i)?;
-            obj.insert(col_name.clone(), sqlite_value_to_json(val));
+            out.push(col_name.clone(), SqliteCell::from(val));
         }
-        rows_result.push(serde_json::Value::Object(obj));
+        rows_result.push(out);
     }
 
     Ok(rows_result)
@@ -148,15 +364,15 @@ pub fn op_sqlite_query_get(
     state: &mut OpState,
     #[smi] db_id: u32,
     #[string] sql: String,
-    #[serde] params: Vec<serde_json::Value>,
-) -> Result<serde_json::Value, AnyError> {
+    #[serde] params: Vec<SqliteParam>,
+) -> Result<SqliteRowOrNull, AnyError> {
     let store = state.borrow::<SqliteStore>();
     let conn = store.get(db_id)?;
 
     let mut stmt = conn.prepare(&sql)?;
     let column_names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
 
-    let sqlite_params: Vec<SqliteValue> = params.iter().map(json_to_sqlite_value).collect();
+    let sqlite_params: Vec<SqliteValue> = params.iter().map(sqlite_param_to_value).collect();
     let param_refs: Vec<&dyn rusqlite::types::ToSql> = sqlite_params
         .iter()
         .map(|v| v as &dyn rusqlite::types::ToSql)
@@ -166,14 +382,14 @@ pub fn op_sqlite_query_get(
 
     match rows.next()? {
         Some(row) => {
-            let mut obj = serde_json::Map::new();
+            let mut out = SqliteRow::with_capacity(column_names.len());
             for (i, col_name) in column_names.iter().enumerate() {
                 let val: SqliteValue = row.get(i)?;
-                obj.insert(col_name.clone(), sqlite_value_to_json(val));
+                out.push(col_name.clone(), SqliteCell::from(val));
             }
-            Ok(serde_json::Value::Object(obj))
+            Ok(SqliteRowOrNull::Row(out))
         }
-        None => Ok(serde_json::Value::Null),
+        None => Ok(SqliteRowOrNull::None),
     }
 }
 
@@ -183,13 +399,13 @@ pub fn op_sqlite_query_run(
     state: &mut OpState,
     #[smi] db_id: u32,
     #[string] sql: String,
-    #[serde] params: Vec<serde_json::Value>,
+    #[serde] params: Vec<SqliteParam>,
 ) -> Result<serde_json::Value, AnyError> {
     let store = state.borrow::<SqliteStore>();
     let conn = store.get(db_id)?;
 
     let mut stmt = conn.prepare(&sql)?;
-    let sqlite_params: Vec<SqliteValue> = params.iter().map(json_to_sqlite_value).collect();
+    let sqlite_params: Vec<SqliteValue> = params.iter().map(sqlite_param_to_value).collect();
     let param_refs: Vec<&dyn rusqlite::types::ToSql> = sqlite_params
         .iter()
         .map(|v| v as &dyn rusqlite::types::ToSql)
@@ -551,6 +767,118 @@ mod tests {
             .unwrap();
 
         assert_eq!(result["changes"], 0);
+    }
+
+    #[test]
+    fn test_sqlite_bytea_round_trip_small() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const dbId = Deno.core.ops.op_sqlite_open(':memory:');
+                Deno.core.ops.op_sqlite_exec(dbId, 'CREATE TABLE blobs (id INTEGER PRIMARY KEY, data BLOB)');
+                const payload = new Uint8Array([0xde, 0xad, 0xbe, 0xef, 0x00, 0xff]);
+                Deno.core.ops.op_sqlite_query_run(dbId, 'INSERT INTO blobs (id, data) VALUES (?, ?)', [1, payload]);
+                const row = Deno.core.ops.op_sqlite_query_get(dbId, 'SELECT data FROM blobs WHERE id = ?', [1]);
+                const cell = row.data;
+                [cell instanceof Uint8Array, cell.length, Array.from(cell)];
+                "#,
+            )
+            .unwrap();
+
+        let arr = result.as_array().unwrap();
+        assert!(
+            arr[0].as_bool().unwrap(),
+            "read-back cell must be a Uint8Array"
+        );
+        assert_eq!(arr[1].as_u64().unwrap(), 6);
+        assert_eq!(
+            arr[2],
+            serde_json::json!([0xde, 0xad, 0xbe, 0xef, 0x00, 0xff])
+        );
+    }
+
+    #[test]
+    fn test_sqlite_bytea_round_trip_empty() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const dbId = Deno.core.ops.op_sqlite_open(':memory:');
+                Deno.core.ops.op_sqlite_exec(dbId, 'CREATE TABLE blobs (id INTEGER PRIMARY KEY, data BLOB)');
+                Deno.core.ops.op_sqlite_query_run(dbId, 'INSERT INTO blobs (id, data) VALUES (?, ?)', [1, new Uint8Array(0)]);
+                const row = Deno.core.ops.op_sqlite_query_get(dbId, 'SELECT data FROM blobs WHERE id = ?', [1]);
+                [row.data instanceof Uint8Array, row.data.length];
+                "#,
+            )
+            .unwrap();
+
+        let arr = result.as_array().unwrap();
+        assert!(arr[0].as_bool().unwrap());
+        assert_eq!(arr[1].as_u64().unwrap(), 0);
+    }
+
+    #[test]
+    fn test_sqlite_bytea_round_trip_large() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const dbId = Deno.core.ops.op_sqlite_open(':memory:');
+                Deno.core.ops.op_sqlite_exec(dbId, 'CREATE TABLE blobs (id INTEGER PRIMARY KEY, data BLOB)');
+                const size = 1024 * 1024;
+                const payload = new Uint8Array(size);
+                for (let i = 0; i < size; i++) payload[i] = i & 0xff;
+                Deno.core.ops.op_sqlite_query_run(dbId, 'INSERT INTO blobs (id, data) VALUES (?, ?)', [1, payload]);
+                const row = Deno.core.ops.op_sqlite_query_get(dbId, 'SELECT data FROM blobs WHERE id = ?', [1]);
+                const cell = row.data;
+                let ok = cell instanceof Uint8Array && cell.length === size;
+                for (let i = 0; ok && i < size; i += 997) {
+                    if (cell[i] !== (i & 0xff)) ok = false;
+                }
+                ok;
+                "#,
+            )
+            .unwrap();
+
+        assert!(
+            result.as_bool().unwrap(),
+            "1MB payload must round-trip byte-exact"
+        );
+    }
+
+    #[test]
+    fn test_sqlite_bytea_query_all_returns_uint8array() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const dbId = Deno.core.ops.op_sqlite_open(':memory:');
+                Deno.core.ops.op_sqlite_exec(dbId, 'CREATE TABLE blobs (id INTEGER PRIMARY KEY, data BLOB)');
+                Deno.core.ops.op_sqlite_query_run(dbId, 'INSERT INTO blobs (id, data) VALUES (?, ?)', [1, new Uint8Array([1, 2, 3])]);
+                Deno.core.ops.op_sqlite_query_run(dbId, 'INSERT INTO blobs (id, data) VALUES (?, ?)', [2, new Uint8Array([9, 8, 7, 6])]);
+                const rows = Deno.core.ops.op_sqlite_query_all(dbId, 'SELECT * FROM blobs ORDER BY id', []);
+                [
+                    rows.length,
+                    rows[0].data instanceof Uint8Array,
+                    Array.from(rows[0].data),
+                    rows[1].data instanceof Uint8Array,
+                    Array.from(rows[1].data),
+                ];
+                "#,
+            )
+            .unwrap();
+
+        let arr = result.as_array().unwrap();
+        assert_eq!(arr[0].as_u64().unwrap(), 2);
+        assert!(arr[1].as_bool().unwrap());
+        assert_eq!(arr[2], serde_json::json!([1, 2, 3]));
+        assert!(arr[3].as_bool().unwrap());
+        assert_eq!(arr[4], serde_json::json!([9, 8, 7, 6]));
     }
 
     #[test]
