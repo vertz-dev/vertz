@@ -2150,11 +2150,25 @@ fn slice_with_transformed_jsx(
 }
 
 /// Collect all JSX nodes within a span, sorted by position.
+///
+/// Skips JSX located inside nested function/arrow bodies — those nodes were
+/// already transformed by the top-level loop (`collect_top_level_jsx` resets
+/// `in_jsx` when entering a nested callback, so inner JSX is collected as a
+/// separate top-level entry and transformed first via the reverse-order walk).
+/// Re-transforming them here would read from a MagicString range whose source
+/// has already been overwritten, losing nested expression text (#2897).
+///
+/// The `in_list_callback` counter mirrors `JsxCollector`'s `.map()` logic:
+/// the top-level loop does NOT reset `in_jsx` inside `.map()` callbacks (the
+/// List handler in `transform_child` handles them), so JSX inside those
+/// callbacks was NOT transformed and MUST be picked up here.
 fn collect_jsx_in_span(program: &Program, start: u32, end: u32) -> Vec<JsxNodeInfo> {
     let mut collector = JsxInSpanCollector {
         target_start: start,
         target_end: end,
         results: Vec::new(),
+        function_depth: 0,
+        in_list_callback: 0,
     };
     for stmt in &program.body {
         collector.visit_statement(stmt);
@@ -2167,11 +2181,36 @@ struct JsxInSpanCollector {
     target_start: u32,
     target_end: u32,
     results: Vec<JsxNodeInfo>,
+    /// Depth of nested function/arrow bodies the top-level loop has already
+    /// transformed. JSX collected while `function_depth > 0` would double-
+    /// transform a node whose source was overwritten.
+    function_depth: u32,
+    /// Depth of enclosing `.map()` callbacks. When `> 0`, the top-level loop
+    /// leaves inner JSX untransformed (the List handler transforms it
+    /// separately only when the `.map()` sits in a JSX-children position, not
+    /// in a prop value). Functions encountered while `in_list_callback > 0`
+    /// must NOT increment `function_depth`, so their inner JSX is collected
+    /// and transformed here.
+    in_list_callback: u32,
+}
+
+impl JsxInSpanCollector {
+    /// A function is "inside the target" when its span is contained by the
+    /// target span (including equality). The target is always a prop/expr
+    /// span narrower than any surrounding component body, so we only see
+    /// functions we entered deliberately — either the target itself (e.g.,
+    /// `prop={() => <div/>}`) or something nested deeper.
+    fn is_inside_target(&self, start: u32, end: u32) -> bool {
+        start >= self.target_start && end <= self.target_end
+    }
 }
 
 impl<'c> Visit<'c> for JsxInSpanCollector {
     fn visit_jsx_element(&mut self, elem: &JSXElement<'c>) {
-        if elem.span.start >= self.target_start && elem.span.end <= self.target_end {
+        if self.function_depth == 0
+            && elem.span.start >= self.target_start
+            && elem.span.end <= self.target_end
+        {
             self.results.push(JsxNodeInfo {
                 start: elem.span.start,
                 end: elem.span.end,
@@ -2184,7 +2223,10 @@ impl<'c> Visit<'c> for JsxInSpanCollector {
     }
 
     fn visit_jsx_fragment(&mut self, frag: &JSXFragment<'c>) {
-        if frag.span.start >= self.target_start && frag.span.end <= self.target_end {
+        if self.function_depth == 0
+            && frag.span.start >= self.target_start
+            && frag.span.end <= self.target_end
+        {
             self.results.push(JsxNodeInfo {
                 start: frag.span.start,
                 end: frag.span.end,
@@ -2193,6 +2235,57 @@ impl<'c> Visit<'c> for JsxInSpanCollector {
             return;
         }
         oxc_ast_visit::walk::walk_jsx_fragment(self, frag);
+    }
+
+    fn visit_call_expression(&mut self, call: &CallExpression<'c>) {
+        // Track ANY enclosing `.map()` the walker traverses — not just those
+        // strictly inside the target span. The top-level loop's
+        // `in_list_callback` is updated by the outer walker, so enclosing
+        // `.map()`s ABOVE the target (e.g., render-prop arrow inside
+        // `{items.map((i) => <Row render={() => <span/>} />)}`) still mean
+        // the inner JSX was left untransformed. We mirror that here.
+        let is_map = if let Expression::StaticMemberExpression(member) = &call.callee {
+            member.property.name == "map"
+        } else if let Some(MemberExpression::StaticMemberExpression(member)) =
+            call.callee.as_member_expression()
+        {
+            member.property.name == "map"
+        } else {
+            false
+        };
+        if is_map {
+            self.in_list_callback += 1;
+            oxc_ast_visit::walk::walk_call_expression(self, call);
+            self.in_list_callback -= 1;
+            return;
+        }
+        oxc_ast_visit::walk::walk_call_expression(self, call);
+    }
+
+    fn visit_function(&mut self, func: &Function<'c>, flags: oxc_syntax::scope::ScopeFlags) {
+        // Only treat as "pre-transformed" when the top-level loop would have
+        // reset `in_jsx` — i.e., we're NOT inside a .map() callback.
+        let nested =
+            self.in_list_callback == 0 && self.is_inside_target(func.span.start, func.span.end);
+        if nested {
+            self.function_depth += 1;
+        }
+        oxc_ast_visit::walk::walk_function(self, func, flags);
+        if nested {
+            self.function_depth -= 1;
+        }
+    }
+
+    fn visit_arrow_function_expression(&mut self, arrow: &ArrowFunctionExpression<'c>) {
+        let nested =
+            self.in_list_callback == 0 && self.is_inside_target(arrow.span.start, arrow.span.end);
+        if nested {
+            self.function_depth += 1;
+        }
+        oxc_ast_visit::walk::walk_arrow_function_expression(self, arrow);
+        if nested {
+            self.function_depth -= 1;
+        }
     }
 }
 
@@ -4409,6 +4502,121 @@ export function App() {
         assert!(result.contains("__element(\"div\")"), "result: {result}");
     }
 
+    /// Regression test for #2897.
+    ///
+    /// When JSX inside an arrow-function prop references an outer identifier
+    /// in `className={styles.main}`, the compiler must read the expression
+    /// text from the transformed MagicString — not from a zero-width span
+    /// left behind by the JSX transform itself.
+    #[test]
+    fn component_with_jsx_prop_value_and_classname_expr_inside() {
+        let result = transform(
+            r#"const styles = { main: "_abc" };
+export function App() {
+    return <RouterView fallback={() => <div className={styles.main}>Page not found</div>} />;
+}"#,
+        );
+        // Arrow-fn JSX is transformed via slice_with_transformed_jsx.
+        // The inner <div>'s className expression must survive as `styles.main`.
+        assert!(
+            result.contains("const __v = styles.main"),
+            "className expr text lost — result: {result}"
+        );
+        assert!(
+            !result.contains("const __v = ;"),
+            "empty __v expression indicates the bug — result: {result}"
+        );
+    }
+
+    /// #2897 variant: arbitrary attribute expression (not className) inside
+    /// arrow-fn JSX — the same double-transform path applies to `id`, `title`,
+    /// etc.
+    #[test]
+    fn component_with_jsx_prop_arrow_body_has_attr_expression() {
+        let result = transform(
+            r#"const labels = { main: "hero" };
+export function App() {
+    return <Outer render={() => <div id={labels.main}>body</div>} />;
+}"#,
+        );
+        assert!(
+            result.contains("const __v = labels.main"),
+            "attr expr text lost — result: {result}"
+        );
+    }
+
+    /// #2897 variant: JSX directly in a prop value (no arrow wrapper). This
+    /// path was NOT collected by the top-level loop, so
+    /// slice_with_transformed_jsx must still transform it inline.
+    #[test]
+    fn component_with_jsx_prop_value_direct_jsx_attr_expression() {
+        let result = transform(
+            r#"const labels = { main: "hero" };
+export function App() {
+    return <Outer fallback={<div id={labels.main}>body</div>} />;
+}"#,
+        );
+        assert!(
+            result.contains("const __v = labels.main"),
+            "direct-JSX attr expr text lost — result: {result}"
+        );
+        assert!(
+            result.contains("__element(\"div\")"),
+            "inner <div> not transformed — result: {result}"
+        );
+    }
+
+    /// #2897 regression guard: `.map()` used as a prop value. The top-level
+    /// loop does NOT transform JSX inside `.map()` callbacks (keeps `in_jsx`
+    /// true via `in_list_callback`), so `slice_with_transformed_jsx` must
+    /// descend into that arrow body.
+    #[test]
+    fn component_with_map_expr_as_prop_value() {
+        let result = transform(
+            r#"export function App() {
+    const items = [{ id: "1", name: "a" }];
+    return <Layout rows={items.map((i) => <Row key={i.id}>{i.name}</Row>)} />;
+}"#,
+        );
+        // The inner <Row> must be transformed — no raw JSX should leak through.
+        assert!(
+            result.contains("Row("),
+            "inner <Row> not transformed — result: {result}"
+        );
+        assert!(
+            !result.contains("<Row "),
+            "raw <Row> tag leaked into prop value — result: {result}"
+        );
+    }
+
+    /// #2897 regression guard: arrow-fn JSX prop on a component produced by a
+    /// `.map()` callback. Nested function inside `.map()` must NOT count as
+    /// "already transformed" — the top-level loop skipped it.
+    #[test]
+    fn arrow_fn_jsx_prop_inside_map_callback() {
+        let result = transform(
+            r#"const styles = { badge: "_b" };
+export function App() {
+    const items = [{ id: "1" }];
+    return (
+        <ul>
+            {items.map((i) => (
+                <Row key={i.id} render={() => <span className={styles.badge}>x</span>} />
+            ))}
+        </ul>
+    );
+}"#,
+        );
+        assert!(
+            result.contains("__element(\"span\")"),
+            "inner <span> not transformed — result: {result}"
+        );
+        assert!(
+            result.contains("const __v = styles.badge"),
+            "className expr text lost inside map-nested render prop — result: {result}"
+        );
+    }
+
     // ========== Reactivity: signal API props ==========
 
     #[test]
@@ -5123,6 +5331,89 @@ export function App() {
         assert!(
             !result.contains("setAttribute(\"innerHTML\""),
             "boolean shorthand must not emit setAttribute: {result}"
+        );
+    }
+
+    // ========== ADVERSARIAL PROBES (temp) ==========
+
+    #[test]
+    fn adv_map_in_prop_value() {
+        let result = transform(
+            r#"export function App() {
+    const items = [{id: "1", name: "a"}];
+    return <Layout rows={items.map((i) => <Row key={i.id}>{i.name}</Row>)} />;
+}"#,
+        );
+        eprintln!("== adv_map_in_prop_value ==\n{}", result);
+    }
+
+    #[test]
+    fn adv_iife_in_prop() {
+        let result = transform(
+            r#"const styles = { main: "_x" };
+export function App() {
+    return <Wrapper fallback={(() => <div className={styles.main}>hi</div>)()} />;
+}"#,
+        );
+        eprintln!("== adv_iife_in_prop ==\n{}", result);
+    }
+
+    #[test]
+    fn adv_double_nested_arrow() {
+        let result = transform(
+            r#"const styles = { main: "_x" };
+export function App() {
+    return <Wrapper render={() => () => <div className={styles.main}>x</div>} />;
+}"#,
+        );
+        eprintln!("== adv_double_nested_arrow ==\n{}", result);
+    }
+
+    #[test]
+    fn adv_fragment_in_arrow_prop() {
+        let result = transform(
+            r#"const styles = { main: "_x" };
+export function App() {
+    return <Wrapper render={() => <><div className={styles.main}>a</div><span>b</span></>} />;
+}"#,
+        );
+        eprintln!("== adv_fragment_in_arrow_prop ==\n{}", result);
+    }
+
+    #[test]
+    fn adv_method_shorthand_in_prop() {
+        let result = transform(
+            r#"const styles = { main: "_x" };
+export function App() {
+    return <Wrapper handlers={{ render() { return <div className={styles.main}>x</div>; } }} />;
+}"#,
+        );
+        eprintln!("== adv_method_shorthand_in_prop ==\n{}", result);
+    }
+
+    #[test]
+    fn adv_nested_arrow_jsx_attr_inside_map() {
+        let result = transform(
+            r#"export function App() {
+    const items = [{id: "1"}];
+    return <div>{items.map((i) => <Row onRender={() => <span className="x">x</span>}>{i.id}</Row>)}</div>;
+}"#,
+        );
+        eprintln!("== adv_nested_arrow_jsx_attr_inside_map ==\n{}", result);
+    }
+
+    #[test]
+    fn adv_map_in_prop_value_check() {
+        let result = transform(
+            r#"export function App() {
+    const items = [{id: "1", name: "a"}];
+    return <Layout rows={items.map((i) => <Row key={i.id}>{i.name}</Row>)} />;
+}"#,
+        );
+        eprintln!("== adv_map_in_prop_value_check ==\n{}", result);
+        assert!(
+            result.contains("Row("),
+            "REGRESSION: inner Row not transformed — {result}"
         );
     }
 }

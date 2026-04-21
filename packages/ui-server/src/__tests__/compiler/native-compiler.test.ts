@@ -99,6 +99,24 @@ describe.skipIf(!hasNativeCompiler)('native-compiler wrapper', () => {
         expect(typeof result.map).toBe('string');
       }
     });
+
+    // Regression for #2897 — attribute expressions inside an arrow-function
+    // JSX prop used to be emitted as `const __v = ;` (empty) because the
+    // compiler double-transformed the nested JSX and lost source positions.
+    it('preserves attribute expressions inside arrow-fn JSX props (#2897)', () => {
+      const source = `
+        const styles = { main: "_abc" };
+        export function App() {
+          return <RouterView fallback={() => <div className={styles.main}>Not found</div>} />;
+        }
+      `;
+      const result = compile(source, { filename: 'test.tsx', target: 'dom' });
+      expect(result.code).toContain('const __v = styles.main');
+      expect(result.code).not.toMatch(/const __v = \s*;/);
+      expect(result.code).toContain('__element("div")');
+      // Raw JSX must not leak through into the emitted JS
+      expect(result.code).not.toMatch(/<div\s/);
+    });
   });
 
   describe('compileForSsrAot', () => {
