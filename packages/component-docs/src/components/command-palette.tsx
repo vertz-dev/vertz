@@ -1,4 +1,4 @@
-import { onCleanup } from '@vertz/ui';
+import { onMount } from '@vertz/ui';
 import { useRouter } from '@vertz/ui/router';
 import { type ComponentEntry, components } from '../manifest';
 
@@ -81,10 +81,10 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   }
 
   // Component-scoped listener with cleanup — no duplicates on re-mount
-  if (typeof document !== 'undefined') {
+  onMount(() => {
     document.addEventListener('keydown', handleKeyDown, true);
-    onCleanup(() => document.removeEventListener('keydown', handleKeyDown, true));
-  }
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  });
 
   function handleInput(e: Event) {
     query = (e.target as HTMLInputElement).value;

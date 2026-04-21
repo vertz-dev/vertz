@@ -1,14 +1,13 @@
-import { onCleanup } from '@vertz/ui';
+import { onMount } from '@vertz/ui';
 import { CommandPalette } from './command-palette';
 import { Header } from './header';
 import { Sidebar } from './sidebar';
 
 interface DocsLayoutProps {
-  activeName?: string;
   children?: unknown;
 }
 
-export function DocsLayout({ activeName, children }: DocsLayoutProps) {
+export function DocsLayout({ children }: DocsLayoutProps) {
   let searchOpen = false;
 
   function openSearch() {
@@ -31,8 +30,9 @@ export function DocsLayout({ activeName, children }: DocsLayoutProps) {
     }
   }
 
-  // Global keyboard shortcut: Cmd+K / Ctrl+K — scoped with cleanup
-  if (typeof window !== 'undefined') {
+  // Global keyboard shortcut: Cmd+K / Ctrl+K — wired on mount so the
+  // cleanup lands in a proper disposal scope (required at the App root).
+  onMount(() => {
     function handleCmdK(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
@@ -40,8 +40,8 @@ export function DocsLayout({ activeName, children }: DocsLayoutProps) {
       }
     }
     window.addEventListener('keydown', handleCmdK);
-    onCleanup(() => window.removeEventListener('keydown', handleCmdK));
-  }
+    return () => window.removeEventListener('keydown', handleCmdK);
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
@@ -49,10 +49,8 @@ export function DocsLayout({ activeName, children }: DocsLayoutProps) {
       <div
         style={{ display: 'flex', flex: '1', maxWidth: '1400px', margin: '0 auto', width: '100%' }}
       >
-        <Sidebar activeName={activeName} />
-        <main style={{ flex: '1', minWidth: '0', padding: '32px 48px', maxWidth: '800px' }}>
-          {children}
-        </main>
+        <Sidebar />
+        <main style={{ flex: '1', minWidth: '0' }}>{children}</main>
       </div>
       <CommandPalette open={searchOpen} onClose={closeSearch} />
     </div>
