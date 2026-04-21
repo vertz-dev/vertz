@@ -356,6 +356,13 @@ pub async fn install(
 
     output.resolve_complete(graph.packages.len());
 
+    // Collapse redundant versions before hoisting — see resolver::dedup (#2894).
+    // When a root exact pin and a transitive range can share a single version,
+    // we must drop the extra so TypeScript sees one module path per package.
+    // Pass `all_deps` (deps + devDeps + optionalDeps) so a root optional
+    // range still participates in the satisfies-all check.
+    resolver::dedup(&mut graph, &all_deps);
+
     // Apply hoisting
     resolver::hoist(&mut graph);
 
