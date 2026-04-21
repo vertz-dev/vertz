@@ -102,8 +102,16 @@ pub async fn capture_tool(
     let parsed = parse_args(args)?;
     let started = Instant::now();
 
+    // Rewrite path inputs to an absolute URL before handing to Chrome.
+    // Paths can't be navigated from about:blank — see B1 in the Task 5
+    // adversarial review.
+    let chrome_req = CaptureRequest {
+        url: absolute_url_for_browser(&parsed.request.url, server_port),
+        ..parsed.request.clone()
+    };
+
     let pool = pool_instance().await;
-    let outcome = pool.capture(parsed.request.clone()).await;
+    let outcome = pool.capture(chrome_req).await;
 
     match outcome {
         Ok((bytes, meta)) => {
@@ -305,7 +313,16 @@ fn parse_crop(v: &serde_json::Value) -> Result<CropSpec, String> {
 /// Coerce an input URL into a same-origin URL on this dev server.
 /// Accepts a path starting with `/` OR a URL whose host is `localhost`
 /// / `127.0.0.1`. Rejects any external host with a URL_INVALID message.
+///
+/// Protocol-relative URLs (`//evil.com/attack`) are rejected because
+/// they bypass the path-only same-origin guarantee — a browser with a
+/// base URL would navigate off-origin.
 fn normalize_url(raw: &str) -> Result<String, String> {
+    if raw.starts_with("//") {
+        return Err(format!(
+            "URL_INVALID: protocol-relative URL {raw:?} is not allowed (would escape to another host)"
+        ));
+    }
     if raw.starts_with('/') {
         return Ok(raw.to_string());
     }
@@ -325,20 +342,47 @@ fn normalize_url(raw: &str) -> Result<String, String> {
     }
 }
 
+/// Convert a validated same-origin input (path or localhost URL) into an
+/// absolute URL Chrome can navigate. Paths get the dev-server origin
+/// prepended so `browser.new_page("/tasks")` doesn't resolve relative
+/// to `about:blank` (which fails navigation).
+fn absolute_url_for_browser(validated: &str, server_port: u16) -> String {
+    if validated.starts_with('/') {
+        format!("http://localhost:{server_port}{validated}")
+    } else {
+        validated.to_string()
+    }
+}
+
 /// Match the final URL against the auth-gate paths documented in the
-/// design doc. Exact (trailing-slash and query-string tolerant) match
-/// on `/login`, `/signin`, `/signup`.
+/// design doc. Checks the LAST path segment against a small allowlist
+/// of common auth tokens, trailing-slash / query-string tolerant.
+///
+/// Segments matched: `login`, `signin`, `sign_in`, `sign-in`, `signup`,
+/// `sign_up`, `sign-up`, `authenticate`, `session/new`. Deliberately a
+/// small list — the cost of a false positive is "agent thinks login is
+/// gating a route when it isn't," which is still auditable by inspecting
+/// the `finalUrl` field. False negatives (real login screens we miss)
+/// are the worse failure mode and trigger the DOM/status-based detection
+/// follow-up tracked for Phase 2.
 fn detect_auth_required(final_url: &str) -> Option<Vec<&'static str>> {
     let path = match url::Url::parse(final_url) {
         Ok(u) => u.path().to_string(),
-        Err(_) => {
-            // Already a path
-            let without_query = final_url.split('?').next().unwrap_or(final_url);
-            without_query.to_string()
-        }
+        Err(_) => final_url.split('?').next().unwrap_or(final_url).to_string(),
     };
     let trimmed = path.trim_end_matches('/');
-    if matches!(trimmed, "/login" | "/signin" | "/signup") {
+    let last_segment = trimmed.rsplit('/').next().unwrap_or("");
+    const AUTH_TOKENS: &[&str] = &[
+        "login",
+        "signin",
+        "sign_in",
+        "sign-in",
+        "signup",
+        "sign_up",
+        "sign-up",
+        "authenticate",
+    ];
+    if AUTH_TOKENS.contains(&last_segment) || trimmed.ends_with("/session/new") {
         Some(vec!["redirect"])
     } else {
         None
@@ -585,6 +629,38 @@ mod tests {
         assert!(err.contains("URL_INVALID"));
     }
 
+    /// B2 regression — protocol-relative URLs must not slip through the
+    /// path branch and escape to another host.
+    #[test]
+    fn normalize_url_rejects_protocol_relative() {
+        let err = normalize_url("//evil.com/attack").unwrap_err();
+        assert!(err.contains("URL_INVALID"));
+        assert!(err.contains("protocol-relative"));
+    }
+
+    /// B1 regression — capture_tool must prepend the dev-server origin
+    /// to a path input before handing it to Chrome (navigation from
+    /// about:blank to a bare path fails).
+    #[test]
+    fn absolute_url_for_browser_prepends_origin_for_paths() {
+        assert_eq!(
+            absolute_url_for_browser("/tasks", 3000),
+            "http://localhost:3000/tasks"
+        );
+        assert_eq!(
+            absolute_url_for_browser("/", 8080),
+            "http://localhost:8080/"
+        );
+    }
+
+    #[test]
+    fn absolute_url_for_browser_passes_absolute_urls_through() {
+        assert_eq!(
+            absolute_url_for_browser("http://localhost:3000/foo", 9999),
+            "http://localhost:3000/foo"
+        );
+    }
+
     #[test]
     fn detect_auth_required_matches_login() {
         assert!(detect_auth_required("http://localhost/login").is_some());
@@ -594,12 +670,23 @@ mod tests {
         assert!(detect_auth_required("http://localhost/login?next=/").is_some());
     }
 
+    /// S1 regression — common nested auth paths (last-segment matching).
+    #[test]
+    fn detect_auth_required_matches_nested_auth_paths() {
+        assert!(detect_auth_required("http://localhost/account/signin").is_some());
+        assert!(detect_auth_required("http://localhost/auth/login").is_some());
+        assert!(detect_auth_required("http://localhost/users/sign_in").is_some());
+        assert!(detect_auth_required("http://localhost/admin/sign-in").is_some());
+        assert!(detect_auth_required("http://localhost/users/session/new").is_some());
+    }
+
     #[test]
     fn detect_auth_required_ignores_unrelated_paths() {
         assert!(detect_auth_required("http://localhost/").is_none());
         assert!(detect_auth_required("http://localhost/tasks").is_none());
         assert!(detect_auth_required("http://localhost/auth/callback").is_none());
         assert!(detect_auth_required("http://localhost/dashboard/auth-overview").is_none());
+        assert!(detect_auth_required("http://localhost/login-page").is_none());
     }
 
     #[test]

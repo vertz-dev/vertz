@@ -2038,6 +2038,9 @@ pub async fn start_server_with_lifecycle(
         } else {
             shutdown_signal().await;
         }
+        // Tear down the screenshot pool before axum stops serving so a
+        // wedged Chrome child can't outlive the dev server.
+        crate::server::screenshot::shutdown_pool().await;
         // Notify bridge to shut down
         if let Some(tx) = bridge_shutdown_tx {
             let _ = tx.send(());
