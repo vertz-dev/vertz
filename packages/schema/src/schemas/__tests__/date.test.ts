@@ -48,4 +48,51 @@ describe('DateSchema', () => {
     const schema = new DateSchema();
     expect(schema.toJSONSchema()).toEqual({ type: 'string', format: 'date-time' });
   });
+
+  it('produces user-friendly invalid-type message for unparseable strings', () => {
+    const schema = new DateSchema();
+    const result = schema.safeParse('not-a-date');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.issues[0]?.message).toBe('Must be a valid date');
+    }
+  });
+
+  it('produces user-friendly invalid-type message for non-Date values', () => {
+    const schema = new DateSchema();
+    for (const value of ['2024-01-01', 1234567890, true, null, undefined]) {
+      const result = schema.safeParse(value);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.issues[0]?.message).toBe('Must be a valid date');
+      }
+    }
+  });
+
+  it('produces user-friendly message for an invalid Date (NaN time)', () => {
+    const schema = new DateSchema();
+    const result = schema.safeParse(new Date('not a date'));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.issues[0]?.message).toBe('Must be a valid date');
+    }
+  });
+
+  it('.message() overrides the invalid-type message', () => {
+    const schema = new DateSchema().message('Enter a valid date');
+    const result = schema.safeParse('not-a-date');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.issues[0]?.message).toBe('Enter a valid date');
+    }
+  });
+
+  it('.message() is preserved across clones (e.g. after .min())', () => {
+    const schema = new DateSchema().message('Enter a valid date').min(new Date('2024-01-01'));
+    const result = schema.safeParse('nope');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.issues[0]?.message).toBe('Enter a valid date');
+    }
+  });
 });

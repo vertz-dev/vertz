@@ -9,17 +9,21 @@ export class DateSchema extends Schema<Date> {
   private _minMessage: string | undefined;
   private _max: Date | undefined;
   private _maxMessage: string | undefined;
+  private _invalidTypeMessage: string | undefined;
 
   _parse(value: unknown, ctx: ParseContext): Date {
     if (!(value instanceof Date)) {
       ctx.addIssue({
         code: ErrorCode.InvalidType,
-        message: `Expected Date, received ${typeof value}`,
+        message: this._invalidTypeMessage ?? 'Must be a valid date',
       });
       return value as Date;
     }
     if (Number.isNaN(value.getTime())) {
-      ctx.addIssue({ code: ErrorCode.InvalidDate, message: 'Invalid date' });
+      ctx.addIssue({
+        code: ErrorCode.InvalidDate,
+        message: this._invalidTypeMessage ?? 'Must be a valid date',
+      });
       return value;
     }
     if (this._min !== undefined && value.getTime() < this._min.getTime()) {
@@ -51,6 +55,12 @@ export class DateSchema extends Schema<Date> {
     return clone;
   }
 
+  message(msg: string): DateSchema {
+    const clone = this._clone();
+    clone._invalidTypeMessage = msg;
+    return clone;
+  }
+
   _schemaType(): SchemaType {
     return SchemaType.Date;
   }
@@ -65,6 +75,7 @@ export class DateSchema extends Schema<Date> {
     clone._minMessage = this._minMessage;
     clone._max = this._max;
     clone._maxMessage = this._maxMessage;
+    clone._invalidTypeMessage = this._invalidTypeMessage;
     return clone;
   }
 }

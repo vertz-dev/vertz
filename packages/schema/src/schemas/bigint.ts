@@ -5,15 +5,23 @@ import { SchemaType } from '../core/types';
 import type { JSONSchemaObject, RefTracker } from '../introspection/json-schema';
 
 export class BigIntSchema extends Schema<bigint> {
+  private _invalidTypeMessage: string | undefined;
+
   _parse(value: unknown, ctx: ParseContext): bigint {
     if (typeof value !== 'bigint') {
       ctx.addIssue({
         code: ErrorCode.InvalidType,
-        message: `Expected bigint, received ${typeof value}`,
+        message: this._invalidTypeMessage ?? 'Must be an integer',
       });
       return value as bigint;
     }
     return value;
+  }
+
+  message(msg: string): BigIntSchema {
+    const clone = this._clone();
+    clone._invalidTypeMessage = msg;
+    return clone;
   }
 
   _schemaType(): SchemaType {
@@ -25,6 +33,8 @@ export class BigIntSchema extends Schema<bigint> {
   }
 
   _clone(): BigIntSchema {
-    return this._cloneBase(new BigIntSchema());
+    const clone = this._cloneBase(new BigIntSchema());
+    clone._invalidTypeMessage = this._invalidTypeMessage;
+    return clone;
   }
 }

@@ -20,12 +20,13 @@ export class NumberSchema extends Schema<number> {
   private _nonpositive: boolean = false;
   private _multipleOf: number | undefined;
   private _finite: boolean = false;
+  private _invalidTypeMessage: string | undefined;
 
   _parse(value: unknown, ctx: ParseContext): number {
     if (typeof value !== 'number' || Number.isNaN(value)) {
       ctx.addIssue({
         code: ErrorCode.InvalidType,
-        message: `Expected number, received ${typeof value}`,
+        message: this._invalidTypeMessage ?? 'Must be a number',
       });
       return value as number;
     }
@@ -162,6 +163,12 @@ export class NumberSchema extends Schema<number> {
     return clone;
   }
 
+  message(msg: string): NumberSchema {
+    const clone = this._clone();
+    clone._invalidTypeMessage = msg;
+    return clone;
+  }
+
   _schemaType(): SchemaType {
     return SchemaType.Number;
   }
@@ -193,6 +200,7 @@ export class NumberSchema extends Schema<number> {
     clone._nonpositive = this._nonpositive;
     clone._multipleOf = this._multipleOf;
     clone._finite = this._finite;
+    clone._invalidTypeMessage = this._invalidTypeMessage;
     return clone;
   }
 }

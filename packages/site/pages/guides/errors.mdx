@@ -176,7 +176,7 @@ if (!result.ok) {
   for (const issue of result.error.issues) {
     console.log(`${issue.path.join('.')}: ${issue.message}`);
     // "name: String must contain at least 1 character(s)"
-    // "age: Expected number, received string"
+    // "age: Must be a number"
   }
 }
 ```
