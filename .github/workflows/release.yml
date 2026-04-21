@@ -21,7 +21,7 @@ jobs:
     outputs:
       native: ${{ steps.filter.outputs.native }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -87,7 +87,7 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -137,7 +137,7 @@ jobs:
             echo "Cross-compiled binary, skipping runtime version check"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.pkg }}
           path: packages/${{ matrix.pkg }}/vtz
@@ -178,7 +178,7 @@ jobs:
           codesign -s - "packages/${{ matrix.compiler_pkg }}/vertz-compiler.${PLATFORM_SUFFIX}.node"
 
       - name: Upload compiler artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.compiler_pkg }}
           path: packages/${{ matrix.compiler_pkg }}/vertz-compiler.*.node
@@ -200,7 +200,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Resolve vtz version
         id: resolve-vtz
@@ -218,6 +218,9 @@ jobs:
         uses: vertz-dev/setup-vtz@v1
         with:
           version: ${{ steps.resolve-vtz.outputs.version }}
+          # Release runs don't reuse a .pipe/cache, and setup-vtz's cache step
+          # warns "Path Validation Error" when that path is absent at save time.
+          cache: 'false'
 
       # Bun is still required by `vtzx bun build` for the runtime selector and
       # by package scripts that invoke `bun run`. See ci.yml for context.
@@ -233,28 +236,28 @@ jobs:
           rm -f node_modules/.bin/vtz node_modules/.bin/vertz
 
       - name: Download darwin-arm64 binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: runtime-darwin-arm64
           path: packages/runtime-darwin-arm64/
         continue-on-error: true
 
       - name: Download darwin-x64 binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: runtime-darwin-x64
           path: packages/runtime-darwin-x64/
         continue-on-error: true
 
       - name: Download linux-x64 binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: runtime-linux-x64
           path: packages/runtime-linux-x64/
         continue-on-error: true
 
       - name: Download linux-arm64 binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: runtime-linux-arm64
           path: packages/runtime-linux-arm64/
@@ -270,28 +273,28 @@ jobs:
           done
 
       - name: Download native-compiler-darwin-arm64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: native-compiler-darwin-arm64
           path: packages/native-compiler-darwin-arm64/
         continue-on-error: true
 
       - name: Download native-compiler-darwin-x64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: native-compiler-darwin-x64
           path: packages/native-compiler-darwin-x64/
         continue-on-error: true
 
       - name: Download native-compiler-linux-x64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: native-compiler-linux-x64
           path: packages/native-compiler-linux-x64/
         continue-on-error: true
 
       - name: Download native-compiler-linux-arm64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: native-compiler-linux-arm64
           path: packages/native-compiler-linux-arm64/
