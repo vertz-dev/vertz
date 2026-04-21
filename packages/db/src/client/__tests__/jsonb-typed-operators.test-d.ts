@@ -69,6 +69,29 @@ const pgUnionHasKeyX: FilterType<InstallColumns, 'postgres'> = {
 };
 void pgUnionHasKeyX;
 
+// Plural-key operators — operand is a readonly array of JsonbKeyOf<T>.
+const pgHasAllKeys: FilterType<InstallColumns, 'postgres'> = {
+  meta: { hasAllKeys: ['displayName', 'settings'] },
+};
+void pgHasAllKeys;
+
+const pgHasAnyKey: FilterType<InstallColumns, 'postgres'> = {
+  meta: { hasAnyKey: ['displayName', 'capacity'] },
+};
+void pgHasAnyKey;
+
+// Readonly tuple / as-const input accepted.
+const pgHasAllKeysConst: FilterType<InstallColumns, 'postgres'> = {
+  meta: { hasAllKeys: ['displayName', 'tags'] as const },
+};
+void pgHasAllKeysConst;
+
+// Union payload — plural-key operands draw from each variant's keys.
+const pgUnionHasAllKeys: FilterType<InstallColumns, 'postgres'> = {
+  union: { hasAllKeys: ['a', 'x'] },
+};
+void pgUnionHasAllKeys;
+
 // ---------------------------------------------------------------------------
 // Payload operators — negatives
 // ---------------------------------------------------------------------------
@@ -104,6 +127,33 @@ const pgHasKeyOnPrimitive: FilterType<InstallColumns, 'postgres'> = {
 };
 void pgHasKeyOnPrimitive;
 
+// Unknown key rejected inside the plural-key array (readonly JsonbKeyOf<T>[]).
+const pgHasAllKeysUnknown: FilterType<InstallColumns, 'postgres'> = {
+  meta: {
+    // @ts-expect-error — 'bogus' is not keyof InstallMeta
+    hasAllKeys: ['displayName', 'bogus'],
+  },
+};
+void pgHasAllKeysUnknown;
+
+const pgHasAnyKeyUnknown: FilterType<InstallColumns, 'postgres'> = {
+  meta: {
+    // @ts-expect-error — 'bogus' is not keyof InstallMeta
+    hasAnyKey: ['bogus'],
+  },
+};
+void pgHasAnyKeyUnknown;
+
+// Non-object JSONB payload — JsonbKeyOf<string> is `never`, so the array type
+// collapses to `readonly never[]` and cannot accept any element.
+const pgHasAllKeysOnPrimitive: FilterType<InstallColumns, 'postgres'> = {
+  prim: {
+    // @ts-expect-error — hasAllKeys unavailable on primitive JSONB payloads
+    hasAllKeys: ['anything'],
+  },
+};
+void pgHasAllKeysOnPrimitive;
+
 // ---------------------------------------------------------------------------
 // Payload operators — SQLite negatives (brand diagnostic)
 // ---------------------------------------------------------------------------
@@ -123,6 +173,22 @@ const sqliteHasKey: FilterType<InstallColumns, 'sqlite'> = {
   },
 };
 void sqliteHasKey;
+
+const sqliteHasAllKeys: FilterType<InstallColumns, 'sqlite'> = {
+  meta: {
+    // @ts-expect-error — JsonbOperator_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS
+    hasAllKeys: ['displayName'],
+  },
+};
+void sqliteHasAllKeys;
+
+const sqliteHasAnyKey: FilterType<InstallColumns, 'sqlite'> = {
+  meta: {
+    // @ts-expect-error — JsonbOperator_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS
+    hasAnyKey: ['displayName'],
+  },
+};
+void sqliteHasAnyKey;
 
 // ---------------------------------------------------------------------------
 // path() builder — leaf-type flow

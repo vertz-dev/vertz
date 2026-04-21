@@ -301,4 +301,16 @@ describe('SQLite feature guards', () => {
       'hasKey requires dialect: postgres',
     );
   });
+
+  it('throws descriptive error for hasAllKeys with SqliteDialect', () => {
+    expect(() =>
+      buildWhere({ meta: { hasAllKeys: ['a', 'b'] } }, 0, undefined, sqliteDialect),
+    ).toThrow('hasAllKeys requires dialect: postgres');
+  });
+
+  it('throws descriptive error for hasAnyKey with SqliteDialect', () => {
+    expect(() =>
+      buildWhere({ meta: { hasAnyKey: ['a', 'b'] } }, 0, undefined, sqliteDialect),
+    ).toThrow('hasAnyKey requires dialect: postgres');
+  });
 });

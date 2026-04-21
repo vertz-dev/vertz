@@ -400,6 +400,18 @@ describe('buildWhere', () => {
       expect(result.params).toEqual(['settings']);
     });
 
+    it('hasAllKeys generates ?& operator with text[] cast and array param', () => {
+      const result = buildWhere({ meta: { hasAllKeys: ['settings', 'displayName'] } });
+      expect(result.sql).toBe('"meta" ?& $1::text[]');
+      expect(result.params).toEqual([['settings', 'displayName']]);
+    });
+
+    it('hasAnyKey generates ?| operator with text[] cast and array param', () => {
+      const result = buildWhere({ meta: { hasAnyKey: ['capacity', 'createdAt'] } });
+      expect(result.sql).toBe('"meta" ?| $1::text[]');
+      expect(result.params).toEqual([['capacity', 'createdAt']]);
+    });
+
     it('combines jsonContains with other filters', () => {
       const result = buildWhere({
         status: 'active',

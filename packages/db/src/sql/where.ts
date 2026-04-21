@@ -42,6 +42,8 @@ interface FilterOperators {
   readonly jsonContains?: unknown;
   readonly jsonContainedBy?: unknown;
   readonly hasKey?: string;
+  readonly hasAllKeys?: readonly string[];
+  readonly hasAnyKey?: readonly string[];
 }
 
 interface WhereFilter {
@@ -70,6 +72,8 @@ const OPERATOR_KEYS = new Set([
   'jsonContains',
   'jsonContainedBy',
   'hasKey',
+  'hasAllKeys',
+  'hasAnyKey',
 ]);
 
 function isOperatorObject(value: unknown): value is FilterOperators {
@@ -318,6 +322,26 @@ function buildOperatorCondition(
     }
     clauses.push(`${columnRef} ? ${dialect.param(idx + 1)}`);
     params.push(operators.hasKey);
+    idx++;
+  }
+  if (operators.hasAllKeys !== undefined) {
+    if (!dialect.supportsJsonbPath) {
+      throw new Error(
+        'hasAllKeys requires dialect: postgres. On SQLite, fetch with list() and filter in application code.',
+      );
+    }
+    clauses.push(`${columnRef} ?& ${dialect.param(idx + 1)}::text[]`);
+    params.push(operators.hasAllKeys);
+    idx++;
+  }
+  if (operators.hasAnyKey !== undefined) {
+    if (!dialect.supportsJsonbPath) {
+      throw new Error(
+        'hasAnyKey requires dialect: postgres. On SQLite, fetch with list() and filter in application code.',
+      );
+    }
+    clauses.push(`${columnRef} ?| ${dialect.param(idx + 1)}::text[]`);
+    params.push(operators.hasAnyKey);
     idx++;
   }
 
