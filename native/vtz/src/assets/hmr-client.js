@@ -64,25 +64,37 @@
    */
   function createHotContext(moduleUrl) {
     var disposeCallbacks = [];
+    var selfAcceptCallbacks = [];
     var listeners = Object.create(null);
     var declined = false;
     var data = {};
 
     var ctx = {
-      accept: function(_depsOrCb, _cb) {
-        // The vtz dev server self-accepts via the globalThis Fast Refresh
-        // registry; per-module accept callbacks are not invoked. Kept as a
-        // no-op so code written against the Vite/Bun HMR API still loads.
+      accept: function(depsOrCb, cb) {
+        // Self-accept with no callback — no-op beyond "this module handles
+        // its own updates." vtz always self-accepts via the Fast Refresh
+        // registry, so the bare form is purely informational.
+        if (typeof depsOrCb === 'function') {
+          selfAcceptCallbacks.push(depsOrCb);
+        } else if (typeof depsOrCb !== 'undefined' && typeof cb === 'function') {
+          // Dependency-array form. We don't currently track per-dependency
+          // accept chains; invoke the callback with an empty module list when
+          // this module updates, matching the self-accept semantics.
+          selfAcceptCallbacks.push(function(_newModule) { cb([]); });
+        }
       },
       dispose: function(cb) {
         if (typeof cb === 'function') disposeCallbacks.push(cb);
       },
       data: data,
       invalidate: function(message) {
-        var reason = '[vertz-hmr] Invalidated' + (message ? ': ' + message : '');
-        console.log(reason, '(' + moduleUrl + ')');
-        showToast('Invalidated — reloading');
-        setTimeout(function() { location.reload(); }, 50);
+        // Notify listeners on this context so they can react before reload.
+        ctx._emit('vertz:invalidate', { module: moduleUrl, message: message });
+        // Route through the main full-reload path so `vertz:beforeFullReload`
+        // fires on every context — keeps a single reload entry point.
+        handleFullReload({
+          reason: 'invalidated: ' + moduleUrl + (message ? ' (' + message + ')' : ''),
+        });
       },
       decline: function() {
         declined = true;
@@ -115,11 +127,27 @@
         }
       }
     };
-    ctx._runDispose = function() {
-      while (disposeCallbacks.length) {
-        var cb = disposeCallbacks.shift();
-        try { cb(data); } catch (err) {
+    // Snapshot-and-clear the pre-import callback lists so the new module
+    // evaluation can freely register a new generation without racing the
+    // old one. Returns the snapshot for the caller to fire after import.
+    ctx._takeSnapshot = function() {
+      var disposed = disposeCallbacks;
+      var accepted = selfAcceptCallbacks;
+      disposeCallbacks = [];
+      selfAcceptCallbacks = [];
+      return { dispose: disposed, accept: accepted };
+    };
+    ctx._fireDispose = function(list) {
+      for (var i = 0; i < list.length; i++) {
+        try { list[i](data); } catch (err) {
           console.error('[vertz-hmr] dispose callback threw:', err);
+        }
+      }
+    };
+    ctx._fireAccept = function(list, newModule) {
+      for (var i = 0; i < list.length; i++) {
+        try { list[i](newModule); } catch (err) {
+          console.error('[vertz-hmr] accept callback threw:', err);
         }
       }
     };
@@ -260,10 +288,15 @@
       var mod = modules[i];
       var ctx = getHotContext(mod);
       ctx._emit('vertz:beforeUpdate', { module: normalizeModuleUrl(mod) });
+      // Snapshot old-generation dispose + accept callbacks BEFORE the import
+      // so the new module's top-level can register a fresh generation.
+      var prev = ctx._takeSnapshot();
+      ctx._fireDispose(prev.dispose);
       try {
-        ctx._runDispose();
         // Dynamic re-import with cache-bust timestamp
-        await import(mod + '?t=' + timestamp);
+        var newModule = await import(mod + '?t=' + timestamp);
+        // Fire the previous-generation accept callbacks with the new module.
+        ctx._fireAccept(prev.accept, newModule);
         // Trigger Fast Refresh for the updated module
         performFastRefresh(mod);
         ctx._emit('vertz:afterUpdate', { module: normalizeModuleUrl(mod) });

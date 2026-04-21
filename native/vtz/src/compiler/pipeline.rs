@@ -1480,25 +1480,106 @@ fn rewrite_import_meta_hot(code: &str) -> String {
             continue;
         }
 
+        // Regex literal: preserve verbatim. Uses the classic "previous token is
+        // an operator" heuristic to distinguish from division. If this `/` does
+        // not start a regex (i.e. it is division), we fall through to the normal
+        // step and the rewrite check.
+        if c == b'/' && is_regex_start(bytes, i) {
+            let end = skip_regex_literal(bytes, i);
+            result.push_str(&code[i..end]);
+            i = end;
+            continue;
+        }
+
         // Replace `import.meta.hot` when it appears as a bare token.
+        let prev_is_ident = i > 0 && is_ident_char(bytes[i - 1]);
+        let prev_is_dot = i > 0 && bytes[i - 1] == b'.';
         if i + NEEDLE.len() <= len
             && &bytes[i..i + NEEDLE.len()] == NEEDLE.as_bytes()
-            && !is_ident_char(bytes[i.saturating_sub(1)])
+            && !prev_is_ident
+            && !prev_is_dot
             && (i + NEEDLE.len() == len || !is_ident_char(bytes[i + NEEDLE.len()]))
         {
-            // Guard: if preceded by `.` it's a property lookup like `foo.import.meta.hot`
-            // — extremely rare, but skip to be safe.
-            if i == 0 || bytes[i - 1] != b'.' {
-                result.push_str(REPLACEMENT);
-                i += NEEDLE.len();
-                continue;
-            }
+            result.push_str(REPLACEMENT);
+            i += NEEDLE.len();
+            continue;
         }
 
         step(&mut result, &mut i);
     }
 
     result
+}
+
+/// True if `/` at `pos` in `bytes` starts a regex literal (versus a division
+/// operator). Classic heuristic: the previous non-whitespace token must not
+/// produce a value (identifier, number, `)`, `]`, `}`).
+fn is_regex_start(bytes: &[u8], pos: usize) -> bool {
+    if pos + 1 >= bytes.len() {
+        return false;
+    }
+    let next = bytes[pos + 1];
+    // Comments have already been handled earlier; a regex body can't begin
+    // with `*` or `/`.
+    if next == b'/' || next == b'*' {
+        return false;
+    }
+    // Walk back to the previous non-whitespace byte.
+    let mut j = pos;
+    loop {
+        if j == 0 {
+            return true;
+        }
+        j -= 1;
+        if !matches!(bytes[j], b' ' | b'\t' | b'\n' | b'\r') {
+            break;
+        }
+    }
+    let prev = bytes[j];
+    // If the previous token ends with a value-producing char, `/` is division.
+    if is_ident_char(prev) || matches!(prev, b')' | b']') {
+        return false;
+    }
+    // `}` is ambiguous (block close vs object-literal close). Regex after `}`
+    // is rare in practice; treat as division to stay conservative — matches
+    // the existing heuristic in `vertz-compiler-core/src/import_injection.rs`.
+    if prev == b'}' {
+        return false;
+    }
+    true
+}
+
+/// Walk past a regex literal starting at `pos` (where `bytes[pos] == b'/'`).
+/// Returns the byte index one past the closing `/` + flags. Handles escapes
+/// and character classes (brackets) so that `/[^/]*/` is read as one regex.
+fn skip_regex_literal(bytes: &[u8], pos: usize) -> usize {
+    let len = bytes.len();
+    let mut i = pos + 1;
+    let mut in_class = false;
+    while i < len {
+        let c = bytes[i];
+        if c == b'\\' && i + 1 < len {
+            i += 2;
+            continue;
+        }
+        if c == b'[' {
+            in_class = true;
+        } else if c == b']' {
+            in_class = false;
+        } else if c == b'/' && !in_class {
+            i += 1;
+            // Skip trailing flags (letters).
+            while i < len && bytes[i].is_ascii_alphabetic() {
+                i += 1;
+            }
+            return i;
+        } else if c == b'\n' {
+            // Unterminated regex — bail out at end of line.
+            return i;
+        }
+        i += 1;
+    }
+    len
 }
 
 /// True if `b` is a valid continuation character for a JavaScript identifier.
@@ -2524,6 +2605,55 @@ export function App() {
         assert!(
             result.contains("globalThis.__vtz_hot?.(import.meta.url)?.accept();"),
             "rewrite should still apply, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_rewrite_import_meta_hot_preserves_regex_literal() {
+        let code = "const re = /import\\.meta\\.hot/g;\nimport.meta.hot?.accept();";
+        let result = rewrite_import_meta_hot(code);
+        assert!(
+            result.contains("/import\\.meta\\.hot/g"),
+            "regex literal should be preserved, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("globalThis.__vtz_hot?.(import.meta.url)?.accept();"),
+            "code reference should still be rewritten, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_rewrite_import_meta_hot_rewrites_at_file_start() {
+        let code = "import.meta.hot?.accept();";
+        let result = rewrite_import_meta_hot(code);
+        assert_eq!(result, "globalThis.__vtz_hot?.(import.meta.url)?.accept();");
+    }
+
+    #[test]
+    fn test_rewrite_import_meta_hot_skips_character_class_with_slashes() {
+        // Regex with `/` inside a [class] must read as one regex, not split.
+        let code = "const re = /[/]import\\.meta\\.hot/;";
+        let result = rewrite_import_meta_hot(code);
+        assert_eq!(result, code, "regex with inner `/` got corrupted");
+    }
+
+    #[test]
+    fn test_rewrite_import_meta_hot_division_not_treated_as_regex() {
+        // After an identifier or `)` — `/` is division, so the `import.meta.hot`
+        // that follows must still be rewritten.
+        let code = "const q = x / y;\nimport.meta.hot?.decline();";
+        let result = rewrite_import_meta_hot(code);
+        assert!(
+            result.contains("const q = x / y;"),
+            "division should be preserved, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("globalThis.__vtz_hot?.(import.meta.url)?.decline();"),
+            "code reference should be rewritten, got:\n{}",
             result
         );
     }

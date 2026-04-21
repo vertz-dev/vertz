@@ -29,17 +29,17 @@ Newly-scaffolded apps (via `create-vertz-app`) already include the tsconfig entr
 
 ## The `ImportMetaHot` surface
 
-| Member                 | Description                                                                              |
-| ---------------------- | ---------------------------------------------------------------------------------------- |
-| `accept()`             | Self-accept — this module handles its own HMR updates.                                   |
-| `accept(cb)`           | Self-accept with a callback receiving the new module.                                    |
-| `accept(deps, cb?)`    | Accept updates for specific dependency paths.                                            |
-| `dispose(cb)`          | Runs before this module is replaced. Receives a persistent `data` record.                |
-| `data`                 | `Record<string, unknown>` — persisted across HMR updates in the same session.            |
-| `invalidate(message?)` | Mark this module as unable to apply an update; triggers a full reload with the message.  |
-| `decline()`            | Opt out of HMR for this module. The next update targeting it falls back to a full reload.|
-| `on(event, cb)`        | Subscribe to an HMR runtime event (see below).                                           |
-| `off(event, cb)`       | Remove a previously-registered listener (must be the same callback reference).           |
+| Member                 | Description                                                                               |
+| ---------------------- | ----------------------------------------------------------------------------------------- |
+| `accept()`             | Self-accept — this module handles its own HMR updates.                                    |
+| `accept(cb)`           | Self-accept with a callback receiving the new module.                                     |
+| `accept(deps, cb?)`    | Accept updates for specific dependency paths.                                             |
+| `dispose(cb)`          | Runs before this module is replaced. Receives a persistent `data` record.                 |
+| `data`                 | `Record<string, unknown>` — persisted across HMR updates in the same session.             |
+| `invalidate(message?)` | Mark this module as unable to apply an update; triggers a full reload with the message.   |
+| `decline()`            | Opt out of HMR for this module. The next update targeting it falls back to a full reload. |
+| `on(event, cb)`        | Subscribe to an HMR runtime event (see below).                                            |
+| `off(event, cb)`       | Remove a previously-registered listener (must be the same callback reference).            |
 
 ## Why `hot` is `| undefined`
 
@@ -67,13 +67,13 @@ const prev = import.meta.hot?.data.lastCount as number | undefined;
 
 `hot.on(event, cb)` subscribes to runtime events. Each event delivers a typed payload:
 
-| Event                       | Payload                     | When it fires                                                   |
-| --------------------------- | --------------------------- | --------------------------------------------------------------- |
-| `vertz:beforeUpdate`        | `{ module: string }`        | Before a module is re-imported for an HMR update.               |
-| `vertz:afterUpdate`         | `{ module: string }`        | After a module has been re-imported and Fast Refresh has run.   |
-| `vertz:beforeFullReload`    | `{ reason?: string }`       | Before `location.reload()` is invoked (any cause).              |
-| `vertz:invalidate`          | `{ module: string; message?: string }` | Another module called `hot.invalidate()`.             |
-| `vertz:error`               | `{ module: string; error: unknown }` | An HMR update failed to apply.                         |
+| Event                    | Payload                                | When it fires                                                 |
+| ------------------------ | -------------------------------------- | ------------------------------------------------------------- |
+| `vertz:beforeUpdate`     | `{ module: string }`                   | Before a module is re-imported for an HMR update.             |
+| `vertz:afterUpdate`      | `{ module: string }`                   | After a module has been re-imported and Fast Refresh has run. |
+| `vertz:beforeFullReload` | `{ reason?: string }`                  | Before `location.reload()` is invoked (any cause).            |
+| `vertz:invalidate`       | `{ module: string; message?: string }` | Another module called `hot.invalidate()`.                     |
+| `vertz:error`            | `{ module: string; error: unknown }`   | An HMR update failed to apply.                                |
 
 ```ts
 import.meta.hot?.on('vertz:beforeUpdate', (p) => {
