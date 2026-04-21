@@ -360,6 +360,11 @@ pub async fn ensure_chrome(opts: &EnsureOptions<'_>) -> Result<PathBuf, EnsureEr
     // Coordinate with any other vtz process trying to populate the same cache
     // directory. `fs2::try_lock_exclusive` returns immediately so we can map
     // contention to a clear error instead of blocking forever.
+    //
+    // Kill/panic safety: flock is released by the kernel when the fd is
+    // closed, which happens on `std::fs::File`'s Drop (including during
+    // panic unwinding) and on process exit. The explicit `FileExt::unlock`
+    // calls below just release the lock slightly earlier than Drop would.
     std::fs::create_dir_all(opts.cache_dir)?;
     let lock_path = opts.cache_dir.join(".lock");
     let lock_file = std::fs::OpenOptions::new()
@@ -369,8 +374,12 @@ pub async fn ensure_chrome(opts: &EnsureOptions<'_>) -> Result<PathBuf, EnsureEr
         .write(true)
         .open(&lock_path)?;
     use fs2::FileExt as _;
-    if lock_file.try_lock_exclusive().is_err() {
-        return Err(EnsureError::CacheBusy);
+    match lock_file.try_lock_exclusive() {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+            return Err(EnsureError::CacheBusy);
+        }
+        Err(e) => return Err(EnsureError::Io(e)),
     }
     // Re-check the manifest now that we hold the lock: a sibling process may
     // have populated it while we were waiting.
