@@ -42,6 +42,8 @@ interface FilterOperators {
   readonly jsonContains?: unknown;
   readonly jsonContainedBy?: unknown;
   readonly hasKey?: string;
+  readonly hasAllKeys?: readonly string[];
+  readonly hasAnyKey?: readonly string[];
 }
 
 interface WhereFilter {
@@ -70,6 +72,8 @@ const OPERATOR_KEYS = new Set([
   'jsonContains',
   'jsonContainedBy',
   'hasKey',
+  'hasAllKeys',
+  'hasAnyKey',
 ]);
 
 function isOperatorObject(value: unknown): value is FilterOperators {
@@ -319,6 +323,38 @@ function buildOperatorCondition(
     clauses.push(`${columnRef} ? ${dialect.param(idx + 1)}`);
     params.push(operators.hasKey);
     idx++;
+  }
+  if (operators.hasAllKeys !== undefined) {
+    if (!dialect.supportsJsonbPath) {
+      throw new Error(
+        'hasAllKeys requires dialect: postgres. On SQLite, fetch with list() and filter in application code, ' +
+          'or compose AND: [{ col: { hasKey: "a" } }, { col: { hasKey: "b" } }].',
+      );
+    }
+    if (operators.hasAllKeys.length === 0) {
+      // Universal quantifier over empty set is TRUE — matches in/notIn convention.
+      clauses.push('TRUE');
+    } else {
+      clauses.push(`${columnRef} ?& ${dialect.param(idx + 1)}::text[]`);
+      params.push(operators.hasAllKeys);
+      idx++;
+    }
+  }
+  if (operators.hasAnyKey !== undefined) {
+    if (!dialect.supportsJsonbPath) {
+      throw new Error(
+        'hasAnyKey requires dialect: postgres. On SQLite, fetch with list() and filter in application code, ' +
+          'or compose OR: [{ col: { hasKey: "a" } }, { col: { hasKey: "b" } }].',
+      );
+    }
+    if (operators.hasAnyKey.length === 0) {
+      // Existential quantifier over empty set is FALSE — matches in/notIn convention.
+      clauses.push('FALSE');
+    } else {
+      clauses.push(`${columnRef} ?| ${dialect.param(idx + 1)}::text[]`);
+      params.push(operators.hasAnyKey);
+      idx++;
+    }
   }
 
   return { clauses, params, nextIndex: idx };

@@ -301,4 +301,28 @@ describe('SQLite feature guards', () => {
       'hasKey requires dialect: postgres',
     );
   });
+
+  it('throws descriptive error for hasAllKeys with SqliteDialect', () => {
+    expect(() =>
+      buildWhere({ meta: { hasAllKeys: ['a', 'b'] } }, 0, undefined, sqliteDialect),
+    ).toThrow('hasAllKeys requires dialect: postgres');
+  });
+
+  it('hasAllKeys SQLite error suggests the AND+hasKey composition workaround', () => {
+    expect(() =>
+      buildWhere({ meta: { hasAllKeys: ['a', 'b'] } }, 0, undefined, sqliteDialect),
+    ).toThrow(/AND: \[\{ col: \{ hasKey: "a" \} \}, \{ col: \{ hasKey: "b" \} \}\]/);
+  });
+
+  it('throws descriptive error for hasAnyKey with SqliteDialect', () => {
+    expect(() =>
+      buildWhere({ meta: { hasAnyKey: ['a', 'b'] } }, 0, undefined, sqliteDialect),
+    ).toThrow('hasAnyKey requires dialect: postgres');
+  });
+
+  it('hasAnyKey SQLite error suggests the OR+hasKey composition workaround', () => {
+    expect(() =>
+      buildWhere({ meta: { hasAnyKey: ['a', 'b'] } }, 0, undefined, sqliteDialect),
+    ).toThrow(/OR: \[\{ col: \{ hasKey: "a" \} \}, \{ col: \{ hasKey: "b" \} \}\]/);
+  });
 });

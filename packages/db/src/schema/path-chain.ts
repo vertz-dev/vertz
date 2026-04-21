@@ -69,11 +69,15 @@ export type JsonbPayloadOperators<T, TDialect extends DialectName> = TDialect ex
       readonly jsonContains?: DeepPartial<T>;
       readonly jsonContainedBy?: object;
       readonly hasKey?: JsonbKeyOf<T>;
+      readonly hasAllKeys?: readonly JsonbKeyOf<T>[];
+      readonly hasAnyKey?: readonly JsonbKeyOf<T>[];
     }
   : {
       readonly jsonContains?: JsonbOperator_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS;
       readonly jsonContainedBy?: JsonbOperator_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS;
       readonly hasKey?: JsonbOperator_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS;
+      readonly hasAllKeys?: JsonbOperator_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS;
+      readonly hasAnyKey?: JsonbOperator_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS;
     };
 
 // ---------------------------------------------------------------------------
