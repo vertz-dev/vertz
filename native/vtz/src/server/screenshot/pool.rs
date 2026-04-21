@@ -186,13 +186,23 @@ impl Pool {
                         *last_used = Instant::now();
                         return Ok(handle);
                     }
-                    // TTL expired. Flip to Idle so the next iteration
-                    // launches a fresh browser; defer the close to a
-                    // background task. close() grabs the handle's write
-                    // lock which waits for any in-flight captures to
-                    // release their read locks, so a long-running capture
-                    // that spans the TTL boundary is never interrupted.
-                    // (Regression guard for B2 from the Task 4 review.)
+                    // TTL expired. If any other task still holds an Arc
+                    // to this handle, they may be mid-way to calling
+                    // `capture()` on it — closing now would give them a
+                    // spurious `ShuttingDown` once their read guard is
+                    // preempted by the writer. Defer the close: refresh
+                    // `last_used` and keep the handle Warm. The check is
+                    // race-free because we hold the state lock, so no new
+                    // Arc can be handed out right now.
+                    // (NB1 fix from the second Task 4 review.)
+                    if Arc::strong_count(handle) > 1 {
+                        *last_used = Instant::now();
+                        let h = Arc::clone(handle);
+                        return Ok(h);
+                    }
+                    // We're the sole holder. Flip to Idle and spawn the
+                    // close in the background so the triggering caller
+                    // isn't stalled waiting for Chrome to tear down.
                     let expired = Arc::clone(handle);
                     *state = State::Idle;
                     drop(state);
@@ -648,6 +658,13 @@ mod tests {
     /// called `close()` on the shared handle while another task was
     /// still mid-capture, which in chromiumoxide would have torn down
     /// the browser underneath it.
+    ///
+    /// FakeHandle does not model the full RwLock read/write guard
+    /// coordination that `ChromiumoxideHandle` does, so this test
+    /// validates the POOL'S policy (spawn-close + strong_count guard —
+    /// see `nb1_defers_close_while_capture_holds_arc` for the count
+    /// assertion). End-to-end RwLock behavior is covered by the
+    /// `#[ignore]`d real-Chrome test in chromium.rs.
     #[tokio::test]
     async fn b2_long_capture_survives_ttl_expiry() {
         let spawner = Arc::new(FakeSpawner::new().with_capture_delay(Duration::from_millis(30)));
@@ -671,6 +688,43 @@ mod tests {
         // the handle being closed under it.
         let (bytes, _) = long_capture.await.unwrap().unwrap();
         assert_eq!(&bytes[..4], &[0x89, b'P', b'N', b'G']);
+    }
+
+    /// NB1 regression — when TTL expires while any caller still holds an
+    /// Arc to the Warm handle, the pool must defer the close. Closing
+    /// under a live Arc would let the in-flight caller's eventual
+    /// read-lock acquisition see `None` and return spurious ShuttingDown.
+    ///
+    /// Asserts the pool's `strong_count > 1` guard: with a long capture
+    /// in flight, a triggering capture that arrives past TTL must not
+    /// relaunch (would waste the warm handle) AND must not close the
+    /// existing one.
+    #[tokio::test]
+    async fn nb1_defers_close_while_capture_holds_arc() {
+        let spawner = Arc::new(FakeSpawner::new().with_capture_delay(Duration::from_millis(30)));
+        let pool = Arc::new(Pool::new(
+            Arc::clone(&spawner) as _,
+            default_config(),
+            Duration::from_nanos(1),
+        ));
+
+        let long_pool = Arc::clone(&pool);
+        let long_capture = tokio::spawn(async move { long_pool.capture(default_request()).await });
+        spawner.launch_entered.notified().await;
+
+        // Trigger capture while `long_capture` is mid-flight. TTL has
+        // already expired (1ns), but the guard keeps the handle alive.
+        let trigger_pool = Arc::clone(&pool);
+        let trigger = tokio::spawn(async move { trigger_pool.capture(default_request()).await });
+
+        long_capture.await.unwrap().unwrap();
+        trigger.await.unwrap().unwrap();
+
+        assert_eq!(
+            spawner.launch_count.load(Ordering::SeqCst),
+            1,
+            "pool must reuse the warm handle while a capture still holds the Arc"
+        );
     }
 
     #[tokio::test]
