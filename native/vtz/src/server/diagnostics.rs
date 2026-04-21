@@ -26,6 +26,10 @@ pub struct DiagnosticsSnapshot {
     /// SSR pool metrics (present when pool is active).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ssr_pool: Option<SsrPoolDiagnostics>,
+    /// Screenshot browser pool status (present once the pool has been
+    /// lazy-initialized by a `vertz_browser_screenshot` call).
+    #[serde(skip_serializing_if = "Option::is_none", rename = "screenshotPool")]
+    pub screenshot_pool: Option<crate::server::screenshot::pool::PoolStatus>,
 }
 
 /// SSR pool diagnostics snapshot.
@@ -67,6 +71,10 @@ pub struct WebSocketStats {
 }
 
 /// Collect a diagnostics snapshot from the server state.
+// Legitimately 8 loosely-coupled inputs — grouping them into a struct
+// would churn every caller (tests, MCP handler, HTTP handler) for no
+// clarity win. The allow stays local to this one function.
+#[allow(clippy::too_many_arguments)]
 pub async fn collect_diagnostics(
     start_time: Instant,
     cache_size: usize,
@@ -75,6 +83,7 @@ pub async fn collect_diagnostics(
     error_broadcaster: &ErrorBroadcaster,
     audit_log: &AuditLog,
     ssr_pool: Option<&crate::ssr::pool::SsrPool>,
+    screenshot_pool: Option<crate::server::screenshot::pool::PoolStatus>,
 ) -> DiagnosticsSnapshot {
     let uptime = start_time.elapsed().as_secs();
 
@@ -132,6 +141,7 @@ pub async fn collect_diagnostics(
         version: env!("CARGO_PKG_VERSION").to_string(),
         audit_log: audit_log.summary(),
         ssr_pool: pool_diag,
+        screenshot_pool,
     }
 }
 
@@ -156,6 +166,7 @@ mod tests {
             &hmr_hub,
             &error_broadcaster,
             &AuditLog::default(),
+            None,
             None,
         )
         .await;
@@ -193,6 +204,7 @@ mod tests {
             &error_broadcaster,
             &AuditLog::default(),
             None,
+            None,
         )
         .await;
 
@@ -219,6 +231,7 @@ mod tests {
             &error_broadcaster,
             &AuditLog::default(),
             None,
+            None,
         )
         .await;
 
@@ -240,6 +253,7 @@ mod tests {
             version: "0.1.0".to_string(),
             audit_log: AuditLog::default().summary(),
             ssr_pool: None,
+            screenshot_pool: None,
         };
 
         let json = serde_json::to_string(&snap).unwrap();

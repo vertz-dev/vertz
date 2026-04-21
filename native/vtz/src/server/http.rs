@@ -385,6 +385,10 @@ pub fn build_router(
             "/__vertz_fs_binary/stream/write",
             axum::routing::post(crate::server::binary_fs::handle_binary_stream_write),
         )
+        .route(
+            "/__vertz_artifacts/screenshots/:filename",
+            get(screenshot_artifact_handler),
+        )
         .fallback(dev_server_handler)
         .with_state(state.clone())
         .layer(RequestLoggingLayer::new(state.audit_log.clone()))
@@ -792,6 +796,7 @@ async fn client_error_handler(
 async fn diagnostics_handler(
     State(state): State<Arc<DevServerState>>,
 ) -> axum::response::Response<Body> {
+    let screenshot_status = crate::server::screenshot::pool_status().await;
     let snap = diagnostics::collect_diagnostics(
         state.start_time,
         state.pipeline.cache().len(),
@@ -800,6 +805,7 @@ async fn diagnostics_handler(
         &state.error_broadcaster,
         &state.audit_log,
         state.ssr_pool.as_deref(),
+        screenshot_status,
     )
     .await;
 
@@ -811,6 +817,33 @@ async fn diagnostics_handler(
         .header(header::CACHE_CONTROL, "no-cache")
         .body(Body::from(json))
         .unwrap()
+}
+
+/// Serve `GET /__vertz_artifacts/screenshots/:filename` — returns the PNG
+/// body if the filename passes the sanitization allowlist AND the file
+/// exists. Any other case returns 404 (no leaking of existence info).
+async fn screenshot_artifact_handler(
+    State(state): State<Arc<DevServerState>>,
+    axum::extract::Path(filename): axum::extract::Path<String>,
+) -> axum::response::Response<Body> {
+    let Some(path) = crate::server::screenshot::resolve_artifact(&state.root_dir, &filename) else {
+        return axum::response::Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Body::empty())
+            .unwrap();
+    };
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => axum::response::Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "image/png")
+            .header(header::CACHE_CONTROL, "no-store")
+            .body(Body::from(bytes))
+            .unwrap(),
+        Err(_) => axum::response::Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Body::empty())
+            .unwrap(),
+    }
 }
 
 /// Central request handler for the dev server.
@@ -2005,6 +2038,9 @@ pub async fn start_server_with_lifecycle(
         } else {
             shutdown_signal().await;
         }
+        // Tear down the screenshot pool before axum stops serving so a
+        // wedged Chrome child can't outlive the dev server.
+        crate::server::screenshot::shutdown_pool().await;
         // Notify bridge to shut down
         if let Some(tx) = bridge_shutdown_tx {
             let _ = tx.send(());
@@ -2087,6 +2123,70 @@ mod tests {
     async fn body_json(resp: axum::response::Response<Body>) -> serde_json::Value {
         let bytes = body_bytes(resp).await;
         serde_json::from_slice(&bytes).unwrap()
+    }
+
+    // ─── screenshot artifact route ──────────────────────────────────
+
+    #[tokio::test]
+    async fn screenshot_artifact_serves_existing_png() {
+        let (router, state, _tmp) = make_test_router();
+        let artifacts = state.root_dir.join(".vertz/artifacts/screenshots");
+        std::fs::create_dir_all(&artifacts).unwrap();
+        let png = artifacts.join("pic.png");
+        std::fs::write(&png, b"\x89PNGbody").unwrap();
+
+        let req = Request::builder()
+            .uri("/__vertz_artifacts/screenshots/pic.png")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "image/png"
+        );
+        let body = body_bytes(resp).await;
+        assert_eq!(body, b"\x89PNGbody");
+    }
+
+    #[tokio::test]
+    async fn screenshot_artifact_404_when_missing() {
+        let (router, _state, _tmp) = make_test_router();
+        let req = Request::builder()
+            .uri("/__vertz_artifacts/screenshots/ghost.png")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn screenshot_artifact_404_on_path_traversal() {
+        let (router, state, _tmp) = make_test_router();
+        // Create a file outside the artifacts dir that traversal would reach.
+        std::fs::write(state.root_dir.join("secret.png"), b"nope").unwrap();
+
+        let req = Request::builder()
+            .uri("/__vertz_artifacts/screenshots/..%2Fsecret.png")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn screenshot_artifact_404_on_non_png() {
+        let (router, state, _tmp) = make_test_router();
+        let artifacts = state.root_dir.join(".vertz/artifacts/screenshots");
+        std::fs::create_dir_all(&artifacts).unwrap();
+        std::fs::write(artifacts.join("blob.jpg"), b"jpg").unwrap();
+
+        let req = Request::builder()
+            .uri("/__vertz_artifacts/screenshots/blob.jpg")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     // ─── try_bind ────────────────────────────────────────────────────

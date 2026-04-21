@@ -398,6 +398,12 @@ pub(crate) fn tool_definitions() -> serde_json::Value {
                     },
                     "required": ["condition"]
                 }
+            },
+            // ── Headless Screenshot ─────────────────────────────────────
+            {
+                "name": "vertz_browser_screenshot",
+                "description": crate::server::screenshot::TOOL_DESCRIPTION,
+                "inputSchema": crate::server::screenshot::tool_input_schema(),
             }
         ]
     })
@@ -608,6 +614,7 @@ pub(crate) async fn execute_tool(
         }
 
         "vertz_get_diagnostics" => {
+            let screenshot_status = crate::server::screenshot::pool_status().await;
             let snap = crate::server::diagnostics::collect_diagnostics(
                 state.start_time,
                 state.pipeline.cache().len(),
@@ -616,6 +623,7 @@ pub(crate) async fn execute_tool(
                 &state.error_broadcaster,
                 &state.audit_log,
                 state.ssr_pool.as_deref(),
+                screenshot_status,
             )
             .await;
 
@@ -1231,6 +1239,10 @@ pub(crate) async fn execute_tool(
             }))
         }
 
+        "vertz_browser_screenshot" => {
+            crate::server::screenshot::capture_tool(args, state.port, &state.root_dir).await
+        }
+
         _ => Err(format!("Unknown tool: {}", name)),
     }
 }
@@ -1753,7 +1765,7 @@ mod tests {
         let defs = tool_definitions();
         let tools = defs["tools"].as_array().unwrap();
 
-        assert_eq!(tools.len(), 20);
+        assert_eq!(tools.len(), 21);
 
         let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"vertz_get_errors"));
@@ -1869,7 +1881,7 @@ mod tests {
         let resp = handle_mcp_message(&state, req).await.unwrap();
         let result = resp.result.unwrap();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 20);
+        assert_eq!(tools.len(), 21);
     }
 
     #[tokio::test]
