@@ -29,6 +29,114 @@
   var toastEl = null;
   var toastTimer = null;
 
+  // moduleUrl → HotContext. Keyed by normalized URL-relative pathname.
+  var hotContexts = Object.create(null);
+
+  // ── Hot Context API (import.meta.hot) ──────────────────────────
+
+  /**
+   * Normalize any module URL into a URL-relative pathname.
+   * The compiler passes `import.meta.url` (a full http(s) URL in the browser).
+   * The server broadcasts URL-relative paths (e.g. "/src/app.tsx").
+   * This converts both into the same key form: the pathname, without query/hash.
+   */
+  function normalizeModuleUrl(raw) {
+    if (typeof raw !== 'string') return '';
+    if (raw.indexOf('://') !== -1) {
+      try {
+        return new URL(raw).pathname;
+      } catch (_) {
+        return raw;
+      }
+    }
+    var q = raw.indexOf('?');
+    if (q !== -1) raw = raw.slice(0, q);
+    var h = raw.indexOf('#');
+    if (h !== -1) raw = raw.slice(0, h);
+    return raw;
+  }
+
+  /**
+   * Create a per-module hot context. Stores dispose callbacks, event
+   * listeners, persistent data, and the declined flag. Returned object
+   * is the runtime shape of `import.meta.hot` (matches ImportMetaHot in
+   * vertz/client type declarations).
+   */
+  function createHotContext(moduleUrl) {
+    var disposeCallbacks = [];
+    var listeners = Object.create(null);
+    var declined = false;
+    var data = {};
+
+    var ctx = {
+      accept: function(_depsOrCb, _cb) {
+        // The vtz dev server self-accepts via the globalThis Fast Refresh
+        // registry; per-module accept callbacks are not invoked. Kept as a
+        // no-op so code written against the Vite/Bun HMR API still loads.
+      },
+      dispose: function(cb) {
+        if (typeof cb === 'function') disposeCallbacks.push(cb);
+      },
+      data: data,
+      invalidate: function(message) {
+        var reason = '[vertz-hmr] Invalidated' + (message ? ': ' + message : '');
+        console.log(reason, '(' + moduleUrl + ')');
+        showToast('Invalidated — reloading');
+        setTimeout(function() { location.reload(); }, 50);
+      },
+      decline: function() {
+        declined = true;
+      },
+      on: function(event, cb) {
+        if (typeof event !== 'string' || typeof cb !== 'function') return;
+        if (!listeners[event]) listeners[event] = [];
+        listeners[event].push(cb);
+      },
+      off: function(event, cb) {
+        var subs = listeners[event];
+        if (!subs) return;
+        var filtered = [];
+        for (var i = 0; i < subs.length; i++) {
+          if (subs[i] !== cb) filtered.push(subs[i]);
+        }
+        listeners[event] = filtered;
+      },
+    };
+
+    // Internal hooks used by the HMR transport. Prefixed with `_` so they are
+    // visible as developer-facing API only if someone explicitly looks for
+    // them; they are not part of ImportMetaHot.
+    ctx._emit = function(event, payload) {
+      var subs = listeners[event];
+      if (!subs) return;
+      for (var i = 0; i < subs.length; i++) {
+        try { subs[i](payload); } catch (err) {
+          console.error('[vertz-hmr] Listener for', event, 'threw:', err);
+        }
+      }
+    };
+    ctx._runDispose = function() {
+      while (disposeCallbacks.length) {
+        var cb = disposeCallbacks.shift();
+        try { cb(data); } catch (err) {
+          console.error('[vertz-hmr] dispose callback threw:', err);
+        }
+      }
+    };
+    ctx._isDeclined = function() { return declined; };
+
+    return ctx;
+  }
+
+  function getHotContext(moduleUrl) {
+    var key = normalizeModuleUrl(moduleUrl);
+    if (!hotContexts[key]) hotContexts[key] = createHotContext(key);
+    return hotContexts[key];
+  }
+
+  // Expose for compiler-rewritten `import.meta.hot` references.
+  globalThis.__vtz_hot = getHotContext;
+
   // ── Reconnect Tracking ─────────────────────────────────────────
 
   function trackReconnect() {
@@ -136,17 +244,34 @@
     var timestamp = data.timestamp || Date.now();
     var errors = [];
 
+    // If any module in this batch has been marked declined by user code, fall
+    // back to a full page reload — the module owner has opted out of HMR.
+    for (var d = 0; d < modules.length; d++) {
+      var declinedKey = normalizeModuleUrl(modules[d]);
+      var declinedCtx = hotContexts[declinedKey];
+      if (declinedCtx && declinedCtx._isDeclined()) {
+        console.log('[vertz-hmr] Module declined HMR — full reload:', declinedKey);
+        handleFullReload({ reason: 'module declined HMR: ' + declinedKey });
+        return;
+      }
+    }
+
     for (var i = 0; i < modules.length; i++) {
       var mod = modules[i];
+      var ctx = getHotContext(mod);
+      ctx._emit('vertz:beforeUpdate', { module: normalizeModuleUrl(mod) });
       try {
+        ctx._runDispose();
         // Dynamic re-import with cache-bust timestamp
         await import(mod + '?t=' + timestamp);
         // Trigger Fast Refresh for the updated module
         performFastRefresh(mod);
+        ctx._emit('vertz:afterUpdate', { module: normalizeModuleUrl(mod) });
       } catch (err) {
         var errMsg = err.message || String(err);
         console.error('[vertz-hmr] Failed to import', mod, err);
         errors.push({ message: errMsg, file: mod });
+        ctx._emit('vertz:error', { module: normalizeModuleUrl(mod), error: err });
       }
     }
 
@@ -208,6 +333,11 @@
   function handleFullReload(data) {
     showToast('Full reload');
     console.log('[vertz-hmr] Full reload:', data.reason);
+    // Emit beforeFullReload on every known hot context so user code can
+    // snapshot state or clean up before the page is destroyed.
+    for (var key in hotContexts) {
+      hotContexts[key]._emit('vertz:beforeFullReload', { reason: data.reason });
+    }
     // Small delay to show the toast
     setTimeout(function() {
       location.reload();

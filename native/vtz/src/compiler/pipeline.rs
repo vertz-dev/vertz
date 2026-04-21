@@ -1382,21 +1382,128 @@ fn remove_cross_specifier_duplicates(code: &str) -> String {
     result.join("\n")
 }
 
-/// Strip `import.meta.hot` lines entirely.
+/// Rewrite `import.meta.hot` references to the Vertz runtime hot-context lookup.
 ///
-/// `import.meta.hot` is Bun's bundler-level HMR API (accept/decline/dispose).
-/// Our native server uses WebSocket-based HMR — this API doesn't apply.
-/// We strip the lines entirely instead of shimming them.
-fn strip_import_meta_hot(code: &str) -> String {
-    let lines: Vec<&str> = code.lines().collect();
-    let mask = template_literal_mask(&lines);
-    lines
-        .iter()
-        .enumerate()
-        .filter(|(idx, line)| mask[*idx] || !line.trim().starts_with("import.meta.hot"))
-        .map(|(_, line)| *line)
-        .collect::<Vec<_>>()
-        .join("\n")
+/// The native vtz dev server doesn't use Bun's bundler-level `import.meta.hot`
+/// API. Instead, the HMR client runtime exposes a per-module hot context via
+/// `globalThis.__vtz_hot(moduleUrl)`. We rewrite source references so that code
+/// written against the standard `import.meta.hot` API resolves to our runtime
+/// at evaluation time.
+///
+/// In production (no HMR runtime present) `globalThis.__vtz_hot` is undefined,
+/// so the optional-call chain short-circuits to `undefined` — preserving the
+/// `ImportMetaHot | undefined` type contract exposed in `vertz/client`.
+///
+/// Rewrite rules:
+/// - Replace every `import.meta.hot` occurrence with
+///   `globalThis.__vtz_hot?.(import.meta.url)`.
+/// - Skip occurrences inside string literals (`'…'`, `"…"`), template literals
+///   (backticks), and comments (`// …`, `/* … */`).
+fn rewrite_import_meta_hot(code: &str) -> String {
+    const NEEDLE: &str = "import.meta.hot";
+    const REPLACEMENT: &str = "globalThis.__vtz_hot?.(import.meta.url)";
+
+    let bytes = code.as_bytes();
+    let len = bytes.len();
+    let mut result = String::with_capacity(len);
+    let mut i = 0;
+
+    // Advance `i` past the next char starting at byte `i`, pushing that char's
+    // bytes to `result` verbatim. Preserves UTF-8 multi-byte sequences because
+    // we advance by the full codepoint width each step.
+    let step = |result: &mut String, i: &mut usize| {
+        let start = *i;
+        let byte = bytes[start];
+        let width = if byte < 0x80 {
+            1
+        } else if byte < 0xC0 {
+            // Continuation byte appearing outside a multi-byte sequence — treat
+            // as a single byte so we never slice in the middle of a codepoint.
+            1
+        } else if byte < 0xE0 {
+            2
+        } else if byte < 0xF0 {
+            3
+        } else {
+            4
+        };
+        let end = (start + width).min(len);
+        result.push_str(&code[start..end]);
+        *i = end;
+    };
+
+    while i < len {
+        let c = bytes[i];
+
+        // Line comment: preserve verbatim to end of line.
+        if c == b'/' && i + 1 < len && bytes[i + 1] == b'/' {
+            while i < len && bytes[i] != b'\n' {
+                step(&mut result, &mut i);
+            }
+            continue;
+        }
+
+        // Block comment: preserve verbatim through closing `*/`.
+        if c == b'/' && i + 1 < len && bytes[i + 1] == b'*' {
+            result.push_str("/*");
+            i += 2;
+            while i + 1 < len && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
+                step(&mut result, &mut i);
+            }
+            if i + 1 < len {
+                result.push_str("*/");
+                i += 2;
+            }
+            continue;
+        }
+
+        // String or template literal: preserve contents verbatim.
+        if c == b'\'' || c == b'"' || c == b'`' {
+            result.push(c as char);
+            i += 1;
+            while i < len && bytes[i] != c {
+                if bytes[i] == b'\\' && i + 1 < len {
+                    // Copy escape byte + next char (may be multi-byte).
+                    result.push('\\');
+                    i += 1;
+                    if i < len {
+                        step(&mut result, &mut i);
+                    }
+                    continue;
+                }
+                step(&mut result, &mut i);
+            }
+            if i < len {
+                result.push(c as char);
+                i += 1;
+            }
+            continue;
+        }
+
+        // Replace `import.meta.hot` when it appears as a bare token.
+        if i + NEEDLE.len() <= len
+            && &bytes[i..i + NEEDLE.len()] == NEEDLE.as_bytes()
+            && !is_ident_char(bytes[i.saturating_sub(1)])
+            && (i + NEEDLE.len() == len || !is_ident_char(bytes[i + NEEDLE.len()]))
+        {
+            // Guard: if preceded by `.` it's a property lookup like `foo.import.meta.hot`
+            // — extremely rare, but skip to be safe.
+            if i == 0 || bytes[i - 1] != b'.' {
+                result.push_str(REPLACEMENT);
+                i += NEEDLE.len();
+                continue;
+            }
+        }
+
+        step(&mut result, &mut i);
+    }
+
+    result
+}
+
+/// True if `b` is a valid continuation character for a JavaScript identifier.
+fn is_ident_char(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_' || b == b'$'
 }
 
 /// Fix the `__$moduleId` to use a URL-relative path instead of an absolute filesystem path.
@@ -1426,12 +1533,12 @@ pub fn fix_module_id(code: &str, file_path: &Path, root_dir: &Path) -> String {
 /// These are framework-agnostic transforms that any plugin can use:
 /// 1. Strip leftover TypeScript syntax artifacts
 /// 2. Deduplicate imports to prevent "already been declared" errors
-/// 3. Strip import.meta.hot (Bun HMR API)
+/// 3. Rewrite `import.meta.hot` references to the Vertz runtime hot-context lookup
 pub fn generic_post_process(code: &str) -> String {
     let cleaned = strip_leftover_typescript(code);
     let deduped = deduplicate_imports(&cleaned);
     let no_cross_dupes = remove_cross_specifier_duplicates(&deduped);
-    strip_import_meta_hot(&no_cross_dupes)
+    rewrite_import_meta_hot(&no_cross_dupes)
 }
 
 /// Apply all post-processing fixes including Vertz-specific ones.
@@ -2325,31 +2432,117 @@ export function App() {
         assert!(result.contains("function domEffect()"));
     }
 
-    // ── strip_import_meta_hot ───────────────────────────────────────
+    // ── rewrite_import_meta_hot ─────────────────────────────────────
 
     #[test]
-    fn test_strip_import_meta_hot() {
-        let code = "const x = 1;\nimport.meta.hot.accept();\nconst y = 2;";
-        let result = strip_import_meta_hot(code);
-        assert!(!result.contains("import.meta.hot"));
+    fn test_rewrite_import_meta_hot_replaces_reference() {
+        let code = "const x = 1;\nimport.meta.hot?.accept();\nconst y = 2;";
+        let result = rewrite_import_meta_hot(code);
+        assert!(
+            !result.contains("import.meta.hot"),
+            "raw import.meta.hot should be rewritten, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("globalThis.__vtz_hot?.(import.meta.url)?.accept();"),
+            "expected rewritten call, got:\n{}",
+            result
+        );
         assert!(result.contains("const x = 1;"));
         assert!(result.contains("const y = 2;"));
     }
 
     #[test]
-    fn test_strip_import_meta_hot_none() {
+    fn test_rewrite_import_meta_hot_no_references_passthrough() {
         let code = "const x = 1;";
-        let result = strip_import_meta_hot(code);
+        let result = rewrite_import_meta_hot(code);
         assert_eq!(result, code);
     }
 
     #[test]
-    fn test_strip_import_meta_hot_preserves_template_literal() {
+    fn test_rewrite_import_meta_hot_preserves_template_literal() {
         let code = "const tpl = `\nimport.meta.hot.accept();\n`;";
-        let result = strip_import_meta_hot(code);
+        let result = rewrite_import_meta_hot(code);
         assert!(
-            result.contains("import.meta.hot"),
+            result.contains("`\nimport.meta.hot.accept();\n`"),
             "import.meta.hot inside template literal should be preserved. Got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_rewrite_import_meta_hot_preserves_string_literals() {
+        let code = "const msg = \"import.meta.hot is cool\";\nimport.meta.hot?.accept();";
+        let result = rewrite_import_meta_hot(code);
+        assert!(
+            result.contains("\"import.meta.hot is cool\""),
+            "string literal contents should be untouched, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("globalThis.__vtz_hot?.(import.meta.url)?.accept();"),
+            "code reference should be rewritten, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_rewrite_import_meta_hot_preserves_comments() {
+        let code = "// example: import.meta.hot.accept()\nimport.meta.hot?.decline();";
+        let result = rewrite_import_meta_hot(code);
+        assert!(
+            result.contains("// example: import.meta.hot.accept()"),
+            "comment contents should be untouched, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("globalThis.__vtz_hot?.(import.meta.url)?.decline();"),
+            "code reference should be rewritten, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_rewrite_import_meta_hot_preserves_utf8() {
+        let code = "const greeting = '日本語';\nimport.meta.hot?.accept();\n// comment 🎉\nconst emoji = \"🎨\";";
+        let result = rewrite_import_meta_hot(code);
+        assert!(
+            result.contains("'日本語'"),
+            "UTF-8 string contents must survive rewrite intact, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("🎉"),
+            "UTF-8 in comments must survive rewrite intact, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("\"🎨\""),
+            "UTF-8 in double-quoted strings must survive, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("globalThis.__vtz_hot?.(import.meta.url)?.accept();"),
+            "rewrite should still apply, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_rewrite_import_meta_hot_rewrites_inside_if_guard() {
+        let code = "if (import.meta.hot) { import.meta.hot.accept(); }";
+        let result = rewrite_import_meta_hot(code);
+        assert!(
+            !result.contains("import.meta.hot)"),
+            "raw import.meta.hot in guard should be rewritten, got:\n{}",
+            result
+        );
+        assert_eq!(
+            result
+                .matches("globalThis.__vtz_hot?.(import.meta.url)")
+                .count(),
+            2,
+            "both occurrences on one line should be rewritten, got:\n{}",
             result
         );
     }
@@ -2396,8 +2589,9 @@ export function App() {
         let result = generic_post_process(code);
         // import type stripped
         assert!(!result.contains("import type"));
-        // import.meta.hot stripped
-        assert!(!result.contains("import.meta.hot"));
+        // import.meta.hot rewritten to runtime hot-context lookup
+        assert!(!result.contains(" import.meta.hot"));
+        assert!(result.contains("globalThis.__vtz_hot?.(import.meta.url).accept();"));
         // duplicates removed
         assert!(result.contains("const y = 1"));
         // Does NOT fix Vertz-specific API names (that's not generic)
@@ -2417,10 +2611,14 @@ export function App() {
     // ── post_process_compiled (integration) ─────────────────────────
 
     #[test]
-    fn test_post_process_strips_import_meta_hot() {
+    fn test_post_process_rewrites_import_meta_hot() {
         let code = "const x = 1;\nimport.meta.hot.accept();\nexport { x };";
         let result = post_process_compiled(code);
-        assert!(!result.contains("import.meta.hot"));
+        assert!(
+            result.contains("globalThis.__vtz_hot?.(import.meta.url).accept();"),
+            "expected rewritten call, got:\n{}",
+            result
+        );
         assert!(result.contains("const x = 1;"));
     }
 
@@ -2432,8 +2630,8 @@ export function App() {
         assert!(!result.contains("import type"));
         // effect renamed to domEffect and moved to internals
         assert!(result.contains("domEffect"));
-        // import.meta.hot stripped
-        assert!(!result.contains("import.meta.hot"));
+        // import.meta.hot rewritten to runtime hot-context lookup
+        assert!(result.contains("globalThis.__vtz_hot?.(import.meta.url).accept();"));
         // signal deduped
         assert!(result.contains("signal"));
     }
