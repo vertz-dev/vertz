@@ -12,6 +12,58 @@ use super::executor::{execute_test_file_with_options, ExecuteOptions};
 use super::reporter::terminal::format_results_with_wall_clock;
 use super::runner::{TestRunConfig, TestRunResult};
 
+/// Recursively scan a file's local imports and record every discovered edge
+/// in the module graph. Used to seed the graph before the watch loop starts,
+/// so a later change to a source file deep in the import tree maps back to
+/// the test file(s) that transitively depend on it.
+///
+/// Paths are canonicalized to match the paths that `FileChange` events carry
+/// (which come from the OS watcher and are already canonicalized).
+pub(crate) fn populate_graph_from_entry(
+    entry_path: &Path,
+    graph: &mut ModuleGraph,
+    visited: &mut HashSet<PathBuf>,
+) {
+    let canonical = match entry_path.canonicalize() {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    if !visited.insert(canonical.clone()) {
+        return;
+    }
+
+    let source = match std::fs::read_to_string(&canonical) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+
+    let deps = crate::deps::scanner::scan_local_dependencies(&source, &canonical);
+    graph.update_module(&canonical, deps.clone());
+
+    for dep in deps {
+        populate_graph_from_entry(&dep, graph, visited);
+    }
+}
+
+/// Apply a file-change event to the module graph.
+///
+/// - `Modify`/`Create`: re-scan the file's local imports and update its edges.
+/// - `Remove`: remove the node and its reverse edges so deleted files don't
+///   leave ghost entries (matches the dev-server behavior introduced in #2764).
+pub(crate) fn update_graph_for_change(change: &FileChange, graph: &mut ModuleGraph) {
+    match change.kind {
+        FileChangeKind::Remove => {
+            graph.remove_module(&change.path);
+        }
+        FileChangeKind::Create | FileChangeKind::Modify => {
+            if let Ok(source) = std::fs::read_to_string(&change.path) {
+                let deps = crate::deps::scanner::scan_local_dependencies(&source, &change.path);
+                graph.update_module(&change.path, deps);
+            }
+        }
+    }
+}
+
 /// Determine which test files need to be re-run after a file change.
 ///
 /// - If the changed file is itself a test file, re-run only that file.
@@ -185,7 +237,16 @@ pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
         .map_err(|e| format!("Failed to start file watcher: {}", e))?;
 
     let mut debouncer = Debouncer::new(100);
-    let graph = ModuleGraph::new();
+    let mut graph = ModuleGraph::new();
+
+    // Seed the module graph by recursively scanning each test file's local
+    // imports. Without this, `affected_test_files` always hits the
+    // `dependents.is_empty()` fallback on the first change and re-runs the
+    // full suite — defeating the whole point of per-file targeting. (#2765)
+    let mut visited: HashSet<PathBuf> = HashSet::new();
+    for test_file in &all_test_files {
+        populate_graph_from_entry(test_file, &mut graph, &mut visited);
+    }
 
     eprintln!("\nWatching for changes...\n");
 
@@ -206,6 +267,18 @@ pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
                         &exclude,
                         DiscoveryMode::Unit,
                     );
+
+                    // Keep the module graph in sync with the filesystem before
+                    // computing the affected set, so renamed imports and
+                    // deletions don't leave ghost edges. (#2765 / #2764)
+                    for change in &changes {
+                        update_graph_for_change(change, &mut graph);
+                    }
+                    // Seed newly discovered test files so their deps become
+                    // part of the graph on the very next change.
+                    for test_file in &current_test_files {
+                        populate_graph_from_entry(test_file, &mut graph, &mut visited);
+                    }
 
                     let files_to_run = affected_test_files(&changes, &current_test_files, &graph);
 
@@ -534,5 +607,108 @@ mod tests {
 
         assert_eq!(affected.len(), 1);
         assert_eq!(affected[0], PathBuf::from("/src/a.test.ts"));
+    }
+
+    #[test]
+    fn test_populate_graph_from_entry_records_direct_and_transitive_deps() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let utils_path = root.join("utils.ts");
+        std::fs::write(&utils_path, "export const x = 1;\n").unwrap();
+
+        let helper_path = root.join("helper.ts");
+        std::fs::write(
+            &helper_path,
+            "import { x } from './utils';\nexport const y = x;\n",
+        )
+        .unwrap();
+
+        let test_path = root.join("a.test.ts");
+        std::fs::write(&test_path, "import { y } from './helper';\n").unwrap();
+
+        let canonical_test = test_path.canonicalize().unwrap();
+        let canonical_helper = helper_path.canonicalize().unwrap();
+        let canonical_utils = utils_path.canonicalize().unwrap();
+
+        let mut graph = ModuleGraph::new();
+        let mut visited = HashSet::new();
+        populate_graph_from_entry(&test_path, &mut graph, &mut visited);
+
+        // Direct edge: test → helper
+        assert!(graph
+            .get_dependencies(&canonical_test)
+            .contains(&canonical_helper));
+        // Transitive edge: helper → utils (recorded because we recurse)
+        assert!(graph
+            .get_dependencies(&canonical_helper)
+            .contains(&canonical_utils));
+        // Reverse: changing utils must reach the test file through transitive dependents
+        let transitive = graph.get_transitive_dependents(&canonical_utils);
+        assert!(transitive.contains(&canonical_test));
+    }
+
+    #[test]
+    fn test_update_graph_for_change_modify_scans_and_updates_edges() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let dep_path = root.join("dep.ts");
+        std::fs::write(&dep_path, "export const x = 1;\n").unwrap();
+        let file_path = root.join("src.ts");
+        std::fs::write(&file_path, "import { x } from './dep';\n").unwrap();
+
+        let canonical_file = file_path.canonicalize().unwrap();
+        let canonical_dep = dep_path.canonicalize().unwrap();
+
+        let mut graph = ModuleGraph::new();
+        let change = FileChange {
+            kind: FileChangeKind::Modify,
+            path: canonical_file.clone(),
+        };
+        update_graph_for_change(&change, &mut graph);
+
+        assert!(graph
+            .get_dependencies(&canonical_file)
+            .contains(&canonical_dep));
+        assert!(graph
+            .get_dependents(&canonical_dep)
+            .contains(&canonical_file));
+    }
+
+    #[test]
+    fn test_update_graph_for_change_remove_cleans_ghost_entries() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let dep_path = root.join("dep.ts");
+        std::fs::write(&dep_path, "export const x = 1;\n").unwrap();
+        let file_path = root.join("src.ts");
+        std::fs::write(&file_path, "import { x } from './dep';\n").unwrap();
+
+        let canonical_file = file_path.canonicalize().unwrap();
+        let canonical_dep = dep_path.canonicalize().unwrap();
+
+        let mut graph = ModuleGraph::new();
+        let mut visited = HashSet::new();
+        populate_graph_from_entry(&file_path, &mut graph, &mut visited);
+        assert!(graph.has_module(&canonical_file));
+
+        let change = FileChange {
+            kind: FileChangeKind::Remove,
+            path: canonical_file.clone(),
+        };
+        update_graph_for_change(&change, &mut graph);
+
+        assert!(
+            !graph.has_module(&canonical_file),
+            "removed file must not leave a ghost node"
+        );
+        assert!(
+            !graph
+                .get_dependents(&canonical_dep)
+                .contains(&canonical_file),
+            "reverse edge from dep → removed file must be cleaned"
+        );
     }
 }
