@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use oxc_ast::ast::{
     BindingPattern, Declaration, Expression, Program, Statement, VariableDeclaration,
 };
@@ -9,8 +11,15 @@ use crate::magic_string::MagicString;
 ///
 /// Detects `const X = createContext(...)` patterns at module level and injects
 /// a `__stableId` argument so the context registry survives bundle re-evaluation.
-/// The ID format is `filePath::varName`.
+/// The ID format is `filePath::varName` for the first occurrence of a given name
+/// in the file, and `filePath::varName@N` for subsequent occurrences (N is the
+/// 0-based occurrence index, starting from 1 for the second occurrence).
+///
+/// The per-name counter is preferred over source spans: counters only shift when
+/// contexts are added or removed, whereas spans shift on any edit to earlier
+/// code — making counters more HMR-stable.
 pub fn inject_context_stable_ids(ms: &mut MagicString, program: &Program, rel_file_path: &str) {
+    let mut name_counts: HashMap<String, u32> = HashMap::new();
     for stmt in &program.body {
         // Unwrap export declarations to get the inner variable declaration
         let var_decl: &VariableDeclaration = match stmt {
@@ -48,8 +57,15 @@ pub fn inject_context_stable_ids(ms: &mut MagicString, program: &Program, rel_fi
             };
 
             let var_name = binding.name.as_str();
+            let count = name_counts.entry(var_name.to_string()).or_insert(0);
+            let suffix = if *count == 0 {
+                String::new()
+            } else {
+                format!("@{count}")
+            };
+            *count += 1;
             let escaped_path = rel_file_path.replace('\\', "\\\\").replace('\'', "\\'");
-            let stable_id = format!("{escaped_path}::{var_name}");
+            let stable_id = format!("{escaped_path}::{var_name}{suffix}");
 
             let args = &call_expr.arguments;
             if args.is_empty() {
@@ -180,6 +196,38 @@ mod tests {
         assert_eq!(
             result,
             "let Ctx;\nconst Other = createContext(undefined, 'test.tsx::Other');"
+        );
+    }
+
+    #[test]
+    fn same_name_contexts_get_unique_ids() {
+        let source = "const Ctx = createContext();\nconst Ctx = createContext(0);";
+        let result = transform(source, "test.tsx");
+        assert_eq!(
+            result,
+            "const Ctx = createContext(undefined, 'test.tsx::Ctx');\nconst Ctx = createContext(0, 'test.tsx::Ctx@1');"
+        );
+    }
+
+    #[test]
+    fn three_same_name_contexts_get_sequential_ids() {
+        let source =
+            "const A = createContext();\nconst A = createContext();\nconst A = createContext();";
+        let result = transform(source, "test.tsx");
+        assert_eq!(
+            result,
+            "const A = createContext(undefined, 'test.tsx::A');\nconst A = createContext(undefined, 'test.tsx::A@1');\nconst A = createContext(undefined, 'test.tsx::A@2');"
+        );
+    }
+
+    #[test]
+    fn per_name_counter_is_independent() {
+        let source =
+            "const A = createContext();\nconst B = createContext();\nconst A = createContext();";
+        let result = transform(source, "test.tsx");
+        assert_eq!(
+            result,
+            "const A = createContext(undefined, 'test.tsx::A');\nconst B = createContext(undefined, 'test.tsx::B');\nconst A = createContext(undefined, 'test.tsx::A@1');"
         );
     }
 }

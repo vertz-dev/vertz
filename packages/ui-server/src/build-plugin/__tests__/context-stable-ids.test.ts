@@ -116,4 +116,32 @@ const Ctx = createContext();`;
       });
     });
   });
+
+  describe('Given two createContext calls sharing the same variable name', () => {
+    describe('When the transform runs', () => {
+      it('Then suffixes @N on repeats so the ids are unique', () => {
+        const source = `import { createContext } from '@vertz/ui';
+const Ctx = createContext();
+const Ctx = createContext(0);`;
+        const result = transform(source);
+        expect(result).toContain("undefined, 'src/contexts/settings.tsx::Ctx'");
+        expect(result).toContain("0, 'src/contexts/settings.tsx::Ctx@1'");
+      });
+    });
+  });
+
+  describe('Given three createContext calls sharing the same variable name', () => {
+    describe('When the transform runs', () => {
+      it('Then increments the suffix for each repeat independently', () => {
+        const source = `import { createContext } from '@vertz/ui';
+const A = createContext();
+const B = createContext();
+const A = createContext();`;
+        const result = transform(source);
+        expect(result).toContain("undefined, 'src/contexts/settings.tsx::A'");
+        expect(result).toContain("undefined, 'src/contexts/settings.tsx::B'");
+        expect(result).toContain("undefined, 'src/contexts/settings.tsx::A@1'");
+      });
+    });
+  });
 });
