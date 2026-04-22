@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@vertz/test';
 import { ParseError } from '../../core/errors';
+import { s } from '../../index';
 import { NumberSchema } from '../number';
 
 describe('NumberSchema', () => {
@@ -97,6 +98,52 @@ describe('NumberSchema', () => {
     expect(ltResult.ok).toBe(false);
     if (!ltResult.ok) {
       expect(ltResult.error.issues[0]?.message).toBe('Must be below 10');
+    }
+  });
+
+  it('produces user-friendly invalid-type message for non-numeric strings', () => {
+    const schema = new NumberSchema();
+    const result = schema.safeParse('42a');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.issues[0]?.message).toBe('Must be a number');
+    }
+  });
+
+  it('produces user-friendly invalid-type message for non-number values', () => {
+    const schema = new NumberSchema();
+    for (const value of ['hello', true, null, {}, NaN]) {
+      const result = schema.safeParse(value);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.issues[0]?.message).toBe('Must be a number');
+      }
+    }
+  });
+
+  it('.message() overrides the invalid-type message', () => {
+    const schema = new NumberSchema().message('Enter a number');
+    const result = schema.safeParse('abc');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.issues[0]?.message).toBe('Enter a number');
+    }
+  });
+
+  it('s.number().message() is reachable through the public facade', () => {
+    const result = s.number().message('Enter a number').safeParse('abc');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.issues[0]?.message).toBe('Enter a number');
+    }
+  });
+
+  it('.message() is preserved across clones (e.g. after .gte())', () => {
+    const schema = new NumberSchema().message('Enter a number').gte(5);
+    const result = schema.safeParse('abc');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.issues[0]?.message).toBe('Enter a number');
     }
   });
 
