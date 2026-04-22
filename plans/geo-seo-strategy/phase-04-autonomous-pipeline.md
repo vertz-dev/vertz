@@ -102,10 +102,11 @@ export const topic = d.table('topic', {
 Writer agent receives: `{topic, format, targetLength, hook}` + context via MCP to Vertz docs.
 
 System prompt key points:
-- Persona: Matheus Poleza, founder of Vertz, first-person voice, direct, no marketing fluff
+- **Persona: informed-but-neutral technical writer.** NOT "Matheus Poleza in first person." First-person "I" or "we" is allowed only when quoting a named human (e.g., `> "We chose this because..." — Matheus`). Default voice is third-person technical prose. This enforces manifesto M1 (no AI-as-human impersonation) and matches the mandatory byline `author: autonomous-pipeline (reviewed by Matheus)` declared at the top of this phase file.
 - Constraints:
   - Only claim what's testable. Link to evidence for every factual claim.
   - No hype words: "revolutionary", "game-changing", "seamlessly", "effortlessly", "best-in-class"
+  - No militaristic framing: "blitz", "weaponize", "attack", "kill", "dominate"
   - Use active voice, short sentences, code-first
   - Target Flesch reading ease ≥60 (college-level max)
 - Format follow: match the exact template from Phase 2 Task 5

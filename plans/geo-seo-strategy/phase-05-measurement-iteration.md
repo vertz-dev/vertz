@@ -69,6 +69,8 @@ By provider:
 
 ### Task 2: Leading-indicator dashboard
 
+> **⚠ DEFERRED FROM v1.** Leading-indicator dashboard sits post-v1 (weeks 5–10) and requires Phase 1 Task 4 (analytics) to be live first.
+
 **Why:** Citation tracker is the lagging ground truth. Leading indicators tell us days-weeks earlier whether the strategy is working. Catches problems before the citation tracker confirms them.
 
 **Files:** (4)
@@ -105,6 +107,8 @@ Output: single markdown file with week-over-week comparisons, flagged ⬆️/⬇
 ---
 
 ### Task 3: Weekly retro cadence
+
+> **⚠ DEFERRED FROM v1.** Retro cadence starts post-v1 once distribution has meaningful data. During v1 (28 days), a single end-of-v1 retro in `plans/post-implementation-reviews/geo-seo-strategy-v1.md` replaces the weekly rhythm.
 
 **Why:** Metrics without reflection don't change behavior. A fixed ritual ensures we ask: "what worked, what didn't, what do we change?"
 
@@ -153,6 +157,8 @@ Append to rolling retro file:
 
 ### Task 4: Pipeline quality tuning loop
 
+> **⚠ DEFERRED FROM v1.** Depends on Phase 4 (autonomous pipeline), which is entirely deferred from v1. Task 4 activates only when Phase 4 ships.
+
 **Why:** The autonomous pipeline has agents with prompts that need tuning. Without systematic tuning, drift accumulates — each week the output gets slightly worse, slowly, until we notice only when it's bad. Systematic tuning prevents this.
 
 **Files:** (3)
@@ -192,6 +198,8 @@ Weekly eval report in `evals/report.md` with verdict: "green (no changes), yello
 ---
 
 ### Task 5: Referrer-based attribution model
+
+> **⚠ DEFERRED FROM v1.** Depends on Phase 1 Task 4 (analytics) which is deferred. Activates once analytics ships (weeks 5–6).
 
 **Why:** Traffic alone doesn't say "is this piece of content converting?" We need to know which posts / channels actually drive installs, stars, and leads. Without this, we optimize the wrong things.
 
@@ -234,6 +242,8 @@ Attribution report weekly: "top converting posts, top converting channels, dying
 ---
 
 ### Task 6: Rolling 90-day roadmap maintained
+
+> **⚠ DEFERRED FROM v1.** Starts post-v1. During v1 the existing plan files are the source of truth — no need for a rolling view yet.
 
 **Why:** The strategy must evolve as data comes in. A static plan rots. We commit to maintaining a living 90-day roadmap that reflects what we learned.
 

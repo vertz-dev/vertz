@@ -69,6 +69,8 @@ Day-of support:
 
 ### Task 2: Product Hunt launch
 
+> **⚠ DEFERRED FROM v1.** PH launch sits in post-v1 (weeks 5–10). Do NOT execute in the 28-day window.
+
 **Why:** Different audience from HN (less technical, more founder/PM). Badge + featured-of-the-day = permanent backlink from DA 90 page. Compounds with HN since audiences overlap minimally.
 
 **Files:** (3)
@@ -104,12 +106,14 @@ Launch day:
 
 ---
 
-### Task 3: Reddit blitz (r/typescript, r/javascript, r/webdev, r/node)
+### Task 3: Reddit rollout (r/typescript, r/javascript, r/webdev, r/node)
+
+> **⚠ DEFERRED FROM v1.** Reddit rollout sits in post-v1 (weeks 5–10). Do NOT execute in the 28-day window.
 
 **Why:** Reddit threads get indexed by Google and crawled heavily by LLMs. A single good thread on r/typescript can drive multi-month long-tail traffic. But Reddit is spam-allergic — we post 1 thing per subreddit, once.
 
 **Files:** (2)
-- `content/launches/reddit-blitz-plan.md` (new) — per-subreddit angle, title, timing
+- `content/launches/reddit-rollout-plan.md` (new) — per-subreddit angle, title, timing
 - `content/launches/reddit-responses.md` (new) — pre-drafted answers to predicted questions
 
 **What to implement:**
@@ -137,6 +141,8 @@ Engagement:
 ---
 
 ### Task 4: Newsletter sponsorships (conditional on budget approval)
+
+> **⚠ DEFERRED FROM v1 — and indefinitely.** Main doc Budget section caps at $200/month; no sponsorships fit. Keep this task documented only so it is explicit why we're not doing it. Revisit only if budget grows past ~$3k/month.
 
 **Why:** Newsletters like Bytes (200k), JavaScript Weekly (125k), TLDR Web Dev (180k) are permanent archived web pages. LLMs crawl the archives; citations persist long after the email is sent. Unlike social media, the impact is cached forever.
 
@@ -169,6 +175,8 @@ Timing: sponsor the week of a flagship post drop (benchmark post week = ideal). 
 ---
 
 ### Task 5: Influencer outreach + Stack Overflow + GitHub Discussions seeding
+
+> **⚠ DEFERRED FROM v1.** Outreach + SO + GH Discussions sit in post-v1 (weeks 5–10). Do NOT execute in the 28-day window.
 
 **Why:** Third-party mentions are the hardest signal to fake and the most heavily-weighted by LLMs for authority. One Theo reaction video, one ThePrimeagen stream, or one Syntax episode = permanent canonical mention cached everywhere. Stack Overflow answers rank for years. GitHub Discussions seed long-tail SEO from inside the highest-DA source Vertz controls.
 
@@ -221,7 +229,7 @@ GitHub Discussions seeding:
 ```
 Task 1 (HN launch)            ─── blocked by Phase 1 complete + Phase 2 benchmark post published
 Task 2 (PH launch)            ─── schedule ≥3 days after HN
-Task 3 (Reddit blitz)          ─── can run day 1 of this phase, 1 post per day
+Task 3 (Reddit rollout)          ─── can run day 1 of this phase, 1 post per day
 Task 4 (Newsletters)          ─── scheduled week of benchmark post drop; decoupled from launches
 Task 5 (Outreach + SO + GH)   ─── starts day 1, runs throughout phase
 ```
@@ -237,4 +245,4 @@ Task 5 (Outreach + SO + GH)   ─── starts day 1, runs throughout phase
 - [ ] ≥25 Stack Overflow answers published
 - [ ] ≥20 GitHub Discussions seeded
 - [ ] Analytics show visible spike in unique visitors, GitHub stars, npm downloads vs pre-phase baseline
-- [ ] Phase review file written at `reviews/geo-seo-strategy/phase-03-distribution-blitz.md` by a different agent
+- [ ] Phase review file written at `reviews/geo-seo-strategy/phase-03-distribution-launch.md` by a different agent

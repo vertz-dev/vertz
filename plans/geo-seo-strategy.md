@@ -134,7 +134,12 @@ This strategy is not a departure from Vertz's principles — it is an extension 
 | **7. Performance is not optional** | Lighthouse score ≥95 required for every published page. Core Web Vitals green. LLMs penalize slow sites in retrieval ranking. |
 | **8. No ceilings** | Where existing tools fail (e.g. content pipelines that require human drafting), we build our own (autonomous multi-agent pipeline). This is the meta-dogfood: Vertz + Claude Code building the thing that markets Vertz. |
 
-The North Star quote — *"My LLM nailed it on the first try."* — becomes the primary social proof asset. Every benchmark, every case study, every customer quote ladders up to it.
+The North Star quote from the manifesto — *"My LLM nailed it on the first try."* — is an **internal aspiration**, not a marketing claim. Adversarial review flagged it as a falsifiable binary ("one livestream failure invalidates it"). Reframing for external communication:
+
+- **Internal (in manifesto, vision docs, team conversations):** "My LLM nailed it on the first try" — the product-quality bar we build toward.
+- **External (blog posts, HN titles, landing page copy):** comparative + probabilistic, never binary. Examples: "Claude produced compiling Vertz code in X of 5 runs, vs Y of 5 for Next.js in our case study." Or: "Here are the full Claude transcripts — judge for yourself." Never: "nailed it on the first try." Never: "89% vs 34%."
+
+Social proof ladders up to the honest version, not the aspirational version.
 
 ---
 
@@ -175,7 +180,11 @@ Three mechanisms, in order of ROI:
 - **tRPC, Zod** won via solving one painful thing brilliantly and letting Twitter dev community do distribution. Replicable.
 - **Common factor across all:** a single dev-personality voice plus one sharp differentiating hook, repeated until it sticks.
 
-Our hook: **"LLMs write Vertz code correctly on the first try. We have the benchmark to prove it."**
+Our hook (updated v2 per adversarial review — was "LLMs write Vertz code correctly on the first try, benchmark proves it"):
+
+**"We published full Claude transcripts of building 5 apps in Vertz vs Next.js. Judge the code differences yourself."**
+
+Radical transparency beats benchmarks. Transcripts are unattackable. Readers draw their own conclusion without us asserting one statistically.
 
 ---
 
@@ -185,21 +194,23 @@ Our hook: **"LLMs write Vertz code correctly on the first try. We have the bench
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ Layer 3: Autonomous Engine                              │
+│ Layer 3: Autonomous Engine             (POST-v1 only)   │
 │ Multi-agent content pipeline, 3-5 posts/week            │
 │ (sustains layer 2 output long-term)                     │
 └─────────────────────────────────────────────────────────┘
                           ▲
 ┌─────────────────────────────────────────────────────────┐
 │ Layer 2: Authority & Distribution                       │
-│ Flagship benchmark + comparisons + HN + PH + sponsors   │
-│ (generates backlinks and third-party mentions)          │
+│ v1:     case-study post + HN launch                     │
+│ post-v1: comparisons, long-tails, Reddit, outreach,     │
+│          GitHub Discussions (no sponsors — budget $0)   │
 └─────────────────────────────────────────────────────────┘
                           ▲
 ┌─────────────────────────────────────────────────────────┐
 │ Layer 1: Infrastructure & Retrieval                     │
-│ MCP server, llms-full.txt, JSON-LD, IndexNow, analytics │
-│ (makes everything above findable and measurable)        │
+│ v1:     MCP server, SSR head + JSON-LD, IndexNow,       │
+│         citation tracker, coarse Worker log referers    │
+│ post-v1: PostHog/Plausible analytics, llms-full.txt     │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -436,6 +447,7 @@ Every strategy needs a pre-committed failure mode — otherwise every result jus
 ### Stop 2 — Authority isn't building
 - **Metric:** Unique sessions per week from LLM referrers (`chatgpt.com` + `claude.ai` + `perplexity.ai` + `gemini.google.com`)
 - **Threshold:** <10 sessions/week sustained through **week 8** (month 2)
+- **Prerequisite:** requires Phase 1 Task 4 (PostHog/Plausible analytics with `llm_referrer` event) to be live. **Task 4 is deferred from v1 per scope-cut.** Stop 2 therefore activates only once Task 4 ships (expected week 5–6). Before Task 4 ships, the proxy signal is raw server-log referer parsing on the Cloudflare Worker — coarse but sufficient to detect the 0-versus-nonzero distinction that matters for this stop.
 - **Action:** Revisit ranking hypothesis. Either content isn't surfacing or topics aren't drawing intent. Before shipping more content, audit what's been published vs. what's been indexed vs. what LLMs cite.
 
 ### Stop 3 — Pipeline quality is drifting (only applies if Phase 4 ships)
@@ -490,7 +502,7 @@ Every strategy needs a pre-committed failure mode — otherwise every result jus
 **Given** a developer has Claude Code installed
 **When** they run `claude mcp add @vertz/docs`
 **Then** MCP server connects successfully
-**And** asking Claude "scaffold a Vertz project with auth and a tasks entity" produces compiling code on first try
+**And** asking Claude "scaffold a Vertz project with auth and a tasks entity" produces compiling code in a majority of runs (≥3 of 5 runs, qualitative not statistical)
 
 ### Scenario D: Autonomous pipeline publishes
 **Given** the content pipeline cron triggers on Monday 9am BRT
@@ -520,7 +532,7 @@ Each phase lives in `plans/geo-seo-strategy/phase-NN-<slug>.md` and is self-cont
 | **0** | `phase-00-prerequisites.md` | Days 1–3 | Merge #2947 (blog infra) to main. Everything else depends on this. |
 | **1** | `phase-01-foundation-infra.md` | Days 3–14 | MCP server live. SSR head injection. IndexNow. Citation tracker baseline. **Defer Task 4 (analytics) to post-v1.** |
 | **2** | `phase-02-ignition-content.md` | Days 7–21 | Task 1 only: case-study post (3–5 tasks, full transcripts, <$80 API). **Defer Tasks 2–5 to post-v1.** |
-| **3** | `phase-03-distribution-blitz.md` | Days 21–28 | Task 1 only: HN launch. **Defer Tasks 2–5 (PH, Reddit, sponsorships, outreach, SO/GH) to post-v1.** |
+| **3** | `phase-03-distribution-launch.md` | Days 21–28 | Task 1 only: HN launch. **Defer Tasks 2–5 (PH, Reddit, sponsorships, outreach, SO/GH) to post-v1.** |
 | **5** | `phase-05-measurement-iteration.md` | Days 14+ | Task 1 only: citation tracker weekly cron + alerts. **Defer Tasks 2–6 to post-v1.** |
 
 Phase 4 (autonomous pipeline) is **entirely deferred** from v1. Per adversarial review: templates need real post-performance data before automating; rushing this produces a pipeline that generates low-quality content under a human byline (manifesto violation M1).
@@ -569,6 +581,6 @@ These were open in v1; answered during adversarial review on 2026-04-22:
 
 ## Still open (must decide before execution of relevant phase)
 
-- **Benchmark case-study scope:** 3 tasks or 5 tasks? (See Phase 2 Task 1.) Each task = ~$15 API + 1 day of work.
-- **Who reviews the case study methodology externally?** The adversarial reviewer recommended a respected non-Vertz engineer validates the task selection + transcripts. Candidates: Sebastian Markbåge, Jarred Sumner, Theo Browne, Daniel Ehrenberg. Decide + reach out before Phase 2 starts.
-- **Stop condition calibration:** Current thresholds are reviewer-proposed. Matheus should adjust based on his read of what's realistic before committing.
+- **Case-study scope — 3 tasks or 5 tasks?** (See Phase 2 Task 1.) Each task = ~$15 API + 1 day of work. **Decision date: day 1 of Phase 2 start** (estimated 2026-05-05). Default if not decided by then: 3 tasks (smaller is safer for v1 budget and timeline).
+- **External methodology reviewer for the case study.** Adversarial reviewer recommended a respected non-Vertz engineer validates the task selection + transcripts. Candidates: Sebastian Markbåge, Jarred Sumner, Theo Browne, Daniel Ehrenberg, Shawn "swyx" Wang. **Decision + outreach date: day 1 of Phase 2 start.** Default if not landed by preregistration day: publish without external reviewer, add a "no external review" disclosure to the limitations section.
+- **Stop condition calibration.** Current thresholds are reviewer-proposed. Matheus should adjust based on his read of what's realistic before committing. **Decision date: end of Phase 0** (before any content ships). Adjustments recorded in `reviews/geo-seo-strategy/stop-log.md`.

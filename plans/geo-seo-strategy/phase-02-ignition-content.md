@@ -91,6 +91,8 @@ The v2 approach is **"radical transparency case study"** instead of benchmark:
 
 ### Task 2: Three "Vertz vs X" comparison posts
 
+> **⚠ DEFERRED FROM v1.** Tasks 2–5 of Phase 2 sit post-v1 (weeks 5–10). In v1, only Task 1 (case-study post) ships. Comparison posts benefit from the case-study data and should come after.
+
 **Why:** Comparison queries are high-intent (dev is choosing) and zero-competition for Vertz specifically. Ranking #1 for "vertz vs next js" is trivial now and becomes a defensive moat once traffic flows.
 
 **Files:** (4)
@@ -127,6 +129,8 @@ Each post: 1,200–1,800 words, 2+ code diff pairs, 1 summary table.
 ---
 
 ### Task 3: 30 long-tail landing pages
+
+> **⚠ DEFERRED FROM v1.** 30-at-once was flagged by adversarial review as speculative content (Principle 4 violation). Post-v1 approach: ship 3–5 at a time based on keyword data from the v1 case-study traffic.
 
 **Why:** Each is a <300-word page targeting a specific zero-competition long-tail query. Rank #1 in days. LLMs with web search cite top 3 results. Bulk instant-citations.
 
@@ -173,6 +177,8 @@ Voice: direct, no fluff. Matches how LLMs summarize — so LLMs quote it verbati
 ---
 
 ### Task 4: README rewrite + awesome-list submissions
+
+> **⚠ DEFERRED FROM v1.** README rewrite depends on case-study findings. Awesome-list submissions stand alone and could be pulled into v1 if budget allows, but default: post-v1.
 
 **Why:** GitHub README is the highest-DA Vertz-controlled surface (DA 100). Awesome-* lists are high-crawl-frequency pages that LLMs use for framework discovery.
 
@@ -241,6 +247,8 @@ GitHub topics to add (verify on repo): `typescript-framework`, `llm`, `ai-native
 
 ### Task 5: Seed content for autonomous pipeline templates
 
+> **⚠ DEFERRED FROM v1.** Depends on Phase 4 (which is deferred). Seed templates extracted from Tasks 1–4 output post-v1.
+
 **Why:** Phase 4 needs templates. By writing 2 additional posts (gotcha + tutorial format), we lock in voice and structure so the writer agent has ground truth.
 
 **Files:** (3)
@@ -281,7 +289,7 @@ These become prompts for the writer agent in Phase 4.
 - [ ] 2 new posts published (gotcha + tutorial)
 - [ ] 4 templates committed in `content/templates/`
 - [ ] Each template includes: frontmatter, heading structure, voice guidelines, SEO rules, canonical example link
-- [ ] Reviewer agent validated that each of the 5 ignition posts (benchmark + 3 comparisons + gotcha + tutorial + this gotcha + tutorial — total 7) fits its template
+- [ ] Reviewer agent validated that each of the 6 ignition posts (case-study + 3 comparisons + gotcha + tutorial) fits its template
 - [ ] Templates tested by asking a fresh Claude instance to generate a draft from a template — output is 80%+ usable (manual check)
 
 ---
@@ -301,7 +309,7 @@ Order: Task 3 day 1 (parallel). Task 1 days 1-5. Task 2 days 3-7. Task 4 day 6. 
 ## Done when
 
 - [ ] All 5 tasks' acceptance criteria checked
-- [ ] 7 published blog posts (benchmark + 3 comparisons + gotcha + tutorial + 1 opinion to be written if time)
+- [ ] 6 published blog posts (case-study + 3 comparisons + gotcha + tutorial)
 - [ ] 30 long-tail pages live
 - [ ] README reflects new positioning
 - [ ] 6 awesome-list PRs opened (merge not required, submission is the work)

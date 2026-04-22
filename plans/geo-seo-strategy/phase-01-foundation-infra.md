@@ -183,6 +183,8 @@ Google Indexing API:
 
 ### Task 4: Analytics foundation (PostHog + Plausible + referrer dashboard)
 
+> **⚠ DEFERRED FROM v1.** Main doc §v1 Scope-cut defers Task 4 to post-v1 (weeks 5–6). In v1, use coarse Cloudflare Worker referer log parsing as the temporary proxy for Stop Condition 2. Do NOT implement this task during the 28-day window unless explicitly re-added to v1 scope.
+
 **Why:** We cannot measure what we cannot see. Referrer tracking specifically catches `chatgpt.com`, `claude.ai`, `perplexity.ai` — the leading indicator of LLM citation traffic.
 
 **Files:** (5)
