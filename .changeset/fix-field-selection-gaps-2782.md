@@ -1,5 +1,5 @@
 ---
-'vtz': patch
+'@vertz/runtime': patch
 ---
 
 fix(compiler): field-selection analyzer handles reduce/flatMap, loops/try/switch, and scope shadowing
