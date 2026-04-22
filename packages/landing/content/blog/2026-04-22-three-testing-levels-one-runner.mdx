@@ -1,0 +1,153 @@
+---
+title: 'Three testing levels, one runner'
+slug: three-testing-levels-one-runner
+date: 2026-04-22
+author: matheus
+tags: [testing, dx, runtime]
+description: 'Unit on Vitest, integration on Jest, E2E on Playwright. Three configs, three watch modes, three CI steps. vtz test runs all three.'
+cover: /blog/covers/three-testing-levels-one-runner.png
+draft: false
+---
+
+## The test pyramid nobody owns
+
+Pick a typical TypeScript project and count the test runners. We'll wait.
+
+Most teams we see are running three: Vitest for unit tests, Jest or Vitest-with-a-different-config for server integration, Playwright for E2E. Three `tsconfig`s. Three watch modes that fight over the filesystem. Three CI steps. Three dependency trees that occasionally disagree about which version of `@types/node` is correct.
+
+The split isn't wrong — unit, integration, and E2E really are different animals — but the _tooling_ split is almost entirely accidental. It's what happens when each layer gets added by a different person on a different Friday.
+
+Vertz ships a single runner for all three. One binary (`vtz test`), one config, one report, one watch mode. The test files look the same regardless of level:
+
+```ts
+import { describe, it, expect } from '@vertz/test';
+```
+
+No `npm add`. `@vertz/test` is a synthetic module the runtime provides — the way Node provides `node:fs`.
+
+## Level 1: unit
+
+Unit tests are Vitest-compatible. If you already know `describe`/`it`/`expect`, you already know this:
+
+```ts
+// src/math.test.ts
+import { describe, expect, it } from '@vertz/test';
+import { add } from './math';
+
+describe('add', () => {
+  it('adds two numbers', () => {
+    expect(add(1, 2)).toBe(3);
+  });
+});
+```
+
+`mock()`, `spyOn()`, `vi.useFakeTimers()`, `vi.setSystemTime()`, `it.each`, async assertions with `.resolves`/`.rejects` — all present, same shapes.
+
+## Level 2: server integration
+
+The change from unit to integration is the import, not the runner. `@vertz/testing` gives you a fully typed test client over your server instance. No HTTP boilerplate, no path strings, no manual casts:
+
+```ts
+import { describe, expect, it } from '@vertz/test';
+import { createServer } from '@vertz/server';
+import { createTestClient } from '@vertz/testing';
+import { db, todosEntity } from './fixtures';
+
+describe('Todos API', () => {
+  const server = createServer({ entities: [todosEntity], db });
+  const client = createTestClient(server);
+
+  it('creates and retrieves a todo', async () => {
+    const todos = client.entity(todosEntity);
+
+    const created = await todos.create({ title: 'Write tests' });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const fetched = await todos.get(created.body.id);
+    expect(fetched.ok).toBe(true);
+    if (fetched.ok) {
+      expect(fetched.body.title).toBe('Write tests');
+    }
+  });
+});
+```
+
+`todos.create()` is typed against the entity schema. `created.body.id` and `created.body.title` are `string` because the schema says so. Add a `priority: 'low' | 'high'` column tomorrow and every test that omits it fails typecheck before it runs. The schema is the contract; the test client is type-safe against it.
+
+For authenticated endpoints, `withHeaders()` returns a new client with merged defaults:
+
+```ts
+const admin = client.withHeaders({ authorization: 'Bearer admin-token' });
+const guest = client.withHeaders({});
+
+const created = await admin.entity(todosEntity).create({ title: 'Admin task' });
+expect(created.ok).toBe(true);
+
+const denied = await guest.entity(todosEntity).create({ title: 'Nope' });
+expect(denied.ok).toBe(false);
+expect(denied.status).toBe(401);
+```
+
+No real HTTP server, no port binding, no port collisions in parallel CI. The test client dispatches to the server's request handler directly in-process.
+
+## Level 3: E2E
+
+E2E needs a real browser, so we keep Playwright — but everything around it stays in one place. `playwright.config.ts` starts `vtz dev` automatically, tests go in `e2e/`, and authentication is two HTTP calls in a helper:
+
+```ts
+// e2e/helpers.ts
+export async function authenticate(baseURL: string) {
+  const email = `e2e-${Date.now()}@test.local`;
+  const password = 'TestPassword123!';
+
+  const res = await fetch(`${baseURL}/api/auth/signup`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-VTZ-Request': '1',
+    },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!res.ok) throw new Error(`Signup failed: ${res.status}`);
+  return extractCookies(res, baseURL);
+}
+```
+
+Every test gets a fresh user with a timestamped email, so test isolation is a property of the data, not the harness. No shared fixtures to accidentally leak state between specs.
+
+## What we actually learned
+
+The part we had to earn was safe teardown. When you're running real servers and real WebSockets inside a test runner that tries hard to exit cleanly, every unclosed resource is a CI hang waiting to happen. We ended up with a hard rule, documented in the repo at `.claude/rules/integration-test-safety.md`: every async resource is closed in `afterEach`, never in the test body; every `new Promise()` wait has a timeout; every file watcher checks a `stopped` flag before doing I/O.
+
+We also gave integration tests that spin up real servers a distinct file extension:
+
+<Terminal title="naming conventions">
+  src/ ├── api.test.ts # runs in CI ├── api.server.test.ts # runs in CI └── api.local.ts # local
+  only — spins up Bun.serve() on a real port
+</Terminal>
+
+`.local.ts` files are explicitly excluded from the default test run. They exist, they're tested, but the CI runner doesn't try to start real servers on shared infrastructure where port semantics and process exit timing are unpredictable. The `test:integration` script runs them explicitly when we want.
+
+## What we rejected
+
+**Jest.** We'd have shipped Jest if the state of the art were still 2020. In 2026 it's a heavy dependency that slowed typecheck on every PR. We kept the API ergonomics we liked (`describe`, `it`, `vi.fn`) and dropped the rest.
+
+**Separate E2E runner for every browser matrix.** Playwright is excellent at cross-browser matrix testing, and we haven't replaced that. For Vertz-the-framework we run Chromium only — the things we need E2E coverage for (a route loads, a form submits, a dialog focuses) are not typically browser-dependent. When we need cross-browser validation — landing page, public product surface — we run Playwright externally. A conscious concession: we lost the browser matrix as a first-class `vtz test` feature.
+
+**A bespoke assertion library.** Every team that has ever written their own `expect` has regretted it. We stayed Vitest-compatible on purpose — it means the migration from Vitest is a sed script, and the Stack Overflow answers transfer.
+
+## The tradeoff
+
+One runner means one set of tradeoffs. `vtz test` runs in V8 via our Rust runtime, not in Node. If you depend on Node-specific quirks in a test (esoteric `process` behavior, a niche native module), you'll notice. We haven't hit this in our own code, and we've moved the existing test suites across without porting. But it's the thing you'd find out later and wish someone had said.
+
+The win is that "run the tests" is one command, in one watch mode, with one report. For a team of humans that matters. For a team of LLM agents writing TDD cycles all day it matters more: every time we make the inner loop shorter, we take tokens out of the loop.
+
+---
+
+References:
+
+- Test runner: [docs.vertz.dev/guides/testing-unit](https://docs.vertz.dev/guides/testing-unit)
+- Server testing: [docs.vertz.dev/guides/testing-server](https://docs.vertz.dev/guides/testing-server)
+- E2E testing: [docs.vertz.dev/guides/testing-e2e](https://docs.vertz.dev/guides/testing-e2e)

@@ -124,6 +124,7 @@
     "@vertz/ui-server": "workspace:^"
   },
   "devDependencies": {
-    "@vertz/test": "workspace:*"
+    "@vertz/test": "workspace:*",
+    "typescript": "^5.9.0"
   }
 }

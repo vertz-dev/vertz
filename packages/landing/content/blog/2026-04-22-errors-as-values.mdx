@@ -1,0 +1,159 @@
+---
+title: 'Errors as values, not exceptions'
+slug: errors-as-values
+date: 2026-04-22
+author: matheus
+tags: [errors, api-design, dx]
+description: "TypeScript function signatures lie about failure. Vertz returns Result types so the compiler forces you to branch. Here's why we made it the default."
+cover: /blog/covers/errors-as-values.png
+draft: false
+---
+
+## What a signature owes you
+
+Look at this line:
+
+```ts
+function getUser(id: string): User { ... }
+```
+
+TypeScript tells you it returns `User`. It does not tell you what happens if the user doesn't exist, if the database connection drops, if the row has a null name, or if a `UNIQUE_VIOLATION` fires on an adjacent insert. All of those outcomes are hiding behind a type signature that is, strictly, a lie.
+
+That lie has been the default in our ecosystem for two decades. We think it shouldn't be.
+
+Every operation in Vertz that can fail returns a `Result<T, E>` — a discriminated union where the error is part of the contract. You handle failure by branching on `result.ok`, not by wrapping things in try/catch and hoping you remembered the right catch arms.
+
+## What the type looks like
+
+```ts
+import { ok, err, type Result } from '@vertz/errors';
+
+type Result<T, E> = Ok<T> | Err<E>;
+
+// Ok branch:  { ok: true,  data: T }
+// Err branch: { ok: false, error: E }
+```
+
+That's the whole API. Two constructors, one discriminant. You've seen it in Rust, you've seen it in F#, you've seen it in libraries that tried to polyfill it into the JS ecosystem. The difference here is that it is the return type of our database, our SDK client, our schema validation, and our entity framework — not a library you opt into.
+
+## Before and after
+
+The thing we were fixing:
+
+```ts
+// Before — every failure is invisible
+async function submitForm(data: CreateUserInput) {
+  try {
+    const user = await fetch('/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }).then((r) => r.json());
+    return { success: true, user };
+  } catch (error) {
+    if (error instanceof NetworkError) return { error: 'NETWORK' };
+    if (error instanceof HttpError && error.status === 409) return { error: 'EMAIL_EXISTS' };
+    return { error: 'UNKNOWN' };
+  }
+}
+```
+
+Count what's wrong. The return type is inferred to some messy union. The `catch` block is a series of `instanceof` guesses — the compiler has no idea what types might be thrown. If someone adds a new throw path upstream, this code silently keeps "working," landing in the `UNKNOWN` branch forever.
+
+The thing we replaced it with:
+
+```ts
+// After — failures are in the type
+import { matchError } from '@vertz/errors';
+
+async function submitForm(data: CreateUserInput) {
+  const result = await userSdk.create(data);
+
+  if (result.ok) {
+    return { success: true, user: result.data };
+  }
+
+  return matchError(result.error, {
+    NetworkError: () => ({ success: false, error: 'NETWORK' as const }),
+    TimeoutError: () => ({ success: false, error: 'TIMEOUT' as const }),
+    ParseError: () => ({ success: false, error: 'PARSE' as const }),
+    ValidationError: (e) => ({ success: false, error: 'VALIDATION' as const, errors: e.errors }),
+    HttpError: (e) => {
+      if (e.serverCode === 'EMAIL_EXISTS') {
+        return { success: false, error: 'EMAIL_EXISTS' as const, field: 'email' };
+      }
+      return { success: false, error: 'SERVER' as const, status: e.status };
+    },
+  });
+}
+```
+
+Every branch is inferred. Every new error type that gets added upstream becomes a compile error at the call site until you handle it. The return type is a proper discriminated union you can exhaustively check in the UI layer. You cannot forget to check `.ok` — accessing `.data` before the branch is a type error.
+
+## Why the compiler has to enforce it
+
+`matchError` is not just a helper. It's the whole argument.
+
+```ts
+// This won't compile — TimeoutError is missing
+matchError(result.error, {
+  NetworkError: (e) => '...',
+  HttpError: (e) => '...',
+  ParseError: (e) => '...',
+  ValidationError: (e) => '...',
+  // Missing: TimeoutError
+});
+```
+
+The compiler requires a handler for every variant in the error union. Miss one, get a type error. Add a new error class on the server, and every client call site that didn't account for it lights up red. This is the thing try/catch cannot do. A `catch (error)` block receives `unknown` by design — TypeScript has no way to narrow it exhaustively because anything can be thrown from anywhere.
+
+Exceptions opt you out of the type system. Results opt you in.
+
+## What we rejected
+
+**Throwing typed errors and documenting them in JSDoc.** What Java did. Looks clean until you remember that TypeScript has no `throws` clause and never will. A `@throws` tag is a comment, not a contract. We rejected it because comments don't fail the build.
+
+**A third-party Result library (neverthrow, ts-results, etc.).** Any of them would work. We rejected the "pick one and recommend it" path because it makes errors-as-values an opt-in convention, not a framework guarantee. In a framework that guarantees end-to-end type safety, errors are part of the guarantee. They ship in `@vertz/errors` and flow through the SDK the same way types do.
+
+**Mixing patterns case-by-case.** The "use try/catch for old code, Result for new code" approach. We tried it. You end up with the same function surface in two shapes and the LLM you hired to help you can't tell which one it's looking at. One way to do things — so we chose the one.
+
+## Where we still throw — on purpose
+
+Not every failure belongs in a Result. We drew the line at predictability.
+
+**Infrastructure failures throw.** Database connection lost, pool exhausted, request timeout, host unreachable. These aren't part of your business logic's contract — they're environmental. Global middleware catches them and returns a 503. You don't handle `ConnectionError` in every `db.users.get()` call; that would be noise.
+
+**Streaming endpoints throw.** Once a stream has started sending bytes, there's no envelope to put a `Result` in. If you need to fail a streaming response, validate early and throw _before_ the first byte. After that, close the stream.
+
+**Programmer errors throw.** Type assertions that fail, unreachable code paths, invariants that should hold. These are bugs, not expected states. They throw and hit your error boundary.
+
+The rule we use internally: **if you can enumerate it, it's a value. If you can't predict it, it's an exception.** Record not found — enumerate it. Unique constraint — enumerate it. Validation failed — enumerate it. Database crashed — don't pretend you saw it coming.
+
+## The lint rule that makes it stick
+
+We ship a custom oxlint rule called `no-try-catch-result` that flags any try/catch wrapping a function that already returns `Result`. It's easy to reach for `try/catch` out of habit, especially when you're porting older code. The rule catches it the moment you do.
+
+```ts
+// Flagged by no-try-catch-result
+try {
+  const result = await userSdk.get(id);
+  // ...
+} catch (e) {
+  // userSdk.get() returns Result — this block can never run on an expected error.
+}
+```
+
+One-way doors. Opinion encoded in the linter. This is principle 2 of the Vertz philosophy — one way to do things — translated into a thing that fails your PR.
+
+## The migration is mostly mechanical
+
+We've helped teams port codebases from try/catch to Results, and the shape of it is always the same: change the function signature to `Promise<Result<T, E>>`, replace the try/catch at the call site with an `if (result.ok)` branch, and let the compiler drive the rest. The compile errors _are_ the migration plan. You fix them top to bottom until the build is green, and the code that emerges is more honest about what it does.
+
+If you want the long version with every error class mapped, we wrote a [migration guide](https://docs.vertz.dev/guides/errors).
+
+---
+
+References:
+
+- [Errors docs](https://docs.vertz.dev/guides/errors) — Result type, domain errors, boundary mapping from DB to server to client.
+- [Error handling guide](https://github.com/vertz-dev/vertz/blob/main/docs/guides/error-handling.md) — `matchError`, streaming, serverCode, retry patterns.
+- [Migration guide](https://github.com/vertz-dev/vertz/blob/main/docs/guides/migration-errors-as-values.md) — step-by-step port from try/catch to Results.

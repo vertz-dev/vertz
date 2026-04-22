@@ -1,0 +1,149 @@
+---
+title: 'Reactivity without hooks'
+slug: reactivity-without-hooks
+date: 2026-04-22
+author: matheus
+tags: [ui, reactivity, compiler]
+description: 'React made us say useState(0) for a decade. Vertz turns let count = 0 into a signal automatically — no dependency arrays, no hook rules.'
+cover: /blog/covers/reactivity-without-hooks.png
+draft: false
+---
+
+## The decade of ceremony
+
+For ten years, setting a counter to zero has looked like this:
+
+```tsx
+const [count, setCount] = useState(0);
+```
+
+Not because it's the clearest thing a component author could write — it obviously isn't — but because React's reactivity model needs a handle. The runtime can't see `let count = 0` and know it's state, so we give it a tuple, a setter, and an implicit contract that we won't call this line conditionally.
+
+Out of that one constraint falls every ergonomic problem React developers have spent a decade working around. Dependency arrays on `useEffect` — because the runtime can't see which variables the effect reads, you list them. `exhaustive-deps` ESLint rule — because you'll forget. Hook order rules — because the runtime tracks hooks by call position, so a conditional hook call silently corrupts every downstream component. Stale closure bugs — because event handlers capture the render's snapshot of state, not the live value. `useMemo` and `useCallback` — because every re-render allocates a new function, which invalidates every `useEffect` that depends on it, which forces you to `useCallback`, which requires a dependency array, which...
+
+We decided Vertz would not have any of that.
+
+## What you write
+
+```tsx
+export function Counter() {
+  let count = 0;
+
+  return (
+    <div>
+      <p>Count: {count}</p>
+      <button onClick={() => count++}>+</button>
+    </div>
+  );
+}
+```
+
+That's the whole component. `let count = 0` is local state. `count++` updates it. `{count}` renders it reactively. No `useState`, no setter, no tuple, no import.
+
+## What the compiler does
+
+The Vertz compiler is a build plugin. It runs before your code hits the runtime, and it transforms three things.
+
+**`let` becomes a signal.**
+
+```tsx
+// You write:
+let count = 0;
+
+// Compiler outputs:
+const count = signal(0);
+```
+
+Reads become `.value` accesses. Writes become `.value =` assignments. You never type `.value` yourself.
+
+**`const` with a reactive dependency becomes `computed()`.**
+
+```tsx
+// You write:
+let count = 0;
+const doubled = count * 2;
+const label = `Count is ${count}`;
+
+// Compiler outputs:
+const count = signal(0);
+const doubled = computed(() => count.value * 2);
+const label = computed(() => `Count is ${count.value}`);
+```
+
+No dependency array. The compiler walks the expression and finds the signal references. If there are none, the `const` stays a plain `const` with zero overhead. If there are some, they're the dependencies. You can't forget one because you didn't declare any.
+
+**JSX becomes fine-grained DOM updates.**
+
+```tsx
+// You write:
+<div className={styles.card}>{title}</div>;
+
+// Compiler outputs (simplified):
+const el = document.createElement('div');
+el.className = styles.card;
+effect(() => {
+  el.textContent = title.value;
+});
+```
+
+When `title` changes, only the text node updates. No virtual DOM, no diffing, no re-rendering the function. The component function runs exactly once — on mount — and the reactive primitives handle every update after that.
+
+## What disappears
+
+Look at what we didn't have to write.
+
+No `useState` — `let` is state.
+
+No `useMemo` — `const` is the memo, and the dependencies come from the expression.
+
+No `useCallback` — event handlers are stable because the component function runs once. They close over live signal references, not snapshots.
+
+No dependency arrays anywhere. The compiler reads your code to find dependencies; you never list them. `exhaustive-deps` can't fail because there's no array to be exhaustive about.
+
+No hook order rules. You can put `let panel = 'a'` inside an `if` or a loop and nothing breaks. It's a variable, not a runtime call position.
+
+No stale closures. Signals are live references. An event handler that reads `count.value` reads whatever `count` is at the moment the handler runs, not at the moment the component mounted.
+
+Side effects get one primitive — `watch()` — and it takes a source and a callback, not a dependency array:
+
+```tsx
+import { watch } from '@vertz/ui';
+
+let theme = 'light';
+
+watch(
+  () => theme,
+  (next) => {
+    document.documentElement.className = next;
+  },
+);
+```
+
+The source function is how the compiler knows what to track. No list, no lint rule, no cascade of invalidations.
+
+## What we rejected
+
+**React's hooks.** The model we spent a decade with. Rejected because every one of its ergonomic sharp edges — dependency arrays, stale closures, `useCallback` cascades, hook order — comes from the runtime not being able to see what the author meant. A compiler can see what the author meant. We chose the compiler.
+
+**Manual signal APIs like Solid's `createSignal()` or Preact Signals.** Honest, type-safe, and better than hooks — but the ergonomics still leak. You write `count()` to read and `setCount(x)` to write, or you write `count.value` everywhere. It's one notation for "this thing is reactive" that infects every line that touches state. We wanted `let count = 0` and `count++` to be the whole API, and the compiler makes that possible without giving up fine-grained reactivity.
+
+**Svelte's `$:` labels and runes.** Close to the right shape — Svelte 5 runes (`$state`, `$derived`) are conceptually very similar to what Vertz does. The differences are that Vertz is TypeScript-first (no `.svelte` file format), and the reactive primitive is the language construct itself, not a rune function. `let` is state. `const` is derived. Nothing to import.
+
+## The cost of magic
+
+The compiler is magic. Magic has a debugging cost. We'll say it plainly.
+
+When you read `let count = 0` you have to know it's not a plain local. When a `const` doesn't update, you need to check whether its right-hand side actually depended on a signal or whether the compiler left it alone. When a prop passed to a child component "feels stale," the fix is to understand that the compiler generated a getter and that getters fire on read.
+
+The guard against this is the compiler guide — a single page that documents every transform and shows the before/after output, so when something surprises you, the first thing you do is open the page and look up what the compiler actually produced. The transforms are small, finite, and documented. There are three of them. That's the whole model.
+
+We think the tradeoff is right. The React model had magic too — hook order tracking, `Object.is` equality checks, batching across `setState` calls — and none of it was documented as a compiler transform because it happened at runtime, in a place you couldn't introspect. The Vertz transforms are visible in the compiled output. You can read them.
+
+Ten years of `useState(0)` is enough. `let count = 0` is the hill we're willing to die on.
+
+---
+
+References:
+
+- [Reactivity in `@vertz/ui`](https://docs.vertz.dev/guides/ui/reactivity) — `let`, `const`, `watch()`, reactive props.
+- [Compiler plugin](https://docs.vertz.dev/guides/ui/compiler) — what transforms run, how to read the output.

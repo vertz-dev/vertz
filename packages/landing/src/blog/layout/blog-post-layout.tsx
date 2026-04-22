@@ -3,7 +3,6 @@ import { Footer } from '../../components/footer';
 import { Nav } from '../../components/nav';
 import { ReadingProgress } from '../components/reading-progress';
 import { Toc } from '../components/toc';
-import { codeBreakout } from '../styles/code-breakout';
 import { prose } from '../styles/prose';
 import type { Author, PostMeta } from '../types';
 import { BlogPostHeader } from './blog-post-header';
@@ -113,11 +112,7 @@ export function BlogPostLayout({ meta, author, html }: BlogPostLayoutProps) {
         <div className={s.gutter} aria-hidden="true" />
         <main className={s.body}>
           <BlogPostHeader meta={meta} author={author} />
-          <article
-            ref={articleRef}
-            className={`${prose.prose} ${codeBreakout.container}`}
-            innerHTML={html}
-          />
+          <article ref={articleRef} className={prose.prose} innerHTML={html} />
         </main>
         <aside ref={tocHostRef} className={s.tocColumn} />
       </div>

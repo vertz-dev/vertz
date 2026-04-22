@@ -1,0 +1,138 @@
+---
+title: 'Forms that survive refactors'
+slug: forms-that-survive-refactors
+date: 2026-04-22
+author: matheus
+tags: [ui, forms, dx]
+description: "Rename a DB column, seven UI files break silently. Vertz's form() binds to the same schema your database uses — so the refactor fails at the compiler, not in production."
+cover: /blog/covers/forms-that-survive-refactors.png
+draft: false
+---
+
+## The refactor that costs an afternoon
+
+You rename a column. `task.description` becomes `task.body`. The migration runs. The ORM queries update because they were generated from the schema. The API typechecks because its DTOs were also generated. Then you ship, and three days later a user files a bug: "the description field on the edit task form submits but doesn't save."
+
+The form was typed against a hand-rolled DTO. The DTO matched the old column name. Nobody typed "description" anywhere the compiler could see the rename, because it was a string in a `name="description"` attribute and a string in a Zod schema and a string in a server action body. Three strings, three files, no type relationship.
+
+This is the bill we've all paid. We made a call not to pay it anymore.
+
+## One schema, one source of truth
+
+In Vertz, the form binds to the same schema the database uses. `form()` takes a method from the generated SDK — which was generated from the entity definition — and the field names, validation, and submitted type are all the same symbol, not three strings that happen to match.
+
+```tsx
+import { form } from '@vertz/ui';
+import { api } from '../client';
+
+export function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
+  const taskForm = form(api.tasks.create, { onSuccess });
+
+  return (
+    <form action={taskForm.action} method={taskForm.method} onSubmit={taskForm.onSubmit}>
+      <input name={taskForm.fields.title} placeholder="Task title" />
+      {taskForm.title.error && <span>{taskForm.title.error}</span>}
+
+      <button type="submit" disabled={taskForm.submitting}>
+        Create
+      </button>
+    </form>
+  );
+}
+```
+
+No `schema` argument. `form()` pulls the schema off the SDK method's metadata — the same schema the entity definition produced, the same one the server validates against, the same one the database uses as a constraint. The field name `title` is accessed on `taskForm.fields`, which is typed from the schema. If you rename `title` to `headline` in the entity, `taskForm.fields.title` stops existing. The build fails. The bug never ships.
+
+Compare that to what you'd write by hand:
+
+```tsx
+// The old way — three strings pretending to be one
+const schema = z.object({
+  title: z.string(), // 1
+  description: z.string(),
+});
+
+<input name="title" />; // 2 — typed as a string attribute
+await fetch('/api/tasks', {
+  method: 'POST',
+  body: JSON.stringify({ title, description }), // 3
+});
+```
+
+Rename `title` in the schema and the `<input name>` is still a string. The `fetch` body is still a string-keyed object. The compiler is fine. Production is not.
+
+## What breaks at compile time vs runtime
+
+A checklist of what the type system catches and what's left to tests:
+
+| Change to the schema                     | What fails                                                                                     | When                                  |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------- |
+| Rename `title` → `headline`              | `taskForm.title.error` — property doesn't exist                                                | <Badge intent="success">build</Badge> |
+| Change `title: string` → `title: number` | Input `name` still resolves, but `onSuccess` payload shape changes — downstream consumers fail | <Badge intent="success">build</Badge> |
+| Make `description` required              | Server validation fires if the field is missing — `_form` error surfaces                       | runtime                               |
+| Add a new field `priority`               | Nothing breaks — old forms still submit, server fills defaults                                 | no break                              |
+| Delete `description`                     | `taskForm.description` — property doesn't exist                                                | <Badge intent="success">build</Badge> |
+
+The last row is the one that matters most. Deleting a column in a hand-rolled stack is a needle hunt through grep results. In Vertz, the compiler does the hunt for you.
+
+## The bonus: you don't even type field names
+
+When you read the query data back, you don't type field names either. The Vertz compiler does compile-time static analysis on query results and injects a `select` parameter based on which fields you actually touch:
+
+```tsx
+const tasks = query(api.tasks.list());
+
+// The compiler sees .title and .status accessed below
+return tasks.data?.items.map((task) => (
+  <li>
+    {task.title} — {task.status}
+  </li>
+));
+
+// Generates: api.tasks.list({ select: { id: true, title: true, status: true } })
+```
+
+Rename `title` to `headline` in the entity. The compiler flags every `task.title` in the file. You fix them. The injected `select` updates automatically. You never wrote the field name twice, so you don't have to rename it twice.
+
+Cross-file works the same. Pass `task` into a child component and the compiler follows the import, reads the child's field accesses, and merges them into the parent's `select`. Barrel files, renamed exports, star re-exports — all followed. The only place you have to do work is at the boundary of a third-party npm package, which is the one thing the compiler can't see.
+
+<Callout type="note" title="The DX test is the refactor">
+  A framework's real DX score isn't how fast you write the first version — it's how confident you
+  feel deleting a column six months later. We measure ourselves on the second one.
+</Callout>
+
+## What we rejected
+
+**Separate Zod schemas per layer.** One schema for the API, one for the form, one for the DB. The moment any of them drift, you have a silent bug. We treat the single schema as non-negotiable — it's generated from the entity definition and flows into every layer automatically.
+
+**react-hook-form + manual typing.** The library is excellent. The problem is that the field names you pass to `register('title')` are strings the compiler can't correlate with your API types. Teams close the gap with `keyof` helpers; it works until someone passes a template literal, and then it doesn't, and nobody notices until runtime.
+
+**Server actions with DIY validation.** "Just write a function on the server, call it from a form." Great ergonomics on line 50. The problem is the same one: the form's `name` attributes and the server function's parameter names are independent strings. Rename-in-one-place is gone.
+
+## Tradeoffs we accept
+
+The generated SDK is load-bearing. You have to run codegen after every schema change — `vtz build` does it, but if you forget and edit code in a stale window, you'll see errors that feel like false positives until you rebuild. Right place to spend the cost; the alternative is runtime drift, and users pay that one.
+
+Forms outside entities need an explicit schema. `form()` works with any function matching `SdkMethod`, not just entity CRUD. For a contact form or search filter, you pass `schema` manually:
+
+```tsx
+const searchForm = form(searchMethod, {
+  schema: searchSchema,
+  initial: { query: '', status: 'all', sortBy: 'date' },
+  onSuccess: onResults,
+});
+```
+
+Same API shape. Same field access pattern. One extra argument.
+
+## The honest version
+
+We built `form()` because we kept renaming database columns and breaking the UI in ways TypeScript didn't catch. The fix wasn't better discipline or more tests — both of those paper over the real issue: the form was pretending to be typed while standing on a pile of strings. We cut out the strings. Now the form doesn't survive refactors because it's polite; it survives them because it can't not.
+
+---
+
+References:
+
+- [Forms guide](https://docs.vertz.dev/guides/ui/forms) — `form()` API, schema inference, FormData coercion.
+- [Data Fetching](https://docs.vertz.dev/guides/ui/data-fetching) — `query()`, caching, optimistic updates.
+- [Auto Field Selection](https://docs.vertz.dev/guides/ui/auto-field-selection) — compile-time `select` injection and how to narrow at opaque boundaries.

@@ -6,8 +6,9 @@
     "dev": "bun run build:blog && vtz dev",
     "dev:presence": "vtz run src/presence-dev-server.ts",
     "dev:all": "vtz run scripts/dev-all.ts",
-    "build": "bun run build:blog && node --experimental-strip-types scripts/generate-og.ts && bun ../../node_modules/@vertz/cli/dist/vertz.js build",
+    "build": "bun run build:covers && bun run build:blog && node --experimental-strip-types scripts/generate-og.ts && bun ../../node_modules/@vertz/cli/dist/vertz.js build",
     "build:og": "node --experimental-strip-types scripts/generate-og.ts",
+    "build:covers": "bun scripts/generate-blog-covers.ts",
     "build:blog": "bun scripts/compile-blog-posts.ts",
     "deploy": "bun run build && vtzx wrangler deploy --define DEPLOY_VERSION:\"'$(date +%s)'\" --define PRESENCE_WS_URL:\"'wss://vertz.dev/__presence'\" && node --experimental-strip-types scripts/pre-warm.ts",
     "typecheck": "bun run build:blog && tsgo --noEmit"
@@ -21,11 +22,15 @@
     "@vertz/ui-server": "workspace:*"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260305.0",
+    "@mdx-js/mdx": "^3.1.1",
     "@resvg/resvg-js": "^2.6.2",
+    "@shikijs/rehype": "^4.0.2",
     "@types/node": "^25.3.1",
     "@vertz/cli": "workspace:*",
     "@vertz/test": "workspace:*",
     "bun-types": "^1.3.9",
+    "remark-gfm": "^4.0.1",
     "satori": "^0.25.0",
     "shiki": "^4.0.1",
     "typescript": "^5.8.0",
