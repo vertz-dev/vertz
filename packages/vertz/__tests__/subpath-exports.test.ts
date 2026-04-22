@@ -133,6 +133,20 @@ describe('exports point to built artifacts', () => {
     expect(fs.existsSync(fullPath)).toBe(true);
   });
 
+  it('vertz/client delegates to @vertz/ui/client to keep augmentations in sync (#2813)', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const contents = fs.readFileSync(
+      path.resolve(import.meta.dirname, '..', 'client.d.ts'),
+      'utf-8',
+    );
+    expect(contents).toContain('/// <reference types="@vertz/ui/client" />');
+    // The canonical augmentation lives in @vertz/ui/client — vertz/client must
+    // not re-declare it locally, or the two subpaths could drift.
+    expect(contents).not.toContain('declare global');
+    expect(contents).not.toContain('interface ImportMetaHot');
+  });
+
   it('legacy vertz/env export does not exist (renamed to ./client)', async () => {
     const fs = await import('node:fs');
     const path = await import('node:path');

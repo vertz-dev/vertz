@@ -15,6 +15,9 @@ dist/
 # Keep config files
 !*.config.js
 
+# Keep hand-written client.d.ts at package roots (e.g. vertz/client, @vertz/ui/client)
+!*/client.d.ts
+
 # Environment
 .env
 .env.local
