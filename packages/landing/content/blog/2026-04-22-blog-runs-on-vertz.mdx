@@ -1,0 +1,93 @@
+---
+title: "Why the Vertz blog runs on Vertz"
+slug: blog-runs-on-vertz
+date: 2026-04-22
+author: matheus
+tags: [meta, dx, framework]
+description: "We could have used Astro or Mintlify. We didn't. Here's what we learned dogfooding @vertz/mdx as our blog engine."
+draft: false
+---
+
+## The dogfood argument
+
+Every framework team eventually writes a blog. The question isn't whether — it's what runs it. The obvious answer was "pick an MDX framework and move on": Astro for a standalone site, Mintlify if we wanted the docs-style list, Next.js if we already had a content team writing for it. Each of those ships a working blog in a weekend.
+
+We didn't pick any of them.
+
+The Vertz blog runs on Vertz. Posts are `.mdx` files in the same repo as the framework. The page is a route in the same worker that serves `vertz.dev`. Build is `vtz build`. Deploy is the same Cloudflare Worker pipeline every other page uses. The whole thing is additive to the landing package — no new deploy target, no second CDN, no separate search.
+
+<Callout type="note" title="Constraint, not ceremony">
+  The goal isn't ideological purity. If dogfooding cost us two extra engineering weeks we'd have shipped Mintlify and written a sticky note to revisit.
+</Callout>
+
+We picked this path for three reasons, ranked by how often they actually came up during the build:
+
+1. **Marketing narrative.** "The Vertz blog runs on Vertz" is a better story than "the Vertz blog runs on Next." Developers read their tools' own sites as a credibility signal. When ours had the same "skin" as the framework, it closed the loop.
+2. **Stress-test the framework on real long-form content.** Three weeks of using `@vertz/mdx` on actual posts surfaced rough edges no synthetic benchmark would. The `<code>/blog/&lt;slug&gt;</code>` rendering bug. The `DocumentFragment`-into-JSX SSR issue. The heading-anchor slug collision. Each one was a pull request against the framework itself, not an issue against Mintlify we'd never read.
+3. **Zero new infra.** The same worker, the same cache, the same build. Every post is a git commit.
+
+## What we rejected and why
+
+Three options were on the table. The review was fast enough I can paraphrase it in one paragraph each.
+
+**Mintlify.** Optimized for *docs*, not a blog. No RSS feed, no post listing, no tags, no `text-wrap: balance` on long titles. Pages look beautiful if they're a reference page. Posts look like reference pages with no navigation. Rejected in the first 20 minutes.
+
+**Astro.** Genuinely good at this. Content collections, RSS out of the box, excellent Shiki integration, the whole island architecture story. The reject reason was narrative, not technical: a blog built on Astro undermines the argument that Vertz is a full-stack framework. <Badge intent="experimental">Dogfood tax</Badge>
+
+**Next.js.** We already know its ergonomics and its limits. Picking it for the blog would have signaled "we use Vertz when we have to and Next when we don't." Rejected.
+
+## Technical walkthrough
+
+The editorial toolkit is 80% built-in MDX, 20% custom. `@vertz/mdx` does the heavy lifting — parsing, frontmatter, Shiki highlighting. The blog wraps it with post-processors (heading anchors, external-link markers, table scroll wrappers) and a small components map (`Callout`, `Figure`, `Terminal`, `Badge`, `Keyboard`).
+
+<Terminal title="authoring a post">
+$ cd packages/landing
+$ bun run build:blog
+📝 Compiled 1 blog post and 1 author in 2681ms
+$ vtz dev
+▲ Vertz v0.1.0-dev
+  Local:  http://localhost:3000
+</Terminal>
+
+A post is one `.mdx` file. Frontmatter has `title`, `slug`, `date`, `author`, `tags`, `description`, optional `cover` and `draft`. Everything else is markdown with the component escape hatch when you need more expressive power.
+
+Code fences use Shiki's `vitesse-dark` theme. Headings auto-generate slug ids with `#` hover anchors. External links pick up `target="_blank"` and a trailing ↗ glyph. Tables get a horizontal-scroll wrapper. Custom components render at build time to pure HTML — no client-side runtime JS for the editorial vocabulary.
+
+```ts
+// The pipeline, in one file.
+//
+// packages/landing/scripts/compile-blog-posts.ts
+import { compileMdx } from '@vertz/mdx';
+
+export async function compileBlog(options: CompileBlogOptions) {
+  const posts: CompiledPostEntry[] = [];
+  for (const entry of readdirSync(contentDir)) {
+    if (extname(entry) !== '.mdx') continue;
+    const source = readFileSync(join(contentDir, entry), 'utf-8');
+    const compiled = await compileMdx(source, {
+      jsxImportSource: '@vertz/ui',
+      shikiTheme: false, // body is rendered by the string-JSX shim
+    });
+    const frontmatter = extractCompiledFrontmatter(compiled);
+    const html = await compileMdxSourceToHtml(source);
+    posts.push({ frontmatter, html, wordCount: countWords(source), ...meta });
+  }
+  // Emit .generated/manifest.ts — the landing imports it like any other module.
+}
+```
+
+## What we learned
+
+The biggest surprise was how little custom code the blog actually needs. The compile script is ~300 lines, the post layout is ~150 lines, the list page is ~60 lines. Everything else leverages patterns already in the landing package: the `css()` token system, the `Nav` / `Footer` components, the same Cloudflare Worker.
+
+The second surprise was the framework bugs we found by using the framework. Three ship-blockers surfaced in two weeks — each one easier to see in a real post than in a unit test.
+
+Press <Keyboard>Cmd</Keyboard> + <Keyboard>K</Keyboard> on docs.vertz.dev to find the API reference. The blog's at `/blog`. Posts get cross-linked. Everything is a git commit away from being edited.
+
+If you're building your framework's blog and you're not sure whether to use it for itself: start here.
+
+---
+
+References:
+- Issue [#2947](https://github.com/vertz-dev/vertz/issues/2947) — the blog implementation.
+- Follow-ups: [#2948](https://github.com/vertz-dev/vertz/issues/2948) (app-build plugin hook), [#2949](https://github.com/vertz-dev/vertz/issues/2949) (vtz screenshot viewport).

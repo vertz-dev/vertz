@@ -250,7 +250,12 @@ export async function compileMdxSourceToHtml(source: string): Promise<string> {
 
   const { Callout } = await import('../src/blog/mdx/custom/callout');
   const { Figure } = await import('../src/blog/mdx/custom/figure');
-  const rendered = mod.default({ components: { Callout, Figure } });
+  const { Terminal } = await import('../src/blog/mdx/custom/terminal');
+  const { Badge } = await import('../src/blog/mdx/custom/badge');
+  const { Keyboard } = await import('../src/blog/mdx/custom/keyboard');
+  const rendered = mod.default({
+    components: { Callout, Figure, Terminal, Badge, Keyboard },
+  });
   const raw = typeof rendered === 'string' ? rendered : rendered.__html;
   return postProcessBlogHtml(raw);
 }
