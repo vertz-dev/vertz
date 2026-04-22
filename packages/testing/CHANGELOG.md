@@ -1,5 +1,14 @@
 # @vertz/testing
 
+## 0.2.79
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/core@0.2.79
+  - @vertz/db@0.2.79
+  - @vertz/server@0.2.79
+
 ## 0.2.78
 
 ### Patch Changes
