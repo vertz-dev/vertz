@@ -22,6 +22,10 @@ export function toPostMeta(gen: GeneratedPost): PostMeta {
   };
 }
 
+export function toLoadedPost(gen: GeneratedPost): LoadedPost {
+  return { meta: toPostMeta(gen), html: gen.html };
+}
+
 export function filterDrafts(posts: LoadedPost[], env: string): LoadedPost[] {
   if (env === 'production') return posts.filter((p) => !p.meta.draft);
   return posts;
@@ -32,7 +36,7 @@ export function sortByDateDesc(posts: LoadedPost[]): LoadedPost[] {
 }
 
 export function buildPosts(gens: GeneratedPost[], env: string): LoadedPost[] {
-  const all = gens.map((g): LoadedPost => ({ meta: toPostMeta(g), Component: g.Component }));
+  const all = gens.map(toLoadedPost);
   return sortByDateDesc(filterDrafts(all, env));
 }
 
@@ -56,12 +60,8 @@ export function getPostBySlug(slug: string): LoadedPost | null {
   return getAllPosts().find((p) => p.meta.slug === slug) ?? null;
 }
 
-export function loadAuthor(key: string): Author {
+export function loadAuthor(key: string): Author | null {
   const a = generatedAuthors[key];
-  if (!a) {
-    throw new Error(
-      `Author not found: ${key}. Add a JSON file at content/blog/authors/${key}.json`,
-    );
-  }
+  if (!a) return null;
   return { key, ...a };
 }

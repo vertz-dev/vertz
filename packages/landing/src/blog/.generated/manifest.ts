@@ -2,23 +2,30 @@
 // Regenerated on every blog build.
 
 import type { AuthorManifest, GeneratedPost } from '../types';
-import Post_2026_04_22_hello_world from './posts/2026-04-22-hello-world.js';
 
 export const generatedPosts: GeneratedPost[] = [
   {
-    slug: "hello-world",
+    slug: 'hello-world',
     wordCount: 99,
-    frontmatter: {"title":"Hello, world from the Vertz blog","date":"2026-04-22","author":"matheus","description":"A tiny placeholder post so the blog pipeline has something to render during development.","slug":"hello-world","tags":["meta","dx"],"draft":false},
-    Component: Post_2026_04_22_hello_world,
+    frontmatter: {
+      title: 'Hello, world from the Vertz blog',
+      date: '2026-04-22',
+      author: 'matheus',
+      description:
+        'A tiny placeholder post so the blog pipeline has something to render during development.',
+      slug: 'hello-world',
+      tags: ['meta', 'dx'],
+      draft: false,
+    },
+    html: '<h2>Why this post exists</h2>\n<p>This post is a development fixture. Phase 1 of issue <a href="https://github.com/vertz-dev/issues/2947">#2947</a> ships the MDX infrastructure\nthat takes an <code>.mdx</code> file on disk and turns it into a reachable URL under <code>/blog/<slug></code>.</p>\n<p>Subsequent phases add layout, typography, TOC, reading progress, and the custom MDX components.</p>\n<h2>A short list</h2>\n<ul>\n<li>Posts live under <code>packages/landing/content/blog/</code>.</li>\n<li>Each file is compiled once via <code>@vertz/mdx</code> into a <code>.js</code> module.</li>\n<li>A generated manifest wires every post into the landing bundle.</li>\n</ul>\n<h2>Inline bits</h2>\n<p>Running <code>vtz dev</code> rebuilds the blog manifest, then <code>@vertz/cli</code> picks it up like any other source module.</p>',
   },
 ];
 
-export const generatedAuthors: AuthorManifest = 
-  {
-  "matheus": {
-    "name": "Matheus Poleza",
-    "avatar": "/blog/authors/matheus.jpg",
-    "bio": "Building Vertz.",
-    "twitter": "@matheuspoleza"
-  }
+export const generatedAuthors: AuthorManifest = {
+  matheus: {
+    name: 'Matheus Poleza',
+    avatar: '/blog/authors/matheus.jpg',
+    bio: 'Building Vertz.',
+    twitter: '@matheuspoleza',
+  },
 };

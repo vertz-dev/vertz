@@ -8,13 +8,11 @@ import {
 } from '../load-posts';
 import type { GeneratedPost, LoadedPost } from '../types';
 
-const stubComponent = (): DocumentFragment => document.createDocumentFragment();
-
 function makeGen(overrides: Partial<GeneratedPost> & { slug: string }): GeneratedPost {
   return {
     slug: overrides.slug,
     wordCount: overrides.wordCount ?? 200,
-    Component: overrides.Component ?? stubComponent,
+    html: overrides.html ?? '<p>sample</p>',
     frontmatter: {
       title: 'Sample',
       date: '2026-04-22',
@@ -37,7 +35,7 @@ function makeLoaded(slug: string, date: string, draft = false): LoadedPost {
       draft,
       readingTime: 1,
     },
-    Component: stubComponent,
+    html: '<p>stub</p>',
   };
 }
 
