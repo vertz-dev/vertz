@@ -2114,3 +2114,67 @@ async fn test_child_process_spawn_kill() {
         elapsed.as_secs()
     );
 }
+
+// --- #2811: import.meta.main for "run if main" idioms ---
+
+#[tokio::test]
+async fn test_import_meta_main_true_for_entry_module() {
+    let tmp = tempfile::tempdir().unwrap();
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(&entry, r#"console.log("main: " + import.meta.main);"#).unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0], "main: true",
+        "import.meta.main should be true when module is loaded as main. Got: {:?}",
+        output.stdout
+    );
+}
+
+#[tokio::test]
+async fn test_import_meta_main_false_for_imported_module() {
+    let tmp = tempfile::tempdir().unwrap();
+    let lib = tmp.path().join("lib.js");
+    std::fs::write(&lib, r#"console.log("lib main: " + import.meta.main);"#).unwrap();
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        import "./lib.js";
+        console.log("entry main: " + import.meta.main);
+        "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0], "lib main: false",
+        "import.meta.main should be false inside imported modules. Got: {:?}",
+        output.stdout
+    );
+    assert_eq!(
+        output.stdout[1], "entry main: true",
+        "import.meta.main should be true in the entry module. Got: {:?}",
+        output.stdout
+    );
+}

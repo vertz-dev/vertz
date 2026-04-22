@@ -103,9 +103,8 @@ describe('Feature: on / off event subscription', () => {
   });
 });
 
-describe('Feature: removed augmentations', () => {
-  it('ImportMeta.main is not declared by @vertz/ui/client', () => {
-    // @ts-expect-error — main is a Bun-ism, not provided by the vtz runtime.
-    const _main: boolean = import.meta.main;
+describe('Feature: ImportMeta.main (run-if-main)', () => {
+  it('Typed as boolean — set by the vtz runtime', () => {
+    expectTypeOf(import.meta.main).toEqualTypeOf<boolean>();
   });
 });
