@@ -113,6 +113,17 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
+function styleObjectToCss(style: Record<string, unknown>): string {
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(style)) {
+    if (v == null || v === false) continue;
+    // camelCase → kebab-case (backgroundColor → background-color).
+    const prop = k.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+    parts.push(`${prop}:${v}`);
+  }
+  return parts.join(';');
+}
+
 function propsToAttrs(props: Record<string, unknown>): string {
   const parts: string[] = [];
   for (const [key, value] of Object.entries(props)) {
@@ -120,6 +131,11 @@ function propsToAttrs(props: Record<string, unknown>): string {
       continue;
     if (value === true) {
       parts.push(` ${key}`);
+      continue;
+    }
+    if (key === 'style' && typeof value === 'object') {
+      const css = styleObjectToCss(value as Record<string, unknown>);
+      if (css) parts.push(` style="${escapeHtml(css)}"`);
       continue;
     }
     const attrName = key === 'className' ? 'class' : key;
@@ -211,7 +227,45 @@ export async function compileMdxSourceToHtml(source: string): Promise<string> {
     jsxDEV: stringJsx,
     Fragment: stringFragment,
   }) as { default: (props: Record<string, unknown>) => string };
-  return mod.default({ components: {} });
+  const raw = mod.default({ components: {} });
+  return injectHeadingIds(raw);
+}
+
+/**
+ * Post-process the rendered HTML to give every `<h2>` / `<h3>` without an
+ * explicit `id` a slug derived from its text content. The TOC component and
+ * the `scroll-margin-top` heading offsets in the prose stylesheet both rely
+ * on these ids. We slugify here (single source of truth) so the TOC's own
+ * extractor and the rendered HTML always agree on the id.
+ */
+export function injectHeadingIds(html: string): string {
+  const seen = new Map<string, number>();
+  return html.replace(
+    /<h([23])(\s[^>]*)?>([\s\S]*?)<\/h\1>/gi,
+    (_full, levelStr: string, attrsRaw: string | undefined, inner: string) => {
+      const attrs = attrsRaw ?? '';
+      if (/\bid\s*=/.test(attrs)) {
+        // already has an id — respect it
+        return `<h${levelStr}${attrs}>${inner}</h${levelStr}>`;
+      }
+      const text = inner.replace(/<[^>]+>/g, '').trim();
+      const baseId = slugifyHeading(text);
+      if (!baseId) return `<h${levelStr}${attrs}>${inner}</h${levelStr}>`;
+      const count = seen.get(baseId) ?? 0;
+      const id = count === 0 ? baseId : `${baseId}-${count + 1}`;
+      seen.set(baseId, count + 1);
+      return `<h${levelStr}${attrs} id="${id}">${inner}</h${levelStr}>`;
+    },
+  );
+}
+
+function slugifyHeading(input: string): string {
+  return input
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 /**

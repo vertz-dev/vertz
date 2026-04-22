@@ -1,36 +1,24 @@
-import { css, token } from '@vertz/ui';
+import { css } from '@vertz/ui';
 import { useParams } from '@vertz/ui/router';
-import { getPostBySlug } from '../../blog/load-posts';
+import { BlogPostLayout } from '../../blog/layout/blog-post-layout';
+import { getPostBySlug, loadAuthor } from '../../blog/load-posts';
+import { Footer } from '../../components/footer';
+import { Nav } from '../../components/nav';
 
-const s = css({
-  page: { minHeight: '100vh', paddingBlock: token.spacing[20] },
+const notFound = css({
+  page: { minHeight: '100vh', display: 'flex', flexDirection: 'column' },
   container: {
-    maxWidth: '720px',
+    maxWidth: '640px',
     marginInline: 'auto',
-    paddingInline: token.spacing[6],
+    paddingInline: '1rem',
+    paddingTop: '8rem',
+    paddingBottom: '6rem',
+    flex: '1',
   },
-  back: {
-    display: 'inline-block',
-    color: token.color.gray[400],
-    marginBottom: token.spacing[6],
-    textDecoration: 'none',
-  },
-  body: { color: token.color.gray[100] },
-  notFoundTitle: { fontSize: token.font.size['2xl'], marginBottom: token.spacing[4] },
-  notFoundBody: { color: token.color.gray[400] },
+  back: { display: 'inline-block', color: 'var(--color-muted-foreground)' },
+  title: { fontSize: '2rem', marginBlock: '1rem' },
+  body: { color: 'var(--color-muted-foreground)' },
 });
-
-// Phase 1 uses a text arrow for the back link rather than `@vertz/icons` —
-// the @vertz/ui SSR pipeline serializes icon HTMLSpanElements as
-// "[object Object]" today. Phase 2's layout pass is the right place to
-// resolve icon SSR holistically.
-function BackToBlog() {
-  return (
-    <a href="/blog" className={s.back}>
-      ← Blog
-    </a>
-  );
-}
 
 export function BlogPostPage() {
   const { slug } = useParams<'/blog/:slug'>();
@@ -38,27 +26,22 @@ export function BlogPostPage() {
 
   if (!post) {
     return (
-      <main className={s.page}>
-        <div className={s.container}>
-          <BackToBlog />
-          <h1 className={s.notFoundTitle}>Post not found</h1>
-          <p className={s.notFoundBody}>
+      <div className={notFound.page}>
+        <Nav />
+        <div className={notFound.container}>
+          <a href="/blog" className={notFound.back}>
+            ← Blog
+          </a>
+          <h1 className={notFound.title}>Post not found</h1>
+          <p className={notFound.body}>
             There's no blog post at <code>/blog/{slug}</code>.
           </p>
         </div>
-      </main>
+        <Footer />
+      </div>
     );
   }
 
-  // The generator pre-renders every `.mdx` to an HTML string; inject it via
-  // `innerHTML` so the Vertz SSR serializer can embed the pre-rendered body
-  // directly without trying to mix an external JSX tree into its own.
-  return (
-    <main className={s.page}>
-      <div className={s.container}>
-        <BackToBlog />
-        <article className={s.body} innerHTML={post.html} />
-      </div>
-    </main>
-  );
+  const author = loadAuthor(post.meta.author);
+  return <BlogPostLayout meta={post.meta} author={author} html={post.html} />;
 }

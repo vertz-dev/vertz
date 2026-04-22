@@ -5,27 +5,19 @@ import type { AuthorManifest, GeneratedPost } from '../types';
 
 export const generatedPosts: GeneratedPost[] = [
   {
-    slug: 'hello-world',
-    wordCount: 99,
-    frontmatter: {
-      title: 'Hello, world from the Vertz blog',
-      date: '2026-04-22',
-      author: 'matheus',
-      description:
-        'A tiny placeholder post so the blog pipeline has something to render during development.',
-      slug: 'hello-world',
-      tags: ['meta', 'dx'],
-      draft: false,
-    },
-    html: '<h2>Why this post exists</h2>\n<p>This post is a development fixture. Phase 1 of issue <a href="https://github.com/vertz-dev/issues/2947">#2947</a> ships the MDX infrastructure\nthat takes an <code>.mdx</code> file on disk and turns it into a reachable URL under <code>/blog/<slug></code>.</p>\n<p>Subsequent phases add layout, typography, TOC, reading progress, and the custom MDX components.</p>\n<h2>A short list</h2>\n<ul>\n<li>Posts live under <code>packages/landing/content/blog/</code>.</li>\n<li>Each file is compiled once via <code>@vertz/mdx</code> into a <code>.js</code> module.</li>\n<li>A generated manifest wires every post into the landing bundle.</li>\n</ul>\n<h2>Inline bits</h2>\n<p>Running <code>vtz dev</code> rebuilds the blog manifest, then <code>@vertz/cli</code> picks it up like any other source module.</p>',
+    slug: "hello-world",
+    wordCount: 189,
+    frontmatter: {"title":"Hello, world from the Vertz blog","date":"2026-04-22","author":"matheus","description":"A tiny placeholder post so the blog pipeline has something to render during development.","slug":"hello-world","tags":["meta","dx"],"draft":false},
+    html: "<h2 id=\"why-this-post-exists\">Why this post exists</h2>\n<p>This post is a development fixture. Phase 1 of issue <a href=\"https://github.com/vertz-dev/vertz/issues/2947\">#2947</a> shipped the MDX infrastructure that takes an <code>.mdx</code> file on disk and turns it into a reachable URL under <code>/blog/<slug></code>. Phase 2 wraps it in a proper reading surface: sticky Nav, reused Footer, 3-column desktop grid, typographic prose, a reading-progress bar, and a table of contents.</p>\n<p>Subsequent phases (3–7) add the list page, tier-1 and tier-2 MDX components, SEO, and the first real post.</p>\n<h2 id=\"a-short-list\">A short list</h2>\n<ul>\n<li>Posts live under <code>packages/landing/content/blog/</code>.</li>\n<li>Each file is compiled once via <code>@vertz/mdx</code> into an HTML string.</li>\n<li>A generated manifest wires every post into the landing bundle.</li>\n</ul>\n<h2 id=\"code-samples\">Code samples</h2>\n<p>Here's a short TypeScript snippet the post can reference:</p>\n<pre class=\"shiki shiki-themes vitesse-dark\" style=\"background-color:#121212;color:#dbd7caee\" tabIndex=\"0\"><code><span class=\"line\"><span style=\"color:#4D9375\">import</span><span style=\"color:#666666\"> {</span><span style=\"color:#BD976A\"> entity</span><span style=\"color:#666666\"> }</span><span style=\"color:#4D9375\"> from</span><span style=\"color:#C98A7D77\"> '</span><span style=\"color:#C98A7D\">@vertz/server</span><span style=\"color:#C98A7D77\">'</span><span style=\"color:#666666\">;</span></span>\n<span class=\"line\"><span style=\"color:#4D9375\">import</span><span style=\"color:#666666\"> {</span><span style=\"color:#BD976A\"> d</span><span style=\"color:#666666\"> }</span><span style=\"color:#4D9375\"> from</span><span style=\"color:#C98A7D77\"> '</span><span style=\"color:#C98A7D\">@vertz/db</span><span style=\"color:#C98A7D77\">'</span><span style=\"color:#666666\">;</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#4D9375\">export</span><span style=\"color:#CB7676\"> const </span><span style=\"color:#BD976A\">task</span><span style=\"color:#666666\"> =</span><span style=\"color:#80A665\"> entity</span><span style=\"color:#666666\">(</span><span style=\"color:#C98A7D77\">'</span><span style=\"color:#C98A7D\">task</span><span style=\"color:#C98A7D77\">'</span><span style=\"color:#666666\">,</span><span style=\"color:#666666\"> {</span></span>\n<span class=\"line\"><span style=\"color:#B8A965\">  schema</span><span style=\"color:#666666\">: {</span></span>\n<span class=\"line\"><span style=\"color:#B8A965\">    id</span><span style=\"color:#666666\">: </span><span style=\"color:#BD976A\">d</span><span style=\"color:#666666\">.</span><span style=\"color:#80A665\">id</span><span style=\"color:#666666\">(),</span></span>\n<span class=\"line\"><span style=\"color:#B8A965\">    title</span><span style=\"color:#666666\">: </span><span style=\"color:#BD976A\">d</span><span style=\"color:#666666\">.</span><span style=\"color:#80A665\">text</span><span style=\"color:#666666\">(),</span></span>\n<span class=\"line\"><span style=\"color:#B8A965\">    done</span><span style=\"color:#666666\">: </span><span style=\"color:#BD976A\">d</span><span style=\"color:#666666\">.</span><span style=\"color:#80A665\">boolean</span><span style=\"color:#666666\">().</span><span style=\"color:#80A665\">default</span><span style=\"color:#666666\">(</span><span style=\"color:#4D9375\">false</span><span style=\"color:#666666\">),</span></span>\n<span class=\"line\"><span style=\"color:#666666\">  },</span></span>\n<span class=\"line\"><span style=\"color:#666666\">});</span></span></code></pre>\n<p>And a shell one-liner:</p>\n<pre class=\"shiki shiki-themes vitesse-dark\" style=\"background-color:#121212;color:#dbd7caee\" tabIndex=\"0\"><code><span class=\"line\"><span style=\"color:#80A665\">bun</span><span style=\"color:#C98A7D\"> create</span><span style=\"color:#C98A7D\"> vertz-app</span><span style=\"color:#C98A7D\"> my-app</span></span></code></pre>\n<h2 id=\"a-quoted-thought\">A quoted thought</h2>\n<blockquote>\n<p>Dogfood is the fastest way to discover the parts of a framework that don't yet serve real users.</p>\n</blockquote>\n<h3 id=\"a-nested-heading\">A nested heading</h3>\n<p>The TOC should list h2 and h3 together, with h3 nested under its parent h2.</p>\n<h2 id=\"inline-bits\">Inline bits</h2>\n<p>Running <code>vtz dev</code> rebuilds the blog manifest, then <code>@vertz/cli</code> picks it up like any other source module.</p>",
   },
 ];
 
-export const generatedAuthors: AuthorManifest = {
-  matheus: {
-    name: 'Matheus Poleza',
-    avatar: '/blog/authors/matheus.jpg',
-    bio: 'Building Vertz.',
-    twitter: '@matheuspoleza',
-  },
+export const generatedAuthors: AuthorManifest =
+  {
+  "matheus": {
+    "name": "Matheus Poleza",
+    "avatar": "/blog/authors/matheus.jpg",
+    "bio": "Building Vertz.",
+    "twitter": "@matheuspoleza"
+  }
 };
