@@ -6,11 +6,19 @@ Phases 2 and 3 do not scale — they require Matheus + Claude pair-writing every
 
 The pipeline is built on Vertz itself (`@vertz/agents`) — dogfood value is high, and the pipeline's existence becomes a Vertz case study.
 
+**v1 status: ENTIRELY DEFERRED.** Per adversarial review (technical feasibility + manifesto): (a) 11 days for 7-agent pipeline is not feasible alongside HN launch in same window, (b) templates need to be grounded in real v1 post performance before automating, (c) publishing AI-written content under a human byline violates Principle 3 (identity laundering). This phase resumes in weeks 5–10 post-v1, with the mandatory revisions below.
+
+**Mandatory revisions before Phase 4 ships (from adversarial review M1):**
+1. **Visible AI-authorship byline** on every pipeline-produced post: `author: autonomous-pipeline (reviewed by Matheus)`. Readers must know a post was machine-drafted.
+2. **No first-person "I" or "we" impersonation of Matheus** in writer prompt. Drop the "Persona: Matheus Poleza" instruction. Writer agent persona is: "an informed but neutral technical writer, no first-person voice unless the source material explicitly quotes Matheus or another named human."
+3. **Reviewer-agent-self-grading is not sufficient quality control.** Phase 5 Task 4 (golden-set eval) is a dependency, not a nice-to-have. Reviewer agent drift is measured weekly, not quarterly.
+4. **Alternative if manifesto compliance feels too constraining:** restrict pipeline output to the `/answer/*` long-tail surface where Q&A format makes the machine origin obvious. Blog surface stays human-written. This is the safer manifesto-aligned path.
+
 **Main design doc:** `plans/geo-seo-strategy.md`
 
-**Depends on:** Phase 2 (templates extracted from seed content) + Phase 1 (analytics for topic picker to read)
+**Depends on:** Phase 2 (templates extracted from seed content, including real post performance data) + Phase 1 (analytics for topic picker to read) + Phase 5 Task 4 (golden-set eval)
 
-**Duration:** 11 days, starting day 10 of overall timeline
+**Duration:** 11 days, starting post-v1 (week 5+)
 
 ---
 

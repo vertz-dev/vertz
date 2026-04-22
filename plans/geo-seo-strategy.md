@@ -1,10 +1,12 @@
 # Design: GEO/SEO Strategy — Making Vertz Discoverable to LLMs and Developers
 
-**Status:** Draft v1 — pending review
+**Status:** Draft v2 — revised after 3-agent adversarial review (see `reviews/geo-seo-strategy/`)
 **Owner:** Matheus Poleza
 **Target start:** 2026-04-28
-**Target first citation in ChatGPT/Claude/Perplexity via web retrieval:** 2026-05-12 (2 weeks)
-**Target autonomous content pipeline live:** 2026-05-19 (4 weeks)
+**Target first citation in ChatGPT/Claude/Perplexity via web retrieval:** 2026-05-19 (3 weeks from start, 28-day v1 milestone)
+**Full-scope acceptance thresholds:** 8–10 weeks (deferred from v1 — not part of 28-day window)
+
+**Budget ceiling:** $200/month (hard cap across API + sponsorships + tooling). This constrains v1 scope significantly; see Budget section.
 
 ---
 
@@ -14,11 +16,40 @@ Vertz has a strong technical foundation (29 published packages, live blog infra 
 
 This plan turns Vertz into a recommendable framework in three phases:
 
-1. **Retrieval-first wins** (days, not months): optimize for LLMs that search the web at inference time (ChatGPT search, Claude web, Perplexity, Gemini). Target: citation in LLM responses within 2 weeks.
-2. **Authority accumulation** (weeks): launch content that gets linked, shared, and cached across high-DA platforms that feed LLM training crawls. Target: organic inbound traffic via LLM referrers within 4 weeks.
-3. **Autonomous content engine** (weeks): multi-agent pipeline producing 3–5 high-quality posts/week with human approval, so content scale stops blocking distribution.
+1. **Retrieval-first wins** (days, not months): optimize for LLMs that search the web at inference time (ChatGPT search, Claude web, Perplexity, Gemini). Target: citation in LLM responses within 3 weeks.
+2. **Authority accumulation** (weeks): launch content that gets linked, shared, and cached across high-DA platforms that feed LLM training crawls. Target: organic inbound traffic via LLM referrers within 6 weeks.
+3. **Autonomous content engine** (post-v1, weeks 5-10): multi-agent pipeline producing 3–5 high-quality posts/week with human approval, so content scale stops blocking distribution. **Deferred from the 28-day window per adversarial review feedback** — templates need to be grounded in real post performance before automating.
 
 The core insight is that LLMs in 2026 cite whatever the top 3 web search results say. Ranking #1 for a long-tail query = instant LLM citation. We do not need to wait for the next training cutoff.
+
+## v1 Scope-cut (28-day window)
+
+The original plan committed 27 tasks in 28 days — adversarial review (technical feasibility) estimated this as 50–60% optimistic for one owner. v2 cuts v1 scope to what is honestly achievable:
+
+**In scope for the 28-day v1 milestone:**
+- Phase 0: merge #2947 to main
+- Phase 1 Tasks 1, 2, 3, 5 (MCP server, SSR head injection, IndexNow, citation tracker baseline) — drop Task 4 (analytics) to weeks 5-6
+- Phase 2 Task 1 only: case-study post (see Phase 2 rewrite) — drop comparisons, 30 long-tails, README rewrite, templates
+- Phase 3 Task 1 only: HN launch — drop PH, Reddit, sponsorships, influencer outreach, SO/GitHub seeding
+- Phase 5 Task 1 only: citation tracker daily cron + alerts
+
+**Deferred to post-v1 (weeks 5–10):**
+- Phase 1 Task 4 (PostHog+Plausible analytics)
+- Phase 2 Tasks 2–5 (3 comparisons, 30 long-tails, README rewrite, templates)
+- Phase 3 Tasks 2–5 (PH, Reddit, sponsorships, influencer)
+- Phase 4 entire (autonomous pipeline — requires Phase 2 template data to build correctly)
+- Phase 5 Tasks 2–6 (leading-indicator dashboard, attribution, eval loop, rolling roadmap)
+
+**v1 deliverables:**
+1. #2947 merged
+2. MCP server live (`@vertz/docs-mcp` on npm)
+3. SSR `<head>` injection + canonical + OG + JSON-LD wired
+4. IndexNow + Google Indexing API pinging
+5. Citation tracker baseline + daily alerts
+6. One case-study post published (transcripts-based, not statistical benchmark — see Phase 2 Task 1)
+7. HN launch executed
+
+If all 7 ship in 28 days, the strategy has a shot at Goal 1 (≥1 LLM citation) within the v1 window. Post-v1 phases resume once real data informs template design.
 
 ---
 
@@ -40,21 +71,39 @@ The core insight is that LLMs in 2026 cite whatever the top 3 web search results
 
 ## Goals
 
-### Primary
-- **G1:** Vertz cited by ChatGPT, Claude, and Perplexity via web retrieval within 2 weeks, for at least one query from our target keyword set.
-- **G2:** First organic inbound traffic from LLM referrers (`chatgpt.com`, `claude.ai`, `perplexity.ai`) within 4 weeks, measurable in analytics.
-- **G3:** Autonomous content pipeline producing ≥3 high-quality posts/week with ≤10 minutes of human approval each, within 4 weeks.
-- **G4:** Public MCP docs server (`@vertz/docs-mcp`) installable with one command, live within 1 week.
+### v1 window (28 days)
+- **G1:** Vertz cited by ≥1 major LLM (ChatGPT search / Claude web / Perplexity / Gemini) via web retrieval, for at least one query from the target keyword set.
+- **G4:** Public MCP docs server (`@vertz/docs-mcp`) installable with one command, live within 2 weeks of v1 start.
+- **G6:** HN launch executed (not necessarily front-page — launch itself is the v1 milestone; ranking is stretch).
+- **G9 (new):** Citation tracker baseline captured at day 1; daily alert cron running by week 2.
 
-### Secondary
-- **G5:** Rank top 3 on Google for 10+ long-tail queries within 6 weeks (e.g., "typescript framework for llm code generation", "mcp server typescript framework").
-- **G6:** Frontpage Hacker News launch within 2 weeks (top 30 by noon PT).
-- **G7:** 3+ third-party mentions (influencer, podcast, newsletter) within 4 weeks.
-- **G8:** 1,000+ GitHub stars added within 6 weeks.
+### Post-v1 (weeks 5–10)
+- **G2:** First organic inbound traffic from LLM referrers (`chatgpt.com`, `claude.ai`, `perplexity.ai`, `gemini.google.com`) within 6 weeks, measurable in analytics.
+- **G3:** Autonomous content pipeline producing ≥3 high-quality posts/week with ≤10 minutes of human approval each, within 10 weeks.
+- **G5:** Rank top 10 on Google for 10+ long-tail queries within 10 weeks. (Original "top 3 within 6 weeks" was flagged by reviewer as unrealistic for DA-0 domain; relaxed to "top 10" and timeline extended.)
+- **G7:** 1+ third-party mention (influencer, podcast, newsletter) within 8 weeks. (Reduced from 3 — budget doesn't allow sponsorships; must be organic.)
+- **G8:** 300+ GitHub stars added within 10 weeks. (Reduced from 1,000 — more honest for organic-only.)
 
-### Business outcome
-- **BO1:** 50+ sign-ups / scaffold-runs / first-install events per week attributable to organic discovery within 6 weeks.
-- **BO2:** At least one inbound community / enterprise / contributor lead per week within 8 weeks.
+### Business outcome (post-v1)
+- **BO1:** 20+ sign-ups / scaffold-runs / first-install events per week attributable to organic discovery within 10 weeks. (Reduced from 50 — reviewer flagged original as under-supported by any conversion model.)
+- **BO2:** At least one inbound community or contributor lead per month within 10 weeks.
+
+## Budget
+
+**Hard ceiling: $200/month total** (API spend + any paid distribution + tooling).
+
+| Line item | Budget | Notes |
+|---|---|---|
+| Citation tracker (weekly, not daily) | $20/mo | 12 queries × 4 providers × 4 weeks ≈ 200 API calls/mo with web search. Weekly cadence is sufficient for trend detection at low content volume. |
+| Case-study benchmark (one-time, v1 only) | $80 one-time | 3–5 tasks × 2 frameworks × 5 runs × Claude Sonnet = ~50 LLM sessions. Full transcripts published. |
+| Docs index rebuild (MCP package prepublish) | <$5/mo | Bundled during npm publish. |
+| Pipeline (post-v1 only, if built) | $80/mo | If/when Phase 4 ships, use Sonnet for drafts + Haiku for validator/reviewer — keeps pipeline under $20/week for 3 posts. |
+| Newsletter sponsorships | **$0** | Out of budget. Deferred indefinitely unless budget grows. |
+| Paid ads | **$0** | Not in scope. |
+
+**Budget constraints rule out two original assumptions:**
+1. Statistical benchmark ($1,500–$10,000 for n≥20 × 4 LLMs × 4 frameworks) is impossible. Phase 2 Task 1 is rewritten as a "radical transparency case study" — qualitative, fewer runs, full transcripts published, no statistical claims. See Phase 2 Task 1.
+2. Newsletter sponsorships ($5–10k for Bytes/JS Weekly/TLDR) are impossible. Distribution is 100% organic: HN, GitHub, dev.to/Hashnode cross-posts, GitHub Discussions.
 
 ---
 
@@ -77,7 +126,7 @@ This strategy is not a departure from Vertz's principles — it is an extension 
 | Principle | How this strategy honors it |
 |---|---|
 | **1. If it builds, it works** | Every code snippet in every post is validated via `vtz test` before publish. No dead snippets. No "trust me, this runs." The pipeline refuses to publish code that doesn't compile. |
-| **2. One way to do things** | Content has one canonical home (`vertz.dev/blog`). One authoritative source per topic. Cross-posts always link back. No conflicting versions of the same guide. |
+| **2. One way to do things** | **Partial honesty:** Content has one canonical home (`vertz.dev/blog`), one authoritative source per topic, cross-posts always link back. Distribution is the one place ambiguity is explicitly accepted — different channels need different framings (HN title ≠ Reddit title ≠ X thread). We trade principle 2 strictness for audience fit on distribution only. Flagged in adversarial review as a violation; we're admitting it instead of denying it. |
 | **3. AI agents are first-class users** | LLMs are a primary audience for *content itself*, not just the framework. Docs, blog posts, and the MCP server are designed so an LLM can consume them in a single retrieval call and produce correct code. |
 | **4. Test what matters, nothing more** | Only 4 content formats (comparisons, gotchas, tutorials, opinions). Each has a template. No vanity content. No "Top 10" listicles. |
 | **5. If you can't test it, don't build it** | Every post with code includes runnable examples in `examples/` repo. Broken examples = post is retracted. |
@@ -354,14 +403,52 @@ Built on top of: Claude API directly (via `@anthropic-ai/sdk`), Vertz agents (`@
 - `vtz create` / scaffold invocations per week (if telemetry exists)
 - Inbound community/enterprise leads per week
 
-### Acceptance thresholds at 6 weeks
-- [ ] ≥1 test query returns Vertz citation in all 4 LLMs (ChatGPT, Claude, Perplexity, Gemini)
-- [ ] ≥10 long-tail queries ranking top 3 on Google
-- [ ] ≥20 third-party backlinks from DA 30+ sites
-- [ ] ≥15 blog posts published (3/week × 5 weeks after ignition)
-- [ ] ≥500 GitHub stars net gained
-- [ ] ≥1,000 weekly unique visitors to vertz.dev
-- [ ] Autonomous pipeline produces ≥3 posts/week for 2 consecutive weeks
+### Acceptance thresholds at 4 weeks (v1)
+- [ ] #2947 merged to main
+- [ ] `@vertz/docs-mcp` published to npm, installable via `npx @vertz/docs-mcp`
+- [ ] SSR `<head>` injection live — canonical + OG + JSON-LD on every blog post
+- [ ] IndexNow + Google Indexing API pinging on deploy
+- [ ] Case-study post published with full transcripts committed to `benchmarks/`
+- [ ] HN launch executed (rank irrelevant — execution + authenticity of discussion is the v1 bar)
+- [ ] Citation tracker baseline committed + daily alert cron running
+- [ ] ≥1 LLM citation observed for any query in the tracker (stretch goal — not guaranteed in 4 weeks)
+
+### Acceptance thresholds at 10 weeks (full scope)
+- [ ] ≥1 test query returns Vertz citation in ≥2 of 4 LLMs (ChatGPT, Claude, Perplexity, Gemini)
+- [ ] ≥10 long-tail queries ranking top 10 on Google (relaxed from top-3 per reviewer)
+- [ ] ≥10 third-party backlinks from DA 30+ sites
+- [ ] ≥8 blog posts published (not 15 — more honest cadence given single-owner constraint)
+- [ ] ≥300 GitHub stars net gained
+- [ ] ≥500 weekly unique visitors to vertz.dev
+- [ ] Autonomous pipeline producing ≥3 posts/week for 2 consecutive weeks (only if Phase 4 has shipped)
+
+---
+
+## Stop Conditions
+
+Every strategy needs a pre-committed failure mode — otherwise every result justifies continuation. These are the numbers that, if breached, trigger a mandatory pause and root-cause analysis. Named **before** execution starts so future-self can't move goalposts.
+
+### Stop 1 — Retrieval mechanism is dead
+- **Metric:** Citation tracker cells with Vertz mention (of 48 total: 12 queries × 4 providers, weekly run)
+- **Threshold:** 0 mentions for **4 consecutive weeks** after Phase 2 Task 1 (case study post) ships
+- **Action:** Pause all content work. 1-week root-cause analysis. If root cause is framework correctness (LLM generates wrong Vertz code), pause entire strategy and fix framework first.
+
+### Stop 2 — Authority isn't building
+- **Metric:** Unique sessions per week from LLM referrers (`chatgpt.com` + `claude.ai` + `perplexity.ai` + `gemini.google.com`)
+- **Threshold:** <10 sessions/week sustained through **week 8** (month 2)
+- **Action:** Revisit ranking hypothesis. Either content isn't surfacing or topics aren't drawing intent. Before shipping more content, audit what's been published vs. what's been indexed vs. what LLMs cite.
+
+### Stop 3 — Pipeline quality is drifting (only applies if Phase 4 ships)
+- **Metric:** % of autonomous-pipeline drafts rejected at human approval gate
+- **Threshold:** ≥50% rejection rate for **2 consecutive weeks**
+- **Action:** Pause pipeline. Run eval loop against golden set (Phase 5 Task 4). Tune prompts. Do not re-enable pipeline until eval scores return to baseline.
+
+### Stop 4 — Nuclear (strategy-level)
+- **Metric:** Qualified leads (enterprise contacts, contributor PRs, community signups) attributable to organic discovery
+- **Threshold:** 0 qualified leads in **12 consecutive weeks** despite green Stop 1 and Stop 2 metrics
+- **Action:** Strategy is not producing business outcomes. Pivot to a different channel (paid, outbound sales, community partnerships) or reposition entirely. Organic SEO/GEO is not the answer for this product at this stage.
+
+**All stop conditions must include the specific review date when breached.** Breaching a condition does NOT mean "obviously fail and abandon" — it means mandatory pause before next action. Breached conditions are written into `reviews/geo-seo-strategy/stop-log.md` with date + root-cause hypothesis + decision.
 
 ---
 
@@ -426,36 +513,62 @@ Built on top of: Claude API directly (via `@anthropic-ai/sdk`), Vertz agents (`@
 
 Each phase lives in `plans/geo-seo-strategy/phase-NN-<slug>.md` and is self-contained — another agent can pick up a phase without reading the main doc.
 
-| Phase | Slug | Duration | Outcome |
+### v1 (28-day window)
+
+| Phase | Slug | Duration | v1 Scope |
 |---|---|---|---|
-| **1** | `phase-01-foundation-infra.md` | Days 1–7 | MCP server live. IndexNow + Google Indexing API integrated. llms-full.txt + expanded JSON-LD + SSR head. Analytics (PostHog + Plausible). Citation tracker baseline. |
-| **2** | `phase-02-ignition-content.md` | Days 1–10 (parallel) | Benchmark post (flagship). 3 comparison posts. 30 long-tail landing pages. README rewrite with benchmark. Awesome-list submissions. |
-| **3** | `phase-03-distribution-blitz.md` | Days 8–14 | HN launch. Product Hunt launch. Reddit blitz. Newsletter sponsorships. Influencer outreach. Stack Overflow seeding. GitHub Discussions activation. |
-| **4** | `phase-04-autonomous-pipeline.md` | Days 10–21 | Multi-agent content pipeline end-to-end. 7 agents. Human approval gates. First autonomously-produced post published. |
-| **5** | `phase-05-measurement-iteration.md` | Days 14+ (ongoing) | Citation tracker daily cron. Weekly retro cadence. Dashboard for leading + lagging indicators. Pipeline tuning loop. |
+| **0** | `phase-00-prerequisites.md` | Days 1–3 | Merge #2947 (blog infra) to main. Everything else depends on this. |
+| **1** | `phase-01-foundation-infra.md` | Days 3–14 | MCP server live. SSR head injection. IndexNow. Citation tracker baseline. **Defer Task 4 (analytics) to post-v1.** |
+| **2** | `phase-02-ignition-content.md` | Days 7–21 | Task 1 only: case-study post (3–5 tasks, full transcripts, <$80 API). **Defer Tasks 2–5 to post-v1.** |
+| **3** | `phase-03-distribution-blitz.md` | Days 21–28 | Task 1 only: HN launch. **Defer Tasks 2–5 (PH, Reddit, sponsorships, outreach, SO/GH) to post-v1.** |
+| **5** | `phase-05-measurement-iteration.md` | Days 14+ | Task 1 only: citation tracker weekly cron + alerts. **Defer Tasks 2–6 to post-v1.** |
 
-Phases 1 and 2 run in parallel starting day 1. Phase 3 depends on both. Phase 4 depends on Phase 2 templates. Phase 5 starts after Phase 1 infrastructure lands.
+Phase 4 (autonomous pipeline) is **entirely deferred** from v1. Per adversarial review: templates need real post-performance data before automating; rushing this produces a pipeline that generates low-quality content under a human byline (manifesto violation M1).
+
+### Post-v1 (weeks 5–10)
+
+Remaining tasks from Phases 1–5 plus all of Phase 4. Ordered by what v1 data tells us works. Examples of likely ordering (to be confirmed at week 4 retro):
+
+1. Phase 2 comparison posts (informed by which case-study framings resonated)
+2. Phase 3 organic distribution (Reddit, GitHub Discussions, influencer outreach — no sponsorships per budget)
+3. Phase 1 Task 4 analytics (PostHog + Plausible)
+4. Phase 5 Tasks 2–6 (leading indicators, attribution, evals)
+5. Phase 4 autonomous pipeline (with AI-authorship byline disclosed — see Phase 4 revisions)
+6. Phase 2 Tasks 3–5 (30 long-tails, README rewrite, templates)
 
 ---
 
-## Definition of Done (overall feature)
+## Definition of Done (v1)
 
-- [ ] All 5 phases complete with their acceptance tests passing
-- [ ] 6-week acceptance thresholds met (see Success Metrics)
-- [ ] Retrospective written in `plans/post-implementation-reviews/geo-seo-strategy.md`
-- [ ] Autonomous pipeline running for 2 consecutive weeks without human-initiated intervention beyond approval gates
-- [ ] At least 1 LLM cites Vertz via web retrieval for a targeted query
-- [ ] Citation tracker + analytics dashboards handed off to a weekly review cadence
+- [ ] Phase 0 + v1-scope tasks of Phases 1, 2, 3, 5 complete with acceptance tests passing
+- [ ] 4-week v1 acceptance thresholds met (see Success Metrics)
+- [ ] Retrospective written in `plans/post-implementation-reviews/geo-seo-strategy-v1.md`
+- [ ] Citation tracker running weekly with committed baseline
+- [ ] Decision made on whether to proceed to post-v1 scope based on v1 data
+
+## Definition of Done (full scope, post-v1)
+
+- [ ] All phases (0–5) complete
+- [ ] 10-week acceptance thresholds met
+- [ ] At least 1 LLM cites Vertz via web retrieval for a targeted query (measured by citation tracker)
+- [ ] No stop condition breached without documented resolution
+- [ ] If Phase 4 shipped: pipeline posts carry visible `author: autonomous-pipeline (reviewed by Matheus)` byline (manifesto M1 compliance)
 
 ---
 
-## Open questions for review
+## Resolved questions (from v1 review)
 
-1. **Budget commitment.** Are we committing $5-10k for newsletter sponsorships in week 2-3, or running organic-only?
-2. **MCP server scope.** Does `@vertz/docs-mcp` serve only docs, or also live examples + playground queries? Broader = more powerful, narrower = faster to ship.
-3. **Who owns the human approval gates?** Matheus solo for now, or shared with josh/team?
-4. **Content pipeline tech choice.** Run on Vertz itself (dogfood) or standalone TS script? Dogfood has narrative value but adds coupling.
-5. **Launch ordering.** HN first (technical audience), Product Hunt first (wider but noisier), or same-day both?
-6. **Anthropic relationship.** Do we actively pursue co-marketing (blog post on anthropic.com, Claude Code scaffold option) or wait for organic traction to warrant the ask?
+These were open in v1; answered during adversarial review on 2026-04-22:
 
-These questions must be resolved before Phase 3 starts.
+1. **Budget commitment:** $200/month hard cap. No newsletter sponsorships. Organic only.
+2. **MCP server scope:** Docs + API reference + example links only. No playground queries in v1 (ship faster).
+3. **Approval gate ownership:** Matheus solo for v1. Revisit when Phase 4 ships.
+4. **Content pipeline tech choice:** Standalone TS script for v1. Dogfood on Vertz itself only if Phase 4 ships with a clear Vertz showcase narrative.
+5. **Launch ordering:** HN only in v1. Other channels deferred to post-v1.
+6. **Anthropic relationship:** Not pursued actively. Explore opportunistically if natural moments arise (e.g., MCP launch coincides with a Claude Code feature).
+
+## Still open (must decide before execution of relevant phase)
+
+- **Benchmark case-study scope:** 3 tasks or 5 tasks? (See Phase 2 Task 1.) Each task = ~$15 API + 1 day of work.
+- **Who reviews the case study methodology externally?** The adversarial reviewer recommended a respected non-Vertz engineer validates the task selection + transcripts. Candidates: Sebastian Markbåge, Jarred Sumner, Theo Browne, Daniel Ehrenberg. Decide + reach out before Phase 2 starts.
+- **Stop condition calibration:** Current thresholds are reviewer-proposed. Matheus should adjust based on his read of what's realistic before committing.

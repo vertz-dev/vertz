@@ -16,47 +16,76 @@ Everything here is written by a human (Matheus + Claude pair) — no autonomous 
 
 ## Tasks
 
-### Task 1: The flagship benchmark post ("The LLM Benchmark")
+### Task 1: The flagship case-study post ("Radical Transparency: 5 LLM Transcripts")
 
-**Why:** This is the single piece of content the entire strategy orbits around. It is the proof of the North Star claim: "My LLM nailed it on the first try." Without a real benchmark, the claim is marketing. With it, the claim is a data point LLMs cite forever.
+**Rewritten from v1 per adversarial review.** The original plan was a statistical benchmark ("89% vs 34%"). Three reviewers independently flagged this as adversarially fragile: n=5 too small, 1 LLM biases toward Anthropic, "if competitors ≥80% revise methodology" is p-hacking. Budget of $200/month also rules out a statistically defensible run ($1.5k–$10k minimum for n≥20 × 4 LLMs × 4 frameworks).
+
+The v2 approach is **"radical transparency case study"** instead of benchmark:
+- Qualitative, not statistical. No p-hacking attack surface.
+- Full transcripts published (the reader judges, not us).
+- Focus: 2 frameworks compared (Vertz + Next.js) — not 4. Smaller + deeper beats shallow + broad.
+- Smaller budget fits ceiling. Expected ~$80 one-time.
+- Manifesto-aligned: no over-claim, honest about scope ("this is anecdotal evidence with full transcripts, not a statistical benchmark").
+
+**Why this is stronger, not weaker:** full LLM transcripts are rare in framework marketing. The hook "Show HN: full transcripts of Claude building 5 apps in 2 frameworks" is unattackable — there's no methodology to dispute when readers can see every tool call, every retry, every error fix themselves.
 
 **Files:** (5)
-- `packages/landing/content/blog/2026-04-28-llm-framework-benchmark.mdx` (new) — the flagship post
-- `benchmarks/llm-codegen/README.md` (new) — public, reproducible benchmark repo section
-- `benchmarks/llm-codegen/prompts.ts` (new) — the 20 test prompts used
-- `benchmarks/llm-codegen/scorer.ts` (new) — automated grader: compiles code, runs smoke tests
-- `benchmarks/llm-codegen/results.json` (new) — run output, referenced by blog post
+- `packages/landing/content/blog/2026-05-12-claude-builds-5-apps-case-study.mdx` (new) — the case-study post
+- `benchmarks/case-study/README.md` (new) — repo section with task list, method, reproduction steps
+- `benchmarks/case-study/tasks.md` (new) — the 3–5 task specs (Matheus decides count at start of phase)
+- `benchmarks/case-study/transcripts/` (new dir) — full JSON transcripts from Claude tool-use sessions, committed raw
+- `benchmarks/case-study/summary.md` (new) — qualitative comparison per task, author annotations
 
 **What to implement:**
 
-The benchmark:
-- 20 realistic prompts: "build a tasks CRUD API with auth", "add a user settings page with validated form", "migrate DB schema to add soft-deletes", etc.
-- Run each prompt on 4 frameworks: Vertz, Next.js + Drizzle + tRPC, Remix + Prisma, NestJS + TypeORM
-- Run each prompt 5 times per framework (LLM nondeterminism requires n>1)
-- Scorer: (1) does generated code compile? (2) do tests pass? (3) are types correct? (4) how many LLM turns to green?
-- Same LLM (Claude Sonnet 4.6) for all frameworks — controls the prompt variable
-- Pass rate + avg turns + avg token cost per framework reported
+**The case study:**
+- 3–5 realistic app-building tasks (Matheus picks at start — examples: "tasks CRUD with auth", "user settings form with validation", "DB migration with rollback", "search with pagination", "file upload with image preview")
+- Each task run on 2 frameworks: Vertz and **one** comparison (Next.js + Drizzle + tRPC is the primary candidate — chosen because it is what Claude most often suggests today)
+- Each task run **5 times per framework** with Claude Sonnet 4.6 — 5 runs reveals LLM variability without pretending to statistical significance
+- Claude works agentically (tool-use loop with file edits + compiler feedback), not one-shot
+- Every session fully logged: tool calls, file edits, compiler errors, corrections
+- Transcripts committed raw as JSON — no curation, no cherry-picking
 
-The post:
-- Title: "We gave Claude 20 real tasks in 4 TypeScript frameworks. Here's what happened."
-- Hook: table in first 200 words. Numbers up front. No preamble.
-- Methodology section (transparent, reproducible)
-- Per-framework breakdown with example failure modes (screenshots of error fixes)
-- Vertz vs others: "89% vs 34%" or whatever the real number is — do not fabricate
-- Conclusion that does NOT read as marketing. Acknowledge where competitors win.
-- Link to `benchmarks/llm-codegen` repo section for full reproducibility
-- Author: Matheus Poleza (personal tone, first person)
+**Total sessions:** 3–5 tasks × 2 frameworks × 5 runs = **30–50 sessions**. At ~$1.50/session with tool-use, **~$45–$75 one-time**. Fits the budget.
+
+**The post (~1,800 words):**
+- Title (draft): "We published the full Claude transcripts of building 5 apps in Vertz vs Next.js"
+- Opening: 3 sentences. What we did, why transcripts > statistics, link to the repo.
+- Per-task section: one task, side-by-side summary of what happened, specific moments where frameworks diverged, 1–2 telling code diffs.
+- Honest acknowledgment: "This is anecdotal evidence with full transcripts, not a statistically significant benchmark. n=5 per cell. You can judge the transcripts yourself."
+- What we learned (honest): including tasks where Vertz lost or was slower.
+- How to reproduce: exact steps, prompts, commit hashes.
+- Author: Matheus Poleza, first person, personal voice (this is human-written, not pipeline).
+
+**Methodology pre-registration (required before running):**
+- `benchmarks/case-study/preregistration.md` committed to main 5–7 days **before** the first session
+- Contains: task list, prompts verbatim, framework versions, model version, success criteria per task, how transcripts will be published
+- Public gist link announced on X so critics can pre-comment on methodology before any data exists
+- If reviewers flag methodology flaws in preregistration window, revise before running (not after seeing results)
+
+**External review:**
+- Before publish: share draft + transcripts with 1 respected non-Vertz engineer for methodology sanity check
+- Candidates: Sebastian Markbåge, Jarred Sumner (Bun), Daniel Ehrenberg, or Shawn "swyx" Wang
+- Offer: free early MCP access / implementation pairing in exchange
+- Reviewer's feedback incorporated into the post's "limitations" section verbatim
 
 **Acceptance criteria:**
-- [ ] Benchmark actually run. Real numbers. No synthetic data.
-- [ ] If Vertz's pass rate is <60%, we do NOT publish — fix the framework first
-- [ ] If competitors' pass rate is ≥80%, we do NOT publish — methodology likely flawed, revise
-- [ ] Post is 1,500–2,500 words with 3 charts and 5 code comparisons
-- [ ] Cross-post ready: dev.to, Hashnode, Medium drafts prepared with canonical back
-- [ ] HN submission title drafted: "Show HN: Claude writes 89% correct TypeScript in Vertz, 34% in Next.js"
-- [ ] Reviewer agent (human or separate Claude instance) adversarially reviewed before publish
-- [ ] Post has runnable CodeSandbox link for one of the 20 prompts
-- [ ] `benchmarks/llm-codegen/` repo section has README with "how to reproduce this" — anyone can re-run
+- [ ] Preregistration committed to main and publicly announced ≥5 days before first run
+- [ ] 3–5 tasks actually run with 5 iterations each. Real transcripts. No synthetic data.
+- [ ] Transcripts committed raw — no editing, no "best of 5" selection
+- [ ] Summary post published regardless of outcome (even if Next.js wins tasks)
+- [ ] Post headline does NOT contain a statistic ("89%", "4x better", etc.) — only qualitative framing
+- [ ] Post has explicit "limitations" section acknowledging n=5 per cell, 2 frameworks not 4, 1 LLM not 4
+- [ ] Post has at least 1 section documenting where Vertz lost or performed worse
+- [ ] Cross-post drafts for dev.to, Hashnode prepared with canonical back
+- [ ] HN title drafted: "Show HN: Full Claude transcripts of building 5 apps in Vertz vs Next.js"
+- [ ] External reviewer's feedback incorporated
+- [ ] Total API spend ≤$80
+
+**Removed from v1 acceptance criteria (per adversarial review):**
+- ~~"If competitors ≥80% revise methodology"~~ — p-hacking. Replaced with: publish the result regardless.
+- ~~"3 charts and 5 code comparisons"~~ — chart counts are arbitrary. Replaced with: let the content breathe, don't perform rigor.
+- ~~"Author: Matheus Poleza, personal tone, first person"~~ — kept, since this IS written by Matheus (not pipeline). For pipeline-produced content in post-v1, author is `autonomous-pipeline (reviewed by Matheus)`.
 
 ---
 

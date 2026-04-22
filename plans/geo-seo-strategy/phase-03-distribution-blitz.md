@@ -1,10 +1,12 @@
-# Phase 3: Distribution Blitz
+# Phase 3: Distribution Launch
 
 ## Context
 
-Content without distribution is invisible. This phase takes the 7 ignition posts + MCP server from Phase 2 and weaponizes them across every channel that matters in 2 weeks. The goal is to generate enough third-party mentions, backlinks, and cached content that LLMs cannot avoid citing Vertz.
+Content without distribution is invisible. This phase takes the case-study post + MCP server from Phase 2 and brings them to the channels that matter. The goal is to generate enough third-party mentions and cached content that LLMs start citing Vertz over time.
 
 Most of this phase is one-shot launches (you only get one HN launch, one PH launch). Timing and preparation matter more than content volume.
+
+**v1 scope:** Task 1 (HN launch) only. Tasks 2–5 deferred to post-v1 per adversarial review (single-owner bandwidth + budget constraints).
 
 **Main design doc:** `plans/geo-seo-strategy.md`
 
@@ -192,10 +194,10 @@ Influencer outreach (personal message, not blast):
   - Offer: free pilot, early access, or on-call for a video/stream
 - **Follow-up**: 1 polite follow-up after 7 days. Then stop.
 
-Stack Overflow strategy:
-- **Week 1**: answer 5 questions per day on TS / full-stack / ORM topics. Each answer is genuinely helpful first; Vertz is mentioned only when it actually fits the question. No keyword stuffing.
-- **Tag creation**: once there are 5+ questions with "vertz" in body or title, request tag creation via mod. Need 150+ rep to create tag; if we don't have it yet, cultivate via answers first.
-- **Seed Q's**: ask 3 legitimate questions about Vertz edge cases from a secondary account — NOT from Matheus's main account. These create the foundation for the `[vertz]` tag.
+Stack Overflow strategy (revised per adversarial review — **no secondary-account seeding**, which was flagged as sockpuppeting):
+- **Week 1+**: answer 5 questions per day on TS / full-stack / ORM topics where Vertz is genuinely relevant. Each answer is genuinely helpful first; Vertz is mentioned only when it actually fits the question. No keyword stuffing.
+- **Tag creation — organic only**: if 5+ organic questions with "vertz" appear from real users, request tag creation via moderator. Need 150+ rep; cultivate via answers first.
+- **No seed questions from secondary accounts.** If `[vertz]` tag doesn't materialize organically within 60 days, that's a valid signal the community isn't there yet — revisit in post-v1. Do not astroturf the tag into existence.
 
 GitHub Discussions seeding:
 - Convert 20 genuine FAQ/gotcha items into Discussions on `vertz-dev/vertz` repo
@@ -207,8 +209,8 @@ GitHub Discussions seeding:
 **Acceptance criteria:**
 - [ ] Outreach messages sent to 7 named influencers with personalized content
 - [ ] ≥2 responses received (even if "maybe later") — response rate <30% means messages need work
-- [ ] 25 Stack Overflow answers posted over 5 days; ≥5 receive upvotes
-- [ ] `[vertz]` tag created on Stack Overflow OR cultivation plan documented if rep insufficient
+- [ ] 25 Stack Overflow answers posted over 5 days from Matheus's real account; ≥5 receive upvotes
+- [ ] No secondary-account seeding — if `[vertz]` tag doesn't emerge organically within 60 days, accept as signal
 - [ ] 20 GitHub Discussions published with self-answers
 - [ ] All discussions linked from relevant docs pages (bidirectional)
 
