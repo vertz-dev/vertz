@@ -84,3 +84,9 @@ native/target/
 # Claude Code
 .claude/worktrees/
 .mcp.json
+
+# Local phase review artifacts — per .claude/rules/local-phase-workflow.md
+# these are working docs during a feature branch, not permanent history.
+# The final PR description + retro in plans/post-implementation-reviews/
+# are the permanent record.
+reviews/
