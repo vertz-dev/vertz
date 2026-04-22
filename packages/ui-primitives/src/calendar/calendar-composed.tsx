@@ -255,11 +255,7 @@ function ComposedCalendarRoot({
 
   // Reactive state — compiler transforms `let` to signals
   let displayMonth = defaultMonthProp ?? now;
-  let value: Date | Date[] | { from: Date; to: Date } | null = (defaultValue ?? null) as
-    | Date
-    | Date[]
-    | { from: Date; to: Date }
-    | null;
+  let value: CalendarValue = (defaultValue ?? null) as CalendarValue;
 
   // Day headers (static — depends on weekStartsOn which is a prop, not reactive)
   const dayHeaders = Array.from({ length: 7 }, (_, i) => DAY_NAMES[(weekStartsOn + i) % 7] ?? '');
