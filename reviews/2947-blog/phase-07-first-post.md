@@ -5,7 +5,9 @@
 - **Reviewer:** (pending)
 - **Date:** 2026-04-22
 - **Issue:** #2947
+- **Follow-ups filed during verification:** #2948 (build-plugin hook), #2949 (screenshot viewport), #2952 (tsc stub), #2953 (@vertz/ui dist overwrite), #2954 (dep-rebundle overlay sticks forever — two compounding bugs), #2956 (ComposedList.Item + Link lose Context during signal re-render — breaks landing `/`)
 - **Plan:** `plans/2947-blog/phase-07-first-post.md`
+- **Dev-env verification (final):** Blog routes (`/blog`, `/blog/blog-runs-on-vertz`, `/blog/<unknown>`) render clean with zero error-overlay entries in `.vertz/dev/errors.json` — see `screenshots/phase-07/blog-list.png`, `first-post-desktop.png`, `post-not-found.png`. The landing home route (`/`) surfaces #2956 on `main` as well (confirmed via `git stash` + screenshot); not a regression of this PR.
 
 ## Changes
 
