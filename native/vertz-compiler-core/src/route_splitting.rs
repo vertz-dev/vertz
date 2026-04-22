@@ -22,15 +22,25 @@ const VERTZ_SOURCES: &[&str] = &["@vertz/ui", "@vertz/ui/router"];
 ///
 /// Detects `defineRoutes({...})` calls and rewrites component factories
 /// that reference static imports from local files into dynamic `import()` calls.
-pub fn transform_route_splitting(ms: &mut MagicString, program: &Program, source: &str) {
+///
+/// Returns a list of diagnostics for route component factories that looked
+/// lazifiable but couldn't be (e.g. HOC wraps, member-access, conditionals).
+/// See `W0780` for the diagnostic text.
+pub fn transform_route_splitting(
+    ms: &mut MagicString,
+    program: &Program,
+    source: &str,
+) -> Vec<crate::Diagnostic> {
+    let mut diagnostics: Vec<crate::Diagnostic> = Vec::new();
+
     // Fast bail-out: no defineRoutes call
     if !source.contains("defineRoutes(") {
-        return;
+        return diagnostics;
     }
 
     // Check that defineRoutes is imported from a Vertz package
     if !has_define_routes_import(program) {
-        return;
+        return diagnostics;
     }
 
     // Build import map: local symbol name → ImportInfo (only relative imports)
@@ -39,7 +49,7 @@ pub fn transform_route_splitting(ms: &mut MagicString, program: &Program, source
     // Find all defineRoutes() calls and collect route objects
     let define_routes_calls = find_define_routes_calls(program);
     if define_routes_calls.is_empty() {
-        return;
+        return diagnostics;
     }
 
     let mut lazified_symbols: HashSet<String> = HashSet::new();
@@ -47,17 +57,27 @@ pub fn transform_route_splitting(ms: &mut MagicString, program: &Program, source
     for call in &define_routes_calls {
         if let Some(arg) = call.arguments.first() {
             if let Expression::ObjectExpression(obj) = arg.to_expression() {
-                process_route_object(obj, ms, &import_map, program, source, &mut lazified_symbols);
+                process_route_object(
+                    obj,
+                    ms,
+                    &import_map,
+                    program,
+                    source,
+                    &mut lazified_symbols,
+                    &mut diagnostics,
+                );
             }
         }
     }
 
     if lazified_symbols.is_empty() {
-        return;
+        return diagnostics;
     }
 
     // Clean up static imports that are now unused
     cleanup_imports(ms, program, source, &import_map, &lazified_symbols);
+
+    diagnostics
 }
 
 /// Check if defineRoutes is imported from a Vertz package.
@@ -211,6 +231,7 @@ fn process_route_object(
     program: &Program,
     source: &str,
     lazified_symbols: &mut HashSet<String>,
+    diagnostics: &mut Vec<crate::Diagnostic>,
 ) {
     for prop in &obj.properties {
         let ObjectPropertyKind::ObjectProperty(property) = prop else {
@@ -238,6 +259,7 @@ fn process_route_object(
                     program,
                     source,
                     lazified_symbols,
+                    diagnostics,
                 );
             } else if prop_name.as_deref() == Some("children") {
                 // Recurse into children
@@ -249,6 +271,7 @@ fn process_route_object(
                         program,
                         source,
                         lazified_symbols,
+                        diagnostics,
                     );
                 }
             }
@@ -273,60 +296,38 @@ fn process_component_factory(
     program: &Program,
     source: &str,
     lazified_symbols: &mut HashSet<String>,
+    diagnostics: &mut Vec<crate::Diagnostic>,
 ) {
-    // Must be an arrow function
+    // Must be an arrow function. Other factory shapes (bare reference
+    // `component: Home`, block-body arrow) are deliberate opt-outs —
+    // no diagnostic.
     let Expression::ArrowFunctionExpression(arrow) = factory else {
         return;
     };
 
-    // Must be an expression body (not a block)
-    if arrow.expression {
-        // expression: true means it's an expression body
-    } else {
+    if !arrow.expression {
         return;
     }
 
-    // Get the single expression from the body
-    let body_expr = get_arrow_expression_body(arrow);
-    let Some(body_expr) = body_expr else {
+    let Some(body_expr) = get_arrow_expression_body(arrow) else {
         return;
     };
 
-    // Extract symbol name from the factory body
-    let (symbol_name, _args_text) = match body_expr {
-        Expression::CallExpression(call) => {
-            // () => X() or () => X(args)
-            match &call.callee {
-                Expression::Identifier(ident) => {
-                    let name = ident.name.as_str().to_string();
-                    (Some(name), String::new())
-                }
-                _ => {
-                    // Namespace import or member access — skip
-                    (None, String::new())
-                }
-            }
+    // Classify the factory body shape.
+    let classification = classify_factory_body(body_expr);
+
+    let symbol_name = match classification {
+        FactoryShape::BareIdentifierCall(name) | FactoryShape::JsxElement(name) => name,
+        FactoryShape::NonLazifiable(reason) => {
+            emit_route_splitting_warning(diagnostics, source, arrow.span.start, reason);
+            return;
         }
-        Expression::JSXElement(_jsx_elem) => {
-            // () => <X>...</X> — complex case, bail
-            (None, String::new())
-        }
-        _ => (None, String::new()),
+        FactoryShape::Unknown => return,
     };
 
-    // Handle JSX self-closing elements which show up differently in oxc
-    let symbol_name = if symbol_name.is_none() {
-        // Check if it's a JSX fragment or element
-        extract_jsx_symbol(body_expr)
-    } else {
-        symbol_name
-    };
-
-    let Some(symbol_name) = symbol_name else {
-        return;
-    };
-
-    // Look up in import map
+    // Look up in import map. If not found, the symbol is either a global
+    // or a non-relative import — both are legitimate non-lazifiable cases
+    // that don't warrant a diagnostic.
     let Some(import_info) = import_map.get(&symbol_name) else {
         return;
     };
@@ -352,6 +353,110 @@ fn process_component_factory(
     ms.overwrite(arrow.span.start, arrow.span.end, &lazy_code);
 
     lazified_symbols.insert(symbol_name);
+}
+
+/// Why a factory body couldn't be lazified.
+enum NonLazifiableReason {
+    HocWrap,
+    MemberAccess,
+    Conditional,
+}
+
+impl NonLazifiableReason {
+    fn describe(&self) -> &'static str {
+        match self {
+            NonLazifiableReason::HocWrap => {
+                "higher-order-component wrap (e.g. `withAuth(Page)`) can't be statically lazified"
+            }
+            NonLazifiableReason::MemberAccess => {
+                "member-access component (e.g. `X.Page`) can't be statically lazified"
+            }
+            NonLazifiableReason::Conditional => {
+                "conditional component (e.g. `cond ? A : B`) can't be statically lazified"
+            }
+        }
+    }
+}
+
+enum FactoryShape {
+    /// `() => Home()` — the single argument-free call of an identifier.
+    BareIdentifierCall(String),
+    /// `() => <Home />` — JSX element with an uppercase component name.
+    JsxElement(String),
+    /// The factory shape is intended as a route component but can't be
+    /// lazified; we emit a diagnostic so the developer knows the route is
+    /// shipping eagerly.
+    NonLazifiable(NonLazifiableReason),
+    /// Shape we don't recognise — stay silent (could be a legit edge case
+    /// like `() => null` fallback).
+    Unknown,
+}
+
+fn classify_factory_body(expr: &Expression) -> FactoryShape {
+    // Unwrap parentheses so `() => (Home)()` and `() => (<Home />)` behave
+    // like their unparenthesised counterparts.
+    if let Expression::ParenthesizedExpression(paren) = expr {
+        return classify_factory_body(&paren.expression);
+    }
+
+    match expr {
+        Expression::CallExpression(call) => classify_call_factory(call),
+        Expression::JSXElement(_) => match extract_jsx_symbol(expr) {
+            Some(name) => FactoryShape::JsxElement(name),
+            None => FactoryShape::Unknown,
+        },
+        Expression::ConditionalExpression(_) => {
+            FactoryShape::NonLazifiable(NonLazifiableReason::Conditional)
+        }
+        _ => FactoryShape::Unknown,
+    }
+}
+
+fn classify_call_factory(call: &CallExpression) -> FactoryShape {
+    // Unwrap parens around the callee: `() => (Home)()`.
+    let callee = unwrap_parens(&call.callee);
+
+    // An HOC wrap (`withAuth(Page)`) is a call with non-empty arguments.
+    // It was previously lazified as the HOC identifier with no args, which
+    // silently corrupted the route.
+    if !call.arguments.is_empty() {
+        return FactoryShape::NonLazifiable(NonLazifiableReason::HocWrap);
+    }
+
+    match callee {
+        Expression::Identifier(ident) => {
+            FactoryShape::BareIdentifierCall(ident.name.as_str().to_string())
+        }
+        _ if callee.as_member_expression().is_some() => {
+            FactoryShape::NonLazifiable(NonLazifiableReason::MemberAccess)
+        }
+        _ => FactoryShape::Unknown,
+    }
+}
+
+fn unwrap_parens<'a>(expr: &'a Expression<'a>) -> &'a Expression<'a> {
+    let mut current = expr;
+    while let Expression::ParenthesizedExpression(paren) = current {
+        current = &paren.expression;
+    }
+    current
+}
+
+fn emit_route_splitting_warning(
+    diagnostics: &mut Vec<crate::Diagnostic>,
+    source: &str,
+    offset: u32,
+    reason: NonLazifiableReason,
+) {
+    let (line, column) = crate::utils::offset_to_line_column(source, offset as usize);
+    diagnostics.push(crate::Diagnostic {
+        message: format!(
+            "warning[W0780]: defineRoutes component factory can't be code-split — {}. The route will ship eagerly. Rewrite as `() => Component()` to enable lazy loading.",
+            reason.describe()
+        ),
+        line: Some(line),
+        column: Some(column),
+    });
 }
 
 /// Get the expression body of an arrow function (when expression: true).
@@ -755,8 +860,18 @@ mod tests {
         let parser = Parser::new(&allocator, source, source_type);
         let parsed = parser.parse();
         let mut ms = crate::magic_string::MagicString::new(source);
-        transform_route_splitting(&mut ms, &parsed.program, source);
+        let _ = transform_route_splitting(&mut ms, &parsed.program, source);
         ms.to_string()
+    }
+
+    fn transform_collect(source: &str) -> (String, Vec<crate::Diagnostic>) {
+        let allocator = Allocator::default();
+        let source_type = SourceType::tsx();
+        let parser = Parser::new(&allocator, source, source_type);
+        let parsed = parser.parse();
+        let mut ms = crate::magic_string::MagicString::new(source);
+        let diagnostics = transform_route_splitting(&mut ms, &parsed.program, source);
+        (ms.to_string(), diagnostics)
     }
 
     // ── Fast bail-out paths ──────────────────────────────────────────
@@ -1705,6 +1820,202 @@ const routes = defineRoutes({
     }
 
     // ── Symbol used in export named with variable decl ───────────────
+
+    // ── BDD: component factory shape diagnostics (#2787) ─────────────
+    //
+    // Only bare-identifier component references get lazified. Any other
+    // shape used to be silently skipped, so a non-trivial app structure
+    // would ship routes eagerly without any warning. These scenarios
+    // verify lazification for the shapes we can handle (bare identifier,
+    // parenthesized bare identifier) and diagnostic emission for shapes
+    // we can't (member access, HOC wrap, conditional component).
+
+    // Given a bare identifier component factory
+    #[test]
+    fn given_bare_identifier_when_compiling_then_lazifies_with_no_diagnostic() {
+        let source = r#"import { defineRoutes } from "@vertz/ui";
+import Home from "./pages/Home";
+const routes = defineRoutes({
+  "/": { component: () => Home() },
+});"#;
+        let (result, diagnostics) = transform_collect(source);
+        assert!(
+            result.contains("import('./pages/Home')"),
+            "bare identifier should be lazified: {}",
+            result
+        );
+        assert!(
+            diagnostics.is_empty(),
+            "bare identifier should emit no diagnostic: {:?}",
+            diagnostics
+        );
+    }
+
+    // Given a parenthesized bare identifier
+    #[test]
+    fn given_parenthesized_identifier_when_compiling_then_lazifies_with_no_diagnostic() {
+        let source = r#"import { defineRoutes } from "@vertz/ui";
+import Home from "./pages/Home";
+const routes = defineRoutes({
+  "/": { component: () => (Home)() },
+});"#;
+        let (result, diagnostics) = transform_collect(source);
+        assert!(
+            result.contains("import('./pages/Home')"),
+            "parenthesized identifier should be lazified: {}",
+            result
+        );
+        assert!(
+            diagnostics.is_empty(),
+            "parenthesized identifier should emit no diagnostic: {:?}",
+            diagnostics
+        );
+    }
+
+    // Given a member-access component (X.Page)
+    #[test]
+    fn given_member_access_component_when_compiling_then_emits_diagnostic() {
+        let source = r#"import { defineRoutes } from "@vertz/ui";
+import * as Pages from "./pages";
+const routes = defineRoutes({
+  "/settings": { component: () => Pages.Settings() },
+});"#;
+        let (result, diagnostics) = transform_collect(source);
+        // Can't lazify member access today, factory stays eager.
+        assert!(
+            result.contains("Pages.Settings()"),
+            "member access should not be rewritten: {}",
+            result
+        );
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "member access should emit one diagnostic: {:?}",
+            diagnostics
+        );
+        let msg = &diagnostics[0].message;
+        assert!(
+            msg.contains("W0780") && msg.contains("defineRoutes"),
+            "diagnostic should reference the W0780 route-splitting code: {}",
+            msg
+        );
+    }
+
+    // Given an HOC-wrapped component
+    #[test]
+    fn given_hoc_wrap_component_when_compiling_then_emits_diagnostic() {
+        let source = r#"import { defineRoutes } from "@vertz/ui";
+import { withAuth } from "./hocs";
+import Page from "./pages/Page";
+const routes = defineRoutes({
+  "/": { component: () => withAuth(Page) },
+});"#;
+        let (result, diagnostics) = transform_collect(source);
+        // Must NOT lazify — a call with non-empty args is not a pure component
+        // reference. The previous behaviour rewrote `() => withAuth(Page)` to
+        // `() => m.withAuth()` (no args) which silently corrupted the route.
+        assert!(
+            !result.contains("import('./hocs')"),
+            "HOC wrap must not be lazified as the HOC identifier: {}",
+            result
+        );
+        assert!(
+            result.contains("withAuth(Page)"),
+            "HOC wrap factory must remain intact: {}",
+            result
+        );
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "HOC wrap should emit one diagnostic: {:?}",
+            diagnostics
+        );
+        assert!(
+            diagnostics[0].message.contains("W0780"),
+            "diagnostic should reference W0780: {}",
+            diagnostics[0].message
+        );
+    }
+
+    // Given a conditional component
+    #[test]
+    fn given_conditional_component_when_compiling_then_emits_diagnostic() {
+        let source = r#"import { defineRoutes } from "@vertz/ui";
+import Admin from "./pages/Admin";
+import Guest from "./pages/Guest";
+const flag = true;
+const routes = defineRoutes({
+  "/": { component: () => flag ? Admin() : Guest() },
+});"#;
+        let (result, diagnostics) = transform_collect(source);
+        assert!(
+            !result.contains("import('./pages/Admin')"),
+            "conditional should not lazify either branch: {}",
+            result
+        );
+        assert!(
+            !result.contains("import('./pages/Guest')"),
+            "conditional should not lazify either branch: {}",
+            result
+        );
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "conditional should emit one diagnostic: {:?}",
+            diagnostics
+        );
+        assert!(
+            diagnostics[0].message.contains("W0780"),
+            "diagnostic should reference W0780: {}",
+            diagnostics[0].message
+        );
+    }
+
+    // Diagnostic carries a source position at the factory arrow
+    #[test]
+    fn diagnostic_points_at_factory_arrow() {
+        let source = r#"import { defineRoutes } from "@vertz/ui";
+import * as Pages from "./pages";
+const routes = defineRoutes({
+  "/settings": { component: () => Pages.Settings() },
+});"#;
+        let (_, diagnostics) = transform_collect(source);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].line.is_some());
+        assert!(diagnostics[0].column.is_some());
+    }
+
+    // Non-arrow / block-body factories are deliberate opt-outs and should NOT
+    // emit a diagnostic (the developer is explicitly bypassing splitting).
+    #[test]
+    fn non_arrow_factory_emits_no_diagnostic() {
+        let source = r#"import { defineRoutes } from "@vertz/ui";
+import Home from "./pages/Home";
+const routes = defineRoutes({
+  "/": { component: Home },
+});"#;
+        let (_, diagnostics) = transform_collect(source);
+        assert!(
+            diagnostics.is_empty(),
+            "non-arrow factory is a deliberate opt-out, should emit no diagnostic: {:?}",
+            diagnostics
+        );
+    }
+
+    #[test]
+    fn block_body_arrow_factory_emits_no_diagnostic() {
+        let source = r#"import { defineRoutes } from "@vertz/ui";
+import Home from "./pages/Home";
+const routes = defineRoutes({
+  "/": { component: () => { return Home(); } },
+});"#;
+        let (_, diagnostics) = transform_collect(source);
+        assert!(
+            diagnostics.is_empty(),
+            "block-body arrow is a deliberate opt-out, should emit no diagnostic: {:?}",
+            diagnostics
+        );
+    }
 
     #[test]
     fn symbol_in_export_named_var_prevents_lazification() {
