@@ -55,4 +55,26 @@ describe('buildDocsIndex()', () => {
       });
     });
   });
+
+  describe('Given a docs directory whose examples/ subdir is also passed as examplesDir', () => {
+    describe('When buildDocsIndex runs', () => {
+      it('then files under examples/ are NOT in the docs index or guides list', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'docs-mcp-fixture-'));
+        await writeFile(join(root, 'guides.mdx'), `---\ntitle: Guides\n---\n\nbody`);
+        await mkdir(join(root, 'examples'));
+        await writeFile(
+          join(root, 'examples/task-manager.mdx'),
+          `---\ntitle: Task Manager\n---\n\nexample body`,
+        );
+
+        const result = await buildDocsIndex(root, {
+          examplesDir: join(root, 'examples'),
+        });
+
+        expect(result.index.docs.map((d) => d.id)).not.toContain('examples/task-manager');
+        expect(result.guides.map((g) => g.path)).not.toContain('examples/task-manager');
+        expect(result.examples['task-manager']).toBeTruthy();
+      });
+    });
+  });
 });

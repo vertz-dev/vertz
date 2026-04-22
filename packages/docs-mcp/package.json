@@ -9,8 +9,7 @@
     "directory": "packages/docs-mcp"
   },
   "files": [
-    "dist",
-    "src/docs-index.generated.json"
+    "dist"
   ],
   "type": "module",
   "sideEffects": false,
@@ -38,15 +37,17 @@
     "provenance": true
   },
   "scripts": {
-    "build": "bun run scripts/build-index.ts && vtzx vertz-build",
+    "build": "vtzx vertz-build && bun run scripts/build-index.ts",
     "build:index": "bun run scripts/build-index.ts",
+    "prepack": "bun run build",
     "test": "vtz test",
     "test:watch": "vtz test --watch",
     "test:integration": "bun test ./src/__tests__/server.local.ts",
     "typecheck": "tsgo --noEmit -p tsconfig.typecheck.json"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.3.1",

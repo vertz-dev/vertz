@@ -1,4 +1,6 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,7 +11,8 @@ import { buildIndex } from '../search';
 import type { DocsBundle } from '../tools';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const cliPath = resolve(here, '..', 'cli.ts');
+const cliSourcePath = resolve(here, '..', 'cli.ts');
+const distCliPath = resolve(here, '..', '..', 'dist', 'cli.js');
 
 const fixtureBundle: DocsBundle = {
   index: buildIndex([
@@ -49,16 +52,24 @@ function parseToolText<T>(result: ToolTextResult): T {
   return JSON.parse(text as string) as T;
 }
 
+const createdTmpDirs: string[] = [];
+
+async function makeFixtureIndexPath(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'docs-mcp-itest-'));
+  createdTmpDirs.push(dir);
+  const indexPath = join(dir, 'docs-index.generated.json');
+  await writeFile(indexPath, JSON.stringify(fixtureBundle), 'utf8');
+  return indexPath;
+}
+
 let client: Client;
 
 beforeAll(async () => {
-  const tmpDir = await mkdtemp(join(tmpdir(), 'docs-mcp-itest-'));
-  const indexPath = join(tmpDir, 'docs-index.generated.json');
-  await writeFile(indexPath, JSON.stringify(fixtureBundle), 'utf8');
+  const indexPath = await makeFixtureIndexPath();
 
   const transport = new StdioClientTransport({
     command: 'bun',
-    args: [cliPath],
+    args: [cliSourcePath],
     env: {
       ...process.env,
       VERTZ_DOCS_INDEX_PATH: indexPath,
@@ -71,6 +82,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (client) await client.close();
+  for (const dir of createdTmpDirs) {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 describe('Feature: @vertz/docs-mcp spawn integration', () => {
@@ -139,6 +153,107 @@ describe('Feature: @vertz/docs-mcp spawn integration', () => {
         const data = parseToolText<{ found: boolean; source: string }>(raw as ToolTextResult);
         expect(data.found).toBe(true);
         expect(data.source).toContain('task manager');
+      });
+    });
+  });
+});
+
+const skipBuiltCli = !existsSync(distCliPath);
+const describeBuilt = skipBuiltCli ? describe.skip : describe;
+
+describeBuilt('Feature: built dist/cli.js with bundled index (regression for B1)', () => {
+  describe('Given dist/ contains both cli.js and docs-index.generated.json', () => {
+    describe('When spawned without VERTZ_DOCS_INDEX_PATH', () => {
+      it('then connects and returns a non-empty tools list', async () => {
+        const cleanEnv = { ...process.env };
+        delete cleanEnv['VERTZ_DOCS_INDEX_PATH'];
+
+        const transport = new StdioClientTransport({
+          command: 'node',
+          args: [distCliPath],
+          env: cleanEnv as Record<string, string>,
+        });
+        const builtClient = new Client({
+          name: 'docs-mcp-built',
+          version: '0.0.0',
+        });
+        try {
+          await builtClient.connect(transport);
+          const tools = await builtClient.listTools();
+          expect(tools.tools.length).toBeGreaterThan(0);
+          expect(tools.tools.map((t) => t.name)).toContain('search_docs');
+        } finally {
+          await builtClient.close();
+        }
+      }, 15000);
+    });
+  });
+});
+
+describe('Feature: @vertz/docs-mcp surfaces actionable errors (S2)', () => {
+  describe('Given VERTZ_DOCS_INDEX_PATH points to a non-existent file', () => {
+    describe('When the CLI runs', () => {
+      it('then prints a hint pointing at reinstall / VERTZ_DOCS_INDEX_PATH and exits 1', () => {
+        const result = spawnSync('bun', [cliSourcePath], {
+          env: {
+            ...process.env,
+            VERTZ_DOCS_INDEX_PATH: '/nonexistent/path.json',
+          } as Record<string, string>,
+          timeout: 5000,
+          encoding: 'utf8',
+        });
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toMatch(/docs index/i);
+        expect(result.stderr).toMatch(/VERTZ_DOCS_INDEX_PATH/);
+        expect(result.stderr).not.toMatch(/^\s*at\s/m);
+      });
+    });
+  });
+
+  describe('Given VERTZ_DOCS_INDEX_PATH points to a malformed JSON file', () => {
+    describe('When the CLI runs', () => {
+      it('then prints a malformed-index hint and exits 1', async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'docs-mcp-corrupt-'));
+        createdTmpDirs.push(dir);
+        const bogusPath = join(dir, 'corrupt.json');
+        await writeFile(bogusPath, 'not-json{', 'utf8');
+
+        const result = spawnSync('bun', [cliSourcePath], {
+          env: {
+            ...process.env,
+            VERTZ_DOCS_INDEX_PATH: bogusPath,
+          } as Record<string, string>,
+          timeout: 5000,
+          encoding: 'utf8',
+        });
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toMatch(/malformed|invalid/i);
+        expect(result.stderr).not.toMatch(/^\s*at\s/m);
+      });
+    });
+  });
+
+  describe('Given VERTZ_DOCS_INDEX_PATH points to a JSON file with the wrong shape', () => {
+    describe('When the CLI runs', () => {
+      it('then prints a shape-mismatch hint and exits 1', async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'docs-mcp-shape-'));
+        createdTmpDirs.push(dir);
+        const bogusPath = join(dir, 'wrong-shape.json');
+        await writeFile(bogusPath, JSON.stringify({ foo: 'bar' }), 'utf8');
+
+        const result = spawnSync('bun', [cliSourcePath], {
+          env: {
+            ...process.env,
+            VERTZ_DOCS_INDEX_PATH: bogusPath,
+          } as Record<string, string>,
+          timeout: 5000,
+          encoding: 'utf8',
+        });
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toMatch(/shape|invalid|missing/i);
       });
     });
   });

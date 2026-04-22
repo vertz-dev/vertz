@@ -49,13 +49,13 @@ describe('searchDocs()', () => {
     });
   });
 
-  describe('Given a bundle and an explicit limit', () => {
-    it('respects the limit', () => {
+  describe('Given a bundle of two matching docs and limit=1', () => {
+    it('returns exactly one result', () => {
       const bundle = makeBundle();
 
-      const result = searchDocs(bundle, { query: 'd', limit: 1 });
+      const result = searchDocs(bundle, { query: 'service entity', limit: 1 });
 
-      expect(result.results.length).toBeLessThanOrEqual(1);
+      expect(result.results.length).toBe(1);
     });
   });
 });

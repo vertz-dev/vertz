@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildIndex, type DocsIndex } from '../src/search';
@@ -52,12 +52,17 @@ function parseFrontmatter(source: string): {
   return { data, body: source.slice(match[0].length) };
 }
 
-async function* walkMdx(dir: string, root: string): AsyncGenerator<string> {
+async function* walkMdx(
+  dir: string,
+  root: string,
+  excludeDirs: ReadonlySet<string>,
+): AsyncGenerator<string> {
   const entries = await readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
-      yield* walkMdx(full, root);
+      if (excludeDirs.has(full)) continue;
+      yield* walkMdx(full, root, excludeDirs);
     } else if (entry.isFile() && entry.name.endsWith('.mdx')) {
       yield relative(root, full);
     }
@@ -71,9 +76,9 @@ function pathToId(relPath: string): string {
     .join('/');
 }
 
-async function readDocs(root: string): Promise<ParsedDoc[]> {
+async function readDocs(root: string, excludeDirs: ReadonlySet<string>): Promise<ParsedDoc[]> {
   const docs: ParsedDoc[] = [];
-  for await (const relPath of walkMdx(root, root)) {
+  for await (const relPath of walkMdx(root, root, excludeDirs)) {
     const source = await readFile(join(root, relPath), 'utf8');
     const { data, body } = parseFrontmatter(source);
     const id = pathToId(relPath);
@@ -110,7 +115,9 @@ export async function buildDocsIndex(
   docsRoot: string,
   options: { examplesDir?: string } = {},
 ): Promise<BuildResult> {
-  const docs = await readDocs(docsRoot);
+  const excludeDirs = new Set<string>();
+  if (options.examplesDir) excludeDirs.add(resolve(options.examplesDir));
+  const docs = await readDocs(docsRoot, excludeDirs);
 
   const sources = docs.map((d) => ({
     id: d.path,
@@ -139,8 +146,10 @@ async function main(): Promise<void> {
   const here = dirname(fileURLToPath(import.meta.url));
   const docsRoot = resolve(here, '../../mint-docs');
   const examplesDir = resolve(docsRoot, 'examples');
-  const outFile = resolve(here, '../src/docs-index.generated.json');
+  const distDir = resolve(here, '../dist');
+  const outFile = resolve(distDir, 'docs-index.generated.json');
 
+  await mkdir(distDir, { recursive: true });
   const result = await buildDocsIndex(docsRoot, { examplesDir });
   await writeFile(outFile, `${JSON.stringify(result)}\n`, 'utf8');
   console.log(
