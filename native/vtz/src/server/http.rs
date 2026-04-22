@@ -3,9 +3,7 @@ use crate::compiler::pipeline::CompilationPipeline;
 use crate::config::ServerConfig;
 use crate::deps::linked::{discover_linked_packages, WatchTarget};
 use crate::errors::broadcaster::ErrorBroadcaster;
-use crate::errors::categories::{
-    build_compile_error, extract_snippet, refine_error_line, DevError, ErrorCategory,
-};
+use crate::errors::categories::{extract_snippet, refine_error_line, DevError};
 use crate::hmr::recovery::RestartTriggers;
 use crate::hmr::websocket::HmrHub;
 use crate::runtime::persistent_isolate::{
@@ -1697,151 +1695,14 @@ pub async fn start_server_with_lifecycle(
                                 }
 
                                 for change in &changes {
-                                    let change_msg = format!("File changed: {}", change.path.display());
-                                    eprintln!("[Server] {}", change_msg);
-                                    // Emit file_change event to MCP LLM clients
-                                    // Never leak absolute paths — use file_name() as last resort
-                                    let relative_path = change.path
-                                        .strip_prefix(&root_dir)
-                                        .map(|p| p.to_string_lossy().to_string())
-                                        .unwrap_or_else(|_| {
-                                            change.path.file_name()
-                                                .map(|n| n.to_string_lossy().to_string())
-                                                .unwrap_or_else(|| "<unknown>".to_string())
-                                        });
-                                    let kind_str = match change.kind {
-                                        crate::watcher::file_watcher::FileChangeKind::Create => "create",
-                                        crate::watcher::file_watcher::FileChangeKind::Modify => "modify",
-                                        crate::watcher::file_watcher::FileChangeKind::Remove => "delete",
-                                    };
-                                    watcher_state.audit_log.record(
-                                        crate::server::audit_log::AuditEvent::file_change(
-                                            &relative_path,
-                                            kind_str,
-                                        ),
-                                    );
-                                    watcher_state.mcp_event_hub.broadcast(
-                                        mcp_events::McpEvent::FileChange {
-                                            timestamp: mcp_events::iso_timestamp(),
-                                            data: mcp_events::FileChangeData {
-                                                path: relative_path,
-                                                kind: kind_str.to_string(),
-                                            },
-                                        },
-                                    );
-
-                                    // Check for config/dependency changes
-                                    if restart_triggers.is_restart_trigger(&change.path) {
-                                        eprintln!(
-                                            "[Server] Config/dependency change detected: {}",
-                                            change.path.display()
-                                        );
-                                        // Broadcast full reload to clients
-                                        watcher_state.hmr_hub.broadcast(
-                                            crate::hmr::protocol::HmrMessage::FullReload {
-                                                reason: format!(
-                                                    "Config file changed: {}",
-                                                    change.path.file_name()
-                                                        .unwrap_or_default()
-                                                        .to_string_lossy()
-                                                ),
-                                            },
-                                        ).await;
-                                        // Clear compilation cache for full rebuild
-                                        watcher_state.pipeline.cache().clear();
-                                        continue;
-                                    }
-
-                                    // Record the file change timestamp so the client
-                                    // error handler can reject stale reports.
-                                    if let Ok(mut ts) = watcher_state.last_file_change.lock() {
-                                        *ts = Some(std::time::Instant::now());
-                                    }
-
-                                    // Clear any previous errors for this file
-                                    let file_str = change.path.to_string_lossy().to_string();
-                                    watcher_state.error_broadcaster
-                                        .clear_file(ErrorCategory::Build, &file_str)
-                                        .await;
-                                    // Also clear resolve errors — a changed import may
-                                    // now point to a valid module.
-                                    watcher_state.error_broadcaster
-                                        .clear_category(ErrorCategory::Resolve)
-                                        .await;
-                                    // Also clear SSR errors — a fixed source file means SSR
-                                    // will succeed on next render.
-                                    watcher_state.error_broadcaster
-                                        .clear_category(ErrorCategory::Ssr)
-                                        .await;
-                                    // Also clear runtime errors — the previous client-side
-                                    // errors may no longer apply after a code change.
-                                    watcher_state.error_broadcaster
-                                        .clear_category(ErrorCategory::Runtime)
-                                        .await;
-
-                                    // For delete events: skip compilation and import-graph
-                                    // rewriting — the file is gone. process_file_change still
-                                    // cleans up the graph entry and invalidates dependents.
-                                    let is_remove = matches!(
-                                        change.kind,
-                                        crate::watcher::file_watcher::FileChangeKind::Remove,
-                                    );
-
-                                    if !is_remove {
-                                        // Attempt recompilation for error recovery
-                                        let compile_result = watcher_state.pipeline
-                                            .compile_for_browser(&change.path);
-
-                                        // Report any structured compilation diagnostics
-                                        if !compile_result.errors.is_empty() {
-                                            let source = std::fs::read_to_string(&change.path)
-                                                .unwrap_or_default();
-                                            if let Some(error) = build_compile_error(
-                                                &compile_result.errors,
-                                                &file_str,
-                                                &source,
-                                            ) {
-                                                watcher_state.error_broadcaster
-                                                    .report_error(error)
-                                                    .await;
-                                            }
-
-                                            continue;
-                                        }
-
-                                        // Update module graph with this file's imports
-                                        // so transitive dependents are invalidated correctly.
-                                        let source = std::fs::read_to_string(&change.path)
-                                            .unwrap_or_default();
-                                        if !source.is_empty() {
-                                            let deps = crate::deps::scanner::scan_local_dependencies(
-                                                &source,
-                                                &change.path,
-                                            );
-                                            if let Ok(mut graph) = watcher_state.module_graph.write() {
-                                                graph.update_module(&change.path, deps);
-                                            }
-                                        }
-                                    }
-
-                                    // Process the change — invalidates cache, computes dependents,
-                                    // and for Remove events also cleans the graph.
-                                    let result = watcher::process_file_change(
+                                    crate::server::file_change_handler::handle_file_change(
                                         change,
-                                        watcher_state.pipeline.cache(),
-                                        &watcher_state.module_graph,
+                                        &watcher_state,
                                         &entry_file,
-                                    );
-
-                                    // Use plugin's HMR strategy to decide what action to take
-                                    let action = watcher_state.plugin.hmr_strategy(&result);
-                                    if !matches!(action, crate::plugin::HmrAction::Handled) {
-                                        let message = crate::plugin::hmr_action_to_message(
-                                            &action,
-                                            &root_dir,
-                                        );
-                                        watcher_state.hmr_hub.broadcast(message).await;
-                                    }
+                                        &root_dir,
+                                        &restart_triggers,
+                                    )
+                                    .await;
                                 }
                             }
                             // Channel closed (shutdown) and no pending changes — exit.
