@@ -372,55 +372,92 @@ impl CompilationPipeline {
 /// Fix wrong API names emitted by the compiler.
 ///
 /// The vertz-compiler-core emits `effect` but the actual @vertz/ui API is `domEffect`.
-/// This replaces the import name and all call sites.
+/// This replaces the standalone identifier `effect` everywhere in code — imports and
+/// call sites alike — while skipping string literals (`'`, `"`, `` ` ``) and comments
+/// (`//`, `/* */`) so rewrites never leak into string/comment content. (See #2801.)
+///
+/// Assumption: this only runs on compiler-emitted JS, which never contains a
+/// user-authored `effect` binding nor regex literals like `/effect\(/`. Interpolated
+/// expressions inside template literals (`${effect()}`) are therefore NOT rewritten —
+/// the entire template is treated as a skip region.
 fn fix_compiler_api_names(code: &str) -> String {
-    // Only fix if the code imports `effect` from @vertz/ui (compiler-added)
-    // and doesn't actually define its own `effect`
     if !code.contains("effect") {
         return code.to_string();
     }
 
-    // Replace ` effect` with ` domEffect` in import specifiers from @vertz/ui
-    // and replace `effect(` call sites with `domEffect(`
-    let mut result = code.to_string();
-
-    // Fix import: `import { ..., effect, ... } from '@vertz/ui'`
-    // We need to be careful to only replace `effect` as a standalone name, not as part of other words
-    // Since this runs before import rewriting, the specifier is still `@vertz/ui`
-    // But it may also run after — check both forms
-
-    // Replace standalone `effect` in import named imports (between { and })
-    // Simple approach: replace ` effect,` ` effect }` and `{ effect,` `{ effect }`
-    result = result.replace(", effect,", ", domEffect,");
-    result = result.replace(", effect }", ", domEffect }");
-    result = result.replace("{ effect,", "{ domEffect,");
-    result = result.replace("{ effect }", "{ domEffect }");
-    result = result.replace(", effect\n", ", domEffect\n");
-
-    // Replace call sites: `effect(` → `domEffect(`
-    // Be careful not to replace `domEffect(` or `lifecycleEffect(`
-    let effect_call = "effect(";
-    let mut fixed = String::with_capacity(result.len());
-    let chars: Vec<char> = result.chars().collect();
-    let effect_chars: Vec<char> = effect_call.chars().collect();
-    let len = chars.len();
-    let elen = effect_chars.len();
+    let bytes = code.as_bytes();
+    let len = bytes.len();
+    let mut result = String::with_capacity(len);
     let mut i = 0;
+    let mut copy_start = 0;
 
-    while i < len {
-        if i + elen <= len
-            && chars[i..i + elen] == effect_chars[..]
-            && (i == 0 || (!chars[i - 1].is_alphanumeric() && chars[i - 1] != '_'))
-        {
-            fixed.push_str("domEffect(");
-            i += elen;
-        } else {
-            fixed.push(chars[i]);
-            i += 1;
-        }
+    fn is_ident_byte(b: u8) -> bool {
+        b.is_ascii_alphanumeric() || b == b'_' || b == b'$'
     }
 
-    fixed
+    while i < len {
+        let b = bytes[i];
+
+        // Line comment: // ... \n
+        if b == b'/' && i + 1 < len && bytes[i + 1] == b'/' {
+            i += 2;
+            while i < len && bytes[i] != b'\n' {
+                i += 1;
+            }
+            continue;
+        }
+
+        // Block comment: /* ... */
+        if b == b'/' && i + 1 < len && bytes[i + 1] == b'*' {
+            i += 2;
+            while i + 1 < len && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
+                i += 1;
+            }
+            if i + 1 < len {
+                i += 2;
+            } else {
+                i = len;
+            }
+            continue;
+        }
+
+        // String / template literal
+        if b == b'\'' || b == b'"' || b == b'`' {
+            let quote = b;
+            i += 1;
+            while i < len {
+                let c = bytes[i];
+                if c == b'\\' && i + 1 < len {
+                    i += 2;
+                    continue;
+                }
+                if c == quote {
+                    i += 1;
+                    break;
+                }
+                i += 1;
+            }
+            continue;
+        }
+
+        // Match standalone identifier `effect` and rewrite to `domEffect`.
+        if b == b'e' && i + 6 <= len && &bytes[i..i + 6] == b"effect" {
+            let prev_is_ident = i > 0 && is_ident_byte(bytes[i - 1]);
+            let next_is_ident = i + 6 < len && is_ident_byte(bytes[i + 6]);
+            if !prev_is_ident && !next_is_ident {
+                result.push_str(&code[copy_start..i]);
+                result.push_str("domEffect");
+                i += 6;
+                copy_start = i;
+                continue;
+            }
+        }
+
+        i += 1;
+    }
+
+    result.push_str(&code[copy_start..]);
+    result
 }
 
 /// Internal API names that belong in `@vertz/ui/internals`, not `@vertz/ui`.
@@ -2123,6 +2160,75 @@ export function App() {
         let code = "import { signal, effect\n} from '@vertz/ui';";
         let result = fix_compiler_api_names(code);
         assert!(result.contains("domEffect\n"));
+    }
+
+    #[test]
+    fn test_fix_api_names_does_not_rewrite_inside_single_quoted_string() {
+        // Regression for #2801 — `effect(` inside a string literal must stay intact.
+        let code = "it('flags effect() call', () => {});";
+        let result = fix_compiler_api_names(code);
+        assert!(
+            result.contains("'flags effect() call'"),
+            "string literal content must not be rewritten; got: {result}",
+        );
+        assert!(!result.contains("domEffect"));
+    }
+
+    #[test]
+    fn test_fix_api_names_does_not_rewrite_inside_double_quoted_string() {
+        let code = r#"const label = "calls effect() internally";"#;
+        let result = fix_compiler_api_names(code);
+        assert!(result.contains(r#""calls effect() internally""#));
+        assert!(!result.contains("domEffect"));
+    }
+
+    #[test]
+    fn test_fix_api_names_does_not_rewrite_inside_template_literal() {
+        let code = "const msg = `run effect( here)`;";
+        let result = fix_compiler_api_names(code);
+        assert!(result.contains("`run effect( here)`"));
+        assert!(!result.contains("domEffect"));
+    }
+
+    #[test]
+    fn test_fix_api_names_does_not_rewrite_inside_line_comment() {
+        let code = "// call effect() here\nconst x = 1;";
+        let result = fix_compiler_api_names(code);
+        assert!(result.contains("// call effect() here"));
+        assert!(!result.contains("domEffect"));
+    }
+
+    #[test]
+    fn test_fix_api_names_does_not_rewrite_inside_block_comment() {
+        let code = "/* effect( */ const x = 1;";
+        let result = fix_compiler_api_names(code);
+        assert!(result.contains("/* effect( */"));
+        assert!(!result.contains("domEffect"));
+    }
+
+    #[test]
+    fn test_fix_api_names_rewrites_call_and_preserves_string_in_same_file() {
+        let code = "import { effect } from '@vertz/ui';\n\
+                    effect(() => {});\n\
+                    it('flags effect() call', () => {});";
+        let result = fix_compiler_api_names(code);
+        // Import rewritten
+        assert!(result.contains("{ domEffect }"));
+        // Call site rewritten
+        assert!(result.contains("domEffect(() => {});"));
+        // String content preserved
+        assert!(result.contains("'flags effect() call'"));
+    }
+
+    #[test]
+    fn test_fix_api_names_handles_escaped_quote_inside_string() {
+        // The closing quote is escaped, so the string continues.
+        let code = r#"const s = 'can\'t call effect() here'; effect();"#;
+        let result = fix_compiler_api_names(code);
+        // Inside the string — preserved
+        assert!(result.contains(r#"'can\'t call effect() here'"#));
+        // Outside the string — rewritten
+        assert!(result.contains("domEffect();"));
     }
 
     // ── fix_internals_imports ───────────────────────────────────────
