@@ -12,7 +12,10 @@ function childrenToString(children: unknown): string {
   if (Array.isArray(children)) return children.map(childrenToString).join('');
   if (typeof children === 'string') return children;
   if (typeof children === 'number') return String(children);
-  return String(children);
+  if (typeof children === 'object' && children !== null && '__html' in children) {
+    return String((children as { __html: string }).__html);
+  }
+  return '';
 }
 
 function escapeHtml(s: string): string {

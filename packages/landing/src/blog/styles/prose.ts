@@ -18,7 +18,7 @@ export const prose = css({
     color: token.color.gray[200],
     textWrap: 'pretty',
 
-    '& > *': { maxWidth: '640px', marginInline: 'auto' },
+    '& > *:not(pre):not(.table-scroll)': { maxWidth: '640px', marginInline: 'auto' },
 
     '& h2': {
       fontFamily: "'DM Sans', 'DM Sans Fallback', sans-serif",
@@ -95,7 +95,6 @@ export const prose = css({
       textDecorationColor: token.color.gray[200],
     },
     '& pre': {
-      // Phase 2 Task 5 extends this; here we just guarantee horizontal scroll.
       overflowX: 'auto',
       maxWidth: '100%',
       borderRadius: token.radius.md,
@@ -104,6 +103,16 @@ export const prose = css({
       fontSize: '14px',
       lineHeight: '1.6',
       fontFamily: "'JetBrains Mono', 'JetBrains Mono Fallback', monospace",
+      // Desktop breakout: extend 80px past each side of the 640px body column
+      // so long code lines don't require horizontal scrolling. Uses explicit
+      // `width: calc(100% + 160px)` + `maxWidth: none` so the breakout wins
+      // over the base `maxWidth: 100%` regardless of css() emit order.
+      '@media (min-width: 1024px)': {
+        marginLeft: '-80px',
+        marginRight: '-80px',
+        width: 'calc(100% + 160px)',
+        maxWidth: 'none',
+      },
     },
     '& pre code': { background: 'transparent', padding: 0 },
     // Heading anchor links — fade in on hover of the heading.

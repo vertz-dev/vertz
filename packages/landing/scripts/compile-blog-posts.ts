@@ -222,19 +222,23 @@ export async function compileMdxSourceToHtml(source: string): Promise<string> {
 
   const { compile } = await import('@mdx-js/mdx');
   const rehypeShiki = (await import('@shikijs/rehype')).default;
+  const remarkGfm = (await import('remark-gfm')).default;
   const highlighter = await getHighlighter();
 
   // unified's PluggableList typing is very loose; use a local alias rather than
   // a double-cast so oxlint/no-double-cast stays happy.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const plugins: any[] = [
+  const rehypePlugins: any[] = [
     [rehypeShiki, { highlighter, themes: { dark: 'vitesse-dark' }, defaultColor: 'dark' }],
   ];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const remarkPlugins: any[] = [remarkGfm];
 
   const compiled = await compile(body, {
     outputFormat: 'function-body',
     development: false,
-    rehypePlugins: plugins,
+    remarkPlugins,
+    rehypePlugins,
   });
 
   // eslint-disable-next-line @typescript-eslint/no-implied-eval
