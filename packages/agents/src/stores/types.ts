@@ -37,8 +37,15 @@ export interface AgentStore {
   /** Load all messages for a session, ordered by sequence. */
   loadMessages(sessionId: string): Promise<Message[]>;
 
-  /** Append messages to a session. Assigns seq values starting from the current max + 1. */
-  appendMessages(sessionId: string, messages: Message[]): Promise<void>;
+  /**
+   * Append messages to a session. Assigns seq values starting from the current max + 1.
+   *
+   * `session` is passed so stores can denormalize `userId`/`tenantId` onto the message rows,
+   * which is what makes `rules.where({ userId: rules.user.id })` work on the `Message` entity
+   * in the entity-bridge integration (#2847). Callers already have a session in scope here
+   * (the atomic variant `appendMessagesAtomic` has always had this parameter).
+   */
+  appendMessages(sessionId: string, messages: Message[], session: AgentSession): Promise<void>;
 
   /** Delete the oldest messages for a session, keeping only the most recent `keepCount`. */
   pruneMessages(sessionId: string, keepCount: number): Promise<void>;

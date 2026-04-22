@@ -1,0 +1,238 @@
+---
+title: Entity bridge (RLS for agent data)
+description: 'Expose agent sessions and messages as Vertz entities so they respect rules.*, tenant scoping, and can be queried alongside app data.'
+---
+
+By default, `sqliteStore` / `d1Store` write agent sessions and messages to their own
+tables invisible to `@vertz/server`. Good for single-tenant apps, wrong for anything
+with users and tenants — `Session.list({ where })` can't be called from app code
+and `rules.*` (authenticated, tenant-scoped, row-level `where`) never fires on
+agent reads.
+
+The **entity bridge** fixes this: one factory call turns the store's tables into
+first-class Vertz entities registered with `createServer`, so app-side reads flow
+through the CRUD pipeline with full RLS.
+
+- Same tables, same writes — `sqliteStore`/`d1Store` are unchanged on the hot path.
+- Reads from app code (`/api/agent-session` routes, `ctx.entities['agent-session'].list()`)
+  enforce access rules.
+- Tenant auto-detection picks up `tenantId` on the session row; extended schemas
+  with a `.tenant()` relation inherit the chain.
+
+## Setup
+
+Three pieces: define tables with the exported column packs, call the factory,
+register the entities.
+
+```ts
+// src/db.ts
+import { d, createDb } from '@vertz/db';
+import {
+  agentSessionColumns,
+  agentSessionIndexes,
+  agentMessageColumns,
+  agentMessageIndexes,
+} from '@vertz/agents/entities';
+
+const sessionsTable = d.table('agent_sessions', agentSessionColumns, {
+  indexes: agentSessionIndexes,
+});
+const messagesTable = d.table('agent_messages', agentMessageColumns, {
+  indexes: agentMessageIndexes,
+});
+
+export const db = createDb({
+  dialect: 'sqlite',
+  path: 'app.db',
+  migrations: { autoApply: true },
+  models: {
+    agentSessions: d.model(sessionsTable),
+    agentMessages: d.model(messagesTable, {
+      session: d.ref.one(() => sessionsTable, 'sessionId'),
+    }),
+  },
+});
+```
+
+```ts
+// src/entities.ts
+import { defineAgentEntities } from '@vertz/agents/entities';
+import { db } from './db';
+
+export const { session: Session, message: Message } = defineAgentEntities(db);
+```
+
+```ts
+// src/server.ts
+import { createServer } from '@vertz/server';
+import { db } from './db';
+import { Session, Message } from './entities';
+
+const server = createServer({ db, entities: [Session, Message] });
+```
+
+```ts
+// src/agent.ts — agent loop unchanged
+import { sqliteStore } from '@vertz/agents';
+const store = sqliteStore({ path: 'app.db' }); // same file as `db` above
+const result = await run(coderAgent, {
+  message: 'Fix bug',
+  llm,
+  store,
+  userId: ctx.userId,
+  tenantId: ctx.tenantId,
+});
+```
+
+## Default access rules
+
+`defineAgentEntities()` applies user-scoped row-level rules on every op so the
+happy path is safe. `ctx.userId` / `ctx.tenantId` are injected by a
+`before.create` hook — callers never need to pass them explicitly, and if they
+do, `ctx.userId` wins (prevents impersonation).
+
+| Op       | Session                                  | Message                                  |
+| -------- | ---------------------------------------- | ---------------------------------------- |
+| `list`   | `rules.where({ userId: rules.user.id })` | `rules.where({ userId: rules.user.id })` |
+| `get`    | `rules.where({ userId: rules.user.id })` | `rules.where({ userId: rules.user.id })` |
+| `create` | `rules.authenticated()` (+ hook)         | denied (store writes)                    |
+| `update` | `rules.where({ userId: rules.user.id })` | denied                                   |
+| `delete` | `rules.where({ userId: rules.user.id })` | denied                                   |
+
+Override with the factory options:
+
+```ts
+import { rules } from '@vertz/server';
+const { session, message } = defineAgentEntities(db, {
+  sessionAccess: {
+    list: rules.all(rules.authenticated(), rules.where({ userId: rules.user.id })),
+    // ...
+  },
+});
+```
+
+## Reading agent data
+
+Flow from the client goes through the auto-generated route:
+
+```ts
+// Client-side — RLS applied by the route handler
+const res = await fetch('/api/agent-session?agentName=coder');
+const { items } = await res.json();
+```
+
+From server-side code inside a route or service that has an `EntityContext`:
+
+```ts
+// Default entity names are kebab-case, so use bracket access on ctx.entities:
+const sessions = await ctx.entities['agent-session'].list({
+  where: { agentName: 'coder' },
+});
+```
+
+If you want dot-access, override the names (lowercase, no hyphen) at factory time:
+
+```ts
+const { session, message } = defineAgentEntities(db, {
+  sessionName: 'agentsession',
+  messageName: 'agentmessage',
+});
+// Then: ctx.entities.agentsession.list(...)
+```
+
+**Do not use `db.agentSessions.list(...)`** from handler code and expect RLS —
+that path is the raw `DatabaseClient` delegate and bypasses the entity
+pipeline. It's fine for internal/trusted code (migrations, admin tasks) but
+user-facing queries must go through the routes or `ctx.entities.*`.
+
+## Extending the schema
+
+Add your own columns and relations by spreading the column packs and building
+your own `d.table()` — no special helper:
+
+```ts
+const sessionsTable = d.table(
+  'agent_sessions',
+  {
+    ...agentSessionColumns,
+    projectId: d.uuid().nullable(),
+  },
+  { indexes: [...agentSessionIndexes, d.index('projectId')] },
+);
+
+const db = createDb({
+  dialect: 'sqlite',
+  path: 'app.db',
+  migrations: { autoApply: true },
+  models: {
+    agentSessions: d.model(sessionsTable, {
+      project: d.ref.one(() => projectsTable, 'projectId'),
+    }),
+    // ...
+  },
+});
+```
+
+## Tenant scoping
+
+`defineAgentEntities` opts each entity into tenant scoping automatically when
+the `tenantId` column (from the pack) or a `ref.one()` to a `.tenant()` table
+is present. Priority: relation wins over column. If you add a `.tenant()`
+relation on your extended session, drop `tenantId` from the spread to avoid
+a dead column:
+
+```ts
+const { tenantId: _drop, ...sessionColsMinusTenant } = agentSessionColumns;
+const sessionsTable = d.table(
+  'agent_sessions',
+  {
+    ...sessionColsMinusTenant,
+    tenantId: d.uuid(), // your own — will be picked up by the .tenant() relation
+  },
+  {
+    /* ... */
+  },
+);
+```
+
+## Upgrade migration
+
+Existing databases from earlier `@vertz/agents` versions must add two columns
+to `agent_messages`. A migration SQL file ships with the package at
+`packages/agents/migrations/001-add-rls-columns.sql`:
+
+```sql
+ALTER TABLE agent_messages ADD COLUMN user_id TEXT;
+ALTER TABLE agent_messages ADD COLUMN tenant_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_messages_user ON agent_messages(user_id);
+
+-- Backfill so historical messages are visible to entity RLS reads
+UPDATE agent_messages
+SET
+  user_id = (SELECT user_id FROM agent_sessions WHERE agent_sessions.id = agent_messages.session_id),
+  tenant_id = (SELECT tenant_id FROM agent_sessions WHERE agent_sessions.id = agent_messages.session_id)
+WHERE user_id IS NULL;
+```
+
+Fresh installs get the columns automatically — the stores' built-in DDL was updated.
+
+## What the bridge does not cover
+
+- **Entity hooks on agent-loop writes.** `before.create` / `after.create` on
+  the `Message` entity do **not** fire for messages inserted by `run()` —
+  writes go through the `AgentStore`, not the entity pipeline. Reads and
+  app-side writes via entity handlers do fire hooks normally. Tracked as
+  [#2957](https://github.com/vertz-dev/vertz/issues/2957) (registration-time
+  rejection of hooks on factory-produced entities).
+- **Typed `state` / `toolCalls` columns.** Stored as `TEXT` (JSON string) for
+  byte-compat with the legacy DDL. Tracked as
+  [#2958](https://github.com/vertz-dev/vertz/issues/2958).
+- **RLS on in-loop reads.** `store.loadSession()` inside `run()` bypasses
+  entity rules — identity is checked by `run()` directly against
+  `session.userId` / `session.tenantId`. Same ownership story as before the
+  bridge; app-side reads get the full RLS.
+
+## See also
+
+- Design doc: [`plans/agent-store-entity-bridge.md`](https://github.com/vertz-dev/vertz/blob/main/plans/agent-store-entity-bridge.md)
+- Issue: [#2847](https://github.com/vertz-dev/vertz/issues/2847)

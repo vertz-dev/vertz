@@ -166,7 +166,7 @@ describe('d1Store()', () => {
           { role: 'assistant', content: 'Hi there!' },
         ];
 
-        await store.appendMessages('sess_test-1', messages);
+        await store.appendMessages('sess_test-1', messages, makeSession());
         const loaded = await store.loadMessages('sess_test-1');
 
         expect(loaded).toHaveLength(2);
@@ -193,7 +193,7 @@ describe('d1Store()', () => {
           { role: 'tool', content: '{"result": 42}', toolCallId: 'call_1', toolName: 'myTool' },
         ];
 
-        await store.appendMessages('sess_test-1', messages);
+        await store.appendMessages('sess_test-1', messages, makeSession());
         const loaded = await store.loadMessages('sess_test-1');
 
         expect(loaded).toHaveLength(3);
@@ -211,14 +211,18 @@ describe('d1Store()', () => {
       it('Then returns only the 4 most recent messages', async () => {
         const store = d1Store({ binding: mockD1Binding() });
         await store.saveSession(makeSession());
-        await store.appendMessages('sess_test-1', [
-          { role: 'user', content: 'M1' },
-          { role: 'assistant', content: 'M2' },
-          { role: 'user', content: 'M3' },
-          { role: 'assistant', content: 'M4' },
-          { role: 'user', content: 'M5' },
-          { role: 'assistant', content: 'M6' },
-        ]);
+        await store.appendMessages(
+          'sess_test-1',
+          [
+            { role: 'user', content: 'M1' },
+            { role: 'assistant', content: 'M2' },
+            { role: 'user', content: 'M3' },
+            { role: 'assistant', content: 'M4' },
+            { role: 'user', content: 'M5' },
+            { role: 'assistant', content: 'M6' },
+          ],
+          makeSession(),
+        );
 
         await store.pruneMessages('sess_test-1', 4);
         const messages = await store.loadMessages('sess_test-1');
@@ -235,7 +239,11 @@ describe('d1Store()', () => {
       it('Then returns null for session and empty array for messages', async () => {
         const store = d1Store({ binding: mockD1Binding() });
         await store.saveSession(makeSession());
-        await store.appendMessages('sess_test-1', [{ role: 'user', content: 'Hello' }]);
+        await store.appendMessages(
+          'sess_test-1',
+          [{ role: 'user', content: 'Hello' }],
+          makeSession(),
+        );
 
         await store.deleteSession('sess_test-1');
 

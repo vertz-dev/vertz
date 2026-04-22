@@ -70,7 +70,7 @@ describe('crashAfterToolResults()', () => {
       const loaded = await harness.loadSession(session.id);
       expect(loaded).toEqual(session);
 
-      await harness.appendMessages(session.id, [{ role: 'user', content: 'pt' }]);
+      await harness.appendMessages(session.id, [{ role: 'user', content: 'pt' }], session);
       const msgs = await harness.loadMessages(session.id);
       expect(msgs).toEqual([{ role: 'user', content: 'pt' }]);
 

@@ -19,7 +19,7 @@ export function crashAfterToolResults(store: AgentStore, failOnCallNumber: numbe
     loadSession: (id) => store.loadSession(id),
     saveSession: (s) => store.saveSession(s),
     loadMessages: (id) => store.loadMessages(id),
-    appendMessages: (id, msgs) => store.appendMessages(id, msgs),
+    appendMessages: (id, msgs, session) => store.appendMessages(id, msgs, session),
     pruneMessages: (id, keep) => store.pruneMessages(id, keep),
     deleteSession: (id) => store.deleteSession(id),
     listSessions: (f) => store.listSessions(f),

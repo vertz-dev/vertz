@@ -74,7 +74,7 @@ describe('memoryStore()', () => {
           { role: 'assistant', content: 'Hi there!' },
         ];
 
-        await store.appendMessages('sess_test-1', messages);
+        await store.appendMessages('sess_test-1', messages, makeSession());
         const loaded = await store.loadMessages('sess_test-1');
 
         expect(loaded).toHaveLength(2);
@@ -91,14 +91,22 @@ describe('memoryStore()', () => {
       it('Then returns all messages in append order', async () => {
         const store = memoryStore();
 
-        await store.appendMessages('sess_test-1', [
-          { role: 'user', content: 'First' },
-          { role: 'assistant', content: 'Response 1' },
-        ]);
-        await store.appendMessages('sess_test-1', [
-          { role: 'user', content: 'Second' },
-          { role: 'assistant', content: 'Response 2' },
-        ]);
+        await store.appendMessages(
+          'sess_test-1',
+          [
+            { role: 'user', content: 'First' },
+            { role: 'assistant', content: 'Response 1' },
+          ],
+          makeSession(),
+        );
+        await store.appendMessages(
+          'sess_test-1',
+          [
+            { role: 'user', content: 'Second' },
+            { role: 'assistant', content: 'Response 2' },
+          ],
+          makeSession(),
+        );
 
         const loaded = await store.loadMessages('sess_test-1');
         expect(loaded).toHaveLength(4);
@@ -113,7 +121,11 @@ describe('memoryStore()', () => {
       it('Then returns null for session and empty array for messages', async () => {
         const store = memoryStore();
         await store.saveSession(makeSession());
-        await store.appendMessages('sess_test-1', [{ role: 'user', content: 'Hello' }]);
+        await store.appendMessages(
+          'sess_test-1',
+          [{ role: 'user', content: 'Hello' }],
+          makeSession(),
+        );
 
         await store.deleteSession('sess_test-1');
 
@@ -205,14 +217,18 @@ describe('memoryStore()', () => {
     describe('When loadMessages is called', () => {
       it('Then returns only the 4 most recent messages', async () => {
         const store = memoryStore();
-        await store.appendMessages('sess_test-1', [
-          { role: 'user', content: 'M1' },
-          { role: 'assistant', content: 'M2' },
-          { role: 'user', content: 'M3' },
-          { role: 'assistant', content: 'M4' },
-          { role: 'user', content: 'M5' },
-          { role: 'assistant', content: 'M6' },
-        ]);
+        await store.appendMessages(
+          'sess_test-1',
+          [
+            { role: 'user', content: 'M1' },
+            { role: 'assistant', content: 'M2' },
+            { role: 'user', content: 'M3' },
+            { role: 'assistant', content: 'M4' },
+            { role: 'user', content: 'M5' },
+            { role: 'assistant', content: 'M6' },
+          ],
+          makeSession(),
+        );
 
         await store.pruneMessages('sess_test-1', 4);
         const messages = await store.loadMessages('sess_test-1');

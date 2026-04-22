@@ -110,7 +110,8 @@
             "pages": [
               "guides/agents/overview",
               "guides/agents/workflows",
-              "guides/agents/durable-resume"
+              "guides/agents/durable-resume",
+              "guides/agents/entity-bridge"
             ]
           },
           {
