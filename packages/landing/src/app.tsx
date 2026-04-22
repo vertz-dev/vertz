@@ -1,5 +1,7 @@
 import { getInjectedCSS, ThemeProvider } from '@vertz/ui';
 import { createRouter, defineRoutes, RouterView } from '@vertz/ui/router';
+import { BlogListPage } from './pages/blog/index';
+import { BlogPostPage } from './pages/blog/post';
 import { HomePage } from './pages/home';
 import ManifestoPage from './pages/manifesto';
 import { OpenAPIPage } from './pages/openapi';
@@ -19,6 +21,8 @@ export const routes = defineRoutes({
   '/': { component: () => <HomePage /> },
   '/manifesto': { component: () => <ManifestoPage /> },
   '/openapi': { component: () => <OpenAPIPage /> },
+  '/blog': { component: () => <BlogListPage /> },
+  '/blog/:slug': { component: () => <BlogPostPage /> },
 });
 
 const router = createRouter(routes);

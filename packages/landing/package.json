@@ -3,16 +3,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vtz dev",
+    "dev": "bun run build:blog && vtz dev",
     "dev:presence": "vtz run src/presence-dev-server.ts",
     "dev:all": "vtz run scripts/dev-all.ts",
-    "build": "node --experimental-strip-types scripts/generate-og.ts && bun ../../node_modules/@vertz/cli/dist/vertz.js build",
+    "build": "bun run build:blog && node --experimental-strip-types scripts/generate-og.ts && bun ../../node_modules/@vertz/cli/dist/vertz.js build",
     "build:og": "node --experimental-strip-types scripts/generate-og.ts",
+    "build:blog": "bun scripts/compile-blog-posts.ts",
     "deploy": "bun run build && vtzx wrangler deploy --define DEPLOY_VERSION:\"'$(date +%s)'\" --define PRESENCE_WS_URL:\"'wss://vertz.dev/__presence'\" && node --experimental-strip-types scripts/pre-warm.ts",
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "bun run build:blog && tsgo --noEmit"
   },
   "dependencies": {
     "@vertz/icons": "workspace:*",
+    "@vertz/mdx": "workspace:*",
     "@vertz/theme-shadcn": "workspace:*",
     "@vertz/ui": "workspace:*",
     "@vertz/ui-primitives": "workspace:*",

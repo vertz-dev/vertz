@@ -1,0 +1,26 @@
+---
+title: "Hello, world from the Vertz blog"
+slug: hello-world
+date: 2026-04-22
+author: matheus
+tags: [meta, dx]
+description: "A tiny placeholder post so the blog pipeline has something to render during development."
+draft: false
+---
+
+## Why this post exists
+
+This post is a development fixture. Phase 1 of issue [#2947](https://github.com/vertz-dev/issues/2947) ships the MDX infrastructure
+that takes an `.mdx` file on disk and turns it into a reachable URL under `/blog/<slug>`.
+
+Subsequent phases add layout, typography, TOC, reading progress, and the custom MDX components.
+
+## A short list
+
+- Posts live under `packages/landing/content/blog/`.
+- Each file is compiled once via `@vertz/mdx` into a `.js` module.
+- A generated manifest wires every post into the landing bundle.
+
+## Inline bits
+
+Running `vtz dev` rebuilds the blog manifest, then `@vertz/cli` picks it up like any other source module.
