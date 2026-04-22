@@ -83,6 +83,10 @@ const STRUCTURAL_PROPS: &[&str] = &["data", "items"];
 /// Info about a query variable found via `const x = query(descriptorCall(...))`.
 struct QueryVarInfo {
     var_name: String,
+    /// Span start of the variable declarator itself. Used by the scope walker
+    /// to distinguish *this* query's own declaration (not a shadow) from
+    /// *another* same-named declaration in a sibling scope (a shadow).
+    decl_start: u32,
     injection_pos: u32,
     injection_kind: InjectionKind,
     inferred_entity_name: Option<String>,
@@ -109,6 +113,7 @@ pub fn analyze_field_selection(program: &Program, source: &str) -> Vec<QueryFiel
         track_field_access(
             program,
             &qv.var_name,
+            qv.decl_start,
             &mut fields,
             &mut nested_access,
             &mut has_opaque_access,
@@ -279,6 +284,7 @@ fn check_query_declarator(
 
     results.push(QueryVarInfo {
         var_name,
+        decl_start: declarator.span.start,
         injection_pos,
         injection_kind,
         inferred_entity_name,
@@ -357,25 +363,43 @@ fn infer_entity_name(call: &CallExpression) -> Option<String> {
 }
 
 /// Track all field accesses on a query variable throughout the file.
+/// `decl_start` is the span of the query variable's own declarator; declarations
+/// at that span are not treated as shadows.
 fn track_field_access(
     program: &Program,
     var_name: &str,
+    decl_start: u32,
     fields: &mut Vec<String>,
     nested_access: &mut Vec<NestedFieldAccess>,
     has_opaque_access: &mut bool,
 ) {
     for stmt in &program.body {
-        track_field_access_in_stmt(stmt, var_name, fields, nested_access, has_opaque_access);
+        track_field_access_in_stmt(
+            stmt,
+            var_name,
+            decl_start,
+            fields,
+            nested_access,
+            has_opaque_access,
+        );
     }
 }
 
 fn track_field_access_in_stmt(
     stmt: &Statement,
     var_name: &str,
+    decl_start: u32,
     fields: &mut Vec<String>,
     nested_access: &mut Vec<NestedFieldAccess>,
     has_opaque_access: &mut bool,
 ) {
+    // Shadow check: if this statement opens a scope that re-binds `var_name`
+    // at a span different from the query's own declaration, any access
+    // through that name inside refers to the inner binding, not the outer
+    // query variable. Skip entirely.
+    if stmt_introduces_shadow_scope(stmt, var_name, Some(decl_start)) {
+        return;
+    }
     match stmt {
         Statement::FunctionDeclaration(func) => {
             if let Some(ref body) = func.body {
@@ -383,6 +407,7 @@ fn track_field_access_in_stmt(
                     track_field_access_in_stmt(
                         inner_stmt,
                         var_name,
+                        decl_start,
                         fields,
                         nested_access,
                         has_opaque_access,
@@ -394,11 +419,24 @@ fn track_field_access_in_stmt(
             if let ExportDefaultDeclarationKind::FunctionDeclaration(func) =
                 &export_default.declaration
             {
+                if func.id.as_ref().is_some_and(|id| id.name == var_name)
+                    || params_bind(&func.params, var_name)
+                {
+                    return;
+                }
                 if let Some(ref body) = func.body {
+                    if body
+                        .statements
+                        .iter()
+                        .any(|s| stmt_declares_at(s, var_name).is_some_and(|sp| sp != decl_start))
+                    {
+                        return;
+                    }
                     for inner_stmt in &body.statements {
                         track_field_access_in_stmt(
                             inner_stmt,
                             var_name,
+                            decl_start,
                             fields,
                             nested_access,
                             has_opaque_access,
@@ -412,6 +450,7 @@ fn track_field_access_in_stmt(
                 track_field_access_in_expr(
                     expr,
                     var_name,
+                    decl_start,
                     fields,
                     nested_access,
                     has_opaque_access,
@@ -422,6 +461,7 @@ fn track_field_access_in_stmt(
             track_field_access_in_expr(
                 &expr_stmt.expression,
                 var_name,
+                decl_start,
                 fields,
                 nested_access,
                 has_opaque_access,
@@ -433,6 +473,7 @@ fn track_field_access_in_stmt(
                     track_field_access_in_expr(
                         init,
                         var_name,
+                        decl_start,
                         fields,
                         nested_access,
                         has_opaque_access,
@@ -444,6 +485,7 @@ fn track_field_access_in_stmt(
             track_field_access_in_expr(
                 &if_stmt.test,
                 var_name,
+                decl_start,
                 fields,
                 nested_access,
                 has_opaque_access,
@@ -451,12 +493,20 @@ fn track_field_access_in_stmt(
             track_field_access_in_stmt(
                 &if_stmt.consequent,
                 var_name,
+                decl_start,
                 fields,
                 nested_access,
                 has_opaque_access,
             );
             if let Some(ref alt) = if_stmt.alternate {
-                track_field_access_in_stmt(alt, var_name, fields, nested_access, has_opaque_access);
+                track_field_access_in_stmt(
+                    alt,
+                    var_name,
+                    decl_start,
+                    fields,
+                    nested_access,
+                    has_opaque_access,
+                );
             }
         }
         Statement::BlockStatement(block) => {
@@ -464,11 +514,305 @@ fn track_field_access_in_stmt(
                 track_field_access_in_stmt(
                     inner_stmt,
                     var_name,
+                    decl_start,
                     fields,
                     nested_access,
                     has_opaque_access,
                 );
             }
+        }
+        Statement::ForStatement(for_stmt) => {
+            if let Some(init) = &for_stmt.init {
+                if let Some(init_expr) = init.as_expression() {
+                    track_field_access_in_expr(
+                        init_expr,
+                        var_name,
+                        decl_start,
+                        fields,
+                        nested_access,
+                        has_opaque_access,
+                    );
+                } else if let ForStatementInit::VariableDeclaration(var_decl) = init {
+                    for d in &var_decl.declarations {
+                        if let Some(ref ini) = d.init {
+                            track_field_access_in_expr(
+                                ini,
+                                var_name,
+                                decl_start,
+                                fields,
+                                nested_access,
+                                has_opaque_access,
+                            );
+                        }
+                    }
+                }
+            }
+            if let Some(test) = &for_stmt.test {
+                track_field_access_in_expr(
+                    test,
+                    var_name,
+                    decl_start,
+                    fields,
+                    nested_access,
+                    has_opaque_access,
+                );
+            }
+            if let Some(update) = &for_stmt.update {
+                track_field_access_in_expr(
+                    update,
+                    var_name,
+                    decl_start,
+                    fields,
+                    nested_access,
+                    has_opaque_access,
+                );
+            }
+            track_field_access_in_stmt(
+                &for_stmt.body,
+                var_name,
+                decl_start,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+        }
+        Statement::ForInStatement(for_in) => {
+            track_field_access_in_expr(
+                &for_in.right,
+                var_name,
+                decl_start,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+            track_field_access_in_stmt(
+                &for_in.body,
+                var_name,
+                decl_start,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+        }
+        Statement::ForOfStatement(for_of) => {
+            // If iterating `varName.data.items` (or a relation array),
+            // treat the for-of binding like a `.map(cb)` parameter: walk
+            // the body and record field accesses on the binding as fields
+            // (or as nested paths under the relation field) of the query.
+            let right_chain = build_property_chain(&for_of.right);
+            let binding_name = for_left_binding_name(&for_of.left);
+            let is_query_iterable = right_chain.as_ref().is_some_and(|chain| {
+                !chain.is_empty()
+                    && chain[0] == var_name
+                    && (chain.contains(&"items".to_string()) || chain.contains(&"data".to_string()))
+            });
+            if let (Some(binding_name), true) = (binding_name, is_query_iterable) {
+                // Determine relation-level parent (same logic as array-method callbacks).
+                let chain = right_chain.as_ref().unwrap();
+                let parent_result = extract_field_from_chain(chain);
+                let parent_field = parent_result
+                    .as_ref()
+                    .filter(|r| r.nested_path.is_empty())
+                    .map(|r| r.field.clone());
+
+                let mut cb_fields = Vec::new();
+                let mut cb_nested = Vec::new();
+                let mut cb_opaque = false;
+                track_callback_stmt(
+                    &for_of.body,
+                    &binding_name,
+                    &mut cb_fields,
+                    &mut cb_nested,
+                    &mut cb_opaque,
+                );
+
+                if let Some(ref pf) = parent_field {
+                    fields.push(pf.clone());
+                    for f in &cb_fields {
+                        nested_access.push(NestedFieldAccess {
+                            field: pf.clone(),
+                            nested_path: vec![f.clone()],
+                        });
+                    }
+                    for n in &cb_nested {
+                        nested_access.push(NestedFieldAccess {
+                            field: pf.clone(),
+                            nested_path: {
+                                let mut path = vec![n.field.clone()];
+                                path.extend(n.nested_path.clone());
+                                path
+                            },
+                        });
+                    }
+                } else {
+                    fields.extend(cb_fields);
+                    nested_access.extend(cb_nested);
+                }
+                if cb_opaque {
+                    *has_opaque_access = true;
+                }
+                // Also walk the right side for structural opaque checks, etc.
+                track_field_access_in_expr(
+                    &for_of.right,
+                    var_name,
+                    decl_start,
+                    fields,
+                    nested_access,
+                    has_opaque_access,
+                );
+                return;
+            }
+
+            track_field_access_in_expr(
+                &for_of.right,
+                var_name,
+                decl_start,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+            track_field_access_in_stmt(
+                &for_of.body,
+                var_name,
+                decl_start,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+        }
+        Statement::WhileStatement(while_stmt) => {
+            track_field_access_in_expr(
+                &while_stmt.test,
+                var_name,
+                decl_start,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+            track_field_access_in_stmt(
+                &while_stmt.body,
+                var_name,
+                decl_start,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+        }
+        Statement::DoWhileStatement(do_while) => {
+            track_field_access_in_stmt(
+                &do_while.body,
+                var_name,
+                decl_start,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+            track_field_access_in_expr(
+                &do_while.test,
+                var_name,
+                decl_start,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+        }
+        Statement::TryStatement(try_stmt) => {
+            if !block_shadows(&try_stmt.block, var_name, Some(decl_start)) {
+                for stmt in &try_stmt.block.body {
+                    track_field_access_in_stmt(
+                        stmt,
+                        var_name,
+                        decl_start,
+                        fields,
+                        nested_access,
+                        has_opaque_access,
+                    );
+                }
+            }
+            if let Some(ref handler) = try_stmt.handler {
+                let catch_shadows = handler
+                    .param
+                    .as_ref()
+                    .is_some_and(|p| binding_pattern_binds(&p.pattern, var_name));
+                if !catch_shadows && !block_shadows(&handler.body, var_name, Some(decl_start)) {
+                    for stmt in &handler.body.body {
+                        track_field_access_in_stmt(
+                            stmt,
+                            var_name,
+                            decl_start,
+                            fields,
+                            nested_access,
+                            has_opaque_access,
+                        );
+                    }
+                }
+            }
+            if let Some(ref finalizer) = try_stmt.finalizer {
+                if !block_shadows(finalizer, var_name, Some(decl_start)) {
+                    for stmt in &finalizer.body {
+                        track_field_access_in_stmt(
+                            stmt,
+                            var_name,
+                            decl_start,
+                            fields,
+                            nested_access,
+                            has_opaque_access,
+                        );
+                    }
+                }
+            }
+        }
+        Statement::SwitchStatement(switch_stmt) => {
+            track_field_access_in_expr(
+                &switch_stmt.discriminant,
+                var_name,
+                decl_start,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+            for case in &switch_stmt.cases {
+                if let Some(ref test) = case.test {
+                    track_field_access_in_expr(
+                        test,
+                        var_name,
+                        decl_start,
+                        fields,
+                        nested_access,
+                        has_opaque_access,
+                    );
+                }
+                for stmt in &case.consequent {
+                    track_field_access_in_stmt(
+                        stmt,
+                        var_name,
+                        decl_start,
+                        fields,
+                        nested_access,
+                        has_opaque_access,
+                    );
+                }
+            }
+        }
+        Statement::LabeledStatement(labeled) => {
+            track_field_access_in_stmt(
+                &labeled.body,
+                var_name,
+                decl_start,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+        }
+        Statement::ThrowStatement(throw_stmt) => {
+            track_field_access_in_expr(
+                &throw_stmt.argument,
+                var_name,
+                decl_start,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
         }
         _ => {}
     }
@@ -477,6 +821,7 @@ fn track_field_access_in_stmt(
 fn track_field_access_in_expr(
     expr: &Expression,
     var_name: &str,
+    decl_start: u32,
     fields: &mut Vec<String>,
     nested_access: &mut Vec<NestedFieldAccess>,
     has_opaque_access: &mut bool,
@@ -503,10 +848,7 @@ fn track_field_access_in_expr(
                 call.callee.as_member_expression()
             {
                 let method_name = static_member.property.name.as_str();
-                if matches!(
-                    method_name,
-                    "map" | "filter" | "find" | "forEach" | "some" | "every"
-                ) {
+                if let Some(item_index) = array_method_item_param_index(method_name) {
                     let obj_chain = build_property_chain(&static_member.object);
                     if let Some(ref chain) = obj_chain {
                         if !chain.is_empty()
@@ -517,7 +859,8 @@ fn track_field_access_in_expr(
                             // Analyze callback
                             if let Some(callback) = call.arguments.first() {
                                 let callback_expr = callback.to_expression();
-                                let param_name = get_callback_param_name(callback_expr);
+                                let param_name =
+                                    get_callback_param_name_at(callback_expr, item_index);
                                 if let Some(param_name) = param_name {
                                     // Determine if this is a relation-level map
                                     // (not on .items but on a relation field like .members)
@@ -599,6 +942,7 @@ fn track_field_access_in_expr(
             track_field_access_in_expr(
                 &call.callee,
                 var_name,
+                decl_start,
                 fields,
                 nested_access,
                 has_opaque_access,
@@ -607,6 +951,7 @@ fn track_field_access_in_expr(
                 track_field_access_in_expr(
                     arg.to_expression(),
                     var_name,
+                    decl_start,
                     fields,
                     nested_access,
                     has_opaque_access,
@@ -617,6 +962,7 @@ fn track_field_access_in_expr(
             track_field_access_in_expr(
                 &paren.expression,
                 var_name,
+                decl_start,
                 fields,
                 nested_access,
                 has_opaque_access,
@@ -626,6 +972,7 @@ fn track_field_access_in_expr(
             track_field_access_in_expr(
                 &cond.test,
                 var_name,
+                decl_start,
                 fields,
                 nested_access,
                 has_opaque_access,
@@ -633,6 +980,7 @@ fn track_field_access_in_expr(
             track_field_access_in_expr(
                 &cond.consequent,
                 var_name,
+                decl_start,
                 fields,
                 nested_access,
                 has_opaque_access,
@@ -640,6 +988,7 @@ fn track_field_access_in_expr(
             track_field_access_in_expr(
                 &cond.alternate,
                 var_name,
+                decl_start,
                 fields,
                 nested_access,
                 has_opaque_access,
@@ -656,6 +1005,7 @@ fn track_field_access_in_expr(
                             track_field_access_in_expr(
                                 expr,
                                 var_name,
+                                decl_start,
                                 fields,
                                 nested_access,
                                 has_opaque_access,
@@ -672,6 +1022,7 @@ fn track_field_access_in_expr(
                             track_field_access_in_expr(
                                 expr,
                                 var_name,
+                                decl_start,
                                 fields,
                                 nested_access,
                                 has_opaque_access,
@@ -682,6 +1033,7 @@ fn track_field_access_in_expr(
                         track_field_access_in_jsx_element(
                             child_elem,
                             var_name,
+                            decl_start,
                             fields,
                             nested_access,
                             has_opaque_access,
@@ -692,23 +1044,74 @@ fn track_field_access_in_expr(
             }
         }
         Expression::ArrowFunctionExpression(arrow) => {
+            // Shadow: params or body-level declarations (other than the query
+            // var's own declaration) re-bind var_name.
+            if params_bind(&arrow.params, var_name)
+                || arrow
+                    .body
+                    .statements
+                    .iter()
+                    .any(|s| stmt_declares_at(s, var_name).is_some_and(|sp| sp != decl_start))
+            {
+                return;
+            }
             for stmt in &arrow.body.statements {
                 track_field_access_in_stmt(
                     stmt,
                     var_name,
+                    decl_start,
                     fields,
                     nested_access,
                     has_opaque_access,
                 );
             }
         }
+        Expression::FunctionExpression(func) => {
+            if func.id.as_ref().is_some_and(|id| id.name == var_name)
+                || params_bind(&func.params, var_name)
+            {
+                return;
+            }
+            if let Some(ref body) = func.body {
+                if body
+                    .statements
+                    .iter()
+                    .any(|s| stmt_declares_at(s, var_name).is_some_and(|sp| sp != decl_start))
+                {
+                    return;
+                }
+                for stmt in &body.statements {
+                    track_field_access_in_stmt(
+                        stmt,
+                        var_name,
+                        decl_start,
+                        fields,
+                        nested_access,
+                        has_opaque_access,
+                    );
+                }
+            }
+        }
         Expression::ObjectExpression(obj) => {
             for prop in &obj.properties {
                 match prop {
                     ObjectPropertyKind::ObjectProperty(property) => {
+                        if property.computed {
+                            if let Some(key_expr) = property.key.as_expression() {
+                                track_field_access_in_expr(
+                                    key_expr,
+                                    var_name,
+                                    decl_start,
+                                    fields,
+                                    nested_access,
+                                    has_opaque_access,
+                                );
+                            }
+                        }
                         track_field_access_in_expr(
                             &property.value,
                             var_name,
+                            decl_start,
                             fields,
                             nested_access,
                             has_opaque_access,
@@ -741,10 +1144,7 @@ fn track_field_access_in_expr(
                         call.callee.as_member_expression()
                     {
                         let method_name = static_member.property.name.as_str();
-                        if matches!(
-                            method_name,
-                            "map" | "filter" | "find" | "forEach" | "some" | "every"
-                        ) {
+                        if let Some(item_index) = array_method_item_param_index(method_name) {
                             let obj_chain = build_property_chain(&static_member.object);
                             if let Some(ref chain) = obj_chain {
                                 if !chain.is_empty()
@@ -754,7 +1154,8 @@ fn track_field_access_in_expr(
                                 {
                                     if let Some(callback) = call.arguments.first() {
                                         let callback_expr = callback.to_expression();
-                                        let param_name = get_callback_param_name(callback_expr);
+                                        let param_name =
+                                            get_callback_param_name_at(callback_expr, item_index);
                                         if let Some(param_name) = param_name {
                                             let parent_result = extract_field_from_chain(chain);
                                             let parent_field = parent_result
@@ -802,6 +1203,7 @@ fn track_field_access_in_expr(
                     track_field_access_in_expr(
                         &call.callee,
                         var_name,
+                        decl_start,
                         fields,
                         nested_access,
                         has_opaque_access,
@@ -810,6 +1212,7 @@ fn track_field_access_in_expr(
                         track_field_access_in_expr(
                             arg.to_expression(),
                             var_name,
+                            decl_start,
                             fields,
                             nested_access,
                             has_opaque_access,
@@ -833,6 +1236,7 @@ fn track_field_access_in_expr(
                     track_field_access_in_expr(
                         &member.object,
                         var_name,
+                        decl_start,
                         fields,
                         nested_access,
                         has_opaque_access,
@@ -852,6 +1256,7 @@ fn track_field_access_in_expr(
 fn track_field_access_in_jsx_element(
     jsx: &JSXElement,
     var_name: &str,
+    decl_start: u32,
     fields: &mut Vec<String>,
     nested_access: &mut Vec<NestedFieldAccess>,
     has_opaque_access: &mut bool,
@@ -864,6 +1269,7 @@ fn track_field_access_in_jsx_element(
                     track_field_access_in_expr(
                         expr,
                         var_name,
+                        decl_start,
                         fields,
                         nested_access,
                         has_opaque_access,
@@ -879,6 +1285,7 @@ fn track_field_access_in_jsx_element(
                     track_field_access_in_expr(
                         expr,
                         var_name,
+                        decl_start,
                         fields,
                         nested_access,
                         has_opaque_access,
@@ -889,6 +1296,7 @@ fn track_field_access_in_jsx_element(
                 track_field_access_in_jsx_element(
                     child_elem,
                     var_name,
+                    decl_start,
                     fields,
                     nested_access,
                     has_opaque_access,
@@ -998,26 +1406,185 @@ fn extract_field_from_chain(chain: &[String]) -> Option<NestedFieldAccess> {
     })
 }
 
-/// Get the parameter name from a callback expression.
-fn get_callback_param_name(expr: &Expression) -> Option<String> {
-    match expr {
-        Expression::ArrowFunctionExpression(arrow) => {
-            if let Some(param) = arrow.params.items.first() {
-                if let BindingPattern::BindingIdentifier(ref ident) = param.pattern {
-                    return Some(ident.name.as_str().to_string());
+/// Returns true if `pat` binds the identifier `name` (anywhere in the pattern,
+/// including nested destructuring and rest elements).
+fn binding_pattern_binds(pat: &BindingPattern, name: &str) -> bool {
+    match pat {
+        BindingPattern::BindingIdentifier(id) => id.name == name,
+        BindingPattern::ObjectPattern(obj) => {
+            obj.properties
+                .iter()
+                .any(|p| binding_pattern_binds(&p.value, name))
+                || obj
+                    .rest
+                    .as_ref()
+                    .is_some_and(|r| binding_pattern_binds(&r.argument, name))
+        }
+        BindingPattern::ArrayPattern(arr) => {
+            arr.elements
+                .iter()
+                .any(|e| e.as_ref().is_some_and(|el| binding_pattern_binds(el, name)))
+                || arr
+                    .rest
+                    .as_ref()
+                    .is_some_and(|r| binding_pattern_binds(&r.argument, name))
+        }
+        BindingPattern::AssignmentPattern(asgn) => binding_pattern_binds(&asgn.left, name),
+    }
+}
+
+/// Returns true if the function/arrow parameters bind `name` (simple, destructured, or rest).
+fn params_bind(params: &FormalParameters, name: &str) -> bool {
+    params
+        .items
+        .iter()
+        .any(|p| binding_pattern_binds(&p.pattern, name))
+        || params
+            .rest
+            .as_ref()
+            .is_some_and(|r| binding_pattern_binds(&r.rest.argument, name))
+}
+
+/// If `stmt` declares `name` via `let`/`const`/`var` or a function
+/// declaration, return the declarator / function's span start. Returns `None`
+/// if the statement does not declare `name`.
+///
+/// Callers pass an `except_span` (e.g. the query variable's own declarator
+/// span) and treat the declaration as a shadow only when the returned span
+/// does not match. This preserves "the query var's own declaration is not a
+/// shadow of itself" while still detecting a same-named query declared in a
+/// different scope.
+fn stmt_declares_at(stmt: &Statement, name: &str) -> Option<u32> {
+    match stmt {
+        Statement::VariableDeclaration(var_decl) => {
+            for d in &var_decl.declarations {
+                if binding_pattern_binds(&d.id, name) {
+                    return Some(d.span.start);
                 }
             }
             None
         }
-        Expression::FunctionExpression(func) => {
-            if let Some(param) = func.params.items.first() {
-                if let BindingPattern::BindingIdentifier(ref ident) = param.pattern {
-                    return Some(ident.name.as_str().to_string());
-                }
+        Statement::FunctionDeclaration(func) => {
+            if func.id.as_ref().is_some_and(|id| id.name == name) {
+                Some(func.span.start)
+            } else {
+                None
             }
-            None
+        }
+        Statement::ClassDeclaration(class) => {
+            if class.id.as_ref().is_some_and(|id| id.name == name) {
+                Some(class.span.start)
+            } else {
+                None
+            }
         }
         _ => None,
+    }
+}
+
+/// Returns true if any statement in the block declares `name` at a span
+/// other than `except_span`. `var` is caught along with `let`/`const` —
+/// any binding in the block (or hoisted var) re-routes accesses.
+fn block_shadows(block: &BlockStatement, name: &str, except_span: Option<u32>) -> bool {
+    block
+        .body
+        .iter()
+        .any(|stmt| stmt_declares_at(stmt, name).is_some_and(|sp| except_span != Some(sp)))
+}
+
+/// Returns true if the for-statement's left binding (for-of/for-in) introduces `name`.
+fn for_left_binds(left: &ForStatementLeft, name: &str) -> bool {
+    match left {
+        ForStatementLeft::VariableDeclaration(v) => v
+            .declarations
+            .iter()
+            .any(|d| binding_pattern_binds(&d.id, name)),
+        _ => false,
+    }
+}
+
+/// Returns true if the for-statement's init binding (C-style `for (let i = 0; ...)`) introduces `name`.
+fn for_init_binds(init: &ForStatementInit, name: &str) -> bool {
+    match init {
+        ForStatementInit::VariableDeclaration(v) => v
+            .declarations
+            .iter()
+            .any(|d| binding_pattern_binds(&d.id, name)),
+        _ => false,
+    }
+}
+
+/// Extract the simple identifier name from the left-hand side of a for-of/for-in,
+/// if it's a simple `const/let x` (not destructured). Used to treat the binding
+/// like a callback parameter when iterating a query array.
+fn for_left_binding_name(left: &ForStatementLeft) -> Option<String> {
+    if let ForStatementLeft::VariableDeclaration(v) = left {
+        if let Some(d) = v.declarations.first() {
+            if let BindingPattern::BindingIdentifier(ref id) = d.id {
+                return Some(id.name.as_str().to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Returns true if `stmt` introduces a scope that shadows `name`. Used to
+/// short-circuit the walker when it would otherwise descend into a scope where
+/// `name` has been re-bound (and therefore any access via that name is not the
+/// outer query variable / callback param).
+///
+/// `except_span` is the span of the query variable's own declaration; a
+/// declaration at that span is not treated as a shadow. Pass `None` in
+/// callback-param context (where every same-named declaration is a shadow).
+fn stmt_introduces_shadow_scope(stmt: &Statement, name: &str, except_span: Option<u32>) -> bool {
+    match stmt {
+        Statement::FunctionDeclaration(func) => {
+            func.id.as_ref().is_some_and(|id| id.name == name)
+                || params_bind(&func.params, name)
+                || func.body.as_ref().is_some_and(|b| {
+                    b.statements.iter().any(|s| {
+                        stmt_declares_at(s, name).is_some_and(|sp| except_span != Some(sp))
+                    })
+                })
+        }
+        Statement::BlockStatement(block) => block_shadows(block, name, except_span),
+        Statement::ForStatement(f) => f.init.as_ref().is_some_and(|i| for_init_binds(i, name)),
+        Statement::ForOfStatement(f) => for_left_binds(&f.left, name),
+        Statement::ForInStatement(f) => for_left_binds(&f.left, name),
+        _ => false,
+    }
+}
+
+/// Get a parameter name at a specific index from a callback expression.
+/// Used for reduce (item is second param) vs map/filter/forEach (item is first).
+fn get_callback_param_name_at(expr: &Expression, index: usize) -> Option<String> {
+    let params = match expr {
+        Expression::ArrowFunctionExpression(arrow) => &arrow.params.items,
+        Expression::FunctionExpression(func) => &func.params.items,
+        _ => return None,
+    };
+    let param = params.get(index)?;
+    if let BindingPattern::BindingIdentifier(ref ident) = param.pattern {
+        return Some(ident.name.as_str().to_string());
+    }
+    None
+}
+
+/// Array methods where the callback's first parameter is the item.
+const ITEM_FIRST_METHODS: &[&str] = &[
+    "map", "filter", "find", "forEach", "some", "every", "flatMap",
+];
+
+/// Return the index of the "item" parameter for an array method callback,
+/// or None if the method is not a tracked array method.
+fn array_method_item_param_index(method_name: &str) -> Option<usize> {
+    if ITEM_FIRST_METHODS.contains(&method_name) {
+        Some(0)
+    } else if method_name == "reduce" {
+        // reduce((acc, item) => ...) — item is the second parameter
+        Some(1)
+    } else {
+        None
     }
 }
 
@@ -1104,6 +1671,12 @@ fn track_callback_stmt(
     nested_access: &mut Vec<NestedFieldAccess>,
     has_opaque_access: &mut bool,
 ) {
+    // Bail on shadowing: if a nested binding in a function/block/for/catch
+    // re-uses `param_name`, accesses inside that scope do not refer to our
+    // callback parameter.
+    if stmt_introduces_shadow_scope(stmt, param_name, None) {
+        return;
+    }
     match stmt {
         Statement::ExpressionStatement(expr_stmt) => {
             track_callback_expr(
@@ -1118,6 +1691,209 @@ fn track_callback_stmt(
             if let Some(ref arg) = ret.argument {
                 track_callback_expr(arg, param_name, fields, nested_access, has_opaque_access);
             }
+        }
+        Statement::VariableDeclaration(var_decl) => {
+            for declarator in &var_decl.declarations {
+                if let Some(ref init) = declarator.init {
+                    track_callback_expr(init, param_name, fields, nested_access, has_opaque_access);
+                }
+            }
+        }
+        Statement::BlockStatement(block) => {
+            if !block_shadows(block, param_name, None) {
+                for inner in &block.body {
+                    track_callback_stmt(
+                        inner,
+                        param_name,
+                        fields,
+                        nested_access,
+                        has_opaque_access,
+                    );
+                }
+            }
+        }
+        Statement::IfStatement(if_stmt) => {
+            track_callback_expr(
+                &if_stmt.test,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+            track_callback_stmt(
+                &if_stmt.consequent,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+            if let Some(ref alt) = if_stmt.alternate {
+                track_callback_stmt(alt, param_name, fields, nested_access, has_opaque_access);
+            }
+        }
+        Statement::ForStatement(for_stmt) => {
+            if let Some(init) = &for_stmt.init {
+                if let Some(init_expr) = init.as_expression() {
+                    track_callback_expr(
+                        init_expr,
+                        param_name,
+                        fields,
+                        nested_access,
+                        has_opaque_access,
+                    );
+                } else if let ForStatementInit::VariableDeclaration(var_decl) = init {
+                    for d in &var_decl.declarations {
+                        if let Some(ref ini) = d.init {
+                            track_callback_expr(
+                                ini,
+                                param_name,
+                                fields,
+                                nested_access,
+                                has_opaque_access,
+                            );
+                        }
+                    }
+                }
+            }
+            if let Some(test) = &for_stmt.test {
+                track_callback_expr(test, param_name, fields, nested_access, has_opaque_access);
+            }
+            if let Some(update) = &for_stmt.update {
+                track_callback_expr(update, param_name, fields, nested_access, has_opaque_access);
+            }
+            track_callback_stmt(
+                &for_stmt.body,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+        }
+        Statement::ForInStatement(for_in) => {
+            track_callback_expr(
+                &for_in.right,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+            track_callback_stmt(
+                &for_in.body,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+        }
+        Statement::ForOfStatement(for_of) => {
+            track_callback_expr(
+                &for_of.right,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+            track_callback_stmt(
+                &for_of.body,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+        }
+        Statement::WhileStatement(w) => {
+            track_callback_expr(
+                &w.test,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+            track_callback_stmt(
+                &w.body,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+        }
+        Statement::DoWhileStatement(dw) => {
+            track_callback_stmt(
+                &dw.body,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+            track_callback_expr(
+                &dw.test,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+        }
+        Statement::TryStatement(try_stmt) => {
+            for s in &try_stmt.block.body {
+                track_callback_stmt(s, param_name, fields, nested_access, has_opaque_access);
+            }
+            if let Some(ref handler) = try_stmt.handler {
+                let catch_shadows = handler
+                    .param
+                    .as_ref()
+                    .is_some_and(|p| binding_pattern_binds(&p.pattern, param_name));
+                if !catch_shadows {
+                    for s in &handler.body.body {
+                        track_callback_stmt(
+                            s,
+                            param_name,
+                            fields,
+                            nested_access,
+                            has_opaque_access,
+                        );
+                    }
+                }
+            }
+            if let Some(ref finalizer) = try_stmt.finalizer {
+                for s in &finalizer.body {
+                    track_callback_stmt(s, param_name, fields, nested_access, has_opaque_access);
+                }
+            }
+        }
+        Statement::SwitchStatement(switch_stmt) => {
+            track_callback_expr(
+                &switch_stmt.discriminant,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+            for case in &switch_stmt.cases {
+                if let Some(ref test) = case.test {
+                    track_callback_expr(test, param_name, fields, nested_access, has_opaque_access);
+                }
+                for s in &case.consequent {
+                    track_callback_stmt(s, param_name, fields, nested_access, has_opaque_access);
+                }
+            }
+        }
+        Statement::LabeledStatement(labeled) => {
+            track_callback_stmt(
+                &labeled.body,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+        }
+        Statement::ThrowStatement(throw_stmt) => {
+            track_callback_expr(
+                &throw_stmt.argument,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
         }
         _ => {}
     }
@@ -1235,6 +2011,17 @@ fn track_callback_expr(
             for prop in &obj.properties {
                 match prop {
                     ObjectPropertyKind::ObjectProperty(property) => {
+                        if property.computed {
+                            if let Some(key_expr) = property.key.as_expression() {
+                                track_callback_expr(
+                                    key_expr,
+                                    param_name,
+                                    fields,
+                                    nested_access,
+                                    has_opaque_access,
+                                );
+                            }
+                        }
                         track_callback_expr(
                             &property.value,
                             param_name,
@@ -1244,6 +2031,13 @@ fn track_callback_expr(
                         );
                     }
                     ObjectPropertyKind::SpreadProperty(spread) => {
+                        track_callback_expr(
+                            &spread.argument,
+                            param_name,
+                            fields,
+                            nested_access,
+                            has_opaque_access,
+                        );
                         if let Expression::Identifier(ident) = &spread.argument {
                             if ident.name == param_name {
                                 *has_opaque_access = true;
@@ -1251,6 +2045,134 @@ fn track_callback_expr(
                         }
                     }
                 }
+            }
+        }
+        Expression::ArrayExpression(arr) => {
+            for element in &arr.elements {
+                match element {
+                    ArrayExpressionElement::SpreadElement(spread) => {
+                        track_callback_expr(
+                            &spread.argument,
+                            param_name,
+                            fields,
+                            nested_access,
+                            has_opaque_access,
+                        );
+                    }
+                    ArrayExpressionElement::Elision(_) => {}
+                    other => {
+                        if let Some(inner) = other.as_expression() {
+                            track_callback_expr(
+                                inner,
+                                param_name,
+                                fields,
+                                nested_access,
+                                has_opaque_access,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        Expression::BinaryExpression(bin) => {
+            track_callback_expr(
+                &bin.left,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+            track_callback_expr(
+                &bin.right,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+        }
+        Expression::LogicalExpression(log) => {
+            track_callback_expr(
+                &log.left,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+            track_callback_expr(
+                &log.right,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+        }
+        Expression::ConditionalExpression(cond) => {
+            track_callback_expr(
+                &cond.test,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+            track_callback_expr(
+                &cond.consequent,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+            track_callback_expr(
+                &cond.alternate,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+        }
+        Expression::UnaryExpression(un) => {
+            track_callback_expr(
+                &un.argument,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+        }
+        Expression::TemplateLiteral(tpl) => {
+            for expr in &tpl.expressions {
+                track_callback_expr(expr, param_name, fields, nested_access, has_opaque_access);
+            }
+        }
+        Expression::SequenceExpression(seq) => {
+            for expr in &seq.expressions {
+                track_callback_expr(expr, param_name, fields, nested_access, has_opaque_access);
+            }
+        }
+        Expression::AwaitExpression(aw) => {
+            track_callback_expr(
+                &aw.argument,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+        }
+        Expression::NewExpression(new_expr) => {
+            track_callback_expr(
+                &new_expr.callee,
+                param_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
+            for arg in &new_expr.arguments {
+                track_callback_expr(
+                    arg.to_expression(),
+                    param_name,
+                    fields,
+                    nested_access,
+                    has_opaque_access,
+                );
             }
         }
         _ => {}
@@ -2375,5 +3297,378 @@ const x = tasks?.data?.[0]?.name;
 "#;
         let results = analyze(source);
         assert!(results[0].fields.contains(&"name".to_string()));
+    }
+
+    // ── Gap 1: reduce/flatMap callbacks (#2782) ────────────────────────
+    // Feature: Array-method callbacks for reduce and flatMap
+    // Given a query() result processed by reduce/flatMap
+    // When the callback accesses a field on the item parameter
+    // Then that field is tracked for server-side selection
+
+    #[test]
+    fn reduce_tracks_item_fields_in_callback() {
+        // reduce((acc, t) => ...) — `t` (second param) is the item
+        let source = r#"
+const tasks = query(api.tasks.list());
+const byId = tasks.data.items.reduce((acc, t) => ({ ...acc, [t.id]: t.title }), {});
+"#;
+        let results = analyze(source);
+        assert!(
+            results[0].fields.contains(&"id".to_string()),
+            "expected 'id' in {:?}",
+            results[0].fields
+        );
+        assert!(
+            results[0].fields.contains(&"title".to_string()),
+            "expected 'title' in {:?}",
+            results[0].fields
+        );
+    }
+
+    #[test]
+    fn reduce_with_function_expression_tracks_item_fields() {
+        let source = r#"
+const tasks = query(api.tasks.list());
+const out = tasks.data.items.reduce(function(acc, t) { return acc + t.title; }, '');
+"#;
+        let results = analyze(source);
+        assert!(results[0].fields.contains(&"title".to_string()));
+    }
+
+    #[test]
+    fn flat_map_tracks_item_fields_in_callback() {
+        let source = r#"
+const tasks = query(api.tasks.list());
+const names = tasks.data.items.flatMap(t => [t.name, t.email]);
+"#;
+        let results = analyze(source);
+        assert!(results[0].fields.contains(&"name".to_string()));
+        assert!(results[0].fields.contains(&"email".to_string()));
+    }
+
+    #[test]
+    fn reduce_in_optional_chain_tracks_item_fields() {
+        let source = r#"
+const tasks = query(api.tasks.list());
+const byId = tasks.data?.items?.reduce((acc, t) => ({ ...acc, [t.id]: t.title }), {});
+"#;
+        let results = analyze(source);
+        assert!(results[0].fields.contains(&"id".to_string()));
+        assert!(results[0].fields.contains(&"title".to_string()));
+    }
+
+    // ── Gap 2: statement walker for loops/try/switch (#2782) ────────────
+    // Feature: Control-flow statements are walked for field access
+    // Given a query() result accessed inside a control-flow construct
+    // When analysis runs over the program
+    // Then fields accessed inside the construct are tracked
+
+    #[test]
+    fn for_of_statement_tracks_field_access_in_body() {
+        let source = r#"
+function App() {
+    const tasks = query(api.tasks.list());
+    for (const t of tasks.data.items) console.log(t.title);
+}
+"#;
+        let results = analyze(source);
+        assert!(
+            results[0].fields.contains(&"title".to_string()),
+            "expected 'title' in {:?}",
+            results[0].fields
+        );
+    }
+
+    #[test]
+    fn for_of_statement_tracks_field_access_in_iterable() {
+        let source = r#"
+function App() {
+    const tasks = query(api.tasks.list());
+    for (const t of tasks.data.items) {
+        console.log(t);
+    }
+}
+"#;
+        let results = analyze(source);
+        // The `tasks.data.items` expression is still structural — no field yet.
+        // But this shouldn't crash. A different test covers the body param.
+        assert!(!results.is_empty());
+    }
+
+    #[test]
+    fn for_in_statement_tracks_field_access() {
+        let source = r#"
+function App() {
+    const tasks = query(api.tasks.list());
+    for (const key in tasks.data.meta) {
+        console.log(key);
+    }
+}
+"#;
+        let results = analyze(source);
+        assert!(results[0].fields.contains(&"meta".to_string()));
+    }
+
+    #[test]
+    fn c_style_for_statement_tracks_field_access() {
+        let source = r#"
+function App() {
+    const tasks = query(api.tasks.list());
+    for (let i = 0; i < tasks.data.items.length; i++) {
+        console.log(tasks.data.items[i].title);
+    }
+}
+"#;
+        let results = analyze(source);
+        assert!(results[0].fields.contains(&"title".to_string()));
+    }
+
+    #[test]
+    fn while_statement_tracks_field_access() {
+        let source = r#"
+function App() {
+    const tasks = query(api.tasks.list());
+    while (tasks.data.ready) {
+        console.log(tasks.data.name);
+    }
+}
+"#;
+        let results = analyze(source);
+        assert!(results[0].fields.contains(&"ready".to_string()));
+        assert!(results[0].fields.contains(&"name".to_string()));
+    }
+
+    #[test]
+    fn do_while_statement_tracks_field_access() {
+        let source = r#"
+function App() {
+    const tasks = query(api.tasks.list());
+    do {
+        console.log(tasks.data.title);
+    } while (tasks.data.ready);
+}
+"#;
+        let results = analyze(source);
+        assert!(results[0].fields.contains(&"title".to_string()));
+        assert!(results[0].fields.contains(&"ready".to_string()));
+    }
+
+    #[test]
+    fn try_statement_tracks_field_access_in_block() {
+        let source = r#"
+function App() {
+    const tasks = query(api.tasks.list());
+    try { sendAll(tasks.data.items.map(t => t.email)); } catch {}
+}
+"#;
+        let results = analyze(source);
+        assert!(results[0].fields.contains(&"email".to_string()));
+    }
+
+    #[test]
+    fn try_statement_tracks_field_access_in_handler() {
+        let source = r#"
+function App() {
+    const tasks = query(api.tasks.list());
+    try { foo(); } catch (e) { console.log(tasks.data.title); }
+}
+"#;
+        let results = analyze(source);
+        assert!(results[0].fields.contains(&"title".to_string()));
+    }
+
+    #[test]
+    fn try_statement_tracks_field_access_in_finalizer() {
+        let source = r#"
+function App() {
+    const tasks = query(api.tasks.list());
+    try { foo(); } finally { console.log(tasks.data.name); }
+}
+"#;
+        let results = analyze(source);
+        assert!(results[0].fields.contains(&"name".to_string()));
+    }
+
+    #[test]
+    fn switch_statement_tracks_field_access_in_discriminant() {
+        let source = r#"
+function App() {
+    const tasks = query(api.tasks.list());
+    switch (tasks.data.status) {
+        case 'ok': break;
+    }
+}
+"#;
+        let results = analyze(source);
+        assert!(results[0].fields.contains(&"status".to_string()));
+    }
+
+    #[test]
+    fn switch_statement_tracks_field_access_in_case_test_and_consequent() {
+        let source = r#"
+function App() {
+    const tasks = query(api.tasks.list());
+    switch (mode) {
+        case tasks.data.mode: console.log(tasks.data.name); break;
+        default: console.log(tasks.data.fallback);
+    }
+}
+"#;
+        let results = analyze(source);
+        assert!(results[0].fields.contains(&"mode".to_string()));
+        assert!(results[0].fields.contains(&"name".to_string()));
+        assert!(results[0].fields.contains(&"fallback".to_string()));
+    }
+
+    #[test]
+    fn labeled_statement_tracks_field_access_in_body() {
+        let source = r#"
+function App() {
+    const tasks = query(api.tasks.list());
+    outer: for (const t of tasks.data.items) {
+        console.log(t.title);
+    }
+}
+"#;
+        let results = analyze(source);
+        assert!(results[0].fields.contains(&"title".to_string()));
+    }
+
+    // ── Gap 3: scope tracking for shadowed bindings (#2782) ─────────────
+    // Feature: Inner bindings that shadow the query variable are not tracked
+    // Given a query() variable and an inner scope that re-declares the same name
+    // When an access inside the inner scope goes through that name
+    // Then fields are NOT recorded on the outer query variable
+
+    #[test]
+    fn inner_function_const_shadows_outer_query_var() {
+        let source = r#"
+const tasks = query(api.tasks.list());
+function inner() {
+    const tasks = { fake: 1 };
+    return tasks.fake;
+}
+"#;
+        let results = analyze(source);
+        assert!(
+            !results[0].fields.contains(&"fake".to_string()),
+            "shadowed binding leaked into outer query: {:?}",
+            results[0].fields
+        );
+    }
+
+    #[test]
+    fn function_param_shadows_outer_query_var() {
+        let source = r#"
+const tasks = query(api.tasks.list());
+function inner(tasks) {
+    return tasks.fake;
+}
+"#;
+        let results = analyze(source);
+        assert!(!results[0].fields.contains(&"fake".to_string()));
+    }
+
+    #[test]
+    fn arrow_param_shadows_outer_query_var() {
+        let source = r#"
+const tasks = query(api.tasks.list());
+const f = (tasks) => tasks.fake;
+"#;
+        let results = analyze(source);
+        assert!(!results[0].fields.contains(&"fake".to_string()));
+    }
+
+    #[test]
+    fn block_let_shadows_outer_query_var() {
+        let source = r#"
+function App() {
+    const tasks = query(api.tasks.list());
+    if (true) {
+        let tasks = { fake: 1 };
+        console.log(tasks.fake);
+    }
+}
+"#;
+        let results = analyze(source);
+        assert!(!results[0].fields.contains(&"fake".to_string()));
+    }
+
+    #[test]
+    fn for_of_binding_shadows_outer_query_var() {
+        let source = r#"
+function App() {
+    const tasks = query(api.tasks.list());
+    for (const tasks of list) {
+        console.log(tasks.fake);
+    }
+}
+"#;
+        let results = analyze(source);
+        assert!(!results[0].fields.contains(&"fake".to_string()));
+    }
+
+    #[test]
+    fn catch_param_shadows_outer_query_var() {
+        let source = r#"
+function App() {
+    const tasks = query(api.tasks.list());
+    try { foo(); } catch (tasks) { console.log(tasks.fake); }
+}
+"#;
+        let results = analyze(source);
+        assert!(!results[0].fields.contains(&"fake".to_string()));
+    }
+
+    #[test]
+    fn outer_access_still_tracked_when_inner_shadows() {
+        // The real access on outer should still be tracked
+        let source = r#"
+function App() {
+    const tasks = query(api.tasks.list());
+    const real = tasks.data.title;
+    function inner() {
+        const tasks = { fake: 1 };
+        return tasks.fake;
+    }
+}
+"#;
+        let results = analyze(source);
+        assert!(results[0].fields.contains(&"title".to_string()));
+        assert!(!results[0].fields.contains(&"fake".to_string()));
+    }
+
+    #[test]
+    fn inner_query_var_shadows_outer_query_var() {
+        // Two queries with the same name in different scopes — the inner one
+        // shadows the outer for any access inside `inner`. Fields accessed on
+        // the inner must be attributed to the inner, not leaked into the outer.
+        let source = r#"
+const tasks = query(api.tasks.list());
+function inner() {
+    const tasks = query(api.other.list());
+    return tasks.innerOnlyField;
+}
+"#;
+        let results = analyze(source);
+        assert_eq!(results.len(), 2);
+        let outer = results
+            .iter()
+            .find(|r| r.inferred_entity_name.as_deref() == Some("tasks"))
+            .expect("outer query missing");
+        let inner = results
+            .iter()
+            .find(|r| r.inferred_entity_name.as_deref() == Some("other"))
+            .expect("inner query missing");
+        assert!(
+            !outer.fields.contains(&"innerOnlyField".to_string()),
+            "outer query leaked fields from inner shadowing query: {:?}",
+            outer.fields
+        );
+        assert!(
+            inner.fields.contains(&"innerOnlyField".to_string()),
+            "inner query missing its own field: {:?}",
+            inner.fields
+        );
     }
 }
