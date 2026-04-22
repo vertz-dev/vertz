@@ -419,7 +419,9 @@ fn expr_to_string(
         Expression::JSXElement(elem) => {
             element_to_string(elem, reactive_names, ms, hydration_id, holes)
         }
-        Expression::JSXFragment(frag) => fragment_to_string(frag, reactive_names, ms, holes),
+        Expression::JSXFragment(frag) => {
+            fragment_to_string(frag, reactive_names, ms, hydration_id, holes)
+        }
         Expression::ParenthesizedExpression(paren) => {
             expr_to_string(&paren.expression, reactive_names, ms, hydration_id, holes)
         }
@@ -483,16 +485,43 @@ fn fragment_to_string(
     frag: &JSXFragment,
     reactive_names: &HashSet<String>,
     ms: &MagicString,
+    hydration_id: Option<&str>,
     holes: &mut HashSet<String>,
 ) -> String {
     if frag.children.is_empty() {
         return "''".to_string();
     }
 
+    // Attach the hydration id to the first DOM-element-or-fragment child. Text
+    // and expression children can't carry attributes; component tags compile to
+    // `__ssr_Child({})` calls and are also ineligible (runtime SSR's regex only
+    // matches `__element(...)` — never component calls — so skipping them here
+    // keeps the two paths consistent). Nested fragments recurse, passing the id
+    // deeper until a DOM element is found or the fragment is exhausted.
+    let first_eligible_idx = if hydration_id.is_some() {
+        frag.children.iter().position(|c| match c {
+            JSXChild::Element(elem) => {
+                !is_component_tag(&get_opening_tag_name(&elem.opening_element))
+            }
+            JSXChild::Fragment(_) => true,
+            _ => false,
+        })
+    } else {
+        None
+    };
+
     let parts: Vec<String> = frag
         .children
         .iter()
-        .map(|child| child_to_string(child, reactive_names, false, ms, holes))
+        .enumerate()
+        .map(|(i, child)| {
+            let child_hydration_id = if Some(i) == first_eligible_idx {
+                hydration_id
+            } else {
+                None
+            };
+            child_to_string(child, reactive_names, false, ms, child_hydration_id, holes)
+        })
         .filter(|s| s != "''")
         .collect();
 
@@ -548,7 +577,9 @@ fn component_call_to_string(
     if let Some(child_nodes) = children {
         let child_parts: Vec<String> = child_nodes
             .iter()
-            .map(|child| child_to_string(child, &HashSet::new(), false, ms, &mut HashSet::new()))
+            .map(|child| {
+                child_to_string(child, &HashSet::new(), false, ms, None, &mut HashSet::new())
+            })
             .filter(|s| s != "''")
             .collect();
         if !child_parts.is_empty() {
@@ -578,7 +609,7 @@ fn children_to_string(
 
     let parts: Vec<String> = children
         .iter()
-        .map(|child| child_to_string(child, reactive_names, is_raw_text, ms, holes))
+        .map(|child| child_to_string(child, reactive_names, is_raw_text, ms, None, holes))
         .filter(|s| s != "''")
         .collect();
 
@@ -594,6 +625,7 @@ fn child_to_string(
     reactive_names: &HashSet<String>,
     is_raw_text: bool,
     ms: &MagicString,
+    hydration_id: Option<&str>,
     holes: &mut HashSet<String>,
 ) -> String {
     match child {
@@ -608,8 +640,10 @@ fn child_to_string(
         JSXChild::ExpressionContainer(container) => {
             jsx_expression_to_string(container, reactive_names, is_raw_text, ms, holes)
         }
-        JSXChild::Element(elem) => element_to_string(elem, reactive_names, ms, None, holes),
-        JSXChild::Fragment(frag) => fragment_to_string(frag, reactive_names, ms, holes),
+        JSXChild::Element(elem) => element_to_string(elem, reactive_names, ms, hydration_id, holes),
+        JSXChild::Fragment(frag) => {
+            fragment_to_string(frag, reactive_names, ms, hydration_id, holes)
+        }
         _ => "''".to_string(),
     }
 }
@@ -796,7 +830,9 @@ fn try_jsx_expr_to_string(
         Expression::JSXElement(elem) => {
             Some(element_to_string(elem, reactive_names, ms, None, holes))
         }
-        Expression::JSXFragment(frag) => Some(fragment_to_string(frag, reactive_names, ms, holes)),
+        Expression::JSXFragment(frag) => {
+            Some(fragment_to_string(frag, reactive_names, ms, None, holes))
+        }
         Expression::ParenthesizedExpression(paren) => {
             try_jsx_expr_to_string(&paren.expression, reactive_names, ms, holes)
         }
@@ -815,7 +851,7 @@ fn expression_node_to_string(
             expression_node_to_string(&paren.expression, reactive_names, ms, holes)
         }
         Expression::JSXElement(elem) => element_to_string(elem, reactive_names, ms, None, holes),
-        Expression::JSXFragment(frag) => fragment_to_string(frag, reactive_names, ms, holes),
+        Expression::JSXFragment(frag) => fragment_to_string(frag, reactive_names, ms, None, holes),
         Expression::ConditionalExpression(cond) => {
             ternary_to_string(cond, reactive_names, ms, holes)
         }
@@ -2377,6 +2413,150 @@ export function B() {
         assert!(
             result.code.contains("<!--/child-->"),
             "code: {}",
+            result.code
+        );
+    }
+
+    // ========== Feature: fragment-root hydration id ==========
+    // Given an interactive component (has `let`) returning a JSX fragment,
+    // AOT must still emit a `data-v-id` marker so the client hydrator can
+    // locate the component root. Policy: attach the id to the first element
+    // child of the fragment (matches runtime SSR behavior).
+
+    #[test]
+    fn given_fragment_with_element_first_child_then_hydration_id_on_first_element() {
+        let source = r#"export function Header() {
+    let count = 0;
+    return <><h1>Title</h1><button>{count}</button></>;
+}"#;
+        let result = compile(source);
+        assert!(
+            result.code.contains(r#"<h1 data-v-id="Header">"#),
+            "hydration id should attach to first element (h1), code: {}",
+            result.code
+        );
+        // Must not attach to later siblings.
+        assert!(
+            !result.code.contains(r#"<button data-v-id="Header""#),
+            "hydration id must not attach to second element, code: {}",
+            result.code
+        );
+    }
+
+    #[test]
+    fn given_fragment_with_text_first_child_then_hydration_id_on_first_element() {
+        let source = r#"export function Header() {
+    let count = 0;
+    return <>hello<button>{count}</button></>;
+}"#;
+        let result = compile(source);
+        // Text child is skipped; id lands on the button.
+        assert!(
+            result.code.contains(r#"<button data-v-id="Header">"#),
+            "hydration id should skip text child and attach to first element, code: {}",
+            result.code
+        );
+    }
+
+    #[test]
+    fn given_nested_fragment_then_hydration_id_recurses_to_inner_element() {
+        let source = r#"export function Header() {
+    let count = 0;
+    return <><><h1>Title</h1></><button>{count}</button></>;
+}"#;
+        let result = compile(source);
+        // Recurses into the inner fragment and attaches to its first element.
+        assert!(
+            result.code.contains(r#"<h1 data-v-id="Header">"#),
+            "hydration id should recurse into nested fragment, code: {}",
+            result.code
+        );
+    }
+
+    #[test]
+    fn given_single_element_fragment_then_hydration_id_on_that_element() {
+        let source = r#"export function Header() {
+    let count = 0;
+    return <><button>{count}</button></>;
+}"#;
+        let result = compile(source);
+        assert!(
+            result.code.contains(r#"<button data-v-id="Header">"#),
+            "hydration id should attach to the sole element, code: {}",
+            result.code
+        );
+    }
+
+    #[test]
+    fn given_fragment_with_component_first_child_then_hydration_id_skips_to_dom_element() {
+        // Component tags compile to `__ssr_Child({})` calls, not DOM elements
+        // that can carry attributes. The id must skip the component and land
+        // on the first DOM element sibling — matching the runtime SSR regex,
+        // which targets `const __elN = __element(...)` (component calls do not
+        // match `__element(`).
+        let source = r#"export function Header() {
+    let count = 0;
+    return <><Child/><h1>{count}</h1></>;
+}"#;
+        let result = compile(source);
+        assert!(
+            result.code.contains(r#"<h1 data-v-id="Header">"#),
+            "hydration id should skip component tag and attach to first DOM element, code: {}",
+            result.code
+        );
+    }
+
+    #[test]
+    fn given_fragment_with_only_text_and_expression_children_then_no_hydration_id() {
+        // No DOM element to attach to — the marker is silently dropped. Matches
+        // runtime SSR, whose regex finds no `__element(...)` call either. The
+        // assertion makes this behavior explicit rather than accidental.
+        let source = r#"export function Msg() {
+    let count = 0;
+    return <>hello {count}</>;
+}"#;
+        let result = compile(source);
+        assert!(
+            !result.code.contains("data-v-id"),
+            "no element available; id must not leak into unrelated output, code: {}",
+            result.code
+        );
+    }
+
+    #[test]
+    fn given_parenthesized_fragment_root_then_hydration_id_still_propagates() {
+        // `return (<>...</>)` — `expr_to_string` must unwrap the parens and
+        // still forward the id into the fragment.
+        let source = r#"export function Header() {
+    let count = 0;
+    return (<><button>{count}</button></>);
+}"#;
+        let result = compile(source);
+        assert!(
+            result.code.contains(r#"<button data-v-id="Header">"#),
+            "parens must not swallow the hydration id, code: {}",
+            result.code
+        );
+    }
+
+    #[test]
+    fn given_fragment_root_then_later_siblings_never_receive_hydration_id() {
+        // Defensive negative assertion: the id lands exactly once, on the
+        // first element child. Siblings past that point are untouched.
+        let source = r#"export function Header() {
+    let count = 0;
+    return <><h1>Title</h1><span>s</span><button>{count}</button></>;
+}"#;
+        let result = compile(source);
+        assert!(
+            result.code.contains(r#"<h1 data-v-id="Header">"#),
+            "id on first element, code: {}",
+            result.code
+        );
+        assert!(
+            !result.code.contains(r#"<span data-v-id="#)
+                && !result.code.contains(r#"<button data-v-id="#),
+            "id must not appear on later siblings, code: {}",
             result.code
         );
     }
