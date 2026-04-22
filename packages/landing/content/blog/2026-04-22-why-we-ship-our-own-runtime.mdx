@@ -1,0 +1,108 @@
+---
+title: 'Why we ship our own runtime'
+slug: why-we-ship-our-own-runtime
+date: 2026-04-22
+author: matheus
+tags: [runtime, dx, framework]
+description: "Most frameworks bolt onto Node. We shipped a Rust binary that owns dev server, build, tests, and package management. Here's why — and what it cost."
+cover: /blog/covers/why-we-ship-our-own-runtime.png
+draft: false
+---
+
+## The seam we refused to accept
+
+Most TypeScript frameworks are a thin layer on top of a JavaScript runtime someone else ships. Next bolts onto Node. Remix bolts onto Node. Nuxt bolts onto Node. Some of the new ones bolt onto Bun. Either way, the framework author is writing against a runtime contract they don't own — with the startup cost, module graph, and package-manager quirks that come with it.
+
+We looked at that seam and decided we didn't want it.
+
+Vertz ships `vtz` — a standalone Rust binary with an embedded V8 engine. It starts in about 5ms. It includes the dev server (SSR + HMR), a Vitest-compatible test runner, and a package manager. There is no separate Node install, no `node_modules` resolver we inherit, no third-party bundler we have to work around.
+
+<Callout type="note" title="Not ideology — scope">
+  We're not against Node. We ship on Cloudflare Workers in production. `vtz` is about owning the
+  developer-loop primitives, not the deployment runtime.
+</Callout>
+
+## What the binary actually owns
+
+The CLI splits commands into three execution modes, on purpose. This is what you get out of one download:
+
+```bash
+vtz dev              # Start development server
+vtz test             # Run tests
+vtz install          # Install dependencies
+vtz add <pkg>        # Add a package
+vtz remove <pkg>     # Remove a package
+vtz update [pkg]     # Update packages (or all if no pkg specified)
+vtz run <script>     # Run a package.json script
+vtz exec <cmd>       # Run a command from node_modules/.bin
+vtzx <cmd>           # Shorthand for vtz exec (like npx)
+vtz self-update      # Update the vtz binary itself
+```
+
+`vtz dev` and `vtz test` run JavaScript inside the binary's own V8 — they use Vertz's module loader, compiler, and runtime APIs (`@vertz/test`, `vertz:sqlite`) directly. `vtz install` / `add` / `remove` are native Rust, resolving dependencies without shelling out to npm. `vtz run` and `vtz exec` are the Node-world escape hatch for when you have to run a third-party binary; they spawn a child process and hand off.
+
+That split matters. The parts we care about — the inner loop — are fully owned. The parts we don't — running `tsc --noEmit` or some legacy tool — degrade to a shell spawn instead of us reimplementing the universe.
+
+## Why not just use Bun, or Deno, or Node?
+
+Three options were on the table. None of them survived contact with our principles.
+
+**Node.** Cold starts for a dev server on Node are measured in hundreds of milliseconds once you count ts-node / tsx / swc / esbuild / vite in the path. Every one of those is a dependency we don't control, with a release cadence we don't set, and with a module resolution story that fights our compiler. The issue isn't that Node is slow — it's that we'd be paying a tax to keep five other tools in sync.
+
+**Bun.** We love what Bun is doing. But adopting Bun means adopting Bun's roadmap as our ceiling. When we want the dev server to know about our compiler's output, its JSX transform, and our SSR graph, we'd be writing a plugin against someone else's plugin system. That's exactly the seam we're trying to remove.
+
+**Deno.** Same structural argument as Bun. Deno's module resolution and permission model are beautiful, but they're beautiful _for Deno_. Wrapping them to feel like a Vertz app was more work than building our own loader, and we'd still inherit their release cycle.
+
+<Badge intent="stable">vtz</Badge> gives us the one thing none of those options can: the compiler, the module loader, the SSR runtime, and the test runner are the same program. `vtz test` reads the exact same source graph as `vtz dev`. There are no bundler-vs-runtime desync bugs to triage, because there is no bundler-vs-runtime split.
+
+## What it actually feels like
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vertz-dev/vertz/main/install.sh | sh
+vtz create vertz my-app
+cd my-app
+vtz install
+vtz dev
+```
+
+That's the cold start for a new project on a fresh machine. One install script. One binary. No `node` on your PATH required. The install script drops the binary in `~/.vtz/bin/` and auto-detects platform and arch — macOS ARM, macOS x64, Linux x64, Linux ARM64.
+
+For existing projects, `vertz` is a meta-package on npm that pulls the platform-specific runtime as an optional dependency. `vtz install` resolves the right binary for your machine. We don't make you choose the wrong distribution model for your workflow.
+
+<Terminal title="one binary, many responsibilities">
+  $ vtz --version vtz 0.2.47 $ vtz dev Local: http://localhost:3000 Ready in 6ms
+</Terminal>
+
+## What we rejected
+
+Three shortcuts we walked away from, for the record:
+
+**Shipping a "vertz" npm package that wraps vite + vitest + pnpm.** The 80/20 play. Everyone tells you to start there. We rejected it because the moment one of those three tools ships a breaking change we don't want, we're stuck between pinning an old version (boring, brittle) and chasing theirs (distracting). We want to ship framework features, not patch other people's regressions.
+
+**A pure Node CLI with bundled deno\_core.** Halfway house. Gets us the embedded V8 without the Rust toolchain. But it still leaves the test runner, package manager, and dev server living in Node-land — and we'd have two different module loaders in the same process. Debugging that sounded worse than writing Rust.
+
+**Letting the user pick their runtime.** "Support Bun, Node, Deno — ship a matrix." The Node.js framework playbook. It's a recipe for three times the test surface, three times the bugs, and API conventions that have to survive the intersection of three module systems. We're building the stack, not another cross-runtime shim.
+
+## What it cost us
+
+Nothing is free, and we want to be honest about that.
+
+**We ship per-platform binaries.** Four of them right now: macOS ARM, macOS x64, Linux x64, Linux ARM64. Every release builds and uploads four artifacts. CI takes longer. Windows support is a thing we owe users and don't have yet.
+
+**Smaller ecosystem.** You can't `vtz install` a random Node-only binary with native addons and expect it to just work — we spawn it through `vtz exec`, which is fine, but it's an escape hatch, not a feature. Some tools (mostly ones with deep Node internals coupling) will surface edge cases we have to fix one at a time.
+
+**We own the bugs.** When dev server HMR breaks, we can't say "file it upstream." It's upstream. That's the deal we signed up for, and it's the point — but it's a real cost in time.
+
+## The tradeoff in one sentence
+
+We'd rather own the 5ms startup, the deterministic module graph, and the tool that runs our tests than chase four other projects' roadmaps to stitch together the same developer experience.
+
+If the inner loop is 80% of the developer experience, we're not outsourcing it.
+
+---
+
+References:
+
+- [Runtime docs](https://docs.vertz.dev/runtime) — full command list, platform support, and binary resolution order.
+- [Installation](https://docs.vertz.dev/installation) — `curl | sh` install and existing-project setup.
+- [Philosophy](https://docs.vertz.dev/philosophy) — principle 8, "no ceilings," is the one this post is an application of.

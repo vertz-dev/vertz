@@ -1,0 +1,149 @@
+---
+title: 'Durable agents on Cloudflare'
+slug: durable-agents-on-cloudflare
+date: 2026-04-22
+author: matheus
+tags: [agents, ai, cloudflare]
+description: "AI agents crash mid-workflow. @vertz/agents persists tool calls atomically on Cloudflare so resume doesn't mean double-posting to Slack."
+cover: /blog/covers/durable-agents-on-cloudflare.png
+draft: false
+---
+
+## The problem nobody wants to own
+
+Long-running AI agents are the hardest thing to run on serverless. A ReAct loop that does real work — triage a Sentry issue, draft a reply, post to Slack, write to a database — will routinely spend minutes inside a single invocation. Serverless wants short, stateless requests. When the two disagree, the agent dies mid-thought and you find out what "at-least-once" means in practice.
+
+The concrete failure: the agent decides to `postSlack`, the handler fires, Slack gets the message, the process dies before the tool result is persisted. Next invocation sees an orphaned tool call and re-runs the handler. Your bot posts twice. In the billing variant, your customer gets charged twice.
+
+`@vertz/agents` handles this end-to-end on Cloudflare Workers. No separate `resume()` API, no durable-mode flag. You pass a durable store and a `sessionId` to `run()` and you get at-most-once tool execution, atomic writes, and typed recovery semantics the LLM itself can reason about.
+
+## A real agent, end to end
+
+A tool is a typed unit of capability — description, input/output schemas, handler. The LLM sees the description and schema and decides when to call it.
+
+```ts
+import { tool } from '@vertz/agents';
+import { s } from '@vertz/schema';
+
+export const getIssue = tool({
+  description: 'Fetch a Sentry issue by ID',
+  input: s.object({ id: s.string() }),
+  output: s.object({ title: s.string(), status: s.string() }),
+  safeToRetry: true,
+});
+
+export const postSlack = tool({
+  description: 'Post a message to a Slack channel',
+  input: s.object({ channel: s.string(), text: s.string() }),
+  output: s.object({ ts: s.string() }),
+});
+```
+
+The `safeToRetry` flag is the important one. `getIssue` is a pure read — safe to re-invoke on resume. `postSlack` is side-effecting and gets the default: the framework will **not** re-invoke it if a crash lost its result.
+
+<Callout type="note" title="safeToRetry is not network retry">
+  `safeToRetry` only controls resume replay — whether the framework re-invokes a handler when a
+  previous run crashed. It does nothing for transient fetch failures.
+</Callout>
+
+An agent combines state, tools, an LLM, and lifecycle hooks:
+
+```ts
+import { agent } from '@vertz/agents';
+
+export const triageAgent = agent('triage', {
+  state: s.object({ issueCount: s.number() }),
+  initialState: { issueCount: 0 },
+  tools: { getIssue, postSlack },
+  model: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+});
+```
+
+To make this durable on Cloudflare, you run it with a D1-backed store and a session id:
+
+```ts
+import { createAnthropicAdapter, run } from '@vertz/agents';
+import { d1Store } from '@vertz/agents/cloudflare';
+
+await run(triageAgent, {
+  message: 'An issue came in: ...',
+  sessionId: this.state.id.toString(),
+  store: d1Store(this.env.DB),
+  llm: createAnthropicAdapter({ apiKey: this.env.ANTHROPIC_API_KEY }),
+});
+```
+
+Durable resume turns on when three things are true: a store is passed, a `sessionId` is passed, and the store is actually durable. The in-memory store throws `MemoryStoreNotDurableError` if you combine it with a session id, because silently running non-durable writes under a durable contract is a bug waiting to happen.
+
+## What resume actually looks like
+
+Each tool-call step commits two atomic writes: one before handler dispatch with the assistant message and tool_call ids, one after with the tool_results. If the process dies between them, the next `run()` with the same `sessionId` sees an orphan — assistant asked for `postSlack`, no tool_result.
+
+For a `safeToRetry` tool, the framework re-invokes the handler and persists the real result. The LLM never sees the crash.
+
+For a non-`safeToRetry` tool, the framework writes a synthetic tool_result the LLM can reason about:
+
+```json
+{
+  "error": "Tool 'postSlack' was requested but its execution did not complete durably...",
+  "kind": "tool-durability-error",
+  "toolName": "postSlack",
+  "toolCallId": "toolu_01"
+}
+```
+
+The LLM's next turn sees the error in history and decides what to do: check Slack for a duplicate, ask the user, abort. Recovery is in-band. The framework doesn't pretend to know whether the side effect landed — it tells the model, and the model decides.
+
+## Workflows — pipelines with gates
+
+Single agents are the small case. Real work fans out: research, draft, review, approve, publish. `workflow()` chains agents into a pipeline where each step's `ctx.prev` is strongly typed from the preceding steps' output schemas.
+
+```ts
+const pipeline = workflow('review-pipeline', {
+  input: s.object({ documentPath: s.string() }),
+})
+  .step('auto-review', {
+    agent: reviewerAgent,
+    input: (ctx) => `Review document at: ${ctx.workflow.input.documentPath}`,
+    output: s.object({ approved: s.boolean(), findings: s.array(s.string()) }),
+  })
+  .step('human-approval', {
+    approval: {
+      message: (ctx) =>
+        `Auto-review found ${ctx.prev['auto-review'].findings.length} findings. Approve to proceed.`,
+      timeout: '7d',
+    },
+  })
+  .step('publish', {
+    agent: publisherAgent,
+    input: (ctx) => `Publish: ${ctx.workflow.input.documentPath}`,
+    output: s.object({ url: s.string() }),
+  })
+  .build();
+```
+
+An approval step has no agent — it's a gate. `runWorkflow()` returns with `status: 'pending'` and a `pendingStep`. Store the results, wait for the human, resume with `resumeAfter: 'human-approval'` and `previousResults`. The primitive is transport-agnostic: you decide whether approval comes from a dashboard, Slack, or a terminal prompt.
+
+## What we rejected
+
+**Stateless chains on Lambda.** LangChain-style composition on request-scoped serverless. Works for short prompts. Falls apart for multi-step tool use with side effects. A 10-step agent routinely exceeds the CPU budget of a single Worker invocation.
+
+**In-memory orchestrators.** Keep the loop in a long-lived process. Fast, but the first redeploy wipes every in-flight workflow, and horizontal scaling means every worker has to know about every session. Works until it doesn't, then your ops page lights up.
+
+**Full-fat Temporal.** Temporal, Restate, Inngest are excellent at what they do and too much for most teams. You run a cluster, learn a DSL, write activities instead of plain TypeScript. For a team that just wants an agent that doesn't double-post, it's a two-week learning curve for a one-afternoon problem.
+
+Durability as a property of the store, not a separate runtime — that's what Vertz ships. Durable Objects give us session identity. D1 gives us atomic writes. The agent API stays the same whether you run `memoryStore` in tests or `d1Store` in production.
+
+## The tradeoffs
+
+Durable execution is not free. Each tool-call step commits two atomic writes instead of one end-of-run batch. On Cloudflare D1 same-region, expect ~100–200ms overhead per 10-step session. For high-volume read-heavy agents that don't need crash recovery, omit `sessionId` and run statelessly — no durable writes happen.
+
+The other tradeoff: non-`safeToRetry` tools that crash in the middle windows are intentionally pessimistic. The framework doesn't know if your side effect landed. It won't guess. It surfaces the error and lets the LLM decide — the opposite of what most durable-execution engines do, and the right call for agents, because the LLM has the semantic context and the framework doesn't.
+
+---
+
+References:
+
+- [Agents overview](https://docs.vertz.dev/guides/agents/overview) — typed tools, ReAct loops, adapters.
+- [Workflows](https://docs.vertz.dev/guides/agents/workflows) — multi-step pipelines, approval gates, `ctx.prev` typing.
+- [Durable resume](https://docs.vertz.dev/guides/agents/durable-resume) — at-most-once semantics, crash windows, `ToolDurabilityError`.

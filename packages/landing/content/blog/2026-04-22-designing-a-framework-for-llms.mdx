@@ -1,0 +1,140 @@
+---
+title: 'Designing a framework for LLMs'
+slug: designing-a-framework-for-llms
+date: 2026-04-22
+author: matheus
+tags: [llms, framework, design]
+description: "Every API decision evaluated by one question: can an LLM use this correctly on the first prompt? Here's what that looks like in practice."
+cover: /blog/covers/designing-a-framework-for-llms.png
+draft: false
+---
+
+## Frameworks were designed for humans reading docs
+
+When an LLM writes React, it hallucinates. Wrong imports, stale hook APIs, `useEffect` patterns that haven't been idiomatic for three years. Not because the model is bad — every training corpus contains five versions of "how to do X in React," and the model averages across them.
+
+The root cause is older than the LLM. React, Next.js, NestJS — every framework from the last decade was designed for a human reading docs over weeks. Ambiguity was acceptable because the human would eventually converge. There are three ways to do data fetching; the senior picks one. Four ways to manage state; the team aligns. Six kinds of decorator; you learn the one your codebase uses.
+
+LLMs don't get weeks. They get a context window and a prompt, and they can't converge by attrition. Every "there are three ways to do this" is a coin flip, and models flip the wrong side constantly.
+
+We built Vertz with one design constraint as hard as type safety: *can an LLM use this API correctly on the first prompt?* That constraint produces a different framework than designing for a human with a browser full of docs tabs.
+
+## One way to do each thing
+
+The largest source of LLM errors in other frameworks is "which pattern does this codebase use?" So we made it stop being a question.
+
+Reactive local state has one API: `let`.
+
+```tsx
+// Wrong — manual signal, requires .value everywhere
+import { signal } from '@vertz/ui';
+const count = signal(0);
+return <span>{count.value}</span>;
+
+// Right — compiler handles reactivity
+let count = 0;
+return <span>{count}</span>;
+```
+
+Derived values have one API: `const`.
+
+```tsx
+let count = 0;
+const doubled = count * 2;
+const label = count === 0 ? 'empty' : `${count} items`;
+```
+
+Data fetching has one API: the generated SDK with `query()`.
+
+```tsx
+// Wrong — bypasses types, SSR, caching, optimistic updates
+const res = await fetch('/api/tasks');
+const data = await res.json();
+
+// Right
+import { query } from '@vertz/ui';
+import { api } from '../client';
+const tasks = query(api.tasks.list());
+```
+
+Access rules have one shape: declarative descriptors.
+
+```ts
+// Wrong — opaque function, can't be serialized or inspected
+access: {
+  list: () => true,
+  update: (ctx, row) => row.createdBy === ctx.userId,
+}
+
+// Right — descriptor, inspectable, serializable
+access: {
+  list: rules.authenticated(),
+  update: rules.all(
+    rules.entitlement('task:update'),
+    rules.where({ createdBy: rules.user.id }),
+  ),
+}
+```
+
+The second form is more verbose. We know. That verbosity is legibility. Every `rules.*` call is a named primitive the framework can inspect, serialize to the client, and potentially compile to database-level policies. A callback is opaque to the framework and opaque to the LLM reading a random example. When every entity in the codebase uses `rules.*`, the model writes `rules.*` next time without having to pick between variants.
+
+## Type-driven APIs that fail loud
+
+The second-largest source of LLM errors is inventing plausible-looking code that doesn't exist. `d.uuid().references('users.id')` is a thing in other ORMs. It is not a thing in Vertz. Foreign keys live on models via `d.ref.one()`.
+
+```ts
+// Wrong — pattern from other ORMs, doesn't exist in Vertz
+const postsTable = d.table('posts', {
+  authorId: d.uuid().references('users.id'),
+});
+
+// Right — d.ref.one() on the model
+const postsModel = d.model(postsTable, {
+  author: d.ref.one(() => usersTable, 'authorId'),
+});
+```
+
+The wrong version doesn't just fail at runtime — it fails at typecheck. The compiler rejects it. The model hallucinates, the build breaks, the agent reads the error, fixes it, ships. Fail-loud-at-compile-time is an LLM optimization, not just a human one.
+
+This is why we rejected decorators early. They look elegant but types don't flow through decorator chains. An LLM writing NestJS routinely puts decorators in the wrong order, uses DTOs that break at runtime, and generates OpenAPI specs that diverge from the actual types. We chose functions because types flow through function signatures and LLMs predict those accurately.
+
+## A doc written for context windows
+
+Most framework docs are written for a human browsing a sidebar. `llm-quick-reference.mdx` is written for a model with a 200k context that needs the whole framework summarized once, densely, with canonical examples inline.
+
+It opens with `vtz create` because that's the single highest-leverage instruction. It lists wrong patterns next to right ones so a model pattern-matching against partial context recognizes its own mistake:
+
+```
+| Wrong                                | Right                                     |
+| ------------------------------------ | ----------------------------------------- |
+| Manually creating project files      | vtz create vertz my-app                   |
+| access: { list: () => true }         | access: { list: rules.public }            |
+| const x = signal(0) / x.value        | let x = 0 / x                             |
+| await fetch('/api/tasks')            | query(api.tasks.list())                   |
+| TaskCard({ task })                   | <TaskCard task={task} />                  |
+| d.uuid().references('users.id')      | d.ref.one(() => usersTable, 'authorId')   |
+```
+
+That table is the most effective piece of documentation we've written. It's a patch file for LLM failure modes. Every row is an error we saw in production traces from agents building Vertz apps, distilled to the minimum context that fixes it. `common-mistakes.mdx` is the long-form version — a curated list of anti-patterns the model is statistically most likely to produce, each with a concrete fix.
+
+## What we rejected
+
+**"Just prompt your LLM to follow our docs."** The default industry answer, and it doesn't scale. It pushes the cost onto the user: paste docs into every agent, remember which rules matter, audit outputs for subtle deviations. It assumes LLMs have perfect system-prompt adherence, which nobody who has actually used one believes. The fix belongs in the API surface, not the prompt.
+
+**A separate "LLM mode."** A stripped-down dialect for agents, with a more verbose runtime for humans. We considered this seriously for about a week. Then we realized: if the LLM-optimized surface is better, why would humans want the worse one? The one-way-to-do-things rule, fail-loud types, and dense reference doc all help human onboarding, code review, and debugging. There's no trade. Shipping a second mode would have been admitting we didn't believe our own thesis.
+
+## The cost we accept
+
+This design has a cost. Vertz APIs are sometimes more verbose than they strictly need to be. `rules.all(rules.entitlement('task:update'), rules.where({ createdBy: rules.user.id }))` is more keystrokes than a callback. For humans typing by hand, that verbosity is overhead.
+
+We accept it because typing by hand is a shrinking share of the work. The rest is reads, reviews, refactors, LLM-assisted changes, and code generated by agents. In every one of those, legibility dominates typing speed. Verbose-but-unambiguous beats terse-but-guessable every time.
+
+Our north star: *when a developer finishes their first Vertz project, they say "my LLM nailed it on the first try."* If hitting that costs three extra keystrokes per access rule, we pay three keystrokes.
+
+---
+
+References:
+
+- [LLM quick reference](https://docs.vertz.dev/guides/llm-quick-reference) — the single-page framework summary, written for context windows.
+- [Common mistakes](https://docs.vertz.dev/guides/common-mistakes) — the anti-pattern catalog, a.k.a. the LLM failure-mode patch file.
+- [Conventions](https://docs.vertz.dev/conventions) — one way to do each thing, documented.

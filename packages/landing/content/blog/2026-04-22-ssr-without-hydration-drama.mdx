@@ -1,0 +1,118 @@
+---
+title: 'SSR without hydration drama'
+slug: ssr-without-hydration-drama
+date: 2026-04-22
+author: matheus
+tags: [ssr, ui, performance]
+description: "React's hydration model is render the tree twice and hope they match. We built Vertz's compiled UI to skip the comparison step entirely."
+cover: /blog/covers/ssr-without-hydration-drama.png
+draft: false
+---
+
+## The hydration contract nobody actually wants
+
+Every React developer has seen the warning: **"Hydration failed because the server rendered HTML didn't match the client."** The next hour is spent grep-ing for `Date.now()`, `Math.random()`, locale strings, or — worst case — a third-party script that injected a `<div>` into `<body>` before React booted.
+
+The contract React asks you to uphold is: render a tree server-side, ship the same tree client-side, then reconcile the two into one. The promise is interactivity. The bill is a whole class of "only in production" bugs — hydration mismatches, flashes of unstyled content, console warnings that vanish on refresh and come back on deploy.
+
+Vertz skips the contract. The server emits HTML. The client walks that HTML and attaches signals directly to the existing DOM nodes. There is no second tree to diff against the first. There is nothing to mismatch.
+
+## Why the diff exists at all
+
+Hydration in a virtual-DOM framework is a consequence of its core data structure. React's render output is a VNode tree — plain objects describing what the DOM should look like. Server-side, that tree is serialized to HTML. Client-side, React re-runs your components to rebuild the VNode tree, then walks the real DOM in lockstep to attach events and state. If the two trees disagree on a single node, the cursor is misaligned and everything downstream is wrong.
+
+The machinery exists to bridge the gap between the HTML the browser already has and the VNode tree React is about to create. It's overhead by construction.
+
+<Callout type="note" title="This is not a dig at React">
+  React's model is the reason you can write the same component for server and client. A generation of frameworks is built on it. The tradeoff is real, not theoretical — and it's the one we made a different call on.
+</Callout>
+
+Vertz has no VNode tree. The compiler transforms your component into DOM-creating code at build time. Server-side, that same code emits strings; client-side, it walks the existing DOM with a cursor and claims each node as it goes. There's no second tree, because we never needed one.
+
+## What this deletes
+
+A concrete list of failure modes that simply don't exist in Vertz:
+
+- **Server/client clock drift.** `new Date().toLocaleString()` in a React component body is a hydration mismatch waiting to happen. In Vertz, the server emits the formatted string and the client claims the text node as-is — no comparison.
+- **Browser-extension-injected DOM.** 1Password, Grammarly, and friends inject nodes into your tree before hydration runs. Vertz's `claimElement` scans siblings for a matching tag and skips past foreign nodes — extensions don't break the page.
+- **Locale- and timezone-sensitive rendering.** `Intl.DateTimeFormat` with the wrong `TZ` on the server renders a different string than the client. In Vertz, the client doesn't re-render — it attaches to whatever the server sent.
+- **Flash of unstyled content.** Scoped CSS from `css()` is collected during SSR and inlined into `<head>` before the body streams.
+
+The `mount()` call on the client is one line:
+
+```ts
+import { mount } from '@vertz/ui';
+import { App, styles } from './app';
+import { appTheme } from './styles/theme';
+
+mount(App, { theme: appTheme, styles });
+```
+
+`mount()` walks the SSR DOM with a cursor, claiming nodes as signals attach. If a claim fails — because an extension added a `<div>` or the SSR output is a tag ahead of the client — the cursor backs up, the claim returns `null`, and the framework creates the missing node fresh. No cascade. No "the rest of the page is broken now." Tolerance is a design property, not a patch.
+
+## Compiled SSR, not rendered-then-serialized
+
+Vertz's AOT pass goes further: instead of running the DOM shim on the server, it analyzes each component at build time and compiles pure components into direct string concatenation functions.
+
+```ts
+// Your component
+function Header({ title }: { title: string }) {
+  return (
+    <header>
+      <h1>{title}</h1>
+    </header>
+  );
+}
+
+// Compiled AOT SSR output
+function __ssr_Header(__props: { title: string }) {
+  return '<header><h1>' + __esc(__props.title) + '</h1></header>';
+}
+```
+
+No virtual nodes, no reconciliation, no serialization step. The server concatenates strings. This is the same trick Svelte and Marko use. Components the compiler can't statically analyze — the ones with effects and complex state — become **holes** that fall back to the DOM shim transparently. Coverage is a gradient, not a binary, and the output is byte-identical either way.
+
+The AOT diagnostic endpoint in dev reports which components made the static tier:
+
+```json
+// GET http://localhost:3000/__vertz_ssr_aot
+{
+  "components": {
+    "Header":    { "tier": "static" },
+    "Dashboard": { "tier": "conditional", "holes": ["SidePanel"] }
+  },
+  "coverage": { "total": 5, "aot": 4, "runtime": 1, "percentage": 80 }
+}
+```
+
+## What we rejected
+
+**React's hydration model.** The whole premise — render twice, diff to reconcile — is the thing we're optimizing out. Keeping it would mean keeping every associated failure mode.
+
+**Next.js's workarounds.** `suppressHydrationWarning`, `useEffect` to delay rendering, `typeof window` gates. Each one is a patch on the core model. Patches compound into a framework that demands you memorize escape hatches.
+
+**Astro's islands.** Genuinely clever, and the right answer if you're a static-site framework. But islands still have a hydration boundary — inside each island, you're running React (or Vue, or Solid) with the same comparison step. The drama moves, it doesn't vanish. Vertz is not a static-site framework; we want fine-grained reactivity everywhere, not just inside declared interactive regions.
+
+## Tradeoffs we accept
+
+This model isn't free.
+
+The compiler is mandatory. We can't fall back to "just ship JSX and figure it out at runtime" — the transforms are what make the no-diff story work. That's a build-time dependency you don't get to remove.
+
+Reactivity is our specific model, not a generic one. `let` compiles to a signal; `const` with reactive dependencies compiles to `computed`; JSX attributes become getters. You can't BYO state library — if you want MobX or Zustand in a Vertz component, you wrap them in signals. Same tradeoff Svelte and Solid make.
+
+No on-demand re-render of arbitrary subtrees. In React, `forceUpdate` and key changes let you nuke a subtree and rebuild it. In Vertz, reactivity is fine-grained — you change data, the specific nodes bound to that data update. There's no "render this whole thing again" button, because there's no render cycle to trigger.
+
+## What we got for it
+
+Hydration cost on the client is bounded by `O(number of reactive bindings)`, not `O(tree size)`. Static parts of the page — headers, footers, layout — cost zero work at hydration time. AOT-compiled routes render measurably faster than the DOM shim path.
+
+And we stopped seeing the warning. That's the one that actually shifted how we felt about shipping.
+
+---
+
+References:
+
+- [SSR guide](https://docs.vertz.dev/guides/ui/ssr) — single-pass render, query pre-fetch, AOT compilation.
+- [`@vertz/ui` overview](https://docs.vertz.dev/guides/ui/overview) — compiled reactivity, no VDOM.
+- [Tolerant hydration design](https://github.com/vertz-dev/vertz/blob/main/docs/guides/ssr-hydration.md) — cursor walk, claim functions, CSR fallback.

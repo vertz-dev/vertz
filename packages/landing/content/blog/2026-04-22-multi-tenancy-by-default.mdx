@@ -1,0 +1,146 @@
+---
+title: 'Multi-tenancy by default'
+slug: multi-tenancy-by-default
+date: 2026-04-22
+author: matheus
+tags: [auth, multi-tenancy, security]
+description: "\"I'll add multi-tenancy later\" is how startups become security incidents. In Vertz, any entity with a tenantId is scoped automatically."
+cover: /blog/covers/multi-tenancy-by-default.png
+draft: false
+---
+
+## The "later" that never comes
+
+Every B2B SaaS eventually needs multi-tenancy. Most codebases bolt it on after the first enterprise customer asks, which means six months of queries written without a `WHERE tenant_id = ?`, six months of code review where "did you remember to filter" was the sole defense, and at least one near-miss that someone spotted on staging.
+
+We've done this. Every team we've worked with has done this. The pattern is identical: single-tenant schemas ship first because they're faster, then multi-tenancy is retrofitted across hundreds of query sites, then a developer forgets one, then the CEO writes a very difficult email.
+
+In Vertz, multi-tenancy is not a migration. It's the default.
+
+## The rule
+
+Mark a table as `.tenant()` (or add a `tenantId` column to any entity) and the framework applies the scope automatically:
+
+```ts
+import { d } from '@vertz/db';
+import { entity, rules } from '@vertz/server';
+
+const projectsModel = d
+  .table('projects', {
+    id: d.id(),
+    name: d.text(),
+    tenantId: d.text(),
+  });
+
+const projects = entity('projects', {
+  model: projectsModel,
+  access: {
+    list: rules.authenticated(),
+    // No manual tenantId filter. The framework adds it.
+  },
+});
+```
+
+Every `list`, `get`, `update`, and `delete` gets `rules.where({ tenantId: rules.user.tenantId })` added to the query before it hits the database. The where clause is pushed into the SQL, so rows belonging to other tenants are never fetched. 404 on unauthorized access, not 403 — no information leakage about whether a row exists in some other tenant.
+
+Need to opt out? You have to be explicit:
+
+```ts
+entity('system-template', {
+  tenantScoped: false, // cross-tenant, on purpose
+  model: systemTemplatesModel,
+  access: { list: rules.public },
+});
+```
+
+<Callout type="warning" title="Explicit is the whole point">
+  `tenantScoped: false` is a flag you add on purpose. It shows up in code review. It shows up in
+  search. A junior engineer wiring a new entity cannot forget to scope it — they'd have to actively
+  unscope it.
+</Callout>
+
+## Rules as data, not functions
+
+The second half of this story is how access rules are expressed. An older API would have looked like this:
+
+```ts
+// What we rejected
+access: {
+  list: (ctx) => ctx.authenticated(),
+  update: (ctx, row) => row.createdBy === ctx.userId && row.tenantId === ctx.tenantId,
+}
+```
+
+That works. It also defeats the entire framework. A callback is opaque — the framework can't serialize it to the client, can't compile it to a Postgres RLS policy, can't show it in the API explorer, can't tell you at build time that an entity's update rule disagrees with its delete rule.
+
+Vertz uses declarative descriptors:
+
+```ts
+import { rules } from '@vertz/auth/rules';
+
+const tasks = entity('tasks', {
+  model: tasksModel,
+  access: {
+    list: rules.authenticated(),
+    create: rules.entitlement('task:create'),
+    update: rules.all(
+      rules.entitlement('task:update'),
+      rules.where({ createdBy: rules.user.id }),
+    ),
+    delete: rules.entitlement('task:delete'),
+  },
+});
+```
+
+Each of those is a plain object with a `type` discriminant. The framework inspects them at build time and uses them at runtime in three different places:
+
+1. **SQL.** `rules.where()` compiles into the query. Zero round-trips to application code for row filtering. For `update` and `delete` it's applied to both the lookup and the mutation, which closes a TOCTOU window that manual checks routinely miss.
+2. **Client SDK.** `rules.entitlement('task:update')` is sent to the browser as part of the access set so the UI can hide the Edit button. Functions can't cross that boundary. Descriptors can.
+3. **Future RLS compilation.** A `rules.where()` descriptor is a syntax tree we can walk. A closure is a black box. When we emit Postgres Row-Level Security policies, the descriptor form is the thing that makes it possible.
+
+## Tenant switching, JWTs, and the session that's scoped to one tenant at a time
+
+Users often belong to multiple tenants. The framework handles this with a per-switch JWT re-issue — switching tenant is a `POST /api/auth/switch-tenant` that returns a new token scoped to the new tenant, with the old one invalidated.
+
+```ts
+const auth = createAuth({
+  session: { strategy: 'jwt', ttl: '60s' },
+  tenant: {
+    verifyMembership: async (userId, tenantId) => {
+      const member = await db.query(
+        'SELECT 1 FROM tenant_members WHERE user_id = ? AND tenant_id = ?',
+        [userId, tenantId],
+      );
+      return member.length > 0;
+    },
+    listTenants: async (userId) => {
+      return db.query(
+        'SELECT t.id, t.name FROM tenants t JOIN tenant_members tm ON t.id = tm.tenant_id WHERE tm.user_id = ?',
+        [userId],
+      );
+    },
+  },
+});
+```
+
+The `tenantId` lives in the JWT payload. Every entity access rule reads it from the session context via `rules.user.tenantId`. Cached queries on the client are invalidated automatically on switch — no stale cross-tenant data visible for a frame.
+
+## What we rejected
+
+**Manual tenant filters in every query.** The status quo. You write `WHERE tenant_id = ?` in 140 places and hope nobody misses one. The framework can't help you; the tests can't exhaustively cover it; the linter can flag suspicious queries but can't know what's correct. We've all lived this. No.
+
+**Postgres RLS only.** RLS is excellent — and Vertz can compile to it — but "RLS only" has real costs. It's Postgres-specific (we ship SQLite and D1 too). It's hard to test without spinning up a real database per test. It's invisible in application code, so a reviewer reading an entity definition has no idea what's enforced where. We treat RLS as the compilation _target_, not the source of truth.
+
+**Callback-based access rules.** Elegant in the small. Broken at every boundary: the SDK can't see them, the SQL planner can't use them, the UI can't advisory-check them, and the framework can't prove they're consistent across operations. The declarative form costs more characters and buys you five production-grade features.
+
+## The tradeoff we accept
+
+Opting out is louder than opting in. That's the design. If `tenantScoped: false` feels like friction for a genuinely cross-tenant entity, good — that's the friction catching the 19 times out of 20 that someone wrote `tenantScoped: false` because they didn't understand the scoping model yet.
+
+---
+
+References:
+
+- Server multi-tenancy guide: [docs.vertz.dev/guides/server/multi-tenancy](https://docs.vertz.dev/guides/server/multi-tenancy)
+- Access rules convention: `.claude/rules/entity-access-rules.md`
+- Auth + rules builder API: [docs.vertz.dev/guides/server/auth](https://docs.vertz.dev/guides/server/auth)
