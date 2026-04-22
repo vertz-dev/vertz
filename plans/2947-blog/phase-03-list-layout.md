@@ -101,6 +101,6 @@ Dev server: on first request for a missing cover, generate and cache in-process 
 
 - [ ] All tasks complete, BDD criteria checked
 - [ ] Quality gates green (`vtz test && vtz run typecheck && vtz run lint`)
-- [ ] Visual QA at 3 viewports with 2+ posts (one with cover, one without)
+- [ ] Visual QA via `vertz_browser_screenshot` MCP tool at 3 viewports (375 / 768 / 1440) with 2+ posts (one with cover, one without). Screenshots saved under `reviews/2947-blog/screenshots/phase-03/`. File vtz follow-up issues for any ergonomic gaps instead of silent workarounds.
 - [ ] No broken cards — every card shows a cover
 - [ ] Phase review at `reviews/2947-blog/phase-03-list-layout.md`

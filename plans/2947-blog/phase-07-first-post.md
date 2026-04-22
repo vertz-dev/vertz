@@ -56,14 +56,14 @@ Content must exercise at least: `<Callout>`, `<Figure>`, `<CodeGroup>`, `<Steps>
 
 ---
 
-### Task 2: Cross-viewport QA with JamExt / Chrome DevTools MCP
+### Task 2: Cross-viewport QA via `vertz_browser_screenshot` (vtz MCP, #2865 dogfood)
 
 **Files:** (1)
 - `reviews/2947-blog/phase-07-first-post.md` (new — QA notes with screenshots referenced)
 
 **What to implement:**
 
-Using JamExt or Chrome DevTools MCP, load the deployed preview at 3 viewports and validate:
+Using `vtz`'s built-in `vertz_browser_screenshot` MCP tool (from #2865 — this is an explicit dogfood goal for #2947), load each route at 3 viewports and validate. Screenshots land under `reviews/2947-blog/screenshots/phase-07/`. File vtz follow-up issues for any ergonomic gap (sizing, element targeting, dark-theme handling, wait-for-idle, etc.) rather than routing around them silently. If a gap is a hard blocker (can't screenshot at all), pause and escalate with a concrete repro.
 
 **375px (mobile):**
 - Cover scales without crop
@@ -87,7 +87,7 @@ Using JamExt or Chrome DevTools MCP, load the deployed preview at 3 viewports an
 Record findings in the review file. If any viewport is broken, flag as blocker, fix, re-verify.
 
 **Acceptance criteria:**
-- [ ] Screenshots captured at each viewport (stored as attachments in Jam or saved under `reviews/2947-blog/screenshots/`)
+- [ ] Screenshots captured at each viewport via `vertz_browser_screenshot` MCP and saved under `reviews/2947-blog/screenshots/phase-07/`
 - [ ] Every known edge case from the design doc "Edge Cases" table manually verified
 - [ ] Lighthouse score: Performance ≥90, Accessibility ≥95, SEO 100
 - [ ] No console errors on any viewport

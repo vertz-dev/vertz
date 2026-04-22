@@ -148,6 +148,6 @@ Apply to compiled code blocks (wrapper `div` around `pre`). Phase 4 enhances wit
 
 - [ ] All tasks complete, BDD acceptance criteria checked
 - [ ] Quality gates: `vtz test && vtz run typecheck && vtz run lint` green
-- [ ] Visual QA using JamExt or Chrome DevTools MCP at 3 viewports: 375px, 768px, 1440px
+- [ ] Visual QA using `vtz`'s `vertz_browser_screenshot` MCP tool (#2865 dogfood) at 3 viewports: 375px, 768px, 1440px. Screenshots saved under `reviews/2947-blog/screenshots/phase-02/`. File a vtz follow-up issue for any ergonomic gap hit (sizing, element targeting, dark-theme handling, wait-for-idle, etc.) rather than routing around silently.
 - [ ] Sample post renders with cover, typography, TOC (≥1024), reading progress, code breakout
 - [ ] Phase review file at `reviews/2947-blog/phase-02-post-layout.md`
