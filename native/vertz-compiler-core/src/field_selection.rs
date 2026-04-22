@@ -1699,17 +1699,9 @@ fn track_callback_stmt(
                 }
             }
         }
-        Statement::BlockStatement(block) => {
-            if !block_shadows(block, param_name, None) {
-                for inner in &block.body {
-                    track_callback_stmt(
-                        inner,
-                        param_name,
-                        fields,
-                        nested_access,
-                        has_opaque_access,
-                    );
-                }
+        Statement::BlockStatement(block) if !block_shadows(block, param_name, None) => {
+            for inner in &block.body {
+                track_callback_stmt(inner, param_name, fields, nested_access, has_opaque_access);
             }
         }
         Statement::IfStatement(if_stmt) => {
