@@ -69,6 +69,20 @@ declare global {
   interface ImportMeta {
     /** Hot Module Replacement API. Only available in dev mode; undefined in production and SSR. */
     readonly hot: ImportMetaHot | undefined;
+    /**
+     * `true` when the current module is the entry point (`vtz <file>`, dev server entry,
+     * or `vtz test` runner target). `false` when imported from another module.
+     *
+     * Use for "run if main" idioms — e.g. starting an HTTP server only when the file
+     * is executed directly, not when imported by a test:
+     *
+     * ```ts
+     * if (import.meta.main) app.listen(env.PORT);
+     * ```
+     *
+     * Set natively by the vtz runtime on every module, so no polyfill is required.
+     */
+    readonly main: boolean;
   }
 }
 
