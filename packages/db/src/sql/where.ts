@@ -264,8 +264,8 @@ function buildOperatorCondition(
   if (operators.arrayContains !== undefined) {
     if (!dialect.supportsArrayOps) {
       throw new Error(
-        'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) are not supported on SQLite. ' +
-          'Use a different filter strategy or switch to Postgres.',
+        'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) require dialect: postgres. ' +
+          'On SQLite, fetch with list() and filter in application code.',
       );
     }
     clauses.push(`${columnRef} @> ${dialect.param(idx + 1)}`);
@@ -275,8 +275,8 @@ function buildOperatorCondition(
   if (operators.arrayContainedBy !== undefined) {
     if (!dialect.supportsArrayOps) {
       throw new Error(
-        'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) are not supported on SQLite. ' +
-          'Use a different filter strategy or switch to Postgres.',
+        'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) require dialect: postgres. ' +
+          'On SQLite, fetch with list() and filter in application code.',
       );
     }
     clauses.push(`${columnRef} <@ ${dialect.param(idx + 1)}`);
@@ -286,8 +286,8 @@ function buildOperatorCondition(
   if (operators.arrayOverlaps !== undefined) {
     if (!dialect.supportsArrayOps) {
       throw new Error(
-        'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) are not supported on SQLite. ' +
-          'Use a different filter strategy or switch to Postgres.',
+        'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) require dialect: postgres. ' +
+          'On SQLite, fetch with list() and filter in application code.',
       );
     }
     clauses.push(`${columnRef} && ${dialect.param(idx + 1)}`);

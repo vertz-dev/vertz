@@ -1,4 +1,5 @@
 import type { DialectName } from '../dialect/types';
+import type { ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS } from './array-filter-brand';
 import type { ColumnBuilder, InferColumnType } from './column';
 import type { JsonbPathFilter_Error_Requires_Dialect_Postgres_On_SQLite_Use_list_And_Filter_In_JS } from './jsonb-filter-brand';
 import type { JsonbColumnValue } from './path-chain';
@@ -105,6 +106,54 @@ type IsJsonbColumn<C> =
     : false;
 
 /**
+ * Detect whether a column is a native array/vector column — the three types
+ * that admit Postgres `@>` / `<@` / `&&` operators. Matched by `sqlType`
+ * (not by inferred TS type) to avoid accidentally enabling array ops for any
+ * future column whose inferred type happens to be `readonly U[]`.
+ *
+ * `d.bytea()` (`Uint8Array`) is deliberately excluded — it's an opaque byte
+ * blob, not a typed element sequence.
+ */
+type IsArrayColumn<C> =
+  C extends ColumnBuilder<unknown, infer M>
+    ? M extends
+        | { readonly sqlType: 'text[]' }
+        | { readonly sqlType: 'integer[]' }
+        | { readonly sqlType: 'vector' }
+      ? true
+      : false
+    : false;
+
+/**
+ * Extract the element type from an array column's inferred TS type. Resolves
+ * to `string` for `d.textArray()` and to `number` for `d.integerArray()` and
+ * `d.vector()`.
+ */
+type ArrayElementOf<C> =
+  C extends ColumnBuilder<infer T, infer _M> ? (T extends readonly (infer U)[] ? U : never) : never;
+
+/**
+ * Dialect-gated operand slots for the three Postgres array operators.
+ *
+ * On Postgres: typed operand `readonly TElem[]` where `TElem` flows from the
+ * column's inferred element type.
+ * On SQLite: the three slots resolve to the brand interface so attempting
+ * any of them produces a TS diagnostic whose name reads as the recovery
+ * sentence.
+ */
+type ArrayOperatorSlots<TElem, TDialect extends DialectName> = TDialect extends 'postgres'
+  ? {
+      readonly arrayContains?: readonly TElem[];
+      readonly arrayContainedBy?: readonly TElem[];
+      readonly arrayOverlaps?: readonly TElem[];
+    }
+  : {
+      readonly arrayContains?: ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS;
+      readonly arrayContainedBy?: ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS;
+      readonly arrayOverlaps?: ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS;
+    };
+
+/**
  * FilterType<TColumns, TDialect> — typed where clause, dialect-conditional.
  *
  * Each key is one of:
@@ -112,13 +161,19 @@ type IsJsonbColumn<C> =
  *   (direct payload equality, simple comparison, `jsonContains` /
  *   `jsonContainedBy` / `hasKey`, or a `path()` descriptor). On SQLite the
  *   payload operators resolve to a keyed-never brand.
+ * - An array / vector column (`d.textArray()`, `d.integerArray()`,
+ *   `d.vector()`) — direct payload equality, OR the standard
+ *   `ColumnFilterOperators`, OR the three Postgres array operators
+ *   (`arrayContains` / `arrayContainedBy` / `arrayOverlaps`) with operand
+ *   element type flowing from column metadata. The three forms are distinct
+ *   union arms so per-property diagnostics stay narrow; TS's union contextual
+ *   typing still permits combining keys across arms in one object, which the
+ *   runtime processes as an AND of clauses. On SQLite the array operators
+ *   resolve to a keyed-never brand whose name reads as the recovery sentence.
  * - Any other column — value (shorthand for `{ eq: value }`) or operator object.
  * - A path-shaped JSONB key (`'meta->field'`) on Postgres. On SQLite the
  *   same key accepts only a keyed-never brand whose name reads as the
  *   recovery sentence.
- *
- * Array operators (`arrayContains`, etc.) are runtime-only today and not
- * yet part of the TS surface — tracked as a follow-up in #2885.
  */
 export type FilterType<
   TColumns extends ColumnRecord,
@@ -127,9 +182,14 @@ export type FilterType<
   [K in keyof TColumns | JsonbPathKey<TColumns>]?: K extends keyof TColumns
     ? IsJsonbColumn<TColumns[K]> extends true
       ? JsonbColumnValue<InferColumnType<TColumns[K]>, TDialect>
-      :
-          | InferColumnType<TColumns[K]>
-          | ColumnFilterOperators<InferColumnType<TColumns[K]>, IsNullable<TColumns[K]>>
+      : IsArrayColumn<TColumns[K]> extends true
+        ?
+            | InferColumnType<TColumns[K]>
+            | ColumnFilterOperators<InferColumnType<TColumns[K]>, IsNullable<TColumns[K]>>
+            | ArrayOperatorSlots<ArrayElementOf<TColumns[K]>, TDialect>
+        :
+            | InferColumnType<TColumns[K]>
+            | ColumnFilterOperators<InferColumnType<TColumns[K]>, IsNullable<TColumns[K]>>
     : JsonbPathValue<TDialect>;
 };
 

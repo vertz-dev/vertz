@@ -234,7 +234,7 @@ describe('SQLite feature guards', () => {
     expect(() =>
       buildWhere({ tags: { arrayContains: ['admin'] } }, 0, undefined, sqliteDialect),
     ).toThrow(
-      'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) are not supported on SQLite',
+      'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) require dialect: postgres',
     );
   });
 
@@ -242,7 +242,7 @@ describe('SQLite feature guards', () => {
     expect(() =>
       buildWhere({ tags: { arrayContainedBy: ['admin'] } }, 0, undefined, sqliteDialect),
     ).toThrow(
-      'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) are not supported on SQLite',
+      'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) require dialect: postgres',
     );
   });
 
@@ -250,7 +250,7 @@ describe('SQLite feature guards', () => {
     expect(() =>
       buildWhere({ tags: { arrayOverlaps: ['admin'] } }, 0, undefined, sqliteDialect),
     ).toThrow(
-      'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) are not supported on SQLite',
+      'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) require dialect: postgres',
     );
   });
 
