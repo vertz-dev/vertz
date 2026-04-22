@@ -11,12 +11,12 @@ no stale knowledge, no waiting for the next training cutoff.
 
 Four tools, all read-only, all bundled offline (no network calls at runtime):
 
-| Tool          | Description                                                  |
-| ------------- | ------------------------------------------------------------ |
-| `search_docs` | Ranked excerpt search over every guide and reference page.   |
-| `get_doc`     | Full markdown of a single doc page by path.                  |
-| `list_guides` | Flat listing of every doc page with title and description.   |
-| `get_example` | Full source of a Vertz example app by name.                  |
+| Tool          | Description                                                |
+| ------------- | ---------------------------------------------------------- |
+| `search_docs` | Ranked excerpt search over every guide and reference page. |
+| `get_doc`     | Full markdown of a single doc page by path.                |
+| `list_guides` | Flat listing of every doc page with title and description. |
+| `get_example` | Full source of a Vertz example app by name.                |
 
 ## Install
 
@@ -83,9 +83,9 @@ The binary speaks JSON-RPC over stdio per the MCP spec.
 
 ## Configuration
 
-| Environment variable      | Default                                      | Purpose                                            |
-| ------------------------- | -------------------------------------------- | -------------------------------------------------- |
-| `VERTZ_DOCS_INDEX_PATH`   | `<package>/dist/docs-index.generated.json`   | Override the bundled docs index (testing / pinning). |
+| Environment variable    | Default                                    | Purpose                                              |
+| ----------------------- | ------------------------------------------ | ---------------------------------------------------- |
+| `VERTZ_DOCS_INDEX_PATH` | `<package>/dist/docs-index.generated.json` | Override the bundled docs index (testing / pinning). |
 
 ## Updating
 

@@ -9,13 +9,7 @@
     "skipLibCheck": true,
     "types": ["@types/node"]
   },
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/*.test.ts",
-    "**/*.test-d.ts",
-    "**/*.local.ts"
-  ],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test-d.ts", "**/*.local.ts"],
   "extends": "../../tsconfig.json",
   "include": ["src", "scripts"]
 }

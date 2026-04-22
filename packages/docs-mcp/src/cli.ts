@@ -40,18 +40,14 @@ async function loadBundle(indexPath: string): Promise<DocsBundle> {
           `Reinstall @vertz/docs-mcp, or set VERTZ_DOCS_INDEX_PATH to a valid file.`,
       );
     }
-    return fail(
-      `failed to read docs index at ${indexPath}: ${(err as Error).message}`,
-    );
+    return fail(`failed to read docs index at ${indexPath}: ${(err as Error).message}`);
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch (err) {
-    return fail(
-      `docs index at ${indexPath} is malformed JSON: ${(err as Error).message}`,
-    );
+    return fail(`docs index at ${indexPath} is malformed JSON: ${(err as Error).message}`);
   }
 
   if (!isValidBundleShape(parsed)) {
@@ -65,8 +61,7 @@ async function loadBundle(indexPath: string): Promise<DocsBundle> {
 
 async function main(): Promise<void> {
   const here = dirname(fileURLToPath(import.meta.url));
-  const indexPath =
-    process.env['VERTZ_DOCS_INDEX_PATH'] ?? join(here, 'docs-index.generated.json');
+  const indexPath = process.env['VERTZ_DOCS_INDEX_PATH'] ?? join(here, 'docs-index.generated.json');
 
   const bundle = await loadBundle(indexPath);
   const server = createServer(bundle);
