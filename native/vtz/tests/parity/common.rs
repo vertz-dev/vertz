@@ -66,6 +66,63 @@ pub async fn start_dev_server(fixture: &str) -> (String, ShutdownHandle) {
     start_dev_server_with(fixture, TestConfig::default()).await
 }
 
+/// Start a dev server rooted at an arbitrary path (e.g., a tempdir). Used by
+/// tests that need to mutate source files during the run.
+#[allow(dead_code)]
+pub async fn start_dev_server_at_root(root: PathBuf) -> (String, ShutdownHandle) {
+    start_dev_server_at_root_with(root, TestConfig::default()).await
+}
+
+/// Start a dev server at an arbitrary root with custom config overrides.
+#[allow(dead_code)]
+pub async fn start_dev_server_at_root_with(
+    root: PathBuf,
+    test_config: TestConfig,
+) -> (String, ShutdownHandle) {
+    let port = free_port();
+    let addr = format!("127.0.0.1:{}", port);
+    let base_url = format!("http://127.0.0.1:{}", port);
+
+    let mut config = ServerConfig::with_root(
+        port,
+        "127.0.0.1".to_string(),
+        root.join("public"),
+        root.clone(),
+    );
+    config.enable_ssr = test_config.enable_ssr;
+    config.auto_install = test_config.auto_install;
+    if let Some(entry) = test_config.server_entry {
+        config.server_entry = Some(entry);
+    }
+    let (router, state, _inspector_rx) = build_router(&config, test_plugin());
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+
+    tokio::spawn(async move {
+        axum::serve(listener, router)
+            .with_graceful_shutdown(async {
+                let _ = shutdown_rx.await;
+            })
+            .await
+            .unwrap();
+    });
+
+    wait_for_ready(
+        &base_url,
+        &root.display().to_string(),
+        Duration::from_secs(5),
+    )
+    .await;
+
+    (
+        base_url,
+        ShutdownHandle {
+            shutdown_tx: Some(shutdown_tx),
+            state,
+        },
+    )
+}
+
 /// Start a dev server with custom config overrides.
 #[allow(dead_code)]
 pub async fn start_dev_server_with(

@@ -1,9 +1,9 @@
 use crate::common::*;
 use futures_util::StreamExt;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use tokio::time::timeout;
-use vertz_runtime::compiler::cache::CompilationCache;
+use vertz_runtime::compiler::cache::{CachedModule, CompilationCache};
 use vertz_runtime::hmr::protocol::HmrMessage;
 use vertz_runtime::plugin::vertz::VertzPlugin;
 use vertz_runtime::plugin::{hmr_action_to_message, HmrAction, VtzPlugin};
@@ -257,5 +257,93 @@ async fn dependency_change_invalidates_transitive_dependents() {
     assert!(
         transitive.contains(&c),
         "C should include itself in transitive set"
+    );
+}
+
+/// Regression for #2766: a Modify event that fails to compile must still
+/// invalidate the cache for **transitive** dependents. The old code `continue`d
+/// inside the compile-error branch, skipping `process_file_change`, so
+/// dependents of a broken file kept serving stale compiled output until they
+/// were individually re-touched.
+#[tokio::test]
+async fn file_modify_with_compile_error_still_invalidates_dependents_cache() {
+    use vertz_runtime::hmr::recovery::RestartTriggers;
+    use vertz_runtime::server::file_change_handler::handle_file_change;
+
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("minimal-app", tmp.path());
+    // Canonicalize so graph paths and the path we pass through the handler
+    // match (macOS tempdirs canonicalize through /private).
+    let root = tmp.path().canonicalize().unwrap();
+    let src_dir = root.join("src");
+    let app = src_dir.join("app.tsx");
+    let hello = src_dir.join("components").join("Hello.tsx");
+    // Synthetic transitive dependent: page.tsx importing app.tsx. The file
+    // doesn't need to exist on disk; we only care about the cache entry and
+    // the graph edge.
+    let page = src_dir.join("page.tsx");
+
+    let (_base_url, handle) = start_dev_server_at_root(root.clone()).await;
+
+    // Model `page → app → hello` so the fix has to BFS through the chain.
+    {
+        let mut g = handle.state.module_graph.write().unwrap();
+        g.update_module(&app, vec![hello.clone()]);
+        g.update_module(&page, vec![app.clone()]);
+    }
+
+    // Prime the compilation cache with stale entries for the chain.
+    let make_cached = |code: &str| CachedModule {
+        code: code.to_string(),
+        source_map: None,
+        css: None,
+        mtime: SystemTime::UNIX_EPOCH,
+    };
+    let cache = handle.state.pipeline.cache();
+    cache.insert(page.clone(), make_cached("stale page"));
+    cache.insert(app.clone(), make_cached("stale app"));
+    cache.insert(hello.clone(), make_cached("stale hello"));
+
+    // Overwrite Hello.tsx with source the compiler is guaranteed to reject
+    // (unclosed string literal + bare stray tokens — neither can be recovered
+    // into a valid TS AST).
+    let broken = "export const x = \"unterminated;\n@@ !!! *** ;\n";
+    std::fs::write(&hello, broken).unwrap();
+
+    // Sanity-check the premise: the compiler really does reject this input.
+    // Without a compile error there's no #2766 regression path to exercise.
+    let compile_result = handle.state.pipeline.compile_for_browser(&hello);
+    assert!(
+        !compile_result.errors.is_empty(),
+        "test premise: broken Hello.tsx must fail to compile; if the compiler \
+         ever accepts this input, pick a new broken sample"
+    );
+
+    // Drive the real handler as the file-watcher loop would.
+    handle_file_change(
+        &FileChange {
+            kind: FileChangeKind::Modify,
+            path: hello.clone(),
+        },
+        &handle.state,
+        &app,
+        &root,
+        &RestartTriggers::default(),
+    )
+    .await;
+
+    assert!(
+        cache.get_unchecked(&app).is_none(),
+        "direct dependent (app.tsx) cache entry must be invalidated after \
+         Hello.tsx fails to compile (#2766)"
+    );
+    assert!(
+        cache.get_unchecked(&page).is_none(),
+        "transitive dependent (page.tsx) cache entry must be invalidated — \
+         the bug specifically called out transitive-dependent staleness"
+    );
+    assert!(
+        cache.get_unchecked(&hello).is_none(),
+        "changed file's own cache entry must be invalidated on compile error"
     );
 }

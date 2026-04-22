@@ -5,6 +5,7 @@ pub mod binary_fs;
 pub mod browser_hub;
 pub mod css_server;
 pub mod diagnostics;
+pub mod file_change_handler;
 pub mod html_shell;
 pub mod http;
 pub mod image_cache;
