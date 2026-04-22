@@ -1,5 +1,7 @@
 # @vertz/create-vertz-app
 
+## 0.2.78
+
 ## 0.2.77
 
 ### Patch Changes
