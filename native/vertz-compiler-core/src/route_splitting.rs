@@ -427,6 +427,10 @@ fn classify_call_factory(call: &CallExpression) -> FactoryShape {
         Expression::Identifier(ident) => {
             FactoryShape::BareIdentifierCall(ident.name.as_str().to_string())
         }
+        // `() => memo(Page)()` / `() => withAuth(Page)()` — HOC application
+        // whose result is immediately invoked. Can't statically resolve the
+        // underlying component; treat as HOC wrap.
+        Expression::CallExpression(_) => FactoryShape::NonLazifiable(NonLazifiableReason::HocWrap),
         _ if callee.as_member_expression().is_some() => {
             FactoryShape::NonLazifiable(NonLazifiableReason::MemberAccess)
         }
@@ -1928,6 +1932,39 @@ const routes = defineRoutes({
             diagnostics.len(),
             1,
             "HOC wrap should emit one diagnostic: {:?}",
+            diagnostics
+        );
+        assert!(
+            diagnostics[0].message.contains("W0780"),
+            "diagnostic should reference W0780: {}",
+            diagnostics[0].message
+        );
+    }
+
+    // Given an HOC-returns-component that's immediately invoked
+    #[test]
+    fn given_hoc_returns_component_invoked_then_emits_diagnostic() {
+        let source = r#"import { defineRoutes } from "@vertz/ui";
+import { memo } from "./hocs";
+import Page from "./pages/Page";
+const routes = defineRoutes({
+  "/": { component: () => memo(Page)() },
+});"#;
+        let (result, diagnostics) = transform_collect(source);
+        assert!(
+            !result.contains("import('./hocs')"),
+            "HOC-returns-component should not be lazified: {}",
+            result
+        );
+        assert!(
+            result.contains("memo(Page)()"),
+            "factory body must remain intact: {}",
+            result
+        );
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "HOC-returns-component should emit one diagnostic: {:?}",
             diagnostics
         );
         assert!(
