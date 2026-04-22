@@ -731,11 +731,32 @@ pub fn graph_to_lockfile(
         // Fall back to name-only for non-semver specs — `github:`, `link:`, or
         // dist-tags like `"latest"` / `"next"` (see #2794). Dist-tag resolution
         // happens in `resolve_version`; this site just needs to honor the graph.
+        //
+        // Multi-version root-level edge (#2796): when hoist couldn't nest a
+        // losing version (e.g. its dependent declared the dep with a dist-tag,
+        // so `Range::parse` fails in hoist's nesting search) two versions can
+        // remain at `nest_path=[]`. For dist-tag root deps, consult the
+        // recorded resolution first to pick the right one.
         let is_non_semver = is_non_semver_spec(range);
-        if let Some(pkg) = graph.packages.values().find(|p| {
-            p.name == *name
-                && p.nest_path.is_empty()
-                && (is_non_semver || version_satisfies_range(&p.version, range))
+        let dist_tag_match = if is_dist_tag_shape(range) {
+            let tag_key = format!("{}@{}", name, range);
+            graph
+                .dist_tag_resolutions
+                .get(&tag_key)
+                .and_then(|resolved_version| {
+                    let graph_key = ResolvedGraph::key(name, resolved_version);
+                    graph.packages.get(&graph_key)
+                })
+                .filter(|p| p.nest_path.is_empty())
+        } else {
+            None
+        };
+        if let Some(pkg) = dist_tag_match.or_else(|| {
+            graph.packages.values().find(|p| {
+                p.name == *name
+                    && p.nest_path.is_empty()
+                    && (is_non_semver || version_satisfies_range(&p.version, range))
+            })
         }) {
             let graph_key = ResolvedGraph::key(name, &pkg.version);
             let scripts = graph.scripts.get(&graph_key).cloned().unwrap_or_default();
@@ -2015,6 +2036,65 @@ mod tests {
         assert_eq!(
             entry.version, "2.5.0",
             "transitive dist-tag must use the version the tag resolved to, not first-by-key"
+        );
+        assert_eq!(entry.resolved, "bar-2-url");
+    }
+
+    // #2796 (root-dep variant): a root dep declared with a dist-tag must pick
+    // the dist-tag-resolved version even when two versions share `nest_path=[]`.
+    // Hoist can leave a "losing" version at root when its dependents declared
+    // the dep with a dist-tag (so `Range::parse` fails and the nesting search
+    // finds no dependent). Without consulting `dist_tag_resolutions`, name-only
+    // find picks the lexicographically-lowest version.
+    #[test]
+    fn test_graph_to_lockfile_dist_tag_root_dep_multi_version_at_root() {
+        let mut graph = ResolvedGraph::default();
+
+        // bar@1.0.0 and bar@2.5.0 both at root level (hoist couldn't nest
+        // the loser because its only dependent declared `bar: "latest"`).
+        graph.packages.insert(
+            "bar@1.0.0".to_string(),
+            ResolvedPackage {
+                name: "bar".to_string(),
+                version: "1.0.0".to_string(),
+                tarball_url: "bar-1-url".to_string(),
+                integrity: "bar-1-integrity".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+        graph.packages.insert(
+            "bar@2.5.0".to_string(),
+            ResolvedPackage {
+                name: "bar".to_string(),
+                version: "2.5.0".to_string(),
+                tarball_url: "bar-2-url".to_string(),
+                integrity: "bar-2-integrity".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        graph
+            .dist_tag_resolutions
+            .insert("bar@latest".to_string(), "2.5.0".to_string());
+
+        let mut deps = BTreeMap::new();
+        deps.insert("bar".to_string(), "latest".to_string());
+
+        let lockfile = graph_to_lockfile(&graph, &deps, &[], &HashSet::new());
+        let entry = &lockfile.entries["bar@latest"];
+        assert_eq!(
+            entry.version, "2.5.0",
+            "root dist-tag dep must use the resolved version, not first-by-key"
         );
         assert_eq!(entry.resolved, "bar-2-url");
     }
