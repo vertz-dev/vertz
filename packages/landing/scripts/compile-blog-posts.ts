@@ -247,18 +247,33 @@ export async function compileMdxSourceToHtml(source: string): Promise<string> {
     jsxDEV: stringJsx,
     Fragment: stringFragment,
   }) as { default: (props: Record<string, unknown>) => HtmlFragment | string };
-  const rendered = mod.default({ components: {} });
+
+  const { Callout } = await import('../src/blog/mdx/custom/callout');
+  const { Figure } = await import('../src/blog/mdx/custom/figure');
+  const rendered = mod.default({ components: { Callout, Figure } });
   const raw = typeof rendered === 'string' ? rendered : rendered.__html;
-  return injectHeadingIds(raw);
+  return postProcessBlogHtml(raw);
 }
 
 /**
- * Post-process the rendered HTML to give every `<h2>` / `<h3>` without an
- * explicit `id` a slug derived from its text content. The TOC component and
- * the `scroll-margin-top` heading offsets in the prose stylesheet both rely
- * on these ids. We slugify here (single source of truth) so the TOC's own
- * extractor and the rendered HTML always agree on the id.
+ * Post-process the rendered HTML:
+ *   - Slugify every `<h2>` / `<h3>` without an explicit `id` so the TOC, the
+ *     rendered page, and any external deep-links agree on the anchor target.
+ *   - Append a `<a class="heading-anchor" href="#id">#</a>` child after the
+ *     heading text so readers can copy direct links on hover.
+ *   - Tag external `<a>` elements (href starts with `http` and not `vertz.dev`)
+ *     with `target="_blank" rel="noopener noreferrer"` and a `↗` glyph.
+ *   - Wrap every `<table>` in a `<div class="table-scroll">` so wide columns
+ *     scroll rather than overflow the prose container.
  */
+export function postProcessBlogHtml(rawHtml: string): string {
+  let out = injectHeadingIds(rawHtml);
+  out = injectHeadingAnchors(out);
+  out = markExternalLinks(out);
+  out = wrapTables(out);
+  return out;
+}
+
 export function injectHeadingIds(html: string): string {
   const seen = new Map<string, number>();
   return html.replace(
@@ -266,7 +281,6 @@ export function injectHeadingIds(html: string): string {
     (_full, levelStr: string, attrsRaw: string | undefined, inner: string) => {
       const attrs = attrsRaw ?? '';
       if (/\bid\s*=/.test(attrs)) {
-        // already has an id — respect it
         return `<h${levelStr}${attrs}>${inner}</h${levelStr}>`;
       }
       const text = inner.replace(/<[^>]+>/g, '').trim();
@@ -278,6 +292,47 @@ export function injectHeadingIds(html: string): string {
       return `<h${levelStr}${attrs} id="${id}">${inner}</h${levelStr}>`;
     },
   );
+}
+
+/** Appends a `#` anchor-link child to every h2/h3/h4 that has an `id`. */
+export function injectHeadingAnchors(html: string): string {
+  return html.replace(
+    /<h([234])([^>]*\bid="([^"]+)"[^>]*)>([\s\S]*?)<\/h\1>/gi,
+    (_full, levelStr: string, attrs: string, id: string, inner: string) => {
+      if (inner.includes('class="heading-anchor"')) {
+        return `<h${levelStr}${attrs}>${inner}</h${levelStr}>`;
+      }
+      const anchor = `<a class="heading-anchor" href="#${id}" aria-label="Link to this section">#</a>`;
+      return `<h${levelStr}${attrs}>${inner}${anchor}</h${levelStr}>`;
+    },
+  );
+}
+
+/**
+ * Mark `<a>` elements whose href points outside vertz.dev with target / rel
+ * safety attributes + a trailing `↗` glyph so readers know they're leaving
+ * the site. Leaves anchors without `href` (e.g. heading anchors with only
+ * a fragment) untouched.
+ */
+export function markExternalLinks(html: string): string {
+  return html.replace(
+    /<a\s+([^>]*?)href="([^"]+)"([^>]*)>([\s\S]*?)<\/a>/gi,
+    (_full, pre: string, href: string, post: string, inner: string) => {
+      const isExternal = /^https?:\/\//i.test(href) && !/^https?:\/\/([^/]+\.)?vertz\.dev(\/|$)/i.test(href);
+      if (!isExternal) return `<a ${pre}href="${href}"${post}>${inner}</a>`;
+      const hasTarget = /\btarget=/.test(pre + post);
+      const hasRel = /\brel=/.test(pre + post);
+      const targetAttr = hasTarget ? '' : ' target="_blank"';
+      const relAttr = hasRel ? '' : ' rel="noopener noreferrer"';
+      const marker = '<span aria-hidden="true" class="external-link-icon"> ↗</span>';
+      return `<a ${pre}href="${href}"${post}${targetAttr}${relAttr} data-external="true">${inner}${marker}</a>`;
+    },
+  );
+}
+
+/** Wraps every table in a horizontally-scrollable div. */
+export function wrapTables(html: string): string {
+  return html.replace(/<table([\s\S]*?)<\/table>/gi, (m) => `<div class="table-scroll">${m}</div>`);
 }
 
 function decodeEntitiesForSlug(input: string): string {

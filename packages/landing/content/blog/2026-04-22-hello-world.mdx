@@ -20,6 +20,10 @@ Subsequent phases (3–7) add the list page, tier-1 and tier-2 MDX components, S
 - Each file is compiled once via `@vertz/mdx` into an HTML string.
 - A generated manifest wires every post into the landing bundle.
 
+<Callout type="warn" title="Heads up">
+  Phase 4 ships MDX custom components as build-time renderers — no runtime JS required.
+</Callout>
+
 ## Code samples
 
 Here's a short TypeScript snippet the post can reference:

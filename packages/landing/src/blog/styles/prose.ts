@@ -106,5 +106,47 @@ export const prose = css({
       fontFamily: "'JetBrains Mono', 'JetBrains Mono Fallback', monospace",
     },
     '& pre code': { background: 'transparent', padding: 0 },
+    // Heading anchor links — fade in on hover of the heading.
+    '& h2, & h3, & h4': {
+      position: 'relative',
+    },
+    '& .heading-anchor': {
+      opacity: 0,
+      marginLeft: '0.5rem',
+      color: token.color.gray[600],
+      textDecoration: 'none',
+      transition: 'opacity 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+    },
+    '& h2:hover .heading-anchor, & h3:hover .heading-anchor, & h4:hover .heading-anchor': {
+      opacity: 1,
+    },
+    '& .external-link-icon': {
+      fontSize: '0.85em',
+      color: token.color.gray[500],
+    },
+    '& .table-scroll': {
+      overflowX: 'auto',
+      marginBlock: '1.5rem',
+      borderRadius: token.radius.md,
+      border: '1px solid rgba(255,255,255,0.06)',
+    },
+    '& .table-scroll table': {
+      width: '100%',
+      borderCollapse: 'collapse',
+      fontSize: '0.95em',
+    },
+    '& .table-scroll th, & .table-scroll td': {
+      textAlign: 'left',
+      padding: '0.6rem 0.9rem',
+      borderBottom: '1px solid rgba(255,255,255,0.06)',
+    },
+    '& .table-scroll th': {
+      fontWeight: '600',
+      color: token.color.gray[200],
+      backgroundColor: 'rgba(255,255,255,0.04)',
+    },
+    '& .table-scroll tr:nth-child(even) td': {
+      backgroundColor: 'rgba(255,255,255,0.02)',
+    },
   },
 });
