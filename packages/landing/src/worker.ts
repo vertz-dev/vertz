@@ -11,7 +11,27 @@
  * 7. Security headers — nosniff, DENY frame, strict referrer
  */
 
+import { buildRssFeed } from './blog/feed/rss';
+import { getAllPosts } from './blog/load-posts';
 import { LLMS_TXT } from './llms-txt';
+
+/** Append a `## Blog` section to the static llms.txt listing every published post. */
+function renderLlmsTxt(): string {
+  const posts = getAllPosts().filter((p) => !p.meta.draft);
+  if (posts.length === 0) return LLMS_TXT;
+  const section = [
+    '',
+    '## Blog',
+    '',
+    'Long-form posts about building Vertz:',
+    '',
+    ...posts.map(
+      (p) => `- [${p.meta.title}](https://vertz.dev/blog/${p.meta.slug}) — ${p.meta.description}`,
+    ),
+    '',
+  ].join('\n');
+  return `${LLMS_TXT.trimEnd()}\n${section}`;
+}
 
 // Re-export PresenceRoom for Cloudflare Durable Object binding
 export { PresenceRoom } from './presence-room';
@@ -95,9 +115,21 @@ export default {
 
     // ── 0b. LLM-friendly entry point ───────────────────────────
     if (pathname === '/llms.txt') {
-      return new Response(LLMS_TXT, {
+      return new Response(renderLlmsTxt(), {
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': STATIC_CACHE,
+        },
+      });
+    }
+
+    // ── 0b'. Blog RSS feed ─────────────────────────────────────
+    if (pathname === '/blog/feed.xml') {
+      const siteUrl = `${url.protocol}//${url.host}`;
+      const xml = buildRssFeed(getAllPosts(), { siteUrl });
+      return new Response(xml, {
+        headers: {
+          'Content-Type': 'application/rss+xml; charset=utf-8',
           'Cache-Control': STATIC_CACHE,
         },
       });
