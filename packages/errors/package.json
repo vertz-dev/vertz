@@ -1,6 +1,6 @@
 {
   "name": "@vertz/errors",
-  "version": "0.2.77",
+  "version": "0.2.78",
   "description": "Unified error taxonomy for Vertz - Result types, domain errors, and mapping utilities",
   "license": "MIT",
   "repository": {
