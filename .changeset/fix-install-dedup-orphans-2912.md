@@ -1,5 +1,5 @@
 ---
-'vtz': patch
+'@vertz/runtime': patch
 ---
 
 fix(vtz): iterate install dedup until fixpoint so orphan optional binaries collapse with their parent

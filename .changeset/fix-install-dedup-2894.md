@@ -1,5 +1,5 @@
 ---
-'vtz': patch
+'@vertz/runtime': patch
 ---
 
 fix(vtz): dedup redundant package versions when a single version satisfies every declared range
