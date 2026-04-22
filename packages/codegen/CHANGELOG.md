@@ -1,5 +1,12 @@
 # @vertz/codegen
 
+## 0.2.77
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/compiler@0.2.77
+
 ## 0.2.76
 
 ### Patch Changes

@@ -1,5 +1,63 @@
 # vertz
 
+## 0.2.77
+
+### Patch Changes
+
+- [#2895](https://github.com/vertz-dev/vertz/pull/2895) [`368e138`](https://github.com/vertz-dev/vertz/commit/368e1382421dbbb78e02a6766143a38bce696d76) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vertz): auto-load `import.meta.hot` types when importing from any client-runtime subpath
+
+  Closes [#2893](https://github.com/vertz-dev/vertz/issues/2893).
+
+  The `vertz/client` type augmentation existed but required users to manually add `"types": ["vertz/client"]` to their tsconfig — a step easy to miss, leading to the TS2339 "Property 'hot' does not exist on type 'ImportMeta'" error reported in #2777 and then again in #2893.
+
+  The client-runtime subpath declarations (`dist/ui.d.ts`, `dist/ui-components.d.ts`, `dist/ui-primitives.d.ts`, `dist/ui-auth.d.ts`) now start with `/// <reference types="vertz/client" />`, injected by a post-`tsc` step (`scripts/inject-client-reference.mjs`). Any file that imports from one of those subpaths — which includes every `create-vertz-app` scaffold's `entry-client.ts` — pulls in the `ImportMeta.hot` augmentation automatically, so `import.meta.hot?.accept()` typechecks with no tsconfig changes. Declaration sourcemaps are shifted by one line to stay accurate.
+
+  The `"types": ["vertz/client"]` opt-in still works for cases where a file uses `import.meta.hot` without touching any of those subpaths.
+
+- [#2917](https://github.com/vertz-dev/vertz/pull/2917) [`abffcd7`](https://github.com/vertz-dev/vertz/commit/abffcd7af0ec4e7ca134b9bee371c7d2d32858ff) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(vertz): add `invalidate`, `decline`, `on`, `off` to `import.meta.hot`
+
+  Closes [#2812](https://github.com/vertz-dev/vertz/issues/2812).
+
+  The `vtz` compiler previously stripped `import.meta.hot` references entirely at build time, so calls to `accept()` / `dispose()` were no-ops under `vtz dev`. The compiler now rewrites `import.meta.hot` to a runtime lookup (`globalThis.__vtz_hot?.(import.meta.url)`) that resolves to a real per-module hot context exposed by the HMR client.
+
+  New methods on `ImportMetaHot`:
+
+  - `invalidate(message?)` — trigger a full page reload with an optional reason.
+  - `decline()` — opt out of HMR for the current module; the next update targeting it falls back to a full reload.
+  - `on(event, cb)` / `off(event, cb)` — subscribe to runtime events: `vertz:beforeUpdate`, `vertz:afterUpdate`, `vertz:beforeFullReload`, `vertz:invalidate`, `vertz:error`.
+
+  `send()` (custom client → server events) and `prune()` (cleanup on module removal) are tracked as a follow-up — they require bidirectional WebSocket support and module-removal tracking.
+
+- [#2926](https://github.com/vertz-dev/vertz/pull/2926) [`4d9b23d`](https://github.com/vertz-dev/vertz/commit/4d9b23d1cac81ab88388f044d5988b2d0704f363) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(ui): add `@vertz/ui/client` subpath for UI-only consumers of `import.meta.hot` types [#2813]
+
+  Apps that install `@vertz/ui` directly — component-library authors, or frontends that don't use the server/db layers — can now type `import.meta.hot` without pulling in the `vertz` meta-package:
+
+  ```jsonc
+  // tsconfig.json
+  {
+    "compilerOptions": {
+      "types": ["@vertz/ui/client"]
+    }
+  }
+  ```
+
+  The canonical augmentation now lives in `@vertz/ui/client.d.ts`. `vertz/client` continues to work and resolves to the same shape — it re-exports `@vertz/ui/client` via a triple-slash reference, so the two subpaths cannot drift.
+
+- Updated dependencies [[`81ffffe`](https://github.com/vertz-dev/vertz/commit/81ffffe18b499a18f8b83b5a78079baf40d7cc88), [`13c2ee6`](https://github.com/vertz-dev/vertz/commit/13c2ee6d7804e988e2b361af5c7e9a9c97e091ab), [`6a1adab`](https://github.com/vertz-dev/vertz/commit/6a1adab795218a347c96e831d0628457dd72b796), [`8f5b18b`](https://github.com/vertz-dev/vertz/commit/8f5b18b5d726148bc4613f28d2c752d6e5998f13), [`b7500f9`](https://github.com/vertz-dev/vertz/commit/b7500f9489d7bb65260ec7fff5f95b3fd4d95925), [`846b303`](https://github.com/vertz-dev/vertz/commit/846b303ef2a887208a397b9137cd32675a7dff4e), [`a81fd4f`](https://github.com/vertz-dev/vertz/commit/a81fd4fbd6b540ded6da83abf2d5afe35f7b242a), [`40c8a70`](https://github.com/vertz-dev/vertz/commit/40c8a70693665bf5c0a47bf957923ff57abbc41c), [`cc62c89`](https://github.com/vertz-dev/vertz/commit/cc62c89b5b126bb22a11fe1c1c89088857b3dca2), [`9819901`](https://github.com/vertz-dev/vertz/commit/9819901b97226bbdffb090a7261ee2e3828d163c), [`4d9b23d`](https://github.com/vertz-dev/vertz/commit/4d9b23d1cac81ab88388f044d5988b2d0704f363)]:
+  - @vertz/db@0.2.77
+  - @vertz/ui@0.2.77
+  - @vertz/ui-server@0.2.77
+  - @vertz/schema@0.2.77
+  - @vertz/server@0.2.77
+  - @vertz/cli@0.2.77
+  - @vertz/cloudflare@0.2.77
+  - @vertz/errors@0.2.77
+  - @vertz/fetch@0.2.77
+  - @vertz/testing@0.2.77
+  - @vertz/tui@0.2.77
+  - @vertz/ui-primitives@0.2.77
+  - @vertz/ui-auth@0.2.20
+
 ## 0.2.76
 
 ### Patch Changes

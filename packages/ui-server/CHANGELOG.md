@@ -1,5 +1,19 @@
 # @vertz/ui-server
 
+## 0.2.77
+
+### Patch Changes
+
+- [#2904](https://github.com/vertz-dev/vertz/pull/2904) [`6a1adab`](https://github.com/vertz-dev/vertz/commit/6a1adab795218a347c96e831d0628457dd72b796) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui,ui-server): unwrap function thunks in \_\_conditional and SSR normalizeChildren [#2899]
+
+  The compiler wraps `children ?? value` as `__conditional(..., () => children, () => value)`, but `children` can itself be a reactive getter (`() => __staticText("Apple")`). `trueFn()` then returns a function instead of a Node, which `String()` stringifies into the function's source code and ships as visible text — breaking every `<Select.Item>Apple</Select.Item>` on the component-docs site.
+
+  Fix: `insertContentBefore` / `appendBranchContent` in `@vertz/ui`'s `__conditional` now unwrap nested function thunks before inserting. Same fix landed on `@vertz/ui-server`'s SSR `normalizeChildren` so library code that uses classic JSX factories (ui-primitives) is safe too.
+
+- Updated dependencies [[`6a1adab`](https://github.com/vertz-dev/vertz/commit/6a1adab795218a347c96e831d0628457dd72b796), [`9819901`](https://github.com/vertz-dev/vertz/commit/9819901b97226bbdffb090a7261ee2e3828d163c), [`4d9b23d`](https://github.com/vertz-dev/vertz/commit/4d9b23d1cac81ab88388f044d5988b2d0704f363)]:
+  - @vertz/ui@0.2.77
+  - @vertz/core@0.2.77
+
 ## 0.2.76
 
 ### Patch Changes

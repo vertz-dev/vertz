@@ -1,5 +1,87 @@
 # @vertz/runtime
 
+## 0.2.77
+
+### Patch Changes
+
+- [#2930](https://github.com/vertz-dev/vertz/pull/2930) [`17d9f17`](https://github.com/vertz-dev/vertz/commit/17d9f17addf7ca67def6416980d18f3bc5aa1168) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): compiler no longer rewrites `effect` → `domEffect` inside string literals or comments
+
+  Closes [#2801](https://github.com/vertz-dev/vertz/issues/2801).
+
+  The post-processing shim that renames the compiler-emitted `effect` identifier to `domEffect` used naive string replacement, so the rewrite leaked into `.test.ts` files wherever `effect(` appeared inside string literals, template literals, or comments. The most visible symptom was `it('flags effect() call', ...)` showing up in the test runner as `it('flags domEffect() call', ...)`, which broke `oxlint-plugins/__tests__/vertz-rules.test.ts > no-wrong-effect > flags effect() call`.
+
+  The shim now walks the source byte-wise and skips single-/double-/backtick-quoted strings (including escape sequences), line comments, and block comments, only rewriting standalone `effect` identifiers outside those regions. All pre-existing import- and call-site rewrites are preserved; string and comment content round-trips unchanged.
+
+- [#2909](https://github.com/vertz-dev/vertz/pull/2909) [`8695866`](https://github.com/vertz-dev/vertz/commit/86958667c5c36c6138e6ad1bac567775754023d2) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): dedup redundant package versions when a single version satisfies every declared range
+
+  Closes [#2894](https://github.com/vertz-dev/vertz/issues/2894).
+
+  `vtz install` used to nest a transitive copy of a package even when the root's already-hoisted version satisfied the transitive range. Scenario that triggered it: a root exact pin (`"@vertz/schema": "0.2.73"`) plus a transitive range (`"^0.2.68"` declared by `@vertz/agents`) produced two graph entries — 0.2.73 at root, 0.2.76 nested under `node_modules/@vertz/agents/node_modules/@vertz/schema/`. The resolver's BFS treated the two distinct range strings as separate resolution tasks and never checked whether they could share a version.
+
+  TypeScript's structural typing treats module identity by file path, so any exported type with a private/protected field (including `ParseContext` in `@vertz/schema`) became two incompatible types — one per path — and consumers hit opaque `Types have separate declarations of a private property` errors at compile time.
+
+  Fix: a new `resolver::dedup()` pass runs before `hoist()`. For each package name with multiple versions, it collects every declared range (root deps + every transitive `dependencies`/`optionalDependencies`) and, when a single version in the graph satisfies all of them, drops the redundant versions. Packages with any non-semver range (`github:`, `link:`, dist-tags) are skipped — they can't be reasoned about from the range string alone. When no version satisfies every range, the graph is left untouched and the existing hoist algorithm decides nesting as before.
+
+- [#2914](https://github.com/vertz-dev/vertz/pull/2914) [`b9abc9d`](https://github.com/vertz-dev/vertz/commit/b9abc9d5baf37a1ceb92d74f82650197b69010b8) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): iterate install dedup until fixpoint so orphan optional binaries collapse with their parent
+
+  Closes [#2912](https://github.com/vertz-dev/vertz/issues/2912).
+
+  `vtz install`'s `resolver::dedup()` collected every declared range in one pass, then iterated package names once to drop redundant versions. That broke for chains like `esbuild` → `@esbuild/*` platform binaries: after `esbuild@0.27.7` was correctly collapsed into `esbuild@0.27.3`, the `"@esbuild/darwin-arm64": "0.27.7"` range contributed by the just-dropped parent still lingered in the ranges map, so the binary couldn't be dedup'd in the same pass. `hoist()` then promoted the orphan `@esbuild/darwin-arm64@0.27.7` to the root `node_modules`, leaving `esbuild`'s JS host at 0.27.3 while the platform binary resolved at 0.27.7 — esbuild exploded at startup with `Host version "0.27.3" does not match binary version "0.27.7"` and every TS-pipeline CI run after [#2909](https://github.com/vertz-dev/vertz/pull/2909) started failing at the "Build @vertz/ci" step.
+
+  Fix: run `dedup` in a loop, rebuilding `ranges_by_name` from the current graph each iteration and exiting when a pass makes no changes. Dropped packages no longer contribute phantom ranges to downstream dedup decisions.
+
+- [#2923](https://github.com/vertz-dev/vertz/pull/2923) [`8f5b18b`](https://github.com/vertz-dev/vertz/commit/8f5b18b5d726148bc4613f28d2c752d6e5998f13) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): native `@vertz/sqlite` now binds `Uint8Array` params and reads BLOBs as `Uint8Array`
+
+  Closes [#2920](https://github.com/vertz-dev/vertz/issues/2920).
+
+  `d.bytea()` (from [#2843](https://github.com/vertz-dev/vertz/issues/2843)) round-trips on every SQLite binding except the vtz runtime's native `@vertz/sqlite` driver, where writing a `Uint8Array` threw `"invalid type: byte array, expected any valid JSON value"` and reads materialized blobs as JS arrays of integers.
+
+  The native op layer now accepts a `SqliteParam` enum (`Json` / `Bytes`) that intercepts serde_v8's byte-array visitor before delegating to `serde_json::Value`, mapping `Uint8Array` params to `rusqlite::Value::Blob`. The read path emits blob cells via `serialize_bytes`, so serde_v8 returns a proper `Uint8Array` to JS instead of a numeric array.
+
+  With this fix, `d.bytea()` works under `vtz run` / `vtz dev` against `:memory:` and file-backed SQLite, matching the parity already held by Cloudflare D1, `better-sqlite3`, `bun:sqlite`, and `postgres` / `pg`. The `d.bytea()` JSDoc's driver-support caveat is removed.
+
+- [#2935](https://github.com/vertz-dev/vertz/pull/2935) [`d1d2498`](https://github.com/vertz-dev/vertz/commit/d1d24987a9aeff8e7cd33a2328a94ad6810cbd5c) Thanks [@matheuspoleza](https://github.com/matheuspoleza)! - feat(vtz): `vertz_browser_screenshot` MCP tool — headless pixel-perfect PNG of any dev-server route
+
+  Closes Phase 1 of [#2865](https://github.com/vertz-dev/vertz/issues/2865).
+
+  New MCP tool exposed by every `vtz dev` session (no flags, no setup):
+
+  ```
+  vertz_browser_screenshot({
+    url: '/tasks',                              // path or same-origin URL
+    viewport?: { width: 375, height: 667 },     // default 1280x720
+    fullPage?: true,                            // default false
+    crop?: '.my-component',                     // or { text | name | label: string }
+    waitFor?: 'networkidle',                    // or 'domcontentloaded' | 'load'
+  })
+  ```
+
+  Returns two MCP content blocks: the base64 PNG (rendered inline in the agent's UI) plus JSON metadata with `path`, `url`, `dimensions`, `pageUrl`, and `capturedInMs`. PNGs persist to `.vertz/artifacts/screenshots/` and are served via `GET /__vertz_artifacts/screenshots/:filename` so humans can click the metadata URL to open the image.
+
+  Architecture:
+
+  - **`server::screenshot::fetcher`** — probes `$VERTZ_CHROME_PATH` and common system paths (`/Applications/Google Chrome.app`, `/usr/bin/google-chrome`, `/usr/bin/chromium`). Falls back to Chrome for Testing JSON index + SHA-256 verified download into `~/.vertz/chromium/` (or `$XDG_CACHE_HOME` / `$TMPDIR` if `$HOME` is read-only). Multi-process-safe via `fs2::try_lock_exclusive` on `<cache_dir>/.lock`; partial extractions are cleaned up on failure via a scope guard.
+  - **`server::screenshot::pool`** — lazy + TTL (60s) browser pool around a `BrowserSpawner` trait. Concurrent captures during launch share a `futures::Shared` future (exactly one Browser per cold start). Warm captures run concurrently through a `tokio::sync::RwLock` on the handle — `close()` takes the write guard so TTL-triggered teardown waits for in-flight captures instead of interrupting them.
+  - **`server::screenshot::chromium`** — production `BrowserSpawner` wrapping `chromiumoxide::Browser`. Handler task is abort-owned by the handle; `close()` is bounded to 2s via `tokio::time::timeout` so a wedged Chrome child can't block server shutdown.
+  - **`server::screenshot::capture_tool`** — MCP entrypoint. Validates URL (same-origin only, rejects external and protocol-relative), normalizes paths to `http://localhost:PORT/...`, detects AUTH_REQUIRED by matching the final URL's last segment against `login`/`signin`/`sign_in`/`sign-in`/`signup`/`sign_up`/`sign-up`/`authenticate`/`session/new` (returns the redirect finalUrl so the agent can audit), persists the PNG through `server::screenshot::artifacts`, and maps `PoolError` variants to MCP error codes (`URL_INVALID`, `CHROME_LAUNCH_FAILED`, `NAVIGATION_FAILED`, `SELECTOR_INVALID`, `SELECTOR_NOT_FOUND`, `CAPTURE_FAILED`, `AUTH_REQUIRED`).
+
+  Safety posture:
+
+  - Download path enforces a 500 MB cap checked against `Content-Length` AND the running stream total — a hostile server can't OOM `vtz`.
+  - `expected_sha256` must be 64 lowercase hex chars up front; empty / malformed SHAs can't accidentally disable integrity enforcement.
+  - Zip extraction uses `enclosed_name()` for path traversal + explicit `S_IFLNK` check to reject symlink entries; file-type bits are masked off before `set_permissions`.
+  - Artifact HTTP route uses a strict allowlist: `^[A-Za-z0-9._-]+\.png$`, no leading dot, no `..`, no path traversal. Returns 404 on any mismatch (no existence leaks).
+  - `remove_quarantine` uses absolute `/usr/bin/xattr` to defeat PATH injection on macOS.
+
+  Template + docs:
+
+  - `@vertz/create-vertz-app`'s generated `.claude/rules/dev-server-tools.md` now documents the tool with the canonical patterns (default route, multi-viewport for layout, CSS/text-match crops) and an explicit "when to skip" clause so agents don't screenshot pure backend changes.
+  - Public Mintlify docs at `/guides/dev-server-tools` gained a full `vertz_browser_screenshot` reference section: examples, parameter table, error codes, scope limits, artifact naming.
+
+  Phase 1 scope deliberately excluded: impersonation / auth-aware capture, visual regression diffing, non-Chromium browsers, Windows support, overlay / human-to-agent visual feedback. Tracked as future issues.
+
+  Linux E2E CI job runs the pool + spawner against a real Chrome on every `native/**` change. macOS E2E deferred — `browser-actions/setup-chrome@v1` on Apple Silicon hangs at first launch (Gatekeeper / quarantine on the installed Chrome.app). Tracked as a follow-up.
+
 ## 0.2.76
 
 ## 0.2.75

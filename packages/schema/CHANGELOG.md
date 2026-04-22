@@ -1,5 +1,68 @@
 # @vertz/schema
 
+## 0.2.77
+
+### Patch Changes
+
+- [#2925](https://github.com/vertz-dev/vertz/pull/2925) [`b7500f9`](https://github.com/vertz-dev/vertz/commit/b7500f9489d7bb65260ec7fff5f95b3fd4d95925) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(schema): user-friendly invalid-type messages for `s.number()` / `s.bigint()` / `s.date()`
+
+  Closes [#2809](https://github.com/vertz-dev/vertz/issues/2809).
+
+  The form-data coercion layer (`coerceLeaf` in `@vertz/ui`) deliberately passes non-numeric / unparseable strings through to the schema unchanged so the schema's own validator owns the error message. That rested on the schema producing something end-user-readable, which it didn't — `s.number().parse('42a')` produced `"Expected number, received string"`, which is technically accurate but useless in a form field. `#2771` made FormData coercion implicit (users write `s.number()`, not `s.coerce.number()`), which put these messages directly in front of end users.
+
+  The default messages are now:
+
+  - `s.number()` → `"Must be a number"` (covers non-number values, NaN, and pass-through strings like `"42a"`)
+  - `s.bigint()` → `"Must be an integer"`
+  - `s.date()` → `"Must be a valid date"` (covers non-Date values and invalid `Date` objects with `NaN` time)
+
+  Each schema also gets a `.message(msg)` chainable method so apps can localise or customise:
+
+  ```ts
+  s.number().message("Age must be a number");
+  s.date().message("Pick a valid date").min(new Date("2024-01-01"));
+  ```
+
+  The custom message is preserved across clones (e.g. after `.gte()`, `.min()`).
+
+- [#2928](https://github.com/vertz-dev/vertz/pull/2928) [`9819901`](https://github.com/vertz-dev/vertz/commit/9819901b97226bbdffb090a7261ee2e3828d163c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(server): coerce form-encoded bodies on the server using the route schema
+
+  Closes [#2808](https://github.com/vertz-dev/vertz/issues/2808).
+
+  `coerceFormDataToSchema` and `coerceLeaf` now live in `@vertz/schema` so the same kernel that powers client-side `form()` coercion (#2771) runs on the server. `parseBody` in `@vertz/core` accepts an optional `coerceSchema` and now handles `multipart/form-data` in addition to `application/x-www-form-urlencoded`; entity and service route generators populate `coerceSchema` from the route's expected input shape.
+
+  End result: the same entity works across three submit modes without validation drift.
+
+  ```ts
+  // Entity
+  d.table("tasks", {
+    id: d.uuid().primary(),
+    title: d.text(),
+    done: d.boolean().default(false),
+  });
+
+  // 1. JS form() path — already coerced on the client, sent as JSON
+  fetch("/api/tasks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: "buy milk", done: true }),
+  });
+
+  // 2. Progressive-enhancement no-JS submit — browser sends urlencoded strings
+  // <form method="post" action="/api/tasks">...</form>
+  // body: title=buy+milk&done=on
+
+  // 3. curl / agent — urlencoded with a different boolean spelling
+  // curl -X POST /api/tasks --data-urlencode 'title=buy milk' --data-urlencode 'done=true'
+  ```
+
+  All three hit the handler with `{ title: 'buy milk', done: true }`. Previously modes 2 and 3 failed schema validation because checkboxes and numeric inputs arrived as strings. The coercion step runs before the CRUD pipeline's strict validation, so `EntityValidationError` semantics are unchanged when a body is actually malformed.
+
+  The new `coerceSchema` field on `EntityRouteEntry` is separate from `bodySchema` on purpose — it coerces without enforcing app-runner-level validation, which lets entity routes keep their existing error format.
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.77
+
 ## 0.2.76
 
 ### Patch Changes
