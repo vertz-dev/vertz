@@ -256,43 +256,50 @@ export function form<TBody, TResult>(
 
   const resolvedSchema = options?.schema ?? sdkMethod.meta?.bodySchema;
 
-  async function submitPipeline(formData: FormData): Promise<void> {
-    hasSubmitted = true;
-    const data = resolvedSchema
-      ? coerceFormDataToSchema(formData, resolvedSchema)
-      : formDataToObject(formData, { nested: true });
-
-    if (resolvedSchema) {
-      const result = validate(resolvedSchema, data);
-      if (!result.success) {
-        for (const [fieldName, message] of Object.entries(result.errors)) {
-          getOrCreateField(fieldName).error.value = message;
-        }
-        options?.onError?.(result.errors);
-        return;
-      }
-    }
-
-    // Clear previous errors
-    for (const field of fieldCache.values()) {
-      field.error.value = undefined;
-    }
-
+  async function submitPipeline(formData: FormData): Promise<boolean> {
+    // Lock against reentrant submissions (e.g. double-clicked submit button).
+    // Set synchronously before any other work so a second sync call sees the guard.
+    // Returns false when locked out so wrappers can skip post-processing.
+    if (submitting.peek()) return false;
     submitting.value = true;
-    const result = await sdkMethod(data as TBody);
-    if (!result.ok) {
-      submitting.value = false;
-      const message = result.error.message;
-      getOrCreateField('_form').error.value = message;
-      options?.onError?.({ _form: message });
-      return;
-    }
-    submitting.value = false;
-    options?.onSuccess?.(result.data);
+    try {
+      hasSubmitted = true;
+      const data = resolvedSchema
+        ? coerceFormDataToSchema(formData, resolvedSchema)
+        : formDataToObject(formData, { nested: true });
 
-    if (options?.resetOnSuccess) {
-      resetForm();
+      if (resolvedSchema) {
+        const result = validate(resolvedSchema, data);
+        if (!result.success) {
+          for (const [fieldName, message] of Object.entries(result.errors)) {
+            getOrCreateField(fieldName).error.value = message;
+          }
+          options?.onError?.(result.errors);
+          return true;
+        }
+      }
+
+      // Clear previous errors
+      for (const field of fieldCache.values()) {
+        field.error.value = undefined;
+      }
+
+      const result = await sdkMethod(data as TBody);
+      if (!result.ok) {
+        const message = result.error.message;
+        getOrCreateField('_form').error.value = message;
+        options?.onError?.({ _form: message });
+        return true;
+      }
+      options?.onSuccess?.(result.data);
+
+      if (options?.resetOnSuccess) {
+        resetForm();
+      }
+    } finally {
+      submitting.value = false;
     }
+    return true;
   }
 
   let boundElement: HTMLFormElement | undefined;
@@ -341,10 +348,10 @@ export function form<TBody, TResult>(
   }
 
   async function submitPipelineWithReset(formData: FormData): Promise<void> {
-    await submitPipeline(formData);
-    if (options?.resetOnSuccess && !submitting.peek() && boundElement) {
-      // Only call reset on the element if submission succeeded (submitting is already false
-      // and no error was set). Check that there are no errors as a proxy for success.
+    const ran = await submitPipeline(formData);
+    if (ran && options?.resetOnSuccess && boundElement) {
+      // Only call reset on the element if submission succeeded (no error was set).
+      // Check that there are no errors as a proxy for success.
       const hasErrors = [...fieldCache.values()].some((f) => f.error.peek() !== undefined);
       if (!hasErrors) {
         boundElement.reset();
@@ -379,8 +386,8 @@ export function form<TBody, TResult>(
       e.preventDefault();
       const formElement = e.target as HTMLFormElement;
       const formData = new FormData(formElement);
-      await submitPipeline(formData);
-      if (options?.resetOnSuccess && !submitting.peek()) {
+      const ran = await submitPipeline(formData);
+      if (ran && options?.resetOnSuccess) {
         const hasErrors = [...fieldCache.values()].some((f) => f.error.peek() !== undefined);
         if (!hasErrors) {
           formElement.reset();
@@ -393,16 +400,15 @@ export function form<TBody, TResult>(
     },
     submit: async (formData?: FormData) => {
       if (formData) {
-        await submitPipeline(formData);
+        const ran = await submitPipeline(formData);
+        if (ran && options?.resetOnSuccess && boundElement) {
+          const hasErrors = [...fieldCache.values()].some((f) => f.error.peek() !== undefined);
+          if (!hasErrors) {
+            boundElement.reset();
+          }
+        }
       } else if (boundElement) {
         await submitPipelineWithReset(new FormData(boundElement));
-        return;
-      }
-      if (options?.resetOnSuccess && formData && !submitting.peek()) {
-        const hasErrors = [...fieldCache.values()].some((f) => f.error.peek() !== undefined);
-        if (!hasErrors && boundElement) {
-          boundElement.reset();
-        }
       }
     },
     submitting,
