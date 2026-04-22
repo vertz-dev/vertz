@@ -156,15 +156,8 @@ export function Toc({ html, target }: TocProps) {
       <div className={s.heading}>On this page</div>
       <ul className={s.list}>
         {entries.map((entry) => (
-          <li
-            key={entry.id}
-            className={entry.level === 3 ? s.nested : undefined}
-          >
-            <a
-              href={`#${entry.id}`}
-              data-toc-link={entry.id}
-              className={s.itemLink}
-            >
+          <li key={entry.id} className={entry.level === 3 ? s.nested : undefined}>
+            <a href={`#${entry.id}`} data-toc-link={entry.id} className={s.itemLink}>
               {entry.text}
             </a>
           </li>

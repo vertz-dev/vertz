@@ -54,19 +54,17 @@ describe('Feature: RSS feed', () => {
       });
 
       it('then each tag renders as a <category>', () => {
-        const xml = buildRssFeed(
-          [makePost({ slug: 'a', tags: ['framework', 'dx'] })],
-          { siteUrl: 'https://vertz.dev' },
-        );
+        const xml = buildRssFeed([makePost({ slug: 'a', tags: ['framework', 'dx'] })], {
+          siteUrl: 'https://vertz.dev',
+        });
         expect(xml).toContain('<category>framework</category>');
         expect(xml).toContain('<category>dx</category>');
       });
 
       it('then the description is XML-escaped', () => {
-        const xml = buildRssFeed(
-          [makePost({ slug: 'a', description: 'Code: x < y & z > 0' })],
-          { siteUrl: 'https://vertz.dev' },
-        );
+        const xml = buildRssFeed([makePost({ slug: 'a', description: 'Code: x < y & z > 0' })], {
+          siteUrl: 'https://vertz.dev',
+        });
         expect(xml).toContain('<description>Code: x &lt; y &amp; z &gt; 0</description>');
       });
     });

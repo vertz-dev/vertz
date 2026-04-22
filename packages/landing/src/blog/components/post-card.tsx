@@ -35,8 +35,7 @@ const s = css({
     fontFamily: "'DM Serif Display', 'DM Serif Display Fallback', serif",
     fontSize: '2rem',
     color: token.color.gray[500],
-    background:
-      'linear-gradient(135deg, rgba(200,69,27,0.12), rgba(30,30,28,1))',
+    background: 'linear-gradient(135deg, rgba(200,69,27,0.12), rgba(30,30,28,1))',
   },
   tagRow: {
     display: 'flex',
@@ -96,11 +95,7 @@ export interface PostCardProps {
 export function PostCard({ meta }: PostCardProps) {
   const firstTag = meta.tags[0];
   return (
-    <a
-      href={`/blog/${meta.slug}`}
-      className={s.card}
-      data-tags={meta.tags.join(' ') || undefined}
-    >
+    <a href={`/blog/${meta.slug}`} className={s.card} data-tags={meta.tags.join(' ') || undefined}>
       <div className={s.coverWrap}>
         {meta.cover ? (
           <img

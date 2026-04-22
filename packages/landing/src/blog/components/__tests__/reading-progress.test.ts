@@ -26,9 +26,7 @@ describe('Feature: Reading progress math', () => {
   describe('Given the body is fully scrolled past', () => {
     describe('When computeProgress runs', () => {
       it('then progress clamps to 1', () => {
-        expect(
-          computeProgress({ bodyTop: -5000, bodyHeight: 2000, viewportHeight: 900 }),
-        ).toBe(1);
+        expect(computeProgress({ bodyTop: -5000, bodyHeight: 2000, viewportHeight: 900 })).toBe(1);
       });
     });
   });

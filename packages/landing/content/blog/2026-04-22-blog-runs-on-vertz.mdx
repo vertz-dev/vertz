@@ -1,5 +1,5 @@
 ---
-title: "Why the Vertz blog runs on Vertz"
+title: 'Why the Vertz blog runs on Vertz'
 slug: blog-runs-on-vertz
 date: 2026-04-22
 author: matheus
@@ -17,7 +17,8 @@ We didn't pick any of them.
 The Vertz blog runs on Vertz. Posts are `.mdx` files in the same repo as the framework. The page is a route in the same worker that serves `vertz.dev`. Build is `vtz build`. Deploy is the same Cloudflare Worker pipeline every other page uses. The whole thing is additive to the landing package — no new deploy target, no second CDN, no separate search.
 
 <Callout type="note" title="Constraint, not ceremony">
-  The goal isn't ideological purity. If dogfooding cost us two extra engineering weeks we'd have shipped Mintlify and written a sticky note to revisit.
+  The goal isn't ideological purity. If dogfooding cost us two extra engineering weeks we'd have
+  shipped Mintlify and written a sticky note to revisit.
 </Callout>
 
 We picked this path for three reasons, ranked by how often they actually came up during the build:
@@ -30,7 +31,7 @@ We picked this path for three reasons, ranked by how often they actually came up
 
 Three options were on the table. The review was fast enough I can paraphrase it in one paragraph each.
 
-**Mintlify.** Optimized for *docs*, not a blog. No RSS feed, no post listing, no tags, no `text-wrap: balance` on long titles. Pages look beautiful if they're a reference page. Posts look like reference pages with no navigation. Rejected in the first 20 minutes.
+**Mintlify.** Optimized for _docs_, not a blog. No RSS feed, no post listing, no tags, no `text-wrap: balance` on long titles. Pages look beautiful if they're a reference page. Posts look like reference pages with no navigation. Rejected in the first 20 minutes.
 
 **Astro.** Genuinely good at this. Content collections, RSS out of the box, excellent Shiki integration, the whole island architecture story. The reject reason was narrative, not technical: a blog built on Astro undermines the argument that Vertz is a full-stack framework. <Badge intent="experimental">Dogfood tax</Badge>
 
@@ -41,12 +42,8 @@ Three options were on the table. The review was fast enough I can paraphrase it 
 The editorial toolkit is 80% built-in MDX, 20% custom. `@vertz/mdx` does the heavy lifting — parsing, frontmatter, Shiki highlighting. The blog wraps it with post-processors (heading anchors, external-link markers, table scroll wrappers) and a small components map (`Callout`, `Figure`, `Terminal`, `Badge`, `Keyboard`).
 
 <Terminal title="authoring a post">
-$ cd packages/landing
-$ bun run build:blog
-📝 Compiled 1 blog post and 1 author in 2681ms
-$ vtz dev
-▲ Vertz v0.1.0-dev
-  Local:  http://localhost:3000
+  $ cd packages/landing $ bun run build:blog 📝 Compiled 1 blog post and 1 author in 2681ms $ vtz
+  dev ▲ Vertz v0.1.0-dev Local: http://localhost:3000
 </Terminal>
 
 A post is one `.mdx` file. Frontmatter has `title`, `slug`, `date`, `author`, `tags`, `description`, optional `cover` and `draft`. Everything else is markdown with the component escape hatch when you need more expressive power.
@@ -89,5 +86,6 @@ If you're building your framework's blog and you're not sure whether to use it f
 ---
 
 References:
+
 - Issue [#2947](https://github.com/vertz-dev/vertz/issues/2947) — the blog implementation.
 - Follow-ups: [#2948](https://github.com/vertz-dev/vertz/issues/2948) (app-build plugin hook), [#2949](https://github.com/vertz-dev/vertz/issues/2949) (vtz screenshot viewport).

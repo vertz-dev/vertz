@@ -31,7 +31,11 @@ export type BadgeIntent = 'experimental' | 'stable' | 'deprecated';
 const INTENT_STYLES: Record<BadgeIntent, { bg: string; color: string; extra?: string }> = {
   experimental: { bg: 'rgba(251,146,60,0.12)', color: '#fb923c' },
   stable: { bg: 'rgba(52,211,153,0.12)', color: '#34d399' },
-  deprecated: { bg: 'rgba(113,113,122,0.18)', color: '#a1a1aa', extra: 'text-decoration:line-through' },
+  deprecated: {
+    bg: 'rgba(113,113,122,0.18)',
+    color: '#a1a1aa',
+    extra: 'text-decoration:line-through',
+  },
 };
 
 function normalizeIntent(raw: unknown): BadgeIntent {

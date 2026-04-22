@@ -156,9 +156,7 @@ interface HtmlFragment {
 
 function isHtmlFragment(v: unknown): v is HtmlFragment {
   return (
-    typeof v === 'object' &&
-    v !== null &&
-    typeof (v as { __html?: unknown }).__html === 'string'
+    typeof v === 'object' && v !== null && typeof (v as { __html?: unknown }).__html === 'string'
   );
 }
 
@@ -323,7 +321,8 @@ export function markExternalLinks(html: string): string {
   return html.replace(
     /<a\s+([^>]*?)href="([^"]+)"([^>]*)>([\s\S]*?)<\/a>/gi,
     (_full, pre: string, href: string, post: string, inner: string) => {
-      const isExternal = /^https?:\/\//i.test(href) && !/^https?:\/\/([^/]+\.)?vertz\.dev(\/|$)/i.test(href);
+      const isExternal =
+        /^https?:\/\//i.test(href) && !/^https?:\/\/([^/]+\.)?vertz\.dev(\/|$)/i.test(href);
       if (!isExternal) return `<a ${pre}href="${href}"${post}>${inner}</a>`;
       const hasTarget = /\btarget=/.test(pre + post);
       const hasRel = /\brel=/.test(pre + post);
