@@ -1,5 +1,50 @@
 # @vertz/server
 
+## 0.2.77
+
+### Patch Changes
+
+- [#2928](https://github.com/vertz-dev/vertz/pull/2928) [`9819901`](https://github.com/vertz-dev/vertz/commit/9819901b97226bbdffb090a7261ee2e3828d163c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(server): coerce form-encoded bodies on the server using the route schema
+
+  Closes [#2808](https://github.com/vertz-dev/vertz/issues/2808).
+
+  `coerceFormDataToSchema` and `coerceLeaf` now live in `@vertz/schema` so the same kernel that powers client-side `form()` coercion (#2771) runs on the server. `parseBody` in `@vertz/core` accepts an optional `coerceSchema` and now handles `multipart/form-data` in addition to `application/x-www-form-urlencoded`; entity and service route generators populate `coerceSchema` from the route's expected input shape.
+
+  End result: the same entity works across three submit modes without validation drift.
+
+  ```ts
+  // Entity
+  d.table("tasks", {
+    id: d.uuid().primary(),
+    title: d.text(),
+    done: d.boolean().default(false),
+  });
+
+  // 1. JS form() path — already coerced on the client, sent as JSON
+  fetch("/api/tasks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: "buy milk", done: true }),
+  });
+
+  // 2. Progressive-enhancement no-JS submit — browser sends urlencoded strings
+  // <form method="post" action="/api/tasks">...</form>
+  // body: title=buy+milk&done=on
+
+  // 3. curl / agent — urlencoded with a different boolean spelling
+  // curl -X POST /api/tasks --data-urlencode 'title=buy milk' --data-urlencode 'done=true'
+  ```
+
+  All three hit the handler with `{ title: 'buy milk', done: true }`. Previously modes 2 and 3 failed schema validation because checkboxes and numeric inputs arrived as strings. The coercion step runs before the CRUD pipeline's strict validation, so `EntityValidationError` semantics are unchanged when a body is actually malformed.
+
+  The new `coerceSchema` field on `EntityRouteEntry` is separate from `bodySchema` on purpose — it coerces without enforcing app-runner-level validation, which lets entity routes keep their existing error format.
+
+- Updated dependencies [[`81ffffe`](https://github.com/vertz-dev/vertz/commit/81ffffe18b499a18f8b83b5a78079baf40d7cc88), [`13c2ee6`](https://github.com/vertz-dev/vertz/commit/13c2ee6d7804e988e2b361af5c7e9a9c97e091ab), [`8f5b18b`](https://github.com/vertz-dev/vertz/commit/8f5b18b5d726148bc4613f28d2c752d6e5998f13), [`b7500f9`](https://github.com/vertz-dev/vertz/commit/b7500f9489d7bb65260ec7fff5f95b3fd4d95925), [`846b303`](https://github.com/vertz-dev/vertz/commit/846b303ef2a887208a397b9137cd32675a7dff4e), [`a81fd4f`](https://github.com/vertz-dev/vertz/commit/a81fd4fbd6b540ded6da83abf2d5afe35f7b242a), [`40c8a70`](https://github.com/vertz-dev/vertz/commit/40c8a70693665bf5c0a47bf957923ff57abbc41c), [`cc62c89`](https://github.com/vertz-dev/vertz/commit/cc62c89b5b126bb22a11fe1c1c89088857b3dca2), [`9819901`](https://github.com/vertz-dev/vertz/commit/9819901b97226bbdffb090a7261ee2e3828d163c)]:
+  - @vertz/db@0.2.77
+  - @vertz/schema@0.2.77
+  - @vertz/core@0.2.77
+  - @vertz/errors@0.2.77
+
 ## 0.2.76
 
 ### Patch Changes

@@ -1,5 +1,103 @@
 # @vertz/db
 
+## 0.2.77
+
+### Patch Changes
+
+- [#2921](https://github.com/vertz-dev/vertz/pull/2921) [`81ffffe`](https://github.com/vertz-dev/vertz/commit/81ffffe18b499a18f8b83b5a78079baf40d7cc88) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(db): add `d.bytea()` column type for binary storage
+
+  Closes [#2843](https://github.com/vertz-dev/vertz/issues/2843).
+
+  New `d.bytea()` column maps to Postgres `BYTEA` and SQLite/D1 `BLOB`, inferring `Uint8Array` at the TypeScript level. Round-trips losslessly: on SQLite reads, `Buffer` and `ArrayBuffer` returned by different drivers are normalized to a plain `Uint8Array` so callers never see backend-specific objects. `.min(n)` / `.max(n)` validate byte length (reuses the `_minLength` / `_maxLength` pipeline — they refine the `@vertz/schema` `instanceof(Uint8Array)` schema).
+
+  ```ts
+  const tenant = d.table("tenant", {
+    id: d.uuid().primary(),
+    encryptedDek: d.bytea(), // required, any length
+    sig: d.bytea().min(64).max(64), // exactly 64 bytes
+    nonce: d.bytea().nullable(),
+  });
+  ```
+
+  Previously, the only options were to base64-encode into `d.text()` (33% size bloat plus an encoding boundary that could corrupt bytes) or abuse `d.jsonb<Uint8Array>()` (JSONB is not designed for opaque bytes). `d.bytea()` removes the encoding step entirely. The migration codegen now emits `d.bytea()` for introspected `BYTEA`/`BLOB` columns instead of `d.text() // TODO: binary type`.
+
+  Unblocks the `triagebot` dogfood consumer (`tenant.encryptedDek`, `install.encryptedCredentials`) and any other downstream with AES-GCM ciphertext, compressed payloads, pre-hashed image thumbnails, etc.
+
+- [#2927](https://github.com/vertz-dev/vertz/pull/2927) [`13c2ee6`](https://github.com/vertz-dev/vertz/commit/13c2ee6d7804e988e2b361af5c7e9a9c97e091ab) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(db): type-gate array operators (`arrayContains` / `arrayContainedBy` / `arrayOverlaps`) to Postgres
+
+  Closes [#2885](https://github.com/vertz-dev/vertz/issues/2885).
+
+  The three Postgres array operators are now part of the typed filter surface on `d.textArray()`, `d.integerArray()`, and `d.vector(n)` columns. They ship on `dialect: 'postgres'` with operand element type flowing from column metadata:
+
+  - `d.textArray()` → `readonly string[]`
+  - `d.integerArray()` → `readonly number[]`
+  - `d.vector(n)` → `readonly number[]`
+
+  On `dialect: 'sqlite'` all three slots resolve to `ArrayFilter_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS` — a branded `never` whose type-alias name IS the recovery sentence (same convention as the two existing JSONB brands from #2850 / #2868).
+
+  Runtime SQL emission is unchanged — the existing `@>` / `<@` / `&&` output on Postgres already worked. The runtime throw on SQLite now mirrors the JSONB message (`"require dialect: postgres. On SQLite, fetch with list() and filter in application code."`).
+
+  Users with custom helpers over `FilterType<TColumns>` may need to thread `TDialect` (same guidance as #2850).
+
+- [#2923](https://github.com/vertz-dev/vertz/pull/2923) [`8f5b18b`](https://github.com/vertz-dev/vertz/commit/8f5b18b5d726148bc4613f28d2c752d6e5998f13) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): native `@vertz/sqlite` now binds `Uint8Array` params and reads BLOBs as `Uint8Array`
+
+  Closes [#2920](https://github.com/vertz-dev/vertz/issues/2920).
+
+  `d.bytea()` (from [#2843](https://github.com/vertz-dev/vertz/issues/2843)) round-trips on every SQLite binding except the vtz runtime's native `@vertz/sqlite` driver, where writing a `Uint8Array` threw `"invalid type: byte array, expected any valid JSON value"` and reads materialized blobs as JS arrays of integers.
+
+  The native op layer now accepts a `SqliteParam` enum (`Json` / `Bytes`) that intercepts serde_v8's byte-array visitor before delegating to `serde_json::Value`, mapping `Uint8Array` params to `rusqlite::Value::Blob`. The read path emits blob cells via `serialize_bytes`, so serde_v8 returns a proper `Uint8Array` to JS instead of a numeric array.
+
+  With this fix, `d.bytea()` works under `vtz run` / `vtz dev` against `:memory:` and file-backed SQLite, matching the parity already held by Cloudflare D1, `better-sqlite3`, `bun:sqlite`, and `postgres` / `pg`. The `d.bytea()` JSDoc's driver-support caveat is removed.
+
+- [#2907](https://github.com/vertz-dev/vertz/pull/2907) [`846b303`](https://github.com/vertz-dev/vertz/commit/846b303ef2a887208a397b9137cd32675a7dff4e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(db): stringify primitive values written to `d.jsonb<T>()` columns on SQLite
+
+  Closes [#2889](https://github.com/vertz-dev/vertz/issues/2889).
+
+  `d.jsonb<T>()` on SQLite stores values as TEXT and the read path always runs `JSON.parse` on the raw cell. Writes only stringified plain objects and arrays, so primitives (strings, numbers, booleans) were persisted raw and blew up with `JsonbParseError` on read-back: `db.str.create({ data: { note: 'hello' } })` followed by `list()` threw `JSON.parse('hello')`. Postgres's JSONB driver encodes everything automatically, so SQLite now matches.
+
+  The fix adds a CRUD-layer marshaling pass that runs after `runJsonbValidators` and wraps every non-null, non-DbExpr value for `jsonb` / `json` columns in `JSON.stringify` when the dialect is SQLite. `null` values still pass through to emit SQL `NULL`; `DbExpr` SQL fragments are left alone. All six write call sites (`create` / `createMany` / `createManyAndReturn` / `update` / `updateMany` / `upsert` — including the upsert `updateValues` path) go through the new pass. Postgres writes are unchanged.
+
+- [#2906](https://github.com/vertz-dev/vertz/pull/2906) [`a81fd4f`](https://github.com/vertz-dev/vertz/commit/a81fd4fbd6b540ded6da83abf2d5afe35f7b242a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(db): route SQLite writes without RETURNING through `execute()` so `rowCount` is accurate
+
+  Closes [#2890](https://github.com/vertz-dev/vertz/issues/2890).
+
+  Writes that don't carry a `RETURNING` clause (`createMany` / `updateMany` / `deleteMany`) used to collapse to `rowCount: 0` on SQLite: the queryFn wrapper routed every statement through `driver.query()` (`stmt.all()`), which returns an empty result set for write-without-RETURNING. A `createMany({ data: [...] })` call would therefore report `count: 0` even when the rows had been persisted.
+
+  The fix adds an exported `isWriteWithoutReturning(sql)` helper — a single-pass normalizer that blanks out string literals and comments (line + block, leading + trailing + mid-statement) before checking whether the top-level verb is `INSERT` / `UPDATE` / `DELETE` / `REPLACE` / `TRUNCATE` and whether a `RETURNING` clause is present. Both SQLite queryFn wrappers (D1 binding and local-file dialect) now dispatch write-without-RETURNING through `driver.execute()` (`stmt.run()`), surfacing `changes` as `rowCount`. Postgres routing and the `RETURNING` path are unchanged.
+
+- [#2922](https://github.com/vertz-dev/vertz/pull/2922) [`40c8a70`](https://github.com/vertz-dev/vertz/commit/40c8a70693665bf5c0a47bf957923ff57abbc41c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(db): add `hasAllKeys` / `hasAnyKey` JSONB operators
+
+  Closes [#2886](https://github.com/vertz-dev/vertz/issues/2886).
+
+  Extends the typed JSONB operator surface shipped in #2868 with the plural-key helpers that were deferred:
+
+  - `hasAllKeys` emits Postgres `col ?& $N::text[]` — row matches when the JSONB object contains every listed top-level key.
+  - `hasAnyKey` emits Postgres `col ?| $N::text[]` — row matches when the JSONB object contains at least one listed top-level key.
+
+  Operand type is `readonly JsonbKeyOf<T>[]`, so the key array is constrained to `keyof T & string` at compile time. Primitive and array JSONB payloads collapse the operand to `readonly never[]`, matching the existing `hasKey` behavior.
+
+  Both operators are dialect-gated to Postgres through the existing keyed-never brand (`JsonbOperator_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS`). On SQLite the diagnostic name itself carries the recovery guidance; the runtime throws a descriptive error that mirrors `hasKey`.
+
+- [#2896](https://github.com/vertz-dev/vertz/pull/2896) [`cc62c89`](https://github.com/vertz-dev/vertz/commit/cc62c89b5b126bb22a11fe1c1c89088857b3dca2) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(db): typed JSONB operators — `path()` builder, `jsonContains`, `jsonContainedBy`, `hasKey`
+
+  Closes [#2868](https://github.com/vertz-dev/vertz/issues/2868).
+
+  Adds the typed JSONB operator surface deferred from #2850:
+
+  - **Typed `path()` builder** — `path((m: T) => m.x.y).eq(value)` preserves the payload's leaf type through the selector. Operator availability is conditional on the leaf: `contains` / `startsWith` / `endsWith` on strings, `gt` / `gte` / `lt` / `lte` on numbers, `bigint`, and `Date`. Numeric array indexing emits integer segments unquoted (`->0`), matching Postgres JSONB array semantics.
+  - **Whole-payload operators** — `jsonContains` (emits `@>`, operand is `DeepPartial<T>` capped at depth 5), `jsonContainedBy` (emits `<@`), `hasKey` (emits `?`, operand is `keyof T & string` via a union-safe `JsonbKeyOf<T>` helper).
+  - **Dialect gating** reuses the keyed-never brand mechanism from #2850. On SQLite, attempting any of these operators fails at compile time with `JsonbOperator_Error_Requires_Dialect_Postgres_On_SQLite_Fetch_And_Filter_In_JS` — the type name IS the recovery sentence. Same diagnostic appears in `d.jsonb` JSDoc and mint-docs verbatim.
+
+  The new `path` export lives at the package root (`import { path } from '@vertz/db'`). The string-keyed path filter (`'meta->k'`) remains as an escape hatch for dynamic paths; prefer `path()` for static paths.
+
+  Follow-ups filed: #2885 (array-operator type gating), #2886 (`hasAllKeys` / `hasAnyKey`).
+
+  **Callout for consumers with custom helpers over `FilterType<TColumns>`:** the column-value branch for JSONB columns is now `JsonbColumnValue<T, TDialect>` instead of the generic `ColumnFilterOperators`. Helpers that destructure or remap `FilterType` for JSONB columns may need minor adjustment to accept the new operator surface.
+
+- Updated dependencies [[`b7500f9`](https://github.com/vertz-dev/vertz/commit/b7500f9489d7bb65260ec7fff5f95b3fd4d95925), [`9819901`](https://github.com/vertz-dev/vertz/commit/9819901b97226bbdffb090a7261ee2e3828d163c)]:
+  - @vertz/schema@0.2.77
+  - @vertz/errors@0.2.77
+
 ## 0.2.76
 
 ### Patch Changes

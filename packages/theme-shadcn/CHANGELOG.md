@@ -1,5 +1,21 @@
 # @vertz/theme-shadcn
 
+## 0.2.77
+
+### Patch Changes
+
+- [#2904](https://github.com/vertz-dev/vertz/pull/2904) [`6a1adab`](https://github.com/vertz-dev/vertz/commit/6a1adab795218a347c96e831d0628457dd72b796) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(theme-shadcn): emit `--radius-*` scale vars in `configureThemeBase()` [#2898]
+
+  `token.radius.sm|md|lg|xl|full` compile to `var(--radius-*)`, but only the single
+  `--radius` was being emitted — so every consumer shipped with `border-radius: 0`
+  (squared buttons, cards, inputs, and squared radios/avatars/switches/badges that
+  should be circles). Emit the full shadcn-style calc-based scale plus
+  `--radius-full: 9999px` alongside `--radius`.
+
+- Updated dependencies [[`6a1adab`](https://github.com/vertz-dev/vertz/commit/6a1adab795218a347c96e831d0628457dd72b796), [`9819901`](https://github.com/vertz-dev/vertz/commit/9819901b97226bbdffb090a7261ee2e3828d163c), [`4d9b23d`](https://github.com/vertz-dev/vertz/commit/4d9b23d1cac81ab88388f044d5988b2d0704f363)]:
+  - @vertz/ui@0.2.77
+  - @vertz/ui-primitives@0.2.77
+
 ## 0.2.76
 
 ### Patch Changes
