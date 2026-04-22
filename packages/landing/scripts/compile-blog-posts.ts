@@ -144,38 +144,58 @@ function propsToAttrs(props: Record<string, unknown>): string {
   return parts.join('');
 }
 
+/**
+ * Branded HTML-fragment returned by `stringJsx` and `stringFragment` so
+ * `childrenHtml` can distinguish raw MDX text nodes (which need escaping to
+ * avoid author-written `<slug>` corrupting the output) from already-rendered
+ * JSX subtrees (which must pass through verbatim).
+ */
+interface HtmlFragment {
+  __html: string;
+}
+
+function isHtmlFragment(v: unknown): v is HtmlFragment {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    typeof (v as { __html?: unknown }).__html === 'string'
+  );
+}
+
+function html(s: string): HtmlFragment {
+  return { __html: s };
+}
+
 function childrenHtml(children: unknown): string {
-  // Strings coming out of the @mdx-js/mdx compiled output are either:
-  //   (a) text nodes from markdown prose — already HTML-safe, since the MDX
-  //       parser rejects raw `<` as a JSX start
-  //   (b) HTML fragments returned by a nested jsx()/Fragment() call below.
-  // Both should pass through unescaped. Matches the pattern used by
-  // packages/docs/src/components/children.ts.
   if (children == null || children === false || children === true) return '';
   if (Array.isArray(children)) return children.map(childrenHtml).join('');
-  if (typeof children === 'string') return children;
-  if (typeof children === 'number') return String(children);
-  return String(children);
+  if (isHtmlFragment(children)) return children.__html;
+  if (typeof children === 'string') return escapeHtml(children);
+  if (typeof children === 'number') return escapeHtml(String(children));
+  return '';
 }
 
 type StringJsxFn = (
-  type: string | ((props: Record<string, unknown>) => string),
+  type: string | ((props: Record<string, unknown>) => HtmlFragment | string),
   props: Record<string, unknown> | null,
-) => string;
+) => HtmlFragment;
 
 const stringJsx: StringJsxFn = (type, props) => {
   const safeProps = props ?? {};
-  if (typeof type === 'function') return type(safeProps);
+  if (typeof type === 'function') {
+    const result = type(safeProps);
+    return typeof result === 'string' ? html(result) : result;
+  }
   const attrs = propsToAttrs(safeProps);
   const inner = safeProps.dangerouslySetInnerHTML
     ? String((safeProps.dangerouslySetInnerHTML as { __html?: string }).__html ?? '')
     : childrenHtml(safeProps.children);
-  if (VOID_ELEMENTS.has(type)) return `<${type}${attrs} />`;
-  return `<${type}${attrs}>${inner}</${type}>`;
+  if (VOID_ELEMENTS.has(type)) return html(`<${type}${attrs} />`);
+  return html(`<${type}${attrs}>${inner}</${type}>`);
 };
 
-function stringFragment(props: { children?: unknown }): string {
-  return childrenHtml(props?.children);
+function stringFragment(props: { children?: unknown }): HtmlFragment {
+  return html(childrenHtml(props?.children));
 }
 
 // ── MDX → HTML pipeline ──────────────────────────────────────
@@ -226,8 +246,9 @@ export async function compileMdxSourceToHtml(source: string): Promise<string> {
     jsxs: stringJsx,
     jsxDEV: stringJsx,
     Fragment: stringFragment,
-  }) as { default: (props: Record<string, unknown>) => string };
-  const raw = mod.default({ components: {} });
+  }) as { default: (props: Record<string, unknown>) => HtmlFragment | string };
+  const rendered = mod.default({ components: {} });
+  const raw = typeof rendered === 'string' ? rendered : rendered.__html;
   return injectHeadingIds(raw);
 }
 
@@ -259,8 +280,18 @@ export function injectHeadingIds(html: string): string {
   );
 }
 
-function slugifyHeading(input: string): string {
+function decodeEntitiesForSlug(input: string): string {
   return input
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
+}
+
+function slugifyHeading(input: string): string {
+  return decodeEntitiesForSlug(input)
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()

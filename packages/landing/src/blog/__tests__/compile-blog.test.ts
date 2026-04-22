@@ -184,6 +184,71 @@ describe('Feature: Blog compile script', () => {
     });
   });
 
+  describe('Given MDX with inline code containing angle brackets', () => {
+    describe('When compileBlog runs', () => {
+      it('then the code text is HTML-escaped in the rendered output', async () => {
+        const root = makeTempProject();
+        try {
+          writePost(
+            root,
+            '2026-04-22-angle.mdx',
+            [
+              '---',
+              'title: Angle brackets',
+              'date: 2026-04-22',
+              'author: matheus',
+              'description: D',
+              '---',
+              '',
+              'See `/blog/<slug>` for every post.',
+            ].join('\n'),
+          );
+          writeAuthor(root, 'matheus', { name: 'M', avatar: '', bio: '', twitter: '' });
+          await compileInto(root);
+          const manifest = readFileSync(join(root, 'out', 'manifest.ts'), 'utf-8');
+          // Must NOT contain literal `<slug>` which would corrupt browser HTML.
+          expect(manifest).not.toContain('<code>/blog/<slug></code>');
+          expect(manifest).toContain('&lt;slug&gt;');
+        } finally {
+          rmSync(root, { recursive: true, force: true });
+        }
+      });
+    });
+  });
+
+  describe('Given a heading with HTML-entity-looking text', () => {
+    describe('When compileBlog runs', () => {
+      it('then the heading id is slugified from the decoded text', async () => {
+        const root = makeTempProject();
+        try {
+          writePost(
+            root,
+            '2026-04-22-entities.mdx',
+            [
+              '---',
+              'title: Entities',
+              'date: 2026-04-22',
+              'author: matheus',
+              'description: D',
+              '---',
+              '',
+              '## Foo & Bar',
+              '',
+              'Body.',
+            ].join('\n'),
+          );
+          writeAuthor(root, 'matheus', { name: 'M', avatar: '', bio: '', twitter: '' });
+          await compileInto(root);
+          const manifest = readFileSync(join(root, 'out', 'manifest.ts'), 'utf-8');
+          // Entity is decoded then slugified → "foo-bar" (not "foo-amp-bar").
+          expect(manifest).toMatch(/id=\\"foo-bar\\"/);
+        } finally {
+          rmSync(root, { recursive: true, force: true });
+        }
+      });
+    });
+  });
+
   describe('Given a 440-word MDX body', () => {
     describe('When compileBlog runs', () => {
       it('then the manifest stores wordCount === 440 and the rendered HTML', async () => {

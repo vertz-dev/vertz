@@ -17,6 +17,8 @@ export function computeProgress({
   bodyHeight,
   viewportHeight,
 }: ReadingProgressInput): number {
+  if (!Number.isFinite(bodyTop) || !Number.isFinite(bodyHeight) || !Number.isFinite(viewportHeight))
+    return 0;
   // Nothing to scroll — user sees everything.
   if (bodyHeight <= viewportHeight) return 1;
   // Not yet scrolled into the body.

@@ -2,9 +2,20 @@ import { css, onMount, token } from '@vertz/ui';
 
 // ── Pure helpers (tested in isolation) ────────────────────────
 
+/** Decode the small set of HTML entities MDX's stringified output can produce. */
+function decodeHtmlEntities(input: string): string {
+  return input
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
+}
+
 /** URL-slug for a heading. Non-ASCII letters are folded to ASCII. */
 export function slugify(input: string): string {
-  return input
+  return decodeHtmlEntities(input)
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '') // strip combining diacritics
     .toLowerCase()
@@ -82,9 +93,8 @@ const s = css({
     display: 'block',
     paddingLeft: '0',
     transition: 'color 150ms cubic-bezier(0.4, 0, 0.2, 1)',
-  },
-  itemLinkActive: {
-    color: token.color.gray[100],
+    '&:hover': { color: token.color.gray[300] },
+    '&[data-active]': { color: token.color.gray[100] },
   },
   nested: {
     paddingLeft: token.spacing[4],
