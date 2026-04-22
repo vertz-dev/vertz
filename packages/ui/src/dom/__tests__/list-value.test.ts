@@ -655,7 +655,10 @@ describe('__listValue', () => {
               // Compiler emits: const ul = __element('ul');
               //                 __append(ul, __child(() => __props.children));
               const ul = __element('ul') as HTMLElement;
-              __append(ul, __child(() => userChildrenThunk));
+              __append(
+                ul,
+                __child(() => userChildrenThunk),
+              );
               return ul;
             },
           }),
