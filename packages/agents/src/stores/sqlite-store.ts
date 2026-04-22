@@ -30,11 +30,14 @@ CREATE TABLE IF NOT EXISTS agent_messages (
   tool_call_id TEXT,
   tool_name TEXT,
   tool_calls TEXT,
+  user_id TEXT,
+  tenant_id TEXT,
   created_at TEXT NOT NULL,
   UNIQUE(session_id, seq)
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_session ON agent_messages(session_id, seq);
+CREATE INDEX IF NOT EXISTS idx_messages_user ON agent_messages(user_id);
 `;
 
 // ---------------------------------------------------------------------------
@@ -137,10 +140,22 @@ export function sqliteStore(options: SqliteStoreOptions): AgentStore {
 
   const insertMessageStmt = db.prepare<
     void,
-    [string, number, string, string, string | null, string | null, string | null, string]
+    [
+      string,
+      number,
+      string,
+      string,
+      string | null,
+      string | null,
+      string | null,
+      string | null,
+      string | null,
+      string,
+    ]
   >(
-    `INSERT INTO agent_messages (session_id, seq, role, content, tool_call_id, tool_name, tool_calls, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO agent_messages
+       (session_id, seq, role, content, tool_call_id, tool_name, tool_calls, user_id, tenant_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
 
   return {
@@ -166,7 +181,7 @@ export function sqliteStore(options: SqliteStoreOptions): AgentStore {
       return rows.map(rowToMessage);
     },
 
-    async appendMessages(sessionId, messages) {
+    async appendMessages(sessionId, messages, session) {
       const result = maxSeqStmt.get(sessionId);
       let seq = (result?.max_seq ?? 0) + 1;
       const now = new Date().toISOString();
@@ -181,6 +196,8 @@ export function sqliteStore(options: SqliteStoreOptions): AgentStore {
             msg.toolCallId ?? null,
             msg.toolName ?? null,
             msg.toolCalls ? JSON.stringify(msg.toolCalls) : null,
+            session.userId,
+            session.tenantId,
             now,
           );
           seq++;
@@ -257,6 +274,8 @@ export function sqliteStore(options: SqliteStoreOptions): AgentStore {
             msg.toolCallId ?? null,
             msg.toolName ?? null,
             msg.toolCalls ? JSON.stringify(msg.toolCalls) : null,
+            session.userId,
+            session.tenantId,
             now,
           );
           seq++;

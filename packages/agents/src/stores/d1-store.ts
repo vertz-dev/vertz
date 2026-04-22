@@ -54,11 +54,14 @@ CREATE TABLE IF NOT EXISTS agent_messages (
   tool_call_id TEXT,
   tool_name TEXT,
   tool_calls TEXT,
+  user_id TEXT,
+  tenant_id TEXT,
   created_at TEXT NOT NULL,
   UNIQUE(session_id, seq)
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_session ON agent_messages(session_id, seq);
+CREATE INDEX IF NOT EXISTS idx_messages_user ON agent_messages(user_id);
 `;
 
 // ---------------------------------------------------------------------------
@@ -189,7 +192,7 @@ export function d1Store(options: D1StoreOptions): AgentStore {
       return result.results.map(rowToMessage);
     },
 
-    async appendMessages(sessionId, messages) {
+    async appendMessages(sessionId, messages, session) {
       await ensureTables();
       const seqResult = await db
         .prepare('SELECT MAX(seq) as max_seq FROM agent_messages WHERE session_id = ?')
@@ -203,8 +206,9 @@ export function d1Store(options: D1StoreOptions): AgentStore {
         statements.push(
           db
             .prepare(
-              `INSERT INTO agent_messages (session_id, seq, role, content, tool_call_id, tool_name, tool_calls, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              `INSERT INTO agent_messages
+                 (session_id, seq, role, content, tool_call_id, tool_name, tool_calls, user_id, tenant_id, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             )
             .bind(
               sessionId,
@@ -214,6 +218,8 @@ export function d1Store(options: D1StoreOptions): AgentStore {
               msg.toolCallId ?? null,
               msg.toolName ?? null,
               msg.toolCalls ? JSON.stringify(msg.toolCalls) : null,
+              session.userId,
+              session.tenantId,
               now,
             ),
         );
@@ -312,11 +318,12 @@ export function d1Store(options: D1StoreOptions): AgentStore {
         statements.push(
           db
             .prepare(
-              `INSERT INTO agent_messages (session_id, seq, role, content, tool_call_id, tool_name, tool_calls, created_at)
+              `INSERT INTO agent_messages
+                 (session_id, seq, role, content, tool_call_id, tool_name, tool_calls, user_id, tenant_id, created_at)
                VALUES (
                  ?,
                  COALESCE((SELECT MAX(seq) FROM agent_messages WHERE session_id = ?), 0) + 1,
-                 ?, ?, ?, ?, ?, ?
+                 ?, ?, ?, ?, ?, ?, ?, ?
                )`,
             )
             .bind(
@@ -327,6 +334,8 @@ export function d1Store(options: D1StoreOptions): AgentStore {
               msg.toolCallId ?? null,
               msg.toolName ?? null,
               msg.toolCalls ? JSON.stringify(msg.toolCalls) : null,
+              session.userId,
+              session.tenantId,
               now,
             ),
         );

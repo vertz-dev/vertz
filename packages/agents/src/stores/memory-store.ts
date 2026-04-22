@@ -36,7 +36,9 @@ export function memoryStore(): AgentStore {
       return [...(messages.get(sessionId) ?? [])];
     },
 
-    async appendMessages(sessionId, newMessages) {
+    async appendMessages(sessionId, newMessages, _session) {
+      // `_session` is unused — memoryStore doesn't back entity reads, so there's no
+      // denormalized userId/tenantId to persist.
       const existing = messages.get(sessionId) ?? [];
       existing.push(...newMessages);
       messages.set(sessionId, existing);

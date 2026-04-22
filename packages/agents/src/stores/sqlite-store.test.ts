@@ -75,7 +75,7 @@ describe('sqliteStore()', () => {
           { role: 'assistant', content: 'Hi there!' },
         ];
 
-        await store.appendMessages('sess_test-1', messages);
+        await store.appendMessages('sess_test-1', messages, makeSession());
         const loaded = await store.loadMessages('sess_test-1');
 
         expect(loaded).toHaveLength(2);
@@ -93,14 +93,22 @@ describe('sqliteStore()', () => {
         const store = sqliteStore({ path: ':memory:' });
         await store.saveSession(makeSession());
 
-        await store.appendMessages('sess_test-1', [
-          { role: 'user', content: 'First' },
-          { role: 'assistant', content: 'Response 1' },
-        ]);
-        await store.appendMessages('sess_test-1', [
-          { role: 'user', content: 'Second' },
-          { role: 'assistant', content: 'Response 2' },
-        ]);
+        await store.appendMessages(
+          'sess_test-1',
+          [
+            { role: 'user', content: 'First' },
+            { role: 'assistant', content: 'Response 1' },
+          ],
+          makeSession(),
+        );
+        await store.appendMessages(
+          'sess_test-1',
+          [
+            { role: 'user', content: 'Second' },
+            { role: 'assistant', content: 'Response 2' },
+          ],
+          makeSession(),
+        );
 
         const loaded = await store.loadMessages('sess_test-1');
         expect(loaded).toHaveLength(4);
@@ -126,7 +134,7 @@ describe('sqliteStore()', () => {
           { role: 'assistant', content: 'The result is 42.' },
         ];
 
-        await store.appendMessages('sess_test-1', messages);
+        await store.appendMessages('sess_test-1', messages, makeSession());
         const loaded = await store.loadMessages('sess_test-1');
 
         expect(loaded).toHaveLength(4);
@@ -144,7 +152,11 @@ describe('sqliteStore()', () => {
       it('Then returns null for session and empty array for messages', async () => {
         const store = sqliteStore({ path: ':memory:' });
         await store.saveSession(makeSession());
-        await store.appendMessages('sess_test-1', [{ role: 'user', content: 'Hello' }]);
+        await store.appendMessages(
+          'sess_test-1',
+          [{ role: 'user', content: 'Hello' }],
+          makeSession(),
+        );
 
         await store.deleteSession('sess_test-1');
 
@@ -274,14 +286,18 @@ describe('sqliteStore()', () => {
       it('Then returns only the 4 most recent messages', async () => {
         const store = sqliteStore({ path: ':memory:' });
         await store.saveSession(makeSession());
-        await store.appendMessages('sess_test-1', [
-          { role: 'user', content: 'M1' },
-          { role: 'assistant', content: 'M2' },
-          { role: 'user', content: 'M3' },
-          { role: 'assistant', content: 'M4' },
-          { role: 'user', content: 'M5' },
-          { role: 'assistant', content: 'M6' },
-        ]);
+        await store.appendMessages(
+          'sess_test-1',
+          [
+            { role: 'user', content: 'M1' },
+            { role: 'assistant', content: 'M2' },
+            { role: 'user', content: 'M3' },
+            { role: 'assistant', content: 'M4' },
+            { role: 'user', content: 'M5' },
+            { role: 'assistant', content: 'M6' },
+          ],
+          makeSession(),
+        );
 
         await store.pruneMessages('sess_test-1', 4);
         const messages = await store.loadMessages('sess_test-1');
@@ -444,6 +460,45 @@ describe('sqliteStore()', () => {
 
         const loaded = await store.loadMessages(session.id);
         expect(loaded.map((m) => m.content)).toEqual(['a', 'b', 'c', 'd']);
+      });
+    });
+  });
+
+  describe('Given appendMessages is called with a session carrying userId/tenantId', () => {
+    describe('When we read the raw agent_messages rows', () => {
+      it('Then user_id and tenant_id are denormalized onto every row (#2847 bridge)', async () => {
+        const { Database } = await import('@vertz/sqlite');
+        const path = `/tmp/agent-bridge-denorm-${Date.now()}-${Math.random()}.db`;
+        const store = sqliteStore({ path });
+        const session = makeSession({
+          id: 'sess_denorm',
+          userId: 'user-a',
+          tenantId: 'tenant-a',
+        });
+        await store.saveSession(session);
+        await store.appendMessages(
+          session.id,
+          [
+            { role: 'user', content: 'u' },
+            { role: 'assistant', content: 'a' },
+          ],
+          session,
+        );
+
+        // Open the same file via the raw sqlite driver; inspect the rows directly.
+        const raw = new Database(path);
+        const rows = raw
+          .prepare<{ user_id: string | null; tenant_id: string | null }, [string]>(
+            'SELECT user_id, tenant_id FROM agent_messages WHERE session_id = ? ORDER BY seq',
+          )
+          .all(session.id);
+        raw.close();
+
+        expect(rows).toHaveLength(2);
+        for (const row of rows) {
+          expect(row.user_id).toBe('user-a');
+          expect(row.tenant_id).toBe('tenant-a');
+        }
       });
     });
   });

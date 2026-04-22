@@ -492,7 +492,7 @@ export async function run(
           : newMessages;
 
         if (messagesToPersist.length > 0) {
-          await store.appendMessages(sessionId, [...messagesToPersist]);
+          await store.appendMessages(sessionId, [...messagesToPersist], session);
         }
 
         // Prune messages if maxStoredMessages is set
