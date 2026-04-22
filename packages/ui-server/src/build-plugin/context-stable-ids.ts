@@ -10,8 +10,8 @@ import ts from 'typescript';
  * variable name in the file, and `filePath::varName@N` for subsequent
  * occurrences (N is the 0-based occurrence index, starting at 1 for the
  * second occurrence). A per-name counter is used rather than a source span
- * because counters only shift when contexts are added/removed, while spans
- * shift on any edit to earlier code.
+ * because counters only shift when same-name contexts are added, removed,
+ * or reordered, while spans shift on any edit to earlier code.
  */
 export function injectContextStableIds(
   source: MagicString,

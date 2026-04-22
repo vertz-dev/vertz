@@ -1,7 +1,7 @@
 ---
 '@vertz/ui-server': patch
 '@vertz/native-compiler': patch
-'vtz': patch
+'vertz': patch
 ---
 
 fix(compiler): disambiguate context stable ids when two `createContext` calls share a variable name in the same file

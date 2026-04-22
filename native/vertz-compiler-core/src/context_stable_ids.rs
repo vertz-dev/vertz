@@ -15,9 +15,9 @@ use crate::magic_string::MagicString;
 /// in the file, and `filePath::varName@N` for subsequent occurrences (N is the
 /// 0-based occurrence index, starting from 1 for the second occurrence).
 ///
-/// The per-name counter is preferred over source spans: counters only shift when
-/// contexts are added or removed, whereas spans shift on any edit to earlier
-/// code — making counters more HMR-stable.
+/// The per-name counter is preferred over source spans: counters only shift
+/// when same-name contexts are added, removed, or reordered, whereas spans
+/// shift on any edit to earlier code — making counters more HMR-stable.
 pub fn inject_context_stable_ids(ms: &mut MagicString, program: &Program, rel_file_path: &str) {
     let mut name_counts: HashMap<String, u32> = HashMap::new();
     for stmt in &program.body {
