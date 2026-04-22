@@ -81,8 +81,13 @@ declare global {
      * ```
      *
      * Set natively by the vtz runtime on every module, so no polyfill is required.
+     *
+     * Declared as mutable (not `readonly`) to match `bun-types`' `ImportMeta.main`
+     * shape — declaration merging requires identical modifiers, so projects that
+     * keep both `bun-types` and `vertz/client` in their tsconfig `types` avoid
+     * a `TS2687: All declarations must have identical modifiers` error.
      */
-    readonly main: boolean;
+    main: boolean;
   }
 }
 
