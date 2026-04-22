@@ -78,12 +78,12 @@
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
-    "@vertz/fetch": "workspace:^"
+    "@vertz/fetch": "workspace:^",
+    "@vertz/schema": "workspace:^"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.7.0",
     "@vertz/build": "workspace:^",
-    "@vertz/schema": "workspace:^",
     "@vertz/test": "workspace:*",
     "happy-dom": "^20.7.0",
     "typescript": "^5.7.0"

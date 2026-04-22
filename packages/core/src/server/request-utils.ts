@@ -1,3 +1,4 @@
+import { coerceFormDataToSchema } from '@vertz/schema';
 import { BadRequestException } from '../exceptions';
 
 export interface ParsedRequest {
@@ -62,10 +63,27 @@ async function readBodyBytes(request: Request, maxBodySize: number): Promise<Uin
   return body;
 }
 
+type SchemaLike = { parse(value: unknown): { ok: boolean; data?: unknown; error?: unknown } };
+
+export interface ParseBodyOptions {
+  maxBodySize?: number;
+  /**
+   * Schema used to coerce string-valued form fields (boolean/number/BigInt/Date)
+   * to their expected types. Applied to both `application/x-www-form-urlencoded`
+   * and `multipart/form-data` bodies. Has no effect on JSON/text/XML bodies.
+   */
+  coerceSchema?: SchemaLike;
+}
+
 export async function parseBody(
   request: Request,
-  maxBodySize: number = DEFAULT_MAX_BODY_SIZE,
+  options: ParseBodyOptions | number = DEFAULT_MAX_BODY_SIZE,
 ): Promise<unknown> {
+  const opts: ParseBodyOptions =
+    typeof options === 'number' ? { maxBodySize: options } : (options ?? {});
+  const maxBodySize = opts.maxBodySize ?? DEFAULT_MAX_BODY_SIZE;
+  const coerceSchema = opts.coerceSchema;
+
   const contentType = request.headers.get('content-type') ?? '';
 
   if (contentType.includes('application/json')) {
@@ -93,7 +111,27 @@ export async function parseBody(
   if (contentType.includes('application/x-www-form-urlencoded')) {
     const rawBody = await readBodyBytes(request, maxBodySize);
     const decodedBody = rawBody ? new TextDecoder().decode(rawBody) : '';
-    return Object.fromEntries(new URLSearchParams(decodedBody));
+    const params = new URLSearchParams(decodedBody);
+    return coerceFormDataToSchema(params, coerceSchema ?? null);
+  }
+
+  if (contentType.includes('multipart/form-data')) {
+    // Read bytes via `readBodyBytes` first so the streaming byte-budget check
+    // applies even when the client omits `content-length` (chunked transfer).
+    // Then hand the captured bytes to the platform's multipart parser through
+    // a synthetic Response (Response supports construction from bytes, whereas
+    // Request does not accept the raw Headers object in every runtime).
+    const rawBody = await readBodyBytes(request, maxBodySize);
+    if (!rawBody) return coerceFormDataToSchema(new FormData(), coerceSchema ?? null);
+    let formData: FormData;
+    try {
+      const blob = new Blob([rawBody as BlobPart], { type: contentType });
+      const surrogate = new Response(blob);
+      formData = await surrogate.formData();
+    } catch {
+      throw new BadRequestException('Invalid multipart body');
+    }
+    return coerceFormDataToSchema(formData, coerceSchema ?? null);
   }
 
   return undefined;

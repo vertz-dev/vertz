@@ -110,6 +110,7 @@ export function generateServiceRoutes(
     routes.push({
       method,
       path: routePath,
+      coerceSchema: handlerDef.body,
       handler: async (ctx: Record<string, unknown>) => {
         try {
           const requestInfo = extractRequestInfo(ctx);

@@ -131,6 +131,45 @@ export interface CrudHandlers<TModel extends ModelDef = ModelDef> {
 }
 
 // ---------------------------------------------------------------------------
+// Schema derivation helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Derives the strict `apiCreateBody` and `apiUpdateBody` schemas for an entity,
+ * with the tenant column stripped out for tenant-scoped entities (the pipeline
+ * sets that column from the request context, so it must not appear in the
+ * accepted input shape).
+ *
+ * Exposed so the route generator can reuse these schemas for form-body
+ * coercion without re-running the full CRUD pipeline setup.
+ */
+export function deriveEntityApiSchemas(def: EntityDefinition): {
+  createSchema: ReturnType<typeof tableToSchemas>['apiCreateBody'];
+  updateSchema: ReturnType<typeof tableToSchemas>['apiUpdateBody'];
+} {
+  const table = def.model.table;
+  const isTenantScoped = def.tenantScoped;
+  const tenantColumn = def.tenantColumn ?? 'tenantId';
+  // bunup inlines types for @vertz/db/schema-derive separately from @vertz/db,
+  // creating duplicate `unique symbol` declarations for PhantomType. They are
+  // structurally identical — cast the function to accept our copy of TableDef.
+  const derivedSchemas = (tableToSchemas as (t: TableDef) => ReturnType<typeof tableToSchemas>)(
+    table,
+  );
+  // `.omit()` creates a new ObjectSchema that defaults to `strip` mode,
+  // so `.strict()` must be re-applied after omitting the tenant column.
+  const createSchema =
+    isTenantScoped && tenantColumn in derivedSchemas.apiCreateBody.shape
+      ? derivedSchemas.apiCreateBody.omit(tenantColumn as string).strict()
+      : derivedSchemas.apiCreateBody;
+  const updateSchema =
+    isTenantScoped && tenantColumn in derivedSchemas.apiUpdateBody.shape
+      ? derivedSchemas.apiUpdateBody.omit(tenantColumn as string).strict()
+      : derivedSchemas.apiUpdateBody;
+  return { createSchema, updateSchema };
+}
+
+// ---------------------------------------------------------------------------
 // Pipeline factory
 // ---------------------------------------------------------------------------
 
@@ -179,24 +218,7 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
   const isTenantScoped = def.tenantScoped;
   const tenantColumn = def.tenantColumn ?? 'tenantId';
 
-  // Derive strict validation schemas for CRUD input (one-time, at setup).
-  // Tenant columns are auto-set by the pipeline, so exclude them from the schema.
-  // bunup inlines types for @vertz/db/schema-derive separately from @vertz/db,
-  // creating duplicate `unique symbol` declarations for PhantomType. They are structurally
-  // identical — cast the function to accept our copy of TableDef.
-  const derivedSchemas = (tableToSchemas as (t: TableDef) => ReturnType<typeof tableToSchemas>)(
-    table,
-  );
-  // `.omit()` creates a new ObjectSchema that defaults to `strip` mode,
-  // so `.strict()` must be re-applied after omitting the tenant column.
-  const createSchema =
-    isTenantScoped && tenantColumn in derivedSchemas.apiCreateBody.shape
-      ? derivedSchemas.apiCreateBody.omit(tenantColumn as string).strict()
-      : derivedSchemas.apiCreateBody;
-  const updateSchema =
-    isTenantScoped && tenantColumn in derivedSchemas.apiUpdateBody.shape
-      ? derivedSchemas.apiUpdateBody.omit(tenantColumn as string).strict()
-      : derivedSchemas.apiUpdateBody;
+  const { createSchema, updateSchema } = deriveEntityApiSchemas(def);
   const tenantChain = options?.tenantChain ?? def.tenantChain ?? null;
   const isIndirectlyScoped = tenantChain !== null;
   const queryParentIds = options?.queryParentIds ?? null;

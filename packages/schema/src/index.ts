@@ -1,5 +1,8 @@
 // @vertz/schema — Public API
 
+// Form-encoded body coercion
+export type { FormLikeSource } from './coerce';
+export { coerceFormDataToSchema, coerceLeaf, isVertzSchema } from './coerce';
 export type { ValidationIssue } from './core/errors';
 export { ErrorCode, ParseError } from './core/errors';
 export type { RefinementContext } from './core/parse-context';
