@@ -237,7 +237,9 @@ function Cover(props: { title: string; description: string; accent: string; cate
                     maxWidth: '880px',
                   },
                   children:
-                    description.length > 160 ? description.slice(0, 157).trimEnd() + '…' : description,
+                    description.length > 160
+                      ? description.slice(0, 157).trimEnd() + '…'
+                      : description,
                 },
               },
             ],

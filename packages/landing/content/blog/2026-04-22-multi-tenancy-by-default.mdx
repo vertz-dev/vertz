@@ -4,7 +4,7 @@ slug: multi-tenancy-by-default
 date: 2026-04-22
 author: matheus
 tags: [auth, multi-tenancy, security]
-description: "\"I'll add multi-tenancy later\" is how startups become security incidents. In Vertz, any entity with a tenantId is scoped automatically."
+description: '"I''ll add multi-tenancy later" is how startups become security incidents. In Vertz, any entity with a tenantId is scoped automatically.'
 cover: /blog/covers/multi-tenancy-by-default.png
 draft: false
 ---
@@ -25,12 +25,11 @@ Mark a table as `.tenant()` (or add a `tenantId` column to any entity) and the f
 import { d } from '@vertz/db';
 import { entity, rules } from '@vertz/server';
 
-const projectsModel = d
-  .table('projects', {
-    id: d.id(),
-    name: d.text(),
-    tenantId: d.text(),
-  });
+const projectsModel = d.table('projects', {
+  id: d.id(),
+  name: d.text(),
+  tenantId: d.text(),
+});
 
 const projects = entity('projects', {
   model: projectsModel,
@@ -83,10 +82,7 @@ const tasks = entity('tasks', {
   access: {
     list: rules.authenticated(),
     create: rules.entitlement('task:create'),
-    update: rules.all(
-      rules.entitlement('task:update'),
-      rules.where({ createdBy: rules.user.id }),
-    ),
+    update: rules.all(rules.entitlement('task:update'), rules.where({ createdBy: rules.user.id })),
     delete: rules.entitlement('task:delete'),
   },
 });

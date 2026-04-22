@@ -53,7 +53,10 @@ Three options were on the table. None of them survived contact with our principl
 
 **Deno.** Same structural argument as Bun. Deno's module resolution and permission model are beautiful, but they're beautiful _for Deno_. Wrapping them to feel like a Vertz app was more work than building our own loader, and we'd still inherit their release cycle.
 
-<Badge intent="stable">vtz</Badge> gives us the one thing none of those options can: the compiler, the module loader, the SSR runtime, and the test runner are the same program. `vtz test` reads the exact same source graph as `vtz dev`. There are no bundler-vs-runtime desync bugs to triage, because there is no bundler-vs-runtime split.
+<Badge intent="stable">vtz</Badge> gives us the one thing none of those options can: the compiler,
+the module loader, the SSR runtime, and the test runner are the same program. `vtz test` reads the
+exact same source graph as `vtz dev`. There are no bundler-vs-runtime desync bugs to triage, because
+there is no bundler-vs-runtime split.
 
 ## What it actually feels like
 
@@ -79,7 +82,7 @@ Three shortcuts we walked away from, for the record:
 
 **Shipping a "vertz" npm package that wraps vite + vitest + pnpm.** The 80/20 play. Everyone tells you to start there. We rejected it because the moment one of those three tools ships a breaking change we don't want, we're stuck between pinning an old version (boring, brittle) and chasing theirs (distracting). We want to ship framework features, not patch other people's regressions.
 
-**A pure Node CLI with bundled deno\_core.** Halfway house. Gets us the embedded V8 without the Rust toolchain. But it still leaves the test runner, package manager, and dev server living in Node-land — and we'd have two different module loaders in the same process. Debugging that sounded worse than writing Rust.
+**A pure Node CLI with bundled deno_core.** Halfway house. Gets us the embedded V8 without the Rust toolchain. But it still leaves the test runner, package manager, and dev server living in Node-land — and we'd have two different module loaders in the same process. Debugging that sounded worse than writing Rust.
 
 **Letting the user pick their runtime.** "Support Bun, Node, Deno — ship a matrix." The Node.js framework playbook. It's a recipe for three times the test surface, three times the bugs, and API conventions that have to survive the intersection of three module systems. We're building the stack, not another cross-runtime shim.
 

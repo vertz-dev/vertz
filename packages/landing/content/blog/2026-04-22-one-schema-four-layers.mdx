@@ -4,7 +4,7 @@ slug: one-schema-four-layers
 date: 2026-04-22
 author: matheus
 tags: [schema, types, full-stack]
-description: "Most stacks make you write the same shape four times. Vertz defines it once with d.table() and threads the types through every layer."
+description: 'Most stacks make you write the same shape four times. Vertz defines it once with d.table() and threads the types through every layer.'
 cover: /blog/covers/one-schema-four-layers.png
 draft: false
 ---
@@ -64,11 +64,11 @@ const tasksEntity = entity('tasks', {
 
 The framework derives three different types from the same columns:
 
-| Type                | Includes                   | Excludes                                                            |
-| ------------------- | -------------------------- | ------------------------------------------------------------------- |
-| `$response`         | `id`, `title`, `status`, `createdAt` | Hidden fields                                            |
-| `$create_input`     | `title`, `status` (optional), `assigneeId` | `id` (primary), `createdAt` (readOnly)           |
-| `$update_input`     | All of the above as optional | Same exclusions                                                   |
+| Type            | Includes                                   | Excludes                               |
+| --------------- | ------------------------------------------ | -------------------------------------- |
+| `$response`     | `id`, `title`, `status`, `createdAt`       | Hidden fields                          |
+| `$create_input` | `title`, `status` (optional), `assigneeId` | `id` (primary), `createdAt` (readOnly) |
+| `$update_input` | All of the above as optional               | Same exclusions                        |
 
 You never write these manually. `.readOnly()` on `createdAt` is what removes it from create and update inputs. `.hidden()` on a `passwordHash` column would remove it from responses. The annotations you wrote on the column are the ones that drive the API surface.
 

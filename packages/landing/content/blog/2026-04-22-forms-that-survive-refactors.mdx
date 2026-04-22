@@ -48,14 +48,14 @@ Compare that to what you'd write by hand:
 ```tsx
 // The old way — three strings pretending to be one
 const schema = z.object({
-  title: z.string(),  // 1
+  title: z.string(), // 1
   description: z.string(),
 });
 
-<input name="title" />  // 2 — typed as a string attribute
+<input name="title" />; // 2 — typed as a string attribute
 await fetch('/api/tasks', {
   method: 'POST',
-  body: JSON.stringify({ title, description }),  // 3
+  body: JSON.stringify({ title, description }), // 3
 });
 ```
 
@@ -65,13 +65,13 @@ Rename `title` in the schema and the `<input name>` is still a string. The `fetc
 
 A checklist of what the type system catches and what's left to tests:
 
-| Change to the schema                    | What fails                                                    | When                    |
-| --------------------------------------- | ------------------------------------------------------------- | ----------------------- |
-| Rename `title` → `headline`             | `taskForm.title.error` — property doesn't exist               | <Badge intent="success">build</Badge> |
-| Change `title: string` → `title: number`| Input `name` still resolves, but `onSuccess` payload shape changes — downstream consumers fail | <Badge intent="success">build</Badge> |
-| Make `description` required             | Server validation fires if the field is missing — `_form` error surfaces | runtime                 |
-| Add a new field `priority`              | Nothing breaks — old forms still submit, server fills defaults | no break                |
-| Delete `description`                    | `taskForm.description` — property doesn't exist               | <Badge intent="success">build</Badge> |
+| Change to the schema                     | What fails                                                                                     | When                                  |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------- |
+| Rename `title` → `headline`              | `taskForm.title.error` — property doesn't exist                                                | <Badge intent="success">build</Badge> |
+| Change `title: string` → `title: number` | Input `name` still resolves, but `onSuccess` payload shape changes — downstream consumers fail | <Badge intent="success">build</Badge> |
+| Make `description` required              | Server validation fires if the field is missing — `_form` error surfaces                       | runtime                               |
+| Add a new field `priority`               | Nothing breaks — old forms still submit, server fills defaults                                 | no break                              |
+| Delete `description`                     | `taskForm.description` — property doesn't exist                                                | <Badge intent="success">build</Badge> |
 
 The last row is the one that matters most. Deleting a column in a hand-rolled stack is a needle hunt through grep results. In Vertz, the compiler does the hunt for you.
 
@@ -84,7 +84,9 @@ const tasks = query(api.tasks.list());
 
 // The compiler sees .title and .status accessed below
 return tasks.data?.items.map((task) => (
-  <li>{task.title} — {task.status}</li>
+  <li>
+    {task.title} — {task.status}
+  </li>
 ));
 
 // Generates: api.tasks.list({ select: { id: true, title: true, status: true } })
@@ -95,7 +97,8 @@ Rename `title` to `headline` in the entity. The compiler flags every `task.title
 Cross-file works the same. Pass `task` into a child component and the compiler follows the import, reads the child's field accesses, and merges them into the parent's `select`. Barrel files, renamed exports, star re-exports — all followed. The only place you have to do work is at the boundary of a third-party npm package, which is the one thing the compiler can't see.
 
 <Callout type="note" title="The DX test is the refactor">
-  A framework's real DX score isn't how fast you write the first version — it's how confident you feel deleting a column six months later. We measure ourselves on the second one.
+  A framework's real DX score isn't how fast you write the first version — it's how confident you
+  feel deleting a column six months later. We measure ourselves on the second one.
 </Callout>
 
 ## What we rejected

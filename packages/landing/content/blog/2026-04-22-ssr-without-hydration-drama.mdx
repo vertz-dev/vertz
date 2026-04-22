@@ -24,7 +24,9 @@ Hydration in a virtual-DOM framework is a consequence of its core data structure
 The machinery exists to bridge the gap between the HTML the browser already has and the VNode tree React is about to create. It's overhead by construction.
 
 <Callout type="note" title="This is not a dig at React">
-  React's model is the reason you can write the same component for server and client. A generation of frameworks is built on it. The tradeoff is real, not theoretical — and it's the one we made a different call on.
+  React's model is the reason you can write the same component for server and client. A generation
+  of frameworks is built on it. The tradeoff is real, not theoretical — and it's the one we made a
+  different call on.
 </Callout>
 
 Vertz has no VNode tree. The compiler transforms your component into DOM-creating code at build time. Server-side, that same code emits strings; client-side, it walks the existing DOM with a cursor and claims each node as it goes. There's no second tree, because we never needed one.
@@ -78,7 +80,7 @@ The AOT diagnostic endpoint in dev reports which components made the static tier
 // GET http://localhost:3000/__vertz_ssr_aot
 {
   "components": {
-    "Header":    { "tier": "static" },
+    "Header": { "tier": "static" },
     "Dashboard": { "tier": "conditional", "holes": ["SidePanel"] }
   },
   "coverage": { "total": 5, "aot": 4, "runtime": 1, "percentage": 80 }
