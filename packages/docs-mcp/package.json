@@ -1,0 +1,60 @@
+{
+  "name": "@vertz/docs-mcp",
+  "version": "0.2.1",
+  "description": "Public MCP server exposing the Vertz documentation to LLM clients (Claude Code, Cursor, Windsurf, Zed)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vertz-dev/vertz.git",
+    "directory": "packages/docs-mcp"
+  },
+  "files": [
+    "dist",
+    "src/docs-index.generated.json"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "vertz-docs-mcp": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./search": {
+      "types": "./dist/search.d.ts",
+      "import": "./dist/search.js"
+    },
+    "./tools": {
+      "types": "./dist/tools.d.ts",
+      "import": "./dist/tools.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "bun run scripts/build-index.ts && vtzx vertz-build",
+    "build:index": "bun run scripts/build-index.ts",
+    "test": "vtz test",
+    "test:watch": "vtz test --watch",
+    "test:integration": "bun test ./src/__tests__/server.local.ts",
+    "typecheck": "tsgo --noEmit -p tsconfig.typecheck.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.1",
+    "@vertz/build": "workspace:^",
+    "@vertz/test": "workspace:*",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

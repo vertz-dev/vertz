@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": false,
+    "noEmit": true,
+    "noUncheckedIndexedAccess": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "types": ["@types/node"]
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.test-d.ts",
+    "**/*.local.ts"
+  ],
+  "extends": "../../tsconfig.json",
+  "include": ["src", "scripts"]
+}

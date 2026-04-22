@@ -9,6 +9,7 @@ import { GetStarted } from '../components/get-started';
 import { Hero } from '../components/hero';
 import { Nav } from '../components/nav';
 import { TheStack } from '../components/the-stack';
+import { UseInIde } from '../components/use-in-ide';
 import { WhyVertz } from '../components/why-vertz';
 
 function HeroGlow() {
@@ -98,6 +99,8 @@ export function HomePage() {
         <TheStack />
         <Divider />
         <GetStarted />
+        <Divider />
+        <UseInIde />
         <FAQ />
         <Divider />
         <Founders />

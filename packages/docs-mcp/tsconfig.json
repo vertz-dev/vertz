@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": false,
+    "isolatedDeclarations": true,
+    "noUncheckedIndexedAccess": true,
+    "outDir": "dist",
+    "resolveJsonModule": true,
+    "rootDir": "src"
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/__tests__/**",
+    "**/*.test.ts",
+    "**/*.test-d.ts",
+    "**/*.local.ts"
+  ],
+  "extends": "../../tsconfig.json",
+  "include": ["src"]
+}
