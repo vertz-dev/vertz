@@ -310,7 +310,11 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
     // Route code splitting -- convert static imports in defineRoutes to dynamic imports.
     // Must run before component transforms (it rewrites module-level import/export statements).
     if enable_route_splitting {
-        route_splitting::transform_route_splitting(&mut ms, &parser_ret.program, source);
+        all_diagnostics.extend(route_splitting::transform_route_splitting(
+            &mut ms,
+            &parser_ret.program,
+            source,
+        ));
     }
 
     // Field selection analysis -- extract field access patterns from query() calls.
