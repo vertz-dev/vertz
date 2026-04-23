@@ -1,4 +1,5 @@
 import { describe, expect, it } from '@vertz/test';
+import { signal } from '@vertz/ui';
 import { withStyles } from '../../composed/with-styles';
 import type { ListClasses } from '../list-composed';
 import { ComposedList } from '../list-composed';
@@ -151,6 +152,52 @@ describe('ComposedList', () => {
       const StyledList = withStyles(ComposedList, classes);
       expect(StyledList.Item).toBeDefined();
       expect(StyledList.DragHandle).toBeDefined();
+    });
+  });
+
+  describe('reactive map children (#2956)', () => {
+    // Regression: rendering ComposedList.Item via {signal.map(...)} threw
+    // "List.Item must be used inside a <List>" on reactive re-runs because
+    // __listValue's domEffect didn't carry the Provider's scope on re-entry.
+    // The JSX helper declares a signal in module scope so the compiler
+    // rewrites reads to `.value` and we can mutate it to trigger a re-run.
+
+    it('renders initial items from a reactive .map() and tolerates re-runs', () => {
+      const todos = signal<{ id: number; text: string }[]>([
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+      ]);
+
+      function RenderReactiveList() {
+        return (
+          <ComposedList classes={classes}>
+            {todos.value.map((todo) => (
+              <ComposedList.Item key={todo.id}>{todo.text}</ComposedList.Item>
+            ))}
+          </ComposedList>
+        );
+      }
+
+      const el = RenderReactiveList();
+
+      // Initial render
+      const initial = el.querySelectorAll('li');
+      expect(initial.length).toBe(2);
+      expect(initial[0]?.textContent).toBe('A');
+      expect(initial[1]?.textContent).toBe('B');
+
+      // Reactive re-run: Providers are no longer on the call stack when the
+      // inner __listValue effect re-executes renderFn → List.Item.
+      expect(() => {
+        todos.value = [
+          { id: 1, text: 'A' },
+          { id: 2, text: 'B' },
+          { id: 3, text: 'new' },
+        ];
+      }).not.toThrow();
+      const next = el.querySelectorAll('li');
+      expect(next.length).toBe(3);
+      expect(next[2]?.textContent).toBe('new');
     });
   });
 });

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, spyOn } from '@vertz/test';
 import { createContext, useContext } from '../../component/context';
 import { signal } from '../../runtime/signal';
+import { __append, __child, __element } from '../element';
 import { __listValue, _resetUnkeyedListValueWarning } from '../list-value';
 
 describe('__listValue', () => {
@@ -565,6 +566,163 @@ describe('__listValue', () => {
       // Should see the inner Provider's value, not the outer
       expect(contextValues.length).toBe(1);
       expect(contextValues[0]).toBe('inner');
+    });
+
+    it('renderFn finds context when rendered via JSX Provider children thunk and items change later', () => {
+      // Simulates the real compiler output for:
+      //   <ListContext.Provider value={ctx}>{todos.map(...)}</ListContext.Provider>
+      // where <ListContext.Provider> uses the JSX single-arg pattern:
+      //   ListContext.Provider({ value: ctx, children: () => __listValue(...) })
+      // Regression test for #2956.
+      const TestContext = createContext<{ label: string }>();
+      const items = signal<{ id: number }[]>([{ id: 1 }]);
+
+      const contextValues: (string | undefined)[] = [];
+
+      const container = document.createElement('div');
+      // JSX pattern Provider({ value, children: thunk }) returns the rendered node.
+      const rendered = TestContext.Provider({
+        value: { label: 'from-provider' },
+        children: () =>
+          __listValue(
+            items,
+            (item) => item.id,
+            (_item) => {
+              const ctx = useContext(TestContext);
+              contextValues.push(ctx?.label);
+              const li = document.createElement('li');
+              li.textContent = ctx?.label ?? 'no-context';
+              return li;
+            },
+          ),
+      });
+      container.appendChild(rendered);
+
+      // First render should have captured the Provider's value
+      expect(contextValues.length).toBe(1);
+      expect(contextValues[0]).toBe('from-provider');
+
+      // Reactive re-run (Provider is no longer on the call stack)
+      items.value = [{ id: 1 }, { id: 2 }];
+      expect(contextValues.length).toBe(2);
+      expect(contextValues[1]).toBe('from-provider');
+
+      // Another re-run
+      items.value = [{ id: 1 }, { id: 2 }, { id: 3 }];
+      expect(contextValues.length).toBe(3);
+      expect(contextValues[2]).toBe('from-provider');
+    });
+
+    it('renderFn finds nested-Provider context through a __child wrapper on re-runs (#2956)', () => {
+      // Exact compiled-pattern mirror of ComposedListRoot:
+      //   <OuterCtx.Provider value={...}>
+      //     <InnerCtx.Provider value={...}>
+      //       <ul>{children}</ul>  // children is a thunk passed as prop
+      //     </InnerCtx.Provider>
+      //   </OuterCtx.Provider>
+      // where `children` is `() => __listValue(...)`.
+      //
+      // The compiler wraps `{children}` in `__child(() => props.children)` —
+      // that outer domEffect creates the inner __listValue effect. Both must
+      // carry the Provider scope for re-runs after Providers have returned.
+      const OuterCtx = createContext<{ id: string }>();
+      const InnerCtx = createContext<{ animate: boolean }>();
+      const items = signal<{ id: number }[]>([{ id: 1 }, { id: 2 }]);
+
+      const seenOuter: (string | undefined)[] = [];
+      const seenInner: (boolean | undefined)[] = [];
+
+      // Caller's children thunk — what the compiler generates for
+      // {items.value.map(...)} inside a component.
+      const userChildrenThunk = () =>
+        __listValue(
+          items,
+          (item) => item.id,
+          (_item) => {
+            seenOuter.push(useContext(OuterCtx)?.id);
+            seenInner.push(useContext(InnerCtx)?.animate);
+            return document.createElement('li');
+          },
+        );
+
+      const container = document.createElement('div');
+      const rendered = OuterCtx.Provider({
+        value: { id: 'outer-value' },
+        children: () =>
+          InnerCtx.Provider({
+            value: { animate: true },
+            children: () => {
+              // Compiler emits: const ul = __element('ul');
+              //                 __append(ul, __child(() => __props.children));
+              const ul = __element('ul') as HTMLElement;
+              __append(
+                ul,
+                __child(() => userChildrenThunk),
+              );
+              return ul;
+            },
+          }),
+      });
+      container.appendChild(rendered);
+
+      // First render — initial items rendered with both Providers active
+      expect(seenOuter).toEqual(['outer-value', 'outer-value']);
+      expect(seenInner).toEqual([true, true]);
+
+      // Re-run: Providers are no longer on the call stack; the inner
+      // __listValue effect must carry both contexts into the renderFn.
+      items.value = [{ id: 1 }, { id: 2 }, { id: 3 }];
+      expect(seenOuter[2]).toBe('outer-value');
+      expect(seenInner[2]).toBe(true);
+
+      // Another re-run: new-only key forces a fresh renderFn call
+      items.value = [{ id: 4 }];
+      expect(seenOuter[3]).toBe('outer-value');
+      expect(seenInner[3]).toBe(true);
+    });
+
+    it('renderFn finds context through a child HTML element when rendered via JSX Provider', () => {
+      // Simulates the real compiler output for:
+      //   <Ctx.Provider value={ctx}><ul>{children}</ul></Ctx.Provider>
+      // where children is a thunk: () => __listValue(...)
+      // This is ComposedListRoot's exact pattern.
+      const TestContext = createContext<{ label: string }>();
+      const items = signal<{ id: number }[]>([{ id: 1 }]);
+      const contextValues: (string | undefined)[] = [];
+
+      const childrenThunk = () =>
+        __listValue(
+          items,
+          (item) => item.id,
+          (_item) => {
+            const ctx = useContext(TestContext);
+            contextValues.push(ctx?.label);
+            const li = document.createElement('li');
+            li.textContent = ctx?.label ?? 'no-context';
+            return li;
+          },
+        );
+
+      const container = document.createElement('div');
+      const rendered = TestContext.Provider({
+        value: { label: 'from-provider' },
+        children: () => {
+          // Compiler emits: const ul = __element('ul'); __insert(ul, children); return ul;
+          const ul = document.createElement('ul');
+          const fragment = childrenThunk();
+          ul.appendChild(fragment);
+          return ul;
+        },
+      });
+      container.appendChild(rendered);
+
+      expect(contextValues.length).toBe(1);
+      expect(contextValues[0]).toBe('from-provider');
+
+      // Reactive re-run after the Provider has returned — captured scope must persist
+      items.value = [{ id: 1 }, { id: 2 }];
+      expect(contextValues.length).toBe(2);
+      expect(contextValues[1]).toBe('from-provider');
     });
   });
 
