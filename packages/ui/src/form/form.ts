@@ -1,6 +1,6 @@
 import type { Result } from '@vertz/fetch';
 import { coerceFormDataToSchema, coerceLeaf } from '@vertz/schema';
-import { computed, signal } from '../runtime/signal';
+import { computed, lifecycleEffect, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal } from '../runtime/signal-types';
 import { createFieldState, type FieldState } from './field-state';
 import { formDataToObject } from './form-data';
@@ -8,7 +8,7 @@ import type { FormSchema } from './validation';
 import { resolveFieldSchema, validate, validateField } from './validation';
 
 const FIELD_STATE_SIGNALS = new Set(['error', 'dirty', 'touched', 'value']);
-const FIELD_STATE_METHODS = new Set(['setValue', 'reset']);
+const FIELD_STATE_METHODS = new Set(['setValue', 'reset', 'setInitial']);
 
 /**
  * An SDK method with endpoint metadata attached.
@@ -200,12 +200,17 @@ export function form<TBody, TResult>(
     return true;
   });
 
-  function resolveNestedInitial(dotPath: string): unknown {
-    const initialObj =
-      typeof options?.initial === 'function' ? options.initial() : options?.initial;
-    if (!initialObj) return undefined;
-    const segments = dotPath.split('.');
-    let current: unknown = initialObj;
+  // When `initial` is a function, track its reactive dependencies so async
+  // data (e.g. `() => query.data`) flows into the fields as it resolves.
+  // A static value is used directly.
+  const initialFn = typeof options?.initial === 'function' ? options.initial : undefined;
+  let latestInitial: DeepPartial<TBody> | undefined =
+    initialFn !== undefined ? initialFn() : (options?.initial as DeepPartial<TBody> | undefined);
+
+  function resolveInitialFor(name: string): unknown {
+    if (latestInitial == null) return undefined;
+    const segments = name.includes('.') ? name.split('.') : [name];
+    let current: unknown = latestInitial;
     for (const segment of segments) {
       if (current == null || typeof current !== 'object') return undefined;
       current = (current as Record<string, unknown>)[segment];
@@ -216,18 +221,20 @@ export function form<TBody, TResult>(
   function getOrCreateField(name: string): FieldState {
     let field = fieldCache.get(name);
     if (!field) {
-      const initialValue = name.includes('.')
-        ? resolveNestedInitial(name)
-        : (() => {
-            const initialObj =
-              typeof options?.initial === 'function' ? options.initial() : options?.initial;
-            return (initialObj as Record<string, unknown> | undefined)?.[name];
-          })();
-      field = createFieldState(name, initialValue);
+      field = createFieldState(name, resolveInitialFor(name));
       fieldCache.set(name, field);
       fieldGeneration.value++;
     }
     return field;
+  }
+
+  if (initialFn !== undefined) {
+    lifecycleEffect(() => {
+      latestInitial = initialFn();
+      for (const [name, field] of fieldCache) {
+        field.setInitial(resolveInitialFor(name));
+      }
+    });
   }
 
   function getOrCreateChainProxy(dotPath: string): object {

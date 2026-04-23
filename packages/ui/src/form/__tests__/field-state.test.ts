@@ -83,4 +83,53 @@ describe('createFieldState', () => {
       expect(field.dirty.peek()).toBe(false);
     });
   });
+
+  describe('setInitial', () => {
+    it('updates value when field is not dirty', () => {
+      const field = createFieldState<string>('title', 'Old');
+
+      field.setInitial('New');
+
+      expect(field.value.peek()).toBe('New');
+      expect(field.dirty.peek()).toBe(false);
+    });
+
+    it('preserves user input when field is dirty', () => {
+      const field = createFieldState<string>('title', 'Old');
+
+      field.setValue('User Input');
+      expect(field.dirty.peek()).toBe(true);
+
+      field.setInitial('New');
+
+      expect(field.value.peek()).toBe('User Input');
+      expect(field.dirty.peek()).toBe(true);
+    });
+
+    it('clears dirty when user input already matches new initial', () => {
+      const field = createFieldState<string>('title', 'Old');
+
+      field.setValue('Match');
+      expect(field.dirty.peek()).toBe(true);
+
+      field.setInitial('Match');
+
+      expect(field.value.peek()).toBe('Match');
+      expect(field.dirty.peek()).toBe(false);
+    });
+
+    it('updates the baseline for subsequent setValue/reset calls', () => {
+      const field = createFieldState<string>('title', 'Old');
+
+      field.setInitial('New');
+      field.setValue('New');
+      expect(field.dirty.peek()).toBe(false);
+
+      field.setValue('Changed');
+      expect(field.dirty.peek()).toBe(true);
+
+      field.reset();
+      expect(field.value.peek()).toBe('New');
+    });
+  });
 });
