@@ -302,7 +302,6 @@ const styleTag = inlineCriticalCss('body { margin: 0; font-family: system-ui; }'
 // '<style>body { margin: 0; font-family: system-ui; }</style>'
 ```
 
-
 ---
 
 ## Dev Server
