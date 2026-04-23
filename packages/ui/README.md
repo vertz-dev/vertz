@@ -680,7 +680,6 @@ onMount(() => {
 | `children`      | Access resolved children                  |
 | `ref`           | Create a ref for DOM element access       |
 | `ErrorBoundary` | Catch errors in a component tree          |
-| `Suspense`      | Show fallback while async content loads   |
 
 ### Mounting
 

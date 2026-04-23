@@ -161,7 +161,7 @@ Both helpers:
 
 This is intentionally a minimal v1. The following are non-goals — recipes below explain how to handle them in user-land.
 
-- **No SSR for streams.** A stream query renders with `data: []` during the SSR pass; the iterator attaches on hydration. No `<Suspense>` boundary needed — `messages.data.map(...)` produces an empty list during SSR, then progressively fills.
+- **No SSR for streams.** A stream query renders with `data: []` during the SSR pass; the iterator attaches on hydration. `messages.data.map(...)` produces an empty list during SSR, then progressively fills.
 - **No accumulated-state cache across navigation.** When you navigate away and back, the iterator re-attaches from scratch. Use cursor semantics in your producer (next recipe) if you need replay.
 - **No `refetchInterval` interop.** Polling and streaming are mutually exclusive — passing both throws a `QueryStreamMisuseError`.
 - **No reducer / select hooks.** Produce the merged shape inside your iterator (next recipe).

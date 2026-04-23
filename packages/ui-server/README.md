@@ -126,9 +126,9 @@ return renderPage(<App />, {
 | `styles`      | `string[]` | Stylesheet URLs for head                                   |
 | `head`        | `string`   | Raw HTML escape hatch for head                             |
 
-### `renderToStream(tree, options?)`
+### `renderToStream(tree)`
 
-Low-level streaming renderer. Returns a `ReadableStream<Uint8Array>` that emits HTML as it's generated, including out-of-order Suspense resolution.
+Low-level streaming renderer. Returns a `ReadableStream<Uint8Array>` that emits the serialized HTML.
 
 ```typescript
 import { renderToStream } from '@vertz/ui-server';
@@ -306,31 +306,6 @@ const styleTag = inlineCriticalCss('body { margin: 0; font-family: system-ui; }'
 // '<style>body { margin: 0; font-family: system-ui; }</style>'
 ```
 
----
-
-## Streaming & Suspense
-
-### Out-of-Order Streaming
-
-Suspense boundaries emit placeholders immediately. When the async content resolves, a replacement chunk is streamed:
-
-```typescript
-const suspenseNode = {
-  tag: '__suspense',
-  attrs: {},
-  children: [],
-  _fallback: { tag: 'div', attrs: { class: 'skeleton' }, children: ['Loading...'] },
-  _resolve: fetchUserData().then((user) => ({
-    tag: 'div',
-    attrs: { class: 'user-profile' },
-    children: [user.name],
-  })),
-};
-
-const stream = renderToStream(suspenseNode as VNode);
-```
-
-The stream first emits the fallback, then streams a `<template>` + `<script>` that swaps in the resolved content.
 
 ### CSP Nonce Support
 
@@ -412,7 +387,6 @@ import type {
 
   // Rendering
   RenderToHTMLOptions,
-  RenderToStreamOptions,
   PageOptions,
 
   // Dev Server

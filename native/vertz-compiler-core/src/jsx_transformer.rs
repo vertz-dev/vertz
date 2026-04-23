@@ -1391,8 +1391,8 @@ fn build_children_thunk(
     }
 
     // Fix #2821: multiple children are wrapped in a DocumentFragment so the
-    // consumer (Context.Provider, Suspense, ErrorBoundary, etc.) receives a
-    // single Node. This mirrors how `<>...</>` fragments are compiled, making
+    // consumer (Context.Provider, ErrorBoundary, etc.) receives a single Node.
+    // This mirrors how `<>...</>` fragments are compiled, making
     // `<Provider><a/><b/></Provider>` behave like
     // `<Provider><><a/><b/></></Provider>`.
     let frag_var = gen_var(counter);
@@ -4226,8 +4226,8 @@ export function App() {
 }"#,
         );
         // Fix #2821: multi-child component children are wrapped in a
-        // DocumentFragment so consumers (Provider, Suspense, ErrorBoundary)
-        // receive a single Node, not an array.
+        // DocumentFragment so consumers (Provider, ErrorBoundary) receive a
+        // single Node, not an array.
         assert!(
             result.contains("createDocumentFragment"),
             "result: {result}"

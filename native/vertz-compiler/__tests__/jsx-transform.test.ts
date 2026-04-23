@@ -381,8 +381,8 @@ describe('Feature: JSX element transform', () => {
     describe('When compiled', () => {
       it('Then passes children as a thunk returning a DocumentFragment', () => {
         // Fix #2821: multi-child component children are wrapped in a
-        // DocumentFragment so the consumer (Provider, Suspense, ErrorBoundary)
-        // receives a single Node, not an array. Mirrors how `<>...</>` compiles.
+        // DocumentFragment so the consumer (Provider, ErrorBoundary) receives
+        // a single Node, not an array. Mirrors how `<>...</>` compiles.
         const code = compileAndGetCode(
           `function App() {\n  return <Card><span>a</span><span>b</span></Card>;\n}`,
         );

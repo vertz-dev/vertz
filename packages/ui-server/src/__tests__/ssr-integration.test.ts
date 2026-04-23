@@ -3,8 +3,7 @@ import { SSRComment, SSRElement } from '../dom-shim';
 import { renderHeadToHtml } from '../head';
 import { wrapWithHydrationMarkers } from '../hydration-markers';
 import { renderToStream } from '../render-to-stream';
-import { resetSlotCounter } from '../slot-placeholder';
-import { collectStreamChunks, streamToString } from '../streaming';
+import { streamToString } from '../streaming';
 import type { VNode } from '../types';
 import { rawHtml } from '../types';
 
@@ -71,48 +70,6 @@ describe('SSR Integration Tests', () => {
     const closeTags = html.match(/<\/[a-z]+>/g) ?? [];
     // Void elements don't have closing tags, so closed <= opened is expected
     expect(closeTags.length).toBeLessThanOrEqual(openTags.length);
-  });
-
-  /** IT-5A-2: Suspense emits placeholder first, then replacement chunk (out-of-order streaming) */
-  it('IT-5A-2: Suspense emits placeholder first, then replacement chunk', async () => {
-    resetSlotCounter();
-
-    const fallback: VNode = { tag: 'div', attrs: { class: 'skeleton' }, children: ['Loading...'] };
-    const resolved: VNode = { tag: 'div', attrs: { class: 'content' }, children: ['Loaded data!'] };
-
-    const suspenseNode = {
-      tag: '__suspense',
-      attrs: {},
-      children: [] as (VNode | string)[],
-      _fallback: fallback,
-      _resolve: Promise.resolve(resolved),
-    };
-
-    const tree: VNode = {
-      tag: 'div',
-      attrs: { id: 'app' },
-      children: [{ tag: 'h1', attrs: {}, children: ['Page'] }, suspenseNode as VNode],
-    };
-
-    const chunks = await collectStreamChunks(renderToStream(tree));
-    const fullHtml = chunks.join('');
-
-    // The placeholder should appear in the stream
-    expect(fullHtml).toContain('id="v-slot-0"');
-    expect(fullHtml).toContain('Loading...');
-
-    // The replacement template should appear after the placeholder
-    expect(fullHtml).toContain('<template id="v-tmpl-0">');
-    expect(fullHtml).toContain('Loaded data!');
-
-    // The replacement script should be included
-    expect(fullHtml).toContain('<script>');
-    expect(fullHtml).toContain('v-slot-0');
-
-    // Ensure placeholder appears before template in the output
-    const slotIndex = fullHtml.indexOf('v-slot-0');
-    const tmplIndex = fullHtml.indexOf('v-tmpl-0');
-    expect(slotIndex).toBeLessThan(tmplIndex);
   });
 
   /** IT-5A-3: Interactive components get data-v-id hydration markers */

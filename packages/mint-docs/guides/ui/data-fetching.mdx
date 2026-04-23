@@ -159,6 +159,29 @@ export function TaskListPage() {
 
 The compiler auto-unwraps `tasks.loading`, `tasks.error`, and `tasks.data` as signal properties, making each branch reactive.
 
+### Early return when you need loaded data
+
+Inline conditionals work for simple views, but they force you to nullcheck `data` everywhere — and you can't call APIs like `form(..., { initial: () => data.data })` that need data to be present at the call site. Use an **early-return guard** to split the component into "loading" and "ready" states:
+
+```tsx
+export function EditTaskPage({ id }: { id: string }) {
+  const task = query(api.tasks.get(id));
+
+  if (task.loading) return <div>Loading…</div>;
+  if (task.error) return <div>Failed: {task.error.message}</div>;
+
+  // Past this point, task.data is guaranteed defined — form() can read it safely.
+  const taskForm = form(api.tasks.update, { initial: () => task.data });
+  return (
+    <form action={taskForm.action} method={taskForm.method} onSubmit={taskForm.onSubmit}>
+      {/* … */}
+    </form>
+  );
+}
+```
+
+The compiler recognizes this pattern (a series of `if (…) return <jsx/>` guards followed by a final return) and wires reactivity correctly across both the CSR mount and the AOT-compiled SSR output. Keep guards flat — a chain at the top of the function body. Don't nest them inside other `if` blocks.
+
 ## Refetching
 
 Call `refetch()` to manually re-fetch:

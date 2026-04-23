@@ -58,14 +58,6 @@ void (jsx(Outlet, {}) satisfies HTMLElement);
 
 // --- Category C: Transparent return wrappers ---
 
-// Suspense returns HTMLElement | SVGElement | DocumentFragment (JSX.Element)
-import { Suspense } from '../../component/suspense';
-
-void jsx(Suspense, {
-  children: () => jsx('div', {}),
-  fallback: () => jsx('div', {}),
-});
-
 // ErrorBoundary returns HTMLElement | SVGElement | DocumentFragment (JSX.Element)
 import { ErrorBoundary } from '../../component/error-boundary';
 

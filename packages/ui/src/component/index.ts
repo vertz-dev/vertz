@@ -11,5 +11,3 @@ export type { PresenceProps } from './presence';
 export { Presence } from './presence';
 export type { Ref } from './refs';
 export { ref } from './refs';
-export type { SuspenseProps } from './suspense';
-export { Suspense } from './suspense';
