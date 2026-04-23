@@ -59,4 +59,44 @@ describe('MutationEventBus', () => {
     bus.emit('projects');
     expect(calls).toEqual([]);
   });
+
+  describe('getVersion', () => {
+    it('returns 0 for entity types that have never been emitted', () => {
+      const bus = createMutationEventBus();
+      expect(bus.getVersion('tasks')).toBe(0);
+    });
+
+    it('increments on every emit for the same entity type', () => {
+      const bus = createMutationEventBus();
+      bus.emit('tasks');
+      expect(bus.getVersion('tasks')).toBe(1);
+      bus.emit('tasks');
+      expect(bus.getVersion('tasks')).toBe(2);
+    });
+
+    it('tracks versions per entity type independently', () => {
+      const bus = createMutationEventBus();
+      bus.emit('tasks');
+      bus.emit('tasks');
+      bus.emit('projects');
+      expect(bus.getVersion('tasks')).toBe(2);
+      expect(bus.getVersion('projects')).toBe(1);
+      expect(bus.getVersion('other')).toBe(0);
+    });
+
+    it('increments even when no subscribers are registered', () => {
+      const bus = createMutationEventBus();
+      bus.emit('tasks');
+      expect(bus.getVersion('tasks')).toBe(1);
+    });
+
+    it('clear resets versions alongside listeners', () => {
+      const bus = createMutationEventBus();
+      bus.emit('tasks');
+      bus.emit('projects');
+      bus.clear();
+      expect(bus.getVersion('tasks')).toBe(0);
+      expect(bus.getVersion('projects')).toBe(0);
+    });
+  });
 });

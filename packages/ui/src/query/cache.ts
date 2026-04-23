@@ -4,9 +4,19 @@
  */
 export interface CacheStore<T = unknown> {
   get(key: string): T | undefined;
-  set(key: string, value: T): void;
+  /**
+   * Store a value under `key`. An optional `version` stamp is recorded for
+   * entity-backed queries so `query()` can detect cache staleness on
+   * remount after a mutation has invalidated the entity type.
+   */
+  set(key: string, value: T, version?: number): void;
   delete(key: string): void;
   clear?(): void;
+  /**
+   * Version stamp recorded at the last `set(key, value, version)` call.
+   * Returns undefined when no version was stamped (non-entity queries).
+   */
+  getVersion?(key: string): number | undefined;
 }
 
 /**
@@ -21,6 +31,8 @@ export class MemoryCache<T = unknown> implements CacheStore<T> {
   private _refs = new Map<string, number>();
   // Insertion order = orphan order (longest-orphaned first)
   private _orphans = new Map<string, true>();
+  // Per-key version stamps captured at set-time (entity-backed queries only).
+  private _versions = new Map<string, number>();
 
   constructor(options?: { maxSize?: number }) {
     const raw = options?.maxSize ?? 1000;
@@ -36,10 +48,15 @@ export class MemoryCache<T = unknown> implements CacheStore<T> {
     return value;
   }
 
-  set(key: string, value: T): void {
+  set(key: string, value: T, version?: number): void {
     // Remove first so re-insert goes to end (most-recently-used position)
     if (this._store.has(key)) this._store.delete(key);
     this._store.set(key, value);
+    if (version !== undefined) {
+      this._versions.set(key, version);
+    } else {
+      this._versions.delete(key);
+    }
     // Evict entries if over capacity.
     // Priority: 1) orphaned (explicitly released), 2) unclaimed (never retained), 3) retained
     while (this._store.size > this._maxSize) {
@@ -50,11 +67,13 @@ export class MemoryCache<T = unknown> implements CacheStore<T> {
           this._store.delete(orphan.value);
           this._orphans.delete(orphan.value);
           this._refs.delete(orphan.value);
+          this._versions.delete(orphan.value);
           continue;
         }
         // Stale orphan — clean up metadata and re-check tier 1
         this._orphans.delete(orphan.value);
         this._refs.delete(orphan.value);
+        this._versions.delete(orphan.value);
         continue;
       }
       // 2. Unclaimed entries (oldest in _store with no ref count, excluding current key)
@@ -62,6 +81,7 @@ export class MemoryCache<T = unknown> implements CacheStore<T> {
       for (const k of this._store.keys()) {
         if (k !== key && !this._refs.has(k)) {
           this._store.delete(k);
+          this._versions.delete(k);
           evicted = true;
           break;
         }
@@ -73,6 +93,7 @@ export class MemoryCache<T = unknown> implements CacheStore<T> {
       this._store.delete(oldest.value);
       this._refs.delete(oldest.value);
       this._orphans.delete(oldest.value);
+      this._versions.delete(oldest.value);
     }
   }
 
@@ -80,12 +101,18 @@ export class MemoryCache<T = unknown> implements CacheStore<T> {
     this._store.delete(key);
     this._refs.delete(key);
     this._orphans.delete(key);
+    this._versions.delete(key);
   }
 
   clear(): void {
     this._store.clear();
     this._refs.clear();
     this._orphans.clear();
+    this._versions.clear();
+  }
+
+  getVersion(key: string): number | undefined {
+    return this._versions.get(key);
   }
 
   /** Mark a cache key as actively used by a query instance. */

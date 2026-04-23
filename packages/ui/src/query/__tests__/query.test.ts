@@ -1842,6 +1842,207 @@ describe('query()', () => {
       expect(fetchCount).toBe(1);
     });
 
+    // Regression: user navigates list → form → back to list after creating an
+    // entity. Without this, the remounted list serves stale cached data
+    // because the mutation event fired while the query was unsubscribed.
+    test('refetches on remount when mutation occurred while disposed', async () => {
+      resetMutationEventBus();
+      resetDefaultQueryCache();
+      resetEntityStore();
+      let fetchCount = 0;
+      const makeDescriptor = () => ({
+        _tag: 'QueryDescriptor' as const,
+        _key: 'GET:/remount-todos',
+        _entity: { entityType: 'remount-todos', kind: 'list' as const },
+        _fetch: () => {
+          fetchCount++;
+          const n = fetchCount;
+          return Promise.resolve(
+            ok({
+              items: [{ id: String(n), title: `Fetch ${n}`, completed: false }],
+              total: n,
+            }),
+          );
+        },
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      });
+
+      // Initial mount — query fetches and caches.
+      const first = query(makeDescriptor());
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(fetchCount).toBe(1);
+
+      // Dispose simulates navigating away.
+      first.dispose();
+
+      // Mutation event fires while unmounted (e.g. form.submit on another page).
+      getMutationEventBus().emit('remount-todos');
+
+      // Remount — same descriptor/key. Must refetch, not serve stale cache.
+      const second = query(makeDescriptor());
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fetchCount).toBe(2);
+      const data = second.data.value as { items: { id: string; title: string }[]; total: number };
+      expect(data.items[0].title).toBe('Fetch 2');
+      expect(data.total).toBe(2);
+
+      second.dispose();
+    });
+
+    // Same remount-after-mutation scenario, but the query is built with the
+    // descriptor-in-thunk pattern. Entity metadata is discovered lazily on
+    // the first effect run, so the cache.set() call during the first fetch
+    // must still stamp the entry with a version the next mount can compare.
+    test('refetches on remount for descriptor-in-thunk when mutation occurred while disposed', async () => {
+      resetMutationEventBus();
+      resetDefaultQueryCache();
+      resetEntityStore();
+      let fetchCount = 0;
+      const makeDescriptor = () => ({
+        _tag: 'QueryDescriptor' as const,
+        _key: 'GET:/remount-thunk-todos',
+        _entity: { entityType: 'remount-thunk-todos', kind: 'list' as const },
+        _fetch: () => {
+          fetchCount++;
+          const n = fetchCount;
+          return Promise.resolve(
+            ok({
+              items: [{ id: String(n), title: `Fetch ${n}`, completed: false }],
+              total: n,
+            }),
+          );
+        },
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      });
+
+      const first = query(() => makeDescriptor());
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(fetchCount).toBe(1);
+
+      first.dispose();
+      getMutationEventBus().emit('remount-thunk-todos');
+
+      const second = query(() => makeDescriptor());
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fetchCount).toBe(2);
+      second.dispose();
+    });
+
+    // Same remount-after-mutation scenario with a custom cache key. Custom
+    // keys hit a different cache-lookup code path than descriptor keys, so
+    // the freshness check must apply there too.
+    test('refetches on remount with customKey when mutation occurred while disposed', async () => {
+      resetMutationEventBus();
+      resetDefaultQueryCache();
+      resetEntityStore();
+      let fetchCount = 0;
+      const descriptor = {
+        _tag: 'QueryDescriptor' as const,
+        _key: 'GET:/remount-customkey-todos',
+        _entity: { entityType: 'remount-customkey-todos', kind: 'list' as const },
+        _fetch: () => {
+          fetchCount++;
+          const n = fetchCount;
+          return Promise.resolve(
+            ok({
+              items: [{ id: String(n), title: `Fetch ${n}`, completed: false }],
+              total: n,
+            }),
+          );
+        },
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      };
+
+      const first = query(descriptor, { key: 'custom-todos-key' });
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(fetchCount).toBe(1);
+
+      first.dispose();
+      getMutationEventBus().emit('remount-customkey-todos');
+
+      const second = query(descriptor, { key: 'custom-todos-key' });
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fetchCount).toBe(2);
+      second.dispose();
+    });
+
+    // Ensures entries for entity type A are not invalidated by emits for
+    // entity type B. Asserts on the served data rather than the fetch
+    // counter, because the descriptor's _fetch() is always invoked once per
+    // effect run — the cache-hit path suppresses the resulting promise, but
+    // the call itself bumps the counter. The served data is what we actually
+    // care about: a cache hit returns the first fetch's payload unchanged.
+    test('remount after emit for different entity type serves cached data', async () => {
+      resetMutationEventBus();
+      resetEntityStore();
+      const cache = new MemoryCache();
+      let fetchCount = 0;
+      const descriptor = {
+        _tag: 'QueryDescriptor' as const,
+        _key: 'GET:/isolate-todos',
+        _entity: { entityType: 'isolate-todos', kind: 'list' as const },
+        _fetch: () => {
+          fetchCount++;
+          const n = fetchCount;
+          return Promise.resolve(
+            ok({
+              items: [{ id: String(n), title: `Fetch ${n}`, completed: false }],
+              total: n,
+            }),
+          );
+        },
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      };
+
+      const first = query(descriptor, { cache });
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+      const firstData = first.data.value as { items: { title: string }[]; total: number };
+      expect(firstData.total).toBe(1);
+      expect(firstData.items[0].title).toBe('Fetch 1');
+
+      first.dispose();
+      // Unrelated entity type — must not bust this cache entry.
+      getMutationEventBus().emit('unrelated-entity');
+
+      const second = query(descriptor, { cache });
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Cache-hit serves the first fetch's data, not whatever _fetch() returns
+      // on its eager effect-run call (total would be 2 if the new fetch won).
+      const secondData = second.data.value as { items: { title: string }[]; total: number };
+      expect(secondData.total).toBe(1);
+      expect(secondData.items[0].title).toBe('Fetch 1');
+
+      second.dispose();
+    });
+
     test('non-entity query does not subscribe to mutation event bus', async () => {
       resetMutationEventBus();
       let fetchCount = 0;
