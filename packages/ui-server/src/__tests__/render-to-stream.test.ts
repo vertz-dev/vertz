@@ -1,7 +1,6 @@
 import { describe, expect, it } from '@vertz/test';
 import { jsx } from '../jsx-runtime';
 import { renderToStream } from '../render-to-stream';
-import { resetSlotCounter } from '../slot-placeholder';
 import { collectStreamChunks, streamToString } from '../streaming';
 import type { VNode } from '../types';
 
@@ -56,32 +55,6 @@ describe('renderToStream', () => {
     };
     const html = await streamToString(renderToStream(tree));
     expect(html).toBe('<div><input type="text"><br></div>');
-  });
-
-  it('handles suspense-like async children', async () => {
-    resetSlotCounter();
-    const resolvedContent: VNode = { tag: 'p', attrs: {}, children: ['loaded'] };
-    const fallbackContent: VNode = { tag: 'span', attrs: {}, children: ['loading...'] };
-
-    const suspenseTree = {
-      tag: '__suspense',
-      attrs: {},
-      children: [] as (VNode | string)[],
-      _fallback: fallbackContent,
-      _resolve: Promise.resolve(resolvedContent),
-    };
-
-    const html = await streamToString(
-      renderToStream({ tag: 'div', attrs: {}, children: [suspenseTree] }),
-    );
-
-    // Should contain the placeholder
-    expect(html).toContain('v-slot-');
-    // Should contain the fallback
-    expect(html).toContain('loading...');
-    // Should contain the replacement template
-    expect(html).toContain('v-tmpl-');
-    expect(html).toContain('loaded');
   });
 
   it('renders fragment nodes by flattening children without a wrapper tag', async () => {
@@ -142,101 +115,6 @@ describe('renderToStream', () => {
       const html = await streamToString(renderToStream(vnode));
       expect(html).toContain('class="error-msg"');
       expect(html).not.toContain('[object Object]');
-    });
-  });
-
-  describe('CSP nonce support', () => {
-    it('injects nonce attribute on inline scripts when nonce option is provided', async () => {
-      resetSlotCounter();
-      const resolvedContent: VNode = { tag: 'p', attrs: {}, children: ['loaded'] };
-      const fallbackContent: VNode = { tag: 'span', attrs: {}, children: ['loading...'] };
-
-      const suspenseTree = {
-        tag: '__suspense',
-        attrs: {},
-        children: [] as (VNode | string)[],
-        _fallback: fallbackContent,
-        _resolve: Promise.resolve(resolvedContent),
-      };
-
-      const html = await streamToString(
-        renderToStream({ tag: 'div', attrs: {}, children: [suspenseTree] }, { nonce: 'abc123' }),
-      );
-
-      // The inline replacement script should include the nonce
-      expect(html).toContain('<script nonce="abc123">');
-      // Should still contain the replacement logic
-      expect(html).toContain('v-slot-0');
-      expect(html).toContain('v-tmpl-0');
-    });
-
-    it('does not include nonce attribute when nonce option is omitted', async () => {
-      resetSlotCounter();
-      const resolvedContent: VNode = { tag: 'p', attrs: {}, children: ['loaded'] };
-      const fallbackContent: VNode = { tag: 'span', attrs: {}, children: ['loading...'] };
-
-      const suspenseTree = {
-        tag: '__suspense',
-        attrs: {},
-        children: [] as (VNode | string)[],
-        _fallback: fallbackContent,
-        _resolve: Promise.resolve(resolvedContent),
-      };
-
-      const html = await streamToString(
-        renderToStream({ tag: 'div', attrs: {}, children: [suspenseTree] }),
-      );
-
-      // Scripts should NOT have a nonce attribute
-      expect(html).toContain('<script>');
-      expect(html).not.toContain('nonce=');
-    });
-
-    it('does not include nonce attribute when nonce is undefined', async () => {
-      resetSlotCounter();
-      const resolvedContent: VNode = { tag: 'p', attrs: {}, children: ['loaded'] };
-      const fallbackContent: VNode = { tag: 'span', attrs: {}, children: ['loading...'] };
-
-      const suspenseTree = {
-        tag: '__suspense',
-        attrs: {},
-        children: [] as (VNode | string)[],
-        _fallback: fallbackContent,
-        _resolve: Promise.resolve(resolvedContent),
-      };
-
-      const html = await streamToString(
-        renderToStream({ tag: 'div', attrs: {}, children: [suspenseTree] }, { nonce: undefined }),
-      );
-
-      expect(html).toContain('<script>');
-      expect(html).not.toContain('nonce=');
-    });
-
-    it('escapes nonce value to prevent XSS via nonce injection', async () => {
-      resetSlotCounter();
-      const resolvedContent: VNode = { tag: 'p', attrs: {}, children: ['loaded'] };
-      const fallbackContent: VNode = { tag: 'span', attrs: {}, children: ['loading...'] };
-
-      const suspenseTree = {
-        tag: '__suspense',
-        attrs: {},
-        children: [] as (VNode | string)[],
-        _fallback: fallbackContent,
-        _resolve: Promise.resolve(resolvedContent),
-      };
-
-      const html = await streamToString(
-        renderToStream(
-          { tag: 'div', attrs: {}, children: [suspenseTree] },
-          { nonce: '"><script>alert(1)</script>' },
-        ),
-      );
-
-      // The nonce value should be escaped — no unescaped quotes breaking out
-      expect(html).not.toContain('"><script>alert(1)</script>');
-      // Should still have the nonce attribute with escaped value
-      expect(html).toContain('nonce="');
     });
   });
 });

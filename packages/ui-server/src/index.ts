@@ -38,7 +38,6 @@ export { renderPage } from './render-page';
 export type { RenderToHTMLOptions, RenderToHTMLStreamOptions } from './render-to-html';
 export { renderToHTML, renderToHTMLStream } from './render-to-html';
 export { renderToStream } from './render-to-stream';
-export { createSlotPlaceholder, resetSlotCounter } from './slot-placeholder';
 export type { PrefetchSession, SerializedAccessRule } from './ssr-access-evaluator';
 export { evaluateAccessRule, toPrefetchSession } from './ssr-access-evaluator';
 export { createAccessSetScript, getAccessSetForSSR } from './ssr-access-set';
@@ -109,13 +108,5 @@ export {
   safeSerialize,
 } from './ssr-streaming-runtime';
 export { collectStreamChunks, encodeChunk, streamToString } from './streaming';
-export { createTemplateChunk } from './template-chunk';
-export type {
-  AssetDescriptor,
-  HeadEntry,
-  HydrationOptions,
-  RawHtml,
-  RenderToStreamOptions,
-  VNode,
-} from './types';
+export type { AssetDescriptor, HeadEntry, HydrationOptions, RawHtml, VNode } from './types';
 export { rawHtml } from './types';

@@ -126,9 +126,9 @@ return renderPage(<App />, {
 | `styles`      | `string[]` | Stylesheet URLs for head                                   |
 | `head`        | `string`   | Raw HTML escape hatch for head                             |
 
-### `renderToStream(tree, options?)`
+### `renderToStream(tree)`
 
-Low-level streaming renderer. Returns a `ReadableStream<Uint8Array>` that emits HTML as it's generated, including out-of-order Suspense resolution.
+Low-level streaming renderer. Returns a `ReadableStream<Uint8Array>` that emits the serialized HTML.
 
 ```typescript
 import { renderToStream } from '@vertz/ui-server';
@@ -146,10 +146,6 @@ return new Response(stream, {
   headers: { 'content-type': 'text/html; charset=utf-8' },
 });
 ```
-
-**Options:**
-
-- `nonce?: string` — CSP nonce for inline scripts
 
 ### `serializeToHtml(node)`
 
@@ -308,48 +304,6 @@ const styleTag = inlineCriticalCss('body { margin: 0; font-family: system-ui; }'
 
 ---
 
-## Streaming & Suspense
-
-### Out-of-Order Streaming
-
-Suspense boundaries emit placeholders immediately. When the async content resolves, a replacement chunk is streamed:
-
-```typescript
-const suspenseNode = {
-  tag: '__suspense',
-  attrs: {},
-  children: [],
-  _fallback: { tag: 'div', attrs: { class: 'skeleton' }, children: ['Loading...'] },
-  _resolve: fetchUserData().then((user) => ({
-    tag: 'div',
-    attrs: { class: 'user-profile' },
-    children: [user.name],
-  })),
-};
-
-const stream = renderToStream(suspenseNode as VNode);
-```
-
-The stream first emits the fallback, then streams a `<template>` + `<script>` that swaps in the resolved content.
-
-### CSP Nonce Support
-
-All inline scripts support Content Security Policy nonces:
-
-```typescript
-const nonce = crypto.randomUUID();
-const stream = renderToStream(tree, { nonce });
-
-return new Response(stream, {
-  headers: {
-    'content-type': 'text/html; charset=utf-8',
-    'content-security-policy': `script-src 'nonce-${nonce}'`,
-  },
-});
-```
-
----
-
 ## Dev Server
 
 `createDevServer` provides a turnkey Vite SSR development server with HMR, module invalidation, and error stack fixing.
@@ -412,7 +366,6 @@ import type {
 
   // Rendering
   RenderToHTMLOptions,
-  RenderToStreamOptions,
   PageOptions,
 
   // Dev Server

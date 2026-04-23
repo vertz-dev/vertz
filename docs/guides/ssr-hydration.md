@@ -10,13 +10,9 @@ This guide covers the full SSR-to-hydration pipeline using `vertz/ui-server` and
 
 The `vertz/ui-server` package provides two main rendering functions:
 
-### `renderToStream(vnode, options?)`
+### `renderToStream(vnode)`
 
-Renders a VNode tree to a `ReadableStream<Uint8Array>` of HTML chunks. This is the low-level SSR primitive.
-
-- Walks the virtual tree and serializes synchronous content immediately
-- Defers Suspense boundaries: emits a placeholder inline, then streams the resolved content once ready
-- Enables **out-of-order streaming** — the browser paints fallback content first, then swaps in resolved content
+Renders a VNode tree to a `ReadableStream<Uint8Array>` of HTML. This is the low-level SSR primitive — it walks the virtual tree and serializes the full HTML synchronously.
 
 ```ts
 import { renderToStream } from 'vertz/ui-server';
