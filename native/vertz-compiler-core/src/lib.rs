@@ -24,6 +24,7 @@ pub mod mutation_transformer;
 pub mod prefetch_manifest;
 pub mod props_transformer;
 pub mod query_auto_thunk;
+pub mod reactive_guard_transformer;
 pub mod reactivity_analyzer;
 pub mod route_splitting;
 pub mod signal_api_registry;
@@ -439,9 +440,22 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
                 hydration_id,
             );
 
+            // Reactive guard transform runs before the mount frame wrapper.
+            // When a component matches the `if (cond) return <jsx>; ... return <jsx>;`
+            // guard shape, it rewrites the body to wrap the final return in
+            // `__conditional(...)` so guard conditions stay reactive — and
+            // handles its own mount-frame wrapping, so we skip the default.
+            let handled_as_guard = reactive_guard_transformer::try_transform_reactive_guards(
+                &mut ms,
+                &parser_ret.program,
+                comp,
+            );
+
             // Mount frame wrapping runs AFTER all other transforms
             // Check if this is an arrow expression body first
-            if comp.is_arrow_expression {
+            if handled_as_guard {
+                // reactive_guard_transformer already injected push/try/catch + flush.
+            } else if comp.is_arrow_expression {
                 mount_frame_transformer::transform_arrow_expression_body(
                     &mut ms,
                     &parser_ret.program,
