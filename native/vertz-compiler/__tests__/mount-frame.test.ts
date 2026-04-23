@@ -33,11 +33,13 @@ describe('Feature: Mount frame transform', () => {
     });
   });
 
-  describe('Given a component with multiple return statements', () => {
+  describe('Given a component with multiple return statements that is NOT a guard pattern', () => {
     describe('When compiled', () => {
       it('Then inserts __flushMountFrame before each return', () => {
+        // Multi-statement if-block (log() + return) disqualifies the reactive
+        // guard pattern, so mount-frame handles each return independently.
         const code = compileAndGetCode(
-          `function MyComponent() {\n  if (true) { return <div>A</div>; }\n  return <div>B</div>;\n}`,
+          `function MyComponent() {\n  if (true) { log(); return <div>A</div>; }\n  return <div>B</div>;\n}`,
         );
         const flushCount = (code.match(/__flushMountFrame\(\)/g) ?? []).length;
         expect(flushCount).toBe(2);
@@ -45,7 +47,7 @@ describe('Feature: Mount frame transform', () => {
 
       it('Then uses unique variable names per return (__mfResult0, __mfResult1)', () => {
         const code = compileAndGetCode(
-          `function MyComponent() {\n  if (true) { return <div>A</div>; }\n  return <div>B</div>;\n}`,
+          `function MyComponent() {\n  if (true) { log(); return <div>A</div>; }\n  return <div>B</div>;\n}`,
         );
         expect(code).toContain('__mfResult0');
         expect(code).toContain('__mfResult1');
@@ -53,11 +55,14 @@ describe('Feature: Mount frame transform', () => {
     });
   });
 
-  describe('Given a braceless if with early return', () => {
+  describe('Given a braceless if with early return (not a guard pattern)', () => {
     describe('When compiled', () => {
       it('Then wraps the replacement in braces to produce valid JS', () => {
+        // A trailing expression statement between the if and the main return
+        // disqualifies the reactive guard pattern, so mount-frame falls back
+        // to per-return wrapping.
         const code = compileAndGetCode(
-          `function MyComponent() {\n  if (true) return <div>A</div>;\n  return <div>B</div>;\n}`,
+          `function MyComponent() {\n  if (true) return <div>A</div>;\n  log();\n  return <div>B</div>;\n}`,
         );
         // Braceless if should be wrapped in { } for valid JS
         expect(code).toMatch(/if \(.+\) \{ const __mfResult0/);
