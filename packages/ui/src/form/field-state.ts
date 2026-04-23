@@ -8,6 +8,12 @@ export interface FieldState<T = unknown> {
   value: Signal<T>;
   setValue: (value: T) => void;
   reset: () => void;
+  /**
+   * Replace the baseline value used for dirty comparison and reset().
+   * If the field is not dirty, its current value is updated to `newInitial`
+   * so async-loaded data flows into the UI. Dirty fields keep their user input.
+   */
+  setInitial: (newInitial: T) => void;
 }
 
 export function createFieldState<T>(_name: string, initialValue?: T): FieldState<T> {
@@ -15,6 +21,7 @@ export function createFieldState<T>(_name: string, initialValue?: T): FieldState
   const dirty = signal(false);
   const touched = signal(false);
   const value = signal(initialValue as T);
+  let currentInitial = initialValue as T;
 
   return {
     error,
@@ -23,13 +30,21 @@ export function createFieldState<T>(_name: string, initialValue?: T): FieldState
     value,
     setValue(newValue: T) {
       value.value = newValue;
-      dirty.value = newValue !== initialValue;
+      dirty.value = newValue !== currentInitial;
     },
     reset() {
-      value.value = initialValue as T;
+      value.value = currentInitial;
       error.value = undefined;
       dirty.value = false;
       touched.value = false;
+    },
+    setInitial(newInitial: T) {
+      currentInitial = newInitial;
+      if (!dirty.peek()) {
+        value.value = newInitial;
+      } else if (value.peek() === newInitial) {
+        dirty.value = false;
+      }
     },
   };
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from '@vertz/test';
 import { err, ok } from '@vertz/fetch';
 import { s } from '@vertz/schema';
+import { signal } from '../../runtime/signal';
 import type { SdkMethodWithMeta } from '../form';
 import { form } from '../form';
 import type { FormSchema } from '../validation';
@@ -748,6 +749,145 @@ describe('form', () => {
       await f.submit(fd);
 
       expect(f.address.street.error.peek()).toBe('Required');
+    });
+  });
+
+  describe('reactive initial', () => {
+    it('updates field values when initial() function dependency changes', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+      const data = signal<{ title: string } | undefined>(undefined);
+      const f = form(sdk, {
+        schema: passingSchema<{ title: string }>(),
+        initial: () => data.value,
+      });
+
+      expect(f.title.value.peek()).toBeUndefined();
+
+      data.value = { title: 'Loaded' };
+
+      expect(f.title.value.peek()).toBe('Loaded');
+    });
+
+    it('does not overwrite dirty fields when initial changes', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+      const data = signal<{ title: string }>({ title: 'Original' });
+      const f = form(sdk, {
+        schema: passingSchema<{ title: string }>(),
+        initial: () => data.value,
+      });
+
+      f.title.setValue('User Input');
+      expect(f.title.dirty.peek()).toBe(true);
+
+      data.value = { title: 'Updated' };
+
+      expect(f.title.value.peek()).toBe('User Input');
+      expect(f.title.dirty.peek()).toBe(true);
+    });
+
+    it('reset() uses the latest initial after reactive update', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+      const data = signal<{ title: string }>({ title: 'Old' });
+      const f = form(sdk, {
+        schema: passingSchema<{ title: string }>(),
+        initial: () => data.value,
+      });
+
+      f.title.setValue('User Input');
+      data.value = { title: 'New' };
+
+      f.reset();
+
+      expect(f.title.value.peek()).toBe('New');
+      expect(f.title.dirty.peek()).toBe(false);
+    });
+
+    it('fields accessed after initial resolves see the resolved value', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+      const data = signal<{ title: string } | undefined>(undefined);
+      const f = form(sdk, {
+        schema: passingSchema<{ title: string }>(),
+        initial: () => data.value,
+      });
+
+      data.value = { title: 'Loaded' };
+
+      // First access to f.title happens after data loads.
+      expect(f.title.value.peek()).toBe('Loaded');
+    });
+
+    it('dirty-comparison baseline follows latest initial', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+      const data = signal<{ title: string }>({ title: 'Original' });
+      const f = form(sdk, {
+        schema: passingSchema<{ title: string }>(),
+        initial: () => data.value,
+      });
+      const { el } = createMockFormElement();
+      f.__bindElement(el);
+
+      data.value = { title: 'Updated' };
+
+      // Typing the new initial value should not mark dirty.
+      el.dispatchEvent(createInputEvent('title', 'Updated'));
+      expect(f.title.dirty.peek()).toBe(false);
+
+      // Typing anything else should mark dirty.
+      el.dispatchEvent(createInputEvent('title', 'Something else'));
+      expect(f.title.dirty.peek()).toBe(true);
+    });
+
+    it('field.setInitial is accessible via the form proxy', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+      const f = form(sdk, { schema: passingSchema<{ title: string }>() });
+
+      f.title.setInitial('Preloaded');
+
+      expect(f.title.value.peek()).toBe('Preloaded');
+      expect(f.title.dirty.peek()).toBe(false);
+    });
+
+    it('updates nested field values when initial() returns new nested data', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+      const data = signal<{ address: { city: string } } | undefined>(undefined);
+      const f = form(sdk, {
+        schema: passingSchema<{ address: { city: string } }>(),
+        initial: () => data.value,
+      });
+
+      expect(f.address.city.value.peek()).toBeUndefined();
+
+      data.value = { address: { city: 'Springfield' } };
+
+      expect(f.address.city.value.peek()).toBe('Springfield');
     });
   });
 
