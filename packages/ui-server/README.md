@@ -147,10 +147,6 @@ return new Response(stream, {
 });
 ```
 
-**Options:**
-
-- `nonce?: string` — CSP nonce for inline scripts
-
 ### `serializeToHtml(node)`
 
 Synchronously serialize a VNode tree to an HTML string:
@@ -306,22 +302,6 @@ const styleTag = inlineCriticalCss('body { margin: 0; font-family: system-ui; }'
 // '<style>body { margin: 0; font-family: system-ui; }</style>'
 ```
 
-
-### CSP Nonce Support
-
-All inline scripts support Content Security Policy nonces:
-
-```typescript
-const nonce = crypto.randomUUID();
-const stream = renderToStream(tree, { nonce });
-
-return new Response(stream, {
-  headers: {
-    'content-type': 'text/html; charset=utf-8',
-    'content-security-policy': `script-src 'nonce-${nonce}'`,
-  },
-});
-```
 
 ---
 
