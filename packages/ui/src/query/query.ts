@@ -357,6 +357,43 @@ export function query<T, E = unknown>(
   }
 
   /**
+   * Current mutation-bus version stamp for this query's entity type.
+   *
+   * Returns 0 when the query isn't entity-backed, during SSR (the server
+   * bus never emits against this instance), or when `entityMeta` hasn't
+   * been resolved yet (descriptor-in-thunk before the first effect run).
+   * Stamping with 0 in the last case is load-bearing: later mutations will
+   * bump the bus version above 0 so `isCachedEntryStale()` correctly flags
+   * the entry as stale on remount.
+   */
+  function currentEntityVersion(): number {
+    if (!entityMeta || isSSR()) return 0;
+    return getMutationEventBus().getVersion(entityMeta.entityType);
+  }
+
+  /**
+   * Returns true when the cached entry for `key` was written before a
+   * mutation event for this query's entity type. Such entries must be
+   * refetched rather than served, otherwise a user who navigates away,
+   * mutates the entity, and returns will see stale data until a full reload.
+   *
+   * Entries without a stamp (`cache.getVersion` returns undefined) are
+   * treated as version 0, so any emit for the entity type supersedes them.
+   *
+   * The optional `meta` override is used by nav-prefetch cache-hit paths
+   * that discover the descriptor's entity metadata before the main effect
+   * has assigned `entityMeta`.
+   */
+  function isCachedEntryStale(
+    key: string,
+    meta: EntityQueryMeta | undefined = entityMeta,
+  ): boolean {
+    if (!meta || isSSR()) return false;
+    const cacheVersion = cache.getVersion?.(key) ?? 0;
+    return getMutationEventBus().getVersion(meta.entityType) > cacheVersion;
+  }
+
+  /**
    * Call the thunk while capturing the values of all signals it reads.
    * Returns the raw thunk result and updates `depHashSignal` with a
    * deterministic hash of the captured values.
@@ -547,7 +584,7 @@ export function query<T, E = unknown>(
   // If initialData was provided, seed the cache.
   if (initialData !== undefined) {
     const initKey = getCacheKey();
-    cache.set(initKey, initialData);
+    cache.set(initKey, initialData, currentEntityVersion());
     retainKey(initKey);
   }
 
@@ -606,7 +643,7 @@ export function query<T, E = unknown>(
               rawData.value = result as T;
               loading.value = false;
               idle.value = false;
-              cache.set(key, result as T);
+              cache.set(key, result as T, currentEntityVersion());
             },
             key,
           });
@@ -675,7 +712,11 @@ export function query<T, E = unknown>(
         rawData.value = result as T;
         loading.value = false;
         idle.value = false;
-        cache.set(hydrationKey, result as T);
+        // SSR-sourced data predates any client-side mutation, so stamp with
+        // version 0. If a client emit has already bumped the bus version
+        // before hydration lands, stamping the current version would make
+        // the stale SSR payload look fresh on the next remount.
+        cache.set(hydrationKey, result as T, 0);
         ssrHydrated = true;
       },
       { persistent: isNavigation },
@@ -690,7 +731,7 @@ export function query<T, E = unknown>(
     if (!ssrHydrated && ssrHydrationCleanup !== null && isNavPrefetchActive()) {
       if (customKey) {
         const cached = cache.get(customKey);
-        if (cached !== undefined) {
+        if (cached !== undefined && !isCachedEntryStale(customKey)) {
           retainKey(customKey);
           normalizeToEntityStore(cached);
           rawData.value = cached;
@@ -700,7 +741,7 @@ export function query<T, E = unknown>(
       } else {
         // Derived key: try exact hydrationKey match first.
         const cached = cache.get(hydrationKey);
-        if (cached !== undefined) {
+        if (cached !== undefined && !isCachedEntryStale(hydrationKey)) {
           retainKey(hydrationKey);
           normalizeToEntityStore(cached);
           rawData.value = cached;
@@ -716,7 +757,7 @@ export function query<T, E = unknown>(
           const mc = cache as MemoryCache<T>;
           const found =
             mc.findByPrefix(initDescriptorKey + '&') ?? mc.findByPrefix(initDescriptorKey + ':');
-          if (found) {
+          if (found && !isCachedEntryStale(found.key)) {
             retainKey(found.key);
             normalizeToEntityStore(found.value);
             rawData.value = found.value;
@@ -818,7 +859,7 @@ export function query<T, E = unknown>(
         getInflight().delete(key);
         inflightKeys.delete(key);
         if (id !== fetchId) return; // stale
-        cache.set(key, result);
+        cache.set(key, result, currentEntityVersion());
         retainKey(key);
         normalizeToEntityStore(result);
         rawData.value = result;
@@ -1075,7 +1116,7 @@ export function query<T, E = unknown>(
     if (isFirst && navPrefetchDeferred) {
       if (customKey) {
         const cached = untrack(() => cache.get(customKey));
-        if (cached !== undefined) {
+        if (cached !== undefined && !isCachedEntryStale(customKey)) {
           retainKey(customKey);
           untrack(() => {
             rawData.value = cached;
@@ -1097,6 +1138,7 @@ export function query<T, E = unknown>(
         // `baseKey:depHash`. Use the same key format here so nav-prefetch
         // finds data cached by a previous visit.
         const descriptorKey = isQueryDescriptor(trackRaw) ? trackRaw._key : undefined;
+        const descriptorEntity = isQueryDescriptor(trackRaw) ? trackRaw._entity : undefined;
         if (!descriptorKey) {
           (trackRaw as Promise<T>).catch(() => {});
         }
@@ -1107,7 +1149,7 @@ export function query<T, E = unknown>(
             : descriptorKey
           : untrack(() => getCacheKey());
         const cached = untrack(() => cache.get(derivedKey));
-        if (cached !== undefined) {
+        if (cached !== undefined && !isCachedEntryStale(derivedKey, descriptorEntity)) {
           retainKey(derivedKey);
           untrack(() => {
             rawData.value = cached;
@@ -1123,7 +1165,7 @@ export function query<T, E = unknown>(
           const found = untrack(
             () => mc.findByPrefix(descriptorKey + '&') ?? mc.findByPrefix(descriptorKey + ':'),
           );
-          if (found) {
+          if (found && !isCachedEntryStale(found.key, descriptorEntity)) {
             retainKey(found.key);
             untrack(() => {
               normalizeToEntityStore(found.value);
@@ -1347,7 +1389,7 @@ export function query<T, E = unknown>(
     const shouldCheckCache = effectKey || isNavigation || (isFirst ? !!customKey : !customKey);
     if (shouldCheckCache) {
       const cached = untrack(() => cache.get(key));
-      if (cached !== undefined) {
+      if (cached !== undefined && !isCachedEntryStale(key)) {
         retainKey(key);
         promise.catch(() => {});
         untrack(() => {

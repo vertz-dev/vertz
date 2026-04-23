@@ -387,4 +387,64 @@ describe('MemoryCache orphan-aware eviction', () => {
     expect(cache.get('c')).toBe('3');
     expect(cache.get('d')).toBe('4');
   });
+
+  describe('version stamp', () => {
+    test('getVersion returns undefined when no version was passed', () => {
+      const cache = new MemoryCache<string>();
+      cache.set('key', 'value');
+      expect(cache.getVersion('key')).toBeUndefined();
+    });
+
+    test('getVersion returns the value supplied to set', () => {
+      const cache = new MemoryCache<string>();
+      cache.set('key', 'value', 7);
+      expect(cache.getVersion('key')).toBe(7);
+    });
+
+    test('re-setting a key without a version clears the stamp', () => {
+      const cache = new MemoryCache<string>();
+      cache.set('key', 'a', 3);
+      cache.set('key', 'b');
+      expect(cache.getVersion('key')).toBeUndefined();
+    });
+
+    test('re-setting a key with a new version replaces the stamp', () => {
+      const cache = new MemoryCache<string>();
+      cache.set('key', 'a', 1);
+      cache.set('key', 'b', 2);
+      expect(cache.getVersion('key')).toBe(2);
+    });
+
+    test('delete also removes the version stamp', () => {
+      const cache = new MemoryCache<string>();
+      cache.set('key', 'value', 5);
+      cache.delete('key');
+      expect(cache.getVersion('key')).toBeUndefined();
+    });
+
+    test('clear wipes version stamps', () => {
+      const cache = new MemoryCache<string>();
+      cache.set('a', 'x', 1);
+      cache.set('b', 'y', 2);
+      cache.clear();
+      expect(cache.getVersion('a')).toBeUndefined();
+      expect(cache.getVersion('b')).toBeUndefined();
+    });
+
+    test('LRU eviction removes the evicted entry version stamp', () => {
+      const cache = new MemoryCache<string>({ maxSize: 2 });
+      cache.set('a', '1', 10);
+      cache.set('b', '2', 20);
+      cache.set('c', '3', 30); // evicts 'a'
+      expect(cache.getVersion('a')).toBeUndefined();
+      expect(cache.getVersion('b')).toBe(20);
+      expect(cache.getVersion('c')).toBe(30);
+    });
+
+    test('version 0 is a valid stamp', () => {
+      const cache = new MemoryCache<string>();
+      cache.set('key', 'value', 0);
+      expect(cache.getVersion('key')).toBe(0);
+    });
+  });
 });

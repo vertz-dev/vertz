@@ -9,6 +9,16 @@ export interface MutationEventBus {
   subscribe(entityType: string, callback: () => void): () => void;
   /** Emit a mutation event for an entity type. All subscribers for that type are notified. */
   emit(entityType: string): void;
+  /**
+   * Monotonic per-entity-type version that increments on every `emit()`.
+   * Starts at 0 and never resets for a given bus instance.
+   *
+   * Used by `query()` to detect mutations that occurred while the query was
+   * unsubscribed (e.g. the user navigated away and then came back). On
+   * remount, cached data whose version snapshot predates the current
+   * version must be considered stale and refetched.
+   */
+  getVersion(entityType: string): number;
   /** Remove all subscriptions. Used for SSR per-request isolation. */
   clear(): void;
 }
@@ -16,6 +26,7 @@ export interface MutationEventBus {
 /** Create a new MutationEventBus instance. */
 export function createMutationEventBus(): MutationEventBus {
   const listeners = new Map<string, Set<() => void>>();
+  const versions = new Map<string, number>();
 
   return {
     subscribe(entityType: string, callback: () => void): () => void {
@@ -28,14 +39,19 @@ export function createMutationEventBus(): MutationEventBus {
       return () => set?.delete(callback);
     },
     emit(entityType: string): void {
+      versions.set(entityType, (versions.get(entityType) ?? 0) + 1);
       const set = listeners.get(entityType);
       if (set) {
         // Snapshot to avoid re-entrancy issues if a callback unsubscribes during iteration.
         for (const cb of [...set]) cb();
       }
     },
+    getVersion(entityType: string): number {
+      return versions.get(entityType) ?? 0;
+    },
     clear(): void {
       listeners.clear();
+      versions.clear();
     },
   };
 }
