@@ -348,4 +348,89 @@ describe('Feature: form() FormData coercion', () => {
       });
     });
   });
+
+  describe('Given a Vertz schema that does not declare every form field (#2980)', () => {
+    describe('When the form is submitted with an extra field not in the schema shape', () => {
+      it('then the unknown field is dropped (schema is the contract)', async () => {
+        const handler = mock().mockResolvedValue({ id: 1 });
+        // Schema covers titulo only — extra "tenantId" added by an attacker via
+        // DevTools (or simply leftover from another form) must not reach the SDK.
+        const bodySchema = s.object({ titulo: s.string().min(1) });
+        const sdk = mockSdkWithMeta({ url: '/x', method: 'POST', handler, bodySchema });
+
+        const fd = new FormData();
+        fd.append('titulo', 'test');
+        fd.append('tenantId', 'sneaky');
+        const { event, cleanup } = createSubmitEventFromFormData(fd);
+        try {
+          const f = form(sdk);
+          await f.onSubmit(event);
+          expect(handler).toHaveBeenCalledWith({ titulo: 'test' });
+        } finally {
+          cleanup();
+        }
+      });
+    });
+  });
+
+  describe('Given an SDK without meta.bodySchema and no explicit form schema (#2980)', () => {
+    function mockSdkWithoutMeta<TBody, TResult>(config: {
+      url: string;
+      method: string;
+      handler: (body: TBody) => Promise<TResult>;
+    }) {
+      const wrappedHandler = async (body: TBody) => ok(await config.handler(body));
+      return Object.assign(wrappedHandler, {
+        url: config.url,
+        method: config.method,
+      });
+    }
+
+    describe('When a checkbox with value="true" is submitted as JSON', () => {
+      it('then the SDK receives the boolean true (not the string "true")', async () => {
+        const handler = mock().mockResolvedValue({ id: 1 });
+        const sdk = mockSdkWithoutMeta({ url: '/x', method: 'POST', handler });
+
+        const fd = new FormData();
+        fd.append('titulo', 'test');
+        fd.append('status', 'todo');
+        fd.append('concluida', 'true');
+        const { event, cleanup } = createSubmitEventFromFormData(fd);
+        try {
+          // SDK lacks meta.bodySchema; cast required since the typed overload
+          // would force schema:. Here we simulate the runtime path users hit
+          // when codegen cannot resolve the entity's input fields.
+          // oxlint-disable-next-line vertz-rules/no-double-cast — exercising the runtime fallback the typed overload prohibits
+          const f = form(sdk as unknown as SdkMethodWithMeta<unknown, unknown>);
+          await f.onSubmit(event);
+          expect(handler).toHaveBeenCalledWith({
+            titulo: 'test',
+            status: 'todo',
+            concluida: true,
+          });
+        } finally {
+          cleanup();
+        }
+      });
+    });
+
+    describe('When a numeric input is submitted as JSON', () => {
+      it('then the SDK receives the number (not the string)', async () => {
+        const handler = mock().mockResolvedValue({ id: 1 });
+        const sdk = mockSdkWithoutMeta({ url: '/x', method: 'POST', handler });
+
+        const fd = new FormData();
+        fd.append('priority', '42');
+        const { event, cleanup } = createSubmitEventFromFormData(fd);
+        try {
+          // oxlint-disable-next-line vertz-rules/no-double-cast — exercising the runtime fallback the typed overload prohibits
+          const f = form(sdk as unknown as SdkMethodWithMeta<unknown, unknown>);
+          await f.onSubmit(event);
+          expect(handler).toHaveBeenCalledWith({ priority: 42 });
+        } finally {
+          cleanup();
+        }
+      });
+    });
+  });
 });

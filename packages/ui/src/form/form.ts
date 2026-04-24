@@ -273,7 +273,7 @@ export function form<TBody, TResult>(
       hasSubmitted = true;
       const data = resolvedSchema
         ? coerceFormDataToSchema(formData, resolvedSchema)
-        : formDataToObject(formData, { nested: true });
+        : formDataToObject(formData, { nested: true, coerce: true });
 
       if (resolvedSchema) {
         const result = validate(resolvedSchema, data);

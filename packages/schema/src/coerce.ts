@@ -266,10 +266,10 @@ export function coerceFormDataToSchema(
   if (!isObjectLike(concrete)) {
     return formLikeToNestedObject(source);
   }
-  // Start from all form keys as raw nested values so unknown keys survive to
-  // `schema.parse()` (symmetric with JSON; lets `.strict()` reject extras).
-  // Then overlay schema-coerced values on known paths.
-  const result = formLikeToNestedObject(source);
+  // The schema is the contract: only fields it declares are included.
+  // Unknown form keys are dropped so they cannot leak into the JSON body
+  // (no `tenantId` injection, no surprise extras for `.strict()` to reject).
+  const result: Record<string, unknown> = {};
   overlaySchemaCoerced(result, source, concrete, '');
   return result;
 }
