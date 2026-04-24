@@ -114,15 +114,31 @@ export class FetchClient {
           let serverCode: string | undefined;
           if (body && typeof body === 'object' && 'error' in body) {
             const errorObj = body.error as
-              | { code?: string; errors?: Array<{ path: string; message: string }> }
+              | {
+                  code?: string;
+                  message?: string;
+                  details?: ReadonlyArray<{
+                    path: string | ReadonlyArray<string | number>;
+                    message: string;
+                  }>;
+                }
               | undefined;
             if (errorObj && typeof errorObj.code === 'string') {
               serverCode = errorObj.code;
             }
 
-            // Check for validation errors
-            if (errorObj?.code === 'ValidationError' && Array.isArray(errorObj.errors)) {
-              return err(new FetchValidationError('Validation failed', errorObj.errors));
+            // Check for validation errors. Server emits per-field errors under
+            // `error.details` (see packages/server/src/entity/error-handler.ts).
+            // Path may be a string ("email") or an array (["address", "street"]
+            // or ["items", 0, "name"]) — normalize to dot-notation for form fields.
+            if (errorObj?.code === 'ValidationError' && Array.isArray(errorObj.details)) {
+              const normalized = errorObj.details.map((d) => ({
+                path: Array.isArray(d.path) ? d.path.join('.') : d.path,
+                message: d.message,
+              }));
+              return err(
+                new FetchValidationError(errorObj.message ?? 'Validation failed', normalized),
+              );
             }
           }
 
