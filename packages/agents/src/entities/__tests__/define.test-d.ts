@@ -9,8 +9,12 @@ import {
 import { defineAgentEntities } from '../define';
 
 // Build a real createDb to drive the generic. Never executed — types only.
-const _sessions = d.table('agent_sessions', agentSessionColumns, { indexes: agentSessionIndexes });
-const _messages = d.table('agent_messages', agentMessageColumns, { indexes: agentMessageIndexes });
+const _sessions = d.table('agent_sessions', agentSessionColumns(), {
+  indexes: agentSessionIndexes,
+});
+const _messages = d.table('agent_messages', agentMessageColumns(), {
+  indexes: agentMessageIndexes,
+});
 
 // Don't bother plumbing the full generic here — the factory accepts DatabaseClient<any>
 // by design; the runtime check is the real contract.

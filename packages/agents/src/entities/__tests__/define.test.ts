@@ -10,10 +10,10 @@ import {
 import { AgentBridgeMissingTableError, defineAgentEntities } from '../define';
 
 function makeDb() {
-  const sessionsTable = d.table('agent_sessions', agentSessionColumns, {
+  const sessionsTable = d.table('agent_sessions', agentSessionColumns(), {
     indexes: agentSessionIndexes,
   });
-  const messagesTable = d.table('agent_messages', agentMessageColumns, {
+  const messagesTable = d.table('agent_messages', agentMessageColumns(), {
     indexes: agentMessageIndexes,
   });
   return createDb({
