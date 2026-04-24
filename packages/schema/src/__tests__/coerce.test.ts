@@ -526,23 +526,20 @@ describe('Feature: coerceFormDataToSchema — prototype pollution safety', () =>
   });
 });
 
-describe('Feature: coerceFormDataToSchema — unknown keys (parity with JSON)', () => {
+describe('Feature: coerceFormDataToSchema — unknown keys (schema is the contract)', () => {
   describe('Given a form with a key outside the schema shape', () => {
-    it('then preserves the unknown key so .strict() can reject it', () => {
-      const schema = s.object({ title: s.string() }).strict();
+    it('then drops the unknown key so it cannot leak into the request body', () => {
+      const schema = s.object({ title: s.string() });
       const fd = new FormData();
       fd.append('title', 'x');
-      fd.append('tenantId', 'sneaky');
+      fd.append('tenantId', 'sneaky'); // attacker-controlled extra field via DevTools
       const result = coerceFormDataToSchema(fd, schema);
-      expect(result).toEqual({ title: 'x', tenantId: 'sneaky' });
-      // `.strict()` rejects the unknown key — same behavior as a JSON body.
-      const parsed = schema.safeParse(result);
-      expect(parsed.ok).toBe(false);
+      expect(result).toEqual({ title: 'x' });
     });
   });
 
   describe('Given a nested unknown key', () => {
-    it('then preserves the nested structure alongside coerced known fields', () => {
+    it('then drops the nested unknown key alongside coerced known fields', () => {
       const schema = s.object({
         profile: s.object({ age: s.number() }),
       });
@@ -550,7 +547,7 @@ describe('Feature: coerceFormDataToSchema — unknown keys (parity with JSON)', 
       fd.append('profile.age', '30');
       fd.append('profile.extra', 'hidden');
       const result = coerceFormDataToSchema(fd, schema);
-      expect(result).toEqual({ profile: { age: 30, extra: 'hidden' } });
+      expect(result).toEqual({ profile: { age: 30 } });
     });
   });
 });
