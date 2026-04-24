@@ -1814,17 +1814,11 @@ pub async fn start_server_with_lifecycle(
 
                                     match result {
                                         Ok(dep_result) => {
-                                            // Broadcast re-bundle errors to the overlay
-                                            for (pkg, err_msg) in &dep_result.failed {
-                                                let error = DevError::build(format!(
-                                                    "Failed to re-bundle upstream dep {}: {}",
-                                                    pkg, err_msg
-                                                ));
-                                                dep_state
-                                                    .error_broadcaster
-                                                    .report_error(error)
-                                                    .await;
-                                            }
+                                            crate::watcher::dep_watcher::apply_dep_error_state(
+                                                &dep_state.error_broadcaster,
+                                                &dep_result,
+                                            )
+                                            .await;
 
                                             if dep_result.should_clear_cache {
                                                 // Clear compilation cache

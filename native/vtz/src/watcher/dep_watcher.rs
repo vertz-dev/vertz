@@ -1,6 +1,8 @@
 use super::backpressure::BackpressureWarner;
 use crate::deps::linked::WatchTarget;
 use crate::deps::prebundle::{prebundle_single, PrebundleResult};
+use crate::errors::broadcaster::ErrorBroadcaster;
+use crate::errors::categories::{DevError, ErrorCategory};
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -323,6 +325,28 @@ pub fn handle_dep_changes(
         has_unnamed_changes: has_unnamed,
         should_clear_cache: should_clear,
         reload_reason,
+    }
+}
+
+/// Apply the error-broadcast side effects of a dep-change cycle.
+///
+/// When at least one package re-bundled successfully, previously reported
+/// "Failed to re-bundle upstream dep X" errors are no longer current — clear
+/// the Build category before reporting the current cycle's failures. Without
+/// this, stale dep-rebundle errors persist in `ErrorState` (and the persisted
+/// `.vertz/dev/errors.json`) across every subsequent page load until the
+/// dev server restarts *and* `errors.json` is manually deleted. See #2954.
+pub async fn apply_dep_error_state(broadcaster: &ErrorBroadcaster, result: &DepChangeResult) {
+    if !result.rebundled.is_empty() {
+        broadcaster.clear_category(ErrorCategory::Build).await;
+    }
+
+    for (pkg, err_msg) in &result.failed {
+        let error = DevError::build(format!(
+            "Failed to re-bundle upstream dep {}: {}",
+            pkg, err_msg
+        ));
+        broadcaster.report_error(error).await;
     }
 }
 
@@ -739,6 +763,130 @@ mod tests {
         assert!(result.is_err(), "Should NOT receive event for .map file");
 
         drop(watcher);
+    }
+
+    // --- apply_dep_error_state tests ---
+
+    // Regression: #2954. A successful rebundle must clear stale Build-category
+    // "Failed to re-bundle upstream dep X" errors from earlier cycles.
+    #[tokio::test]
+    async fn test_apply_dep_error_state_clears_stale_build_errors_on_success() {
+        let broadcaster = ErrorBroadcaster::new();
+
+        // Simulate a previous cycle that left a stale dep-rebundle error.
+        broadcaster
+            .report_error(DevError::build(
+                "Failed to re-bundle upstream dep @vertz/ui: Failed to write entry file: \
+                 No such file or directory (os error 2)",
+            ))
+            .await;
+        assert!(broadcaster.has_errors().await);
+
+        // Current cycle rebundles successfully.
+        let result = DepChangeResult {
+            rebundled: vec!["@vertz/ui".to_string()],
+            failed: vec![],
+            has_unnamed_changes: false,
+            should_clear_cache: true,
+            reload_reason: "Upstream dep: @vertz/ui".to_string(),
+        };
+
+        apply_dep_error_state(&broadcaster, &result).await;
+
+        assert!(
+            !broadcaster.has_errors().await,
+            "stale dep-rebundle errors must be cleared after a successful rebundle",
+        );
+    }
+
+    #[tokio::test]
+    async fn test_apply_dep_error_state_reports_new_failures() {
+        let broadcaster = ErrorBroadcaster::new();
+        let mut rx = broadcaster.subscribe();
+
+        let result = DepChangeResult {
+            rebundled: vec![],
+            failed: vec![(
+                "@vertz/ui".to_string(),
+                "Failed to write entry file: No such file or directory (os error 2)".to_string(),
+            )],
+            has_unnamed_changes: false,
+            should_clear_cache: false,
+            reload_reason: String::new(),
+        };
+
+        apply_dep_error_state(&broadcaster, &result).await;
+
+        let msg = rx.recv().await.unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&msg).unwrap();
+        assert_eq!(parsed["type"], "error");
+        assert_eq!(parsed["category"], "build");
+        assert_eq!(parsed["errors"].as_array().unwrap().len(), 1);
+        assert!(parsed["errors"][0]["message"]
+            .as_str()
+            .unwrap()
+            .starts_with("Failed to re-bundle upstream dep @vertz/ui:"));
+    }
+
+    // Mixed cycle: one package succeeds, another fails in the same batch.
+    // Stale errors from earlier cycles clear (because something succeeded),
+    // and only the current cycle's failure remains in the overlay.
+    #[tokio::test]
+    async fn test_apply_dep_error_state_mixed_success_and_failure() {
+        let broadcaster = ErrorBroadcaster::new();
+
+        broadcaster
+            .report_error(DevError::build(
+                "Failed to re-bundle upstream dep @vertz/icons: stale error",
+            ))
+            .await;
+
+        let result = DepChangeResult {
+            rebundled: vec!["@vertz/ui".to_string()],
+            failed: vec![(
+                "@vertz/server".to_string(),
+                "esbuild failed: Could not resolve".to_string(),
+            )],
+            has_unnamed_changes: false,
+            should_clear_cache: true,
+            reload_reason: "Upstream dep: @vertz/ui".to_string(),
+        };
+
+        apply_dep_error_state(&broadcaster, &result).await;
+
+        let all = broadcaster.all_errors_cloned().await;
+        assert_eq!(all.len(), 1, "expected exactly the current-cycle failure");
+        assert!(all[0]
+            .message
+            .contains("Failed to re-bundle upstream dep @vertz/server"));
+    }
+
+    #[tokio::test]
+    async fn test_apply_dep_error_state_no_successes_keeps_prior_errors() {
+        let broadcaster = ErrorBroadcaster::new();
+
+        broadcaster
+            .report_error(DevError::build(
+                "Failed to re-bundle upstream dep @vertz/ui: old",
+            ))
+            .await;
+
+        // Current cycle: everything failed, nothing succeeded.
+        let result = DepChangeResult {
+            rebundled: vec![],
+            failed: vec![("@vertz/server".to_string(), "esbuild failed".to_string())],
+            has_unnamed_changes: false,
+            should_clear_cache: false,
+            reload_reason: String::new(),
+        };
+
+        apply_dep_error_state(&broadcaster, &result).await;
+
+        let all = broadcaster.all_errors_cloned().await;
+        // Both the prior @vertz/ui error and the new @vertz/server error are
+        // present — we only clear Build when at least one rebundle succeeds,
+        // so an all-failure cycle doesn't wipe legitimate prior errors.
+        assert_eq!(all.len(), 2);
     }
 
     #[tokio::test]
