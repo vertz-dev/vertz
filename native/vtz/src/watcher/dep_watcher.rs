@@ -328,24 +328,45 @@ pub fn handle_dep_changes(
     }
 }
 
+/// The pseudo-file key used to tag dep-rebundle errors.
+///
+/// User-source compile errors and dep-rebundle errors both live in
+/// `ErrorCategory::Build`. Tagging dep errors with this synthetic key lets us
+/// clear them via `clear_file` without touching legitimate per-file compile
+/// errors reported by the module server or the file-change handler.
+pub fn dep_error_file(package: &str) -> String {
+    format!("<dep>:{}", package)
+}
+
 /// Apply the error-broadcast side effects of a dep-change cycle.
 ///
-/// When at least one package re-bundled successfully, previously reported
-/// "Failed to re-bundle upstream dep X" errors are no longer current — clear
-/// the Build category before reporting the current cycle's failures. Without
-/// this, stale dep-rebundle errors persist in `ErrorState` (and the persisted
+/// For every package touched this cycle — whether it re-bundled successfully
+/// or failed — we first clear any stale `Failed to re-bundle upstream dep X`
+/// error from previous cycles, then report the new failure (if any). Errors
+/// are keyed by `dep_error_file(pkg)` so `clear_file` removes only the
+/// dep-rebundle entry for that package; file-scoped user-source compile
+/// errors in the same `Build` category are left untouched. Without this,
+/// stale dep-rebundle errors persist in `ErrorState` (and the persisted
 /// `.vertz/dev/errors.json`) across every subsequent page load until the
 /// dev server restarts *and* `errors.json` is manually deleted. See #2954.
 pub async fn apply_dep_error_state(broadcaster: &ErrorBroadcaster, result: &DepChangeResult) {
-    if !result.rebundled.is_empty() {
-        broadcaster.clear_category(ErrorCategory::Build).await;
+    for pkg in &result.rebundled {
+        broadcaster
+            .clear_file(ErrorCategory::Build, &dep_error_file(pkg))
+            .await;
+    }
+    for (pkg, _) in &result.failed {
+        broadcaster
+            .clear_file(ErrorCategory::Build, &dep_error_file(pkg))
+            .await;
     }
 
     for (pkg, err_msg) in &result.failed {
         let error = DevError::build(format!(
             "Failed to re-bundle upstream dep {}: {}",
             pkg, err_msg
-        ));
+        ))
+        .with_file(dep_error_file(pkg));
         broadcaster.report_error(error).await;
     }
 }
@@ -767,18 +788,23 @@ mod tests {
 
     // --- apply_dep_error_state tests ---
 
-    // Regression: #2954. A successful rebundle must clear stale Build-category
-    // "Failed to re-bundle upstream dep X" errors from earlier cycles.
+    // Regression: #2954. A successful rebundle must clear the stale
+    // "Failed to re-bundle upstream dep X" error for that package from
+    // earlier cycles.
     #[tokio::test]
     async fn test_apply_dep_error_state_clears_stale_build_errors_on_success() {
         let broadcaster = ErrorBroadcaster::new();
 
-        // Simulate a previous cycle that left a stale dep-rebundle error.
+        // Simulate a previous cycle that left a stale dep-rebundle error
+        // keyed by `dep_error_file("@vertz/ui")`.
         broadcaster
-            .report_error(DevError::build(
-                "Failed to re-bundle upstream dep @vertz/ui: Failed to write entry file: \
-                 No such file or directory (os error 2)",
-            ))
+            .report_error(
+                DevError::build(
+                    "Failed to re-bundle upstream dep @vertz/ui: Failed to write entry file: \
+                     No such file or directory (os error 2)",
+                )
+                .with_file(dep_error_file("@vertz/ui")),
+            )
             .await;
         assert!(broadcaster.has_errors().await);
 
@@ -799,10 +825,54 @@ mod tests {
         );
     }
 
+    // Regression: #2954, review-blocker B1. A successful dep rebundle must
+    // NOT clobber legitimate per-file `Build` errors reported for user source
+    // code by the module server or file-change handler. Those share
+    // `ErrorCategory::Build` with dep errors, and an indiscriminate
+    // `clear_category` would make them vanish.
+    #[tokio::test]
+    async fn test_apply_dep_error_state_preserves_user_compile_errors() {
+        let broadcaster = ErrorBroadcaster::new();
+
+        // A real per-file compile error (as reported from module_server.rs).
+        broadcaster
+            .report_error(
+                DevError::build("Unexpected token '{'")
+                    .with_file("/src/app.tsx")
+                    .with_location(12, 3),
+            )
+            .await;
+        // A stale dep-rebundle error from a previous cycle.
+        broadcaster
+            .report_error(
+                DevError::build("Failed to re-bundle upstream dep @vertz/ui: old")
+                    .with_file(dep_error_file("@vertz/ui")),
+            )
+            .await;
+
+        let result = DepChangeResult {
+            rebundled: vec!["@vertz/ui".to_string()],
+            failed: vec![],
+            has_unnamed_changes: false,
+            should_clear_cache: true,
+            reload_reason: "Upstream dep: @vertz/ui".to_string(),
+        };
+
+        apply_dep_error_state(&broadcaster, &result).await;
+
+        let all = broadcaster.all_errors_cloned().await;
+        assert_eq!(
+            all.len(),
+            1,
+            "user compile error must survive; only the dep-rebundle entry clears",
+        );
+        assert_eq!(all[0].file.as_deref(), Some("/src/app.tsx"));
+        assert_eq!(all[0].message, "Unexpected token '{'");
+    }
+
     #[tokio::test]
     async fn test_apply_dep_error_state_reports_new_failures() {
         let broadcaster = ErrorBroadcaster::new();
-        let mut rx = broadcaster.subscribe();
 
         let result = DepChangeResult {
             rebundled: vec![],
@@ -817,28 +887,38 @@ mod tests {
 
         apply_dep_error_state(&broadcaster, &result).await;
 
-        let msg = rx.recv().await.unwrap();
-        let parsed: serde_json::Value = serde_json::from_str(&msg).unwrap();
-        assert_eq!(parsed["type"], "error");
-        assert_eq!(parsed["category"], "build");
-        assert_eq!(parsed["errors"].as_array().unwrap().len(), 1);
-        assert!(parsed["errors"][0]["message"]
-            .as_str()
-            .unwrap()
+        let all = broadcaster.all_errors_cloned().await;
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].category, ErrorCategory::Build);
+        assert!(all[0]
+            .message
             .starts_with("Failed to re-bundle upstream dep @vertz/ui:"));
+        assert_eq!(
+            all[0].file.as_deref(),
+            Some(dep_error_file("@vertz/ui").as_str())
+        );
     }
 
     // Mixed cycle: one package succeeds, another fails in the same batch.
-    // Stale errors from earlier cycles clear (because something succeeded),
-    // and only the current cycle's failure remains in the overlay.
+    // Each package's stale dep-rebundle error (if any) is cleared, and only
+    // the current cycle's failure remains.
     #[tokio::test]
     async fn test_apply_dep_error_state_mixed_success_and_failure() {
         let broadcaster = ErrorBroadcaster::new();
 
+        // Stale error for @vertz/ui (will clear on success).
         broadcaster
-            .report_error(DevError::build(
-                "Failed to re-bundle upstream dep @vertz/icons: stale error",
-            ))
+            .report_error(
+                DevError::build("Failed to re-bundle upstream dep @vertz/ui: stale")
+                    .with_file(dep_error_file("@vertz/ui")),
+            )
+            .await;
+        // Stale error for @vertz/server (will be replaced by new failure).
+        broadcaster
+            .report_error(
+                DevError::build("Failed to re-bundle upstream dep @vertz/server: stale")
+                    .with_file(dep_error_file("@vertz/server")),
+            )
             .await;
 
         let result = DepChangeResult {
@@ -859,22 +939,30 @@ mod tests {
         assert!(all[0]
             .message
             .contains("Failed to re-bundle upstream dep @vertz/server"));
+        // Ensure the stale error text was replaced, not just deduped on equal message.
+        assert!(all[0].message.contains("esbuild failed: Could not resolve"));
     }
 
+    // An all-failure cycle still clears stale dep errors for the packages it
+    // touched before re-reporting their current failure, so stale-message
+    // text for the same package doesn't linger alongside the new one.
     #[tokio::test]
-    async fn test_apply_dep_error_state_no_successes_keeps_prior_errors() {
+    async fn test_apply_dep_error_state_all_failures_replace_stale_for_same_packages() {
         let broadcaster = ErrorBroadcaster::new();
 
         broadcaster
-            .report_error(DevError::build(
-                "Failed to re-bundle upstream dep @vertz/ui: old",
-            ))
+            .report_error(
+                DevError::build("Failed to re-bundle upstream dep @vertz/server: old message")
+                    .with_file(dep_error_file("@vertz/server")),
+            )
             .await;
 
-        // Current cycle: everything failed, nothing succeeded.
         let result = DepChangeResult {
             rebundled: vec![],
-            failed: vec![("@vertz/server".to_string(), "esbuild failed".to_string())],
+            failed: vec![(
+                "@vertz/server".to_string(),
+                "esbuild failed: new reason".to_string(),
+            )],
             has_unnamed_changes: false,
             should_clear_cache: false,
             reload_reason: String::new(),
@@ -883,10 +971,9 @@ mod tests {
         apply_dep_error_state(&broadcaster, &result).await;
 
         let all = broadcaster.all_errors_cloned().await;
-        // Both the prior @vertz/ui error and the new @vertz/server error are
-        // present — we only clear Build when at least one rebundle succeeds,
-        // so an all-failure cycle doesn't wipe legitimate prior errors.
-        assert_eq!(all.len(), 2);
+        assert_eq!(all.len(), 1);
+        assert!(all[0].message.contains("new reason"));
+        assert!(!all[0].message.contains("old message"));
     }
 
     #[tokio::test]

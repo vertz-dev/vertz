@@ -18,11 +18,16 @@ The only cure used to be killing the dev server, deleting
    (manual cleanup, a clean clone, a workspace rebuild) no longer bubbles
    up as ENOENT on the first upstream change.
 
-2. The dep-watcher handler in `server::http` now clears the `Build` error
-   category whenever at least one package re-bundles successfully, before
-   reporting the current cycle's failures. Stale `Failed to re-bundle
-   upstream dep X` entries no longer accumulate in `ErrorState` (or the
-   persisted `.vertz/dev/errors.json`) across successful cycles. The
-   error-broadcast side-effects were extracted into
-   `watcher::dep_watcher::apply_dep_error_state` so the behavior is covered
-   by regression tests without spinning up a full dev server.
+2. The dep-watcher handler in `server::http` now tags every re-bundle error
+   with a synthetic per-package key (`<dep>:{pkg}`) in the error's file
+   field, and clears that key with `clear_file(ErrorCategory::Build, …)`
+   for each package it touches this cycle before reporting the current
+   failure (if any). Stale `Failed to re-bundle upstream dep X` entries no
+   longer accumulate in `ErrorState` (or the persisted
+   `.vertz/dev/errors.json`) across successful cycles, and — crucially —
+   legitimate per-file compile errors in the same `Build` category (which
+   the module server and file-change handler report with real source
+   paths) are left untouched. The error-broadcast side effects were
+   extracted into `watcher::dep_watcher::apply_dep_error_state` so the
+   behavior is covered by regression tests without spinning up a full
+   dev server.
