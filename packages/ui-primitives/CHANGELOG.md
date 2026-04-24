@@ -1,5 +1,12 @@
 # @vertz/ui-primitives
 
+## 0.2.79
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/ui@0.2.79
+
 ## 0.2.78
 
 ### Patch Changes

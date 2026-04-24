@@ -1,6 +1,6 @@
 {
   "name": "@vertz/native-compiler-darwin-x64",
-  "version": "0.2.78",
+  "version": "0.2.79",
   "private": true,
   "description": "Vertz native compiler binary for macOS x64",
   "repository": {
