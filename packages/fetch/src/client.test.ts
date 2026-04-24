@@ -827,9 +827,13 @@ describe('FetchClient parse and validation errors', () => {
     }
   });
 
-  it('should return FetchValidationError with errors array', async () => {
+  it('should return FetchValidationError with details from server (string path)', async () => {
     const body = {
-      error: { code: 'ValidationError', errors: [{ path: 'email', message: 'Invalid email' }] },
+      error: {
+        code: 'ValidationError',
+        message: 'Validation failed',
+        details: [{ path: 'email', message: 'Invalid email' }],
+      },
     };
     const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify(body), { status: 422 }));
     const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
@@ -837,7 +841,82 @@ describe('FetchClient parse and validation errors', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error).toBeInstanceOf(FetchValidationError);
-      expect((result.error as FetchValidationError).errors).toHaveLength(1);
+      const err = result.error as FetchValidationError;
+      expect(err.errors).toHaveLength(1);
+      expect(err.errors[0]).toEqual({ path: 'email', message: 'Invalid email' });
+    }
+  });
+
+  it('normalizes empty paths to `_form`', async () => {
+    const body = {
+      error: {
+        code: 'ValidationError',
+        message: 'Validation failed',
+        details: [
+          { path: '', message: 'Form-level error' },
+          { path: [], message: 'Another form-level error' },
+        ],
+      },
+    };
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify(body), { status: 422 }));
+    const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
+    const result = await client.get('/test');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeInstanceOf(FetchValidationError);
+      const err = result.error as FetchValidationError;
+      expect(err.errors).toEqual([
+        { path: '_form', message: 'Form-level error' },
+        { path: '_form', message: 'Another form-level error' },
+      ]);
+    }
+  });
+
+  it('falls back to UnprocessableEntityError when `details` is empty', async () => {
+    const body = {
+      error: {
+        code: 'ValidationError',
+        message: 'Validation failed',
+        details: [],
+      },
+    };
+    const mockFetch = mock().mockResolvedValue(
+      new Response(JSON.stringify(body), { status: 422, statusText: 'Unprocessable Entity' }),
+    );
+    const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
+    const result = await client.get('/test');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      // Does NOT produce a FetchValidationError — nothing to map per-field.
+      expect(result.error).not.toBeInstanceOf(FetchValidationError);
+    }
+  });
+
+  it('normalizes array paths to dot-notation (EntityValidationError shape)', async () => {
+    const body = {
+      error: {
+        code: 'ValidationError',
+        message: 'Validation failed',
+        details: [
+          {
+            path: ['status'],
+            message: "Invalid enum value. Expected 'todo' | 'done', received ''",
+          },
+          { path: ['items', 0, 'name'], message: 'Name is required' },
+        ],
+      },
+    };
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify(body), { status: 422 }));
+    const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
+    const result = await client.get('/test');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeInstanceOf(FetchValidationError);
+      const err = result.error as FetchValidationError;
+      expect(err.errors).toEqual([
+        { path: 'status', message: "Invalid enum value. Expected 'todo' | 'done', received ''" },
+        { path: 'items.0.name', message: 'Name is required' },
+      ]);
     }
   });
 });

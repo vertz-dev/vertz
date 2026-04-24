@@ -27,6 +27,7 @@ export {
   UnauthorizedError,
   UnprocessableEntityError,
 } from './errors';
+export { FetchValidationError, isFetchValidationError } from '@vertz/errors';
 export type {
   AuthStrategy,
   EntityQueryMeta,

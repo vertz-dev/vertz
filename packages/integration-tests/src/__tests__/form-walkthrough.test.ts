@@ -12,7 +12,7 @@
 // ===========================================================================
 
 import { describe, expect, it, mock } from '@vertz/test';
-import { err, ok } from '@vertz/fetch';
+import { err, FetchValidationError, ok } from '@vertz/fetch';
 import { s } from '@vertz/schema';
 import type { FormOptions, SdkMethod, SdkMethodWithMeta } from '@vertz/ui/form';
 import { form, formDataToObject } from '@vertz/ui/form';
@@ -157,6 +157,37 @@ describe('Form API Developer Walkthrough', () => {
       expect(onError).toHaveBeenCalled();
       const errors = onError.mock.calls[0]?.[0] as Record<string, string>;
       expect(errors._form).toBeDefined();
+    });
+
+    it('submit() maps server 422 validation errors to per-field signals', async () => {
+      const failingSdk: SdkMethod<CreateUserBody, User> = Object.assign(
+        async () =>
+          err(
+            new FetchValidationError('Validation failed', [
+              { path: 'name', message: 'Name already taken' },
+              { path: 'email', message: 'Invalid email format' },
+            ]),
+          ),
+        { url: '/api/users', method: 'POST' },
+      );
+
+      const onError = mock();
+      const userForm = form(failingSdk, {
+        schema: createUserSchema,
+        onError,
+      });
+
+      const fd = new FormData();
+      fd.append('name', 'Alice');
+      fd.append('email', 'alice@test.com');
+      await userForm.submit(fd);
+
+      expect(userForm.name.error.peek()).toBe('Name already taken');
+      expect(userForm.email.error.peek()).toBe('Invalid email format');
+      expect(onError).toHaveBeenCalledWith({
+        name: 'Name already taken',
+        email: 'Invalid email format',
+      });
     });
   });
 

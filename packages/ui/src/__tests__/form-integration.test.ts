@@ -1,5 +1,5 @@
 import { describe, expect, test, mock } from '@vertz/test';
-import { ok } from '@vertz/fetch';
+import { err, FetchValidationError, ok } from '@vertz/fetch';
 import { s } from '@vertz/schema';
 import { form } from '../form/form';
 import { formDataToObject } from '../form/form-data';
@@ -43,6 +43,38 @@ function mockSdkMethod<TBody, TResult>(config: {
 }) {
   const wrappedHandler = async (body: TBody) => ok(await config.handler(body));
   const fn = wrappedHandler as ((body: TBody) => Promise<{ ok: true; data: TResult }>) & {
+    url: string;
+    method: string;
+  };
+  fn.url = config.url;
+  fn.method = config.method;
+  return fn;
+}
+
+/** Helper: creates a mock SDK method that always returns an error result. */
+function mockFailingSdkMethod<TBody>(config: { url: string; method: string; error: Error }) {
+  const wrappedHandler = async (_body: TBody) => err(config.error);
+  const fn = wrappedHandler as ((body: TBody) => Promise<ReturnType<typeof err>>) & {
+    url: string;
+    method: string;
+  };
+  fn.url = config.url;
+  fn.method = config.method;
+  return fn;
+}
+
+/** Helper: creates a mock SDK method whose errors are driven by a sequence. */
+function mockSequencedFailingSdk<TBody>(config: {
+  url: string;
+  method: string;
+  errors: readonly Error[];
+}) {
+  let i = 0;
+  const wrappedHandler = async (_body: TBody) => {
+    const e = config.errors[Math.min(i++, config.errors.length - 1)] ?? new Error('unexpected');
+    return err(e);
+  };
+  const fn = wrappedHandler as ((body: TBody) => Promise<ReturnType<typeof err>>) & {
     url: string;
     method: string;
   };
@@ -135,6 +167,146 @@ describe('Integration Tests — Forms', () => {
       name: 'Name is required',
       email: 'Valid email is required',
     });
+  });
+
+  // IT-3-2b: form() maps server 422 validation errors to field error signals
+  test('form() maps server 422 validation errors to per-field error signals', async () => {
+    const validationError = new FetchValidationError('Validation failed', [
+      { path: 'title', message: 'Title is required' },
+      { path: 'status', message: "Invalid enum value. Expected 'todo' | 'done', received ''" },
+    ]);
+    const sdk = mockFailingSdkMethod<{ title: string; status: string }>({
+      url: '/api/tasks',
+      method: 'POST',
+      error: validationError,
+    });
+
+    const schema: FormSchema<{ title: string; status: string }> = {
+      parse(data: unknown) {
+        return { ok: true as const, data: data as { title: string; status: string } };
+      },
+    };
+
+    const onSuccess = mock();
+    const onError = mock();
+
+    const taskForm = form(sdk, { schema, onSuccess, onError });
+
+    const fd = new FormData();
+    fd.append('title', '');
+    fd.append('status', '');
+
+    await taskForm.submit(fd);
+
+    // Per-field errors are mapped from the server response to field signals
+    expect(taskForm.title.error.peek()).toBe('Title is required');
+    expect(taskForm.status.error.peek()).toBe(
+      "Invalid enum value. Expected 'todo' | 'done', received ''",
+    );
+    // onError is called with the mapped per-field record
+    expect(onError).toHaveBeenCalledWith({
+      title: 'Title is required',
+      status: "Invalid enum value. Expected 'todo' | 'done', received ''",
+    });
+    // onSuccess was NOT called because submission failed
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
+
+  // IT-3-2b-form: form() maps a `_form` path (top-level validation error) to the _form field
+  test('form() maps `_form` path server error to the _form pseudo-field', async () => {
+    const validationError = new FetchValidationError('Validation failed', [
+      { path: '_form', message: 'Cross-field constraint violated' },
+    ]);
+    const sdk = mockFailingSdkMethod<{ start: string; end: string }>({
+      url: '/api/events',
+      method: 'POST',
+      error: validationError,
+    });
+
+    const schema: FormSchema<{ start: string; end: string }> = {
+      parse(data: unknown) {
+        return { ok: true as const, data: data as { start: string; end: string } };
+      },
+    };
+
+    const onError = mock();
+    const eventForm = form(sdk, { schema, onError });
+
+    const fd = new FormData();
+    fd.append('start', '2026-01-02');
+    fd.append('end', '2026-01-01');
+
+    await eventForm.submit(fd);
+
+    expect(onError).toHaveBeenCalledWith({ _form: 'Cross-field constraint violated' });
+  });
+
+  // IT-3-2b-reset: server field errors from a prior submission clear on the next submission
+  test('form() clears stale server field errors on the next submission', async () => {
+    const schema: FormSchema<{ name: string; email: string }> = {
+      parse(data: unknown) {
+        return { ok: true as const, data: data as { name: string; email: string } };
+      },
+    };
+
+    const sdk = mockSequencedFailingSdk<{ name: string; email: string }>({
+      url: '/api/users',
+      method: 'POST',
+      errors: [
+        new FetchValidationError('Validation failed', [
+          { path: 'name', message: 'Name taken' },
+          { path: 'email', message: 'Email taken' },
+        ]),
+        new FetchValidationError('Validation failed', [
+          { path: 'name', message: 'Name still taken' },
+        ]),
+      ],
+    });
+
+    const userForm = form(sdk, { schema });
+
+    const fd1 = new FormData();
+    fd1.append('name', 'Alice');
+    fd1.append('email', 'alice@test.com');
+    await userForm.submit(fd1);
+    expect(userForm.name.error.peek()).toBe('Name taken');
+    expect(userForm.email.error.peek()).toBe('Email taken');
+
+    const fd2 = new FormData();
+    fd2.append('name', 'Alice');
+    fd2.append('email', 'alice2@test.com');
+    await userForm.submit(fd2);
+    // `name` re-fails with a new message; `email` is cleared on re-submission.
+    expect(userForm.name.error.peek()).toBe('Name still taken');
+    expect(userForm.email.error.peek()).toBeUndefined();
+  });
+
+  // IT-3-2c: form() falls back to _form error for non-validation failures
+  test('form() falls back to _form error for non-validation SDK errors', async () => {
+    const sdk = mockFailingSdkMethod<{ name: string }>({
+      url: '/api/users',
+      method: 'POST',
+      error: new Error('Network is unreachable'),
+    });
+
+    const schema: FormSchema<{ name: string }> = {
+      parse(data: unknown) {
+        return { ok: true as const, data: data as { name: string } };
+      },
+    };
+
+    const onError = mock();
+    const userForm = form(sdk, { schema, onError });
+
+    const fd = new FormData();
+    fd.append('name', 'Alice');
+
+    await userForm.submit(fd);
+
+    // Generic errors still land on the `_form` pseudo-field,
+    // and `name` is untouched
+    expect(userForm.name.error.peek()).toBeUndefined();
+    expect(onError).toHaveBeenCalledWith({ _form: 'Network is unreachable' });
   });
 
   // IT-3-3: formDataToObject converts FormData with proper handling

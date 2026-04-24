@@ -1,4 +1,4 @@
-import type { Result } from '@vertz/fetch';
+import { isFetchValidationError, type Result } from '@vertz/fetch';
 import { coerceFormDataToSchema, coerceLeaf } from '@vertz/schema';
 import { computed, lifecycleEffect, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal } from '../runtime/signal-types';
@@ -293,6 +293,22 @@ export function form<TBody, TResult>(
 
       const result = await sdkMethod(data as TBody);
       if (!result.ok) {
+        if (isFetchValidationError(result.error)) {
+          const fieldErrors: Record<string, string> = {};
+          // First error per field wins — matches the shape of result.errors
+          // produced by client-side validation above. Paths are already
+          // normalized by the fetch client (empty → `_form`, arrays → dot-path).
+          for (const { path, message } of result.error.errors) {
+            if (fieldErrors[path] === undefined) {
+              fieldErrors[path] = message;
+            }
+          }
+          for (const [fieldName, message] of Object.entries(fieldErrors)) {
+            getOrCreateField(fieldName).error.value = message;
+          }
+          options?.onError?.(fieldErrors);
+          return true;
+        }
         const message = result.error.message;
         getOrCreateField('_form').error.value = message;
         options?.onError?.({ _form: message });
