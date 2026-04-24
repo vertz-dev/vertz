@@ -53,6 +53,18 @@ pub fn prebundle_single(package: &str, root_dir: &Path, deps_dir: &Path) -> Preb
     let output_filename = package_to_filename(package);
     let output_path = deps_dir.join(&output_filename);
 
+    // `deps_dir` may have been wiped (manual cleanup, clean-clone, etc.) since
+    // startup. Recreate it here so the entry-file write below can't fail with
+    // ENOENT on the dep-watcher re-bundle path.
+    if let Err(e) = std::fs::create_dir_all(deps_dir) {
+        return PrebundleResult {
+            package: package.to_string(),
+            output_path,
+            success: false,
+            error: Some(format!("Failed to create deps dir: {}", e)),
+        };
+    }
+
     // Create a temporary entry file that re-exports the package
     let entry_content = format!("export * from '{}';\n", package);
     let entry_path = deps_dir.join(format!("_entry_{}.js", output_filename.replace(".js", "")));
@@ -205,5 +217,35 @@ mod tests {
 
         let result = resolve_deps_file("/@deps/nonexistent", &deps_dir);
         assert!(result.is_none());
+    }
+
+    // Regression: #2954. When the dev server's `.vertz/deps/` directory is
+    // wiped between startup and a dep-watcher re-bundle (manual cleanup, etc.),
+    // `prebundle_single` must recreate it rather than fail writing the entry
+    // file with ENOENT. Without this, a stale "Failed to write entry file:
+    // No such file or directory" overlay survives forever across navigations.
+    #[test]
+    fn test_prebundle_single_recreates_missing_deps_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root_dir = tmp.path();
+        let deps_dir = root_dir.join(".vertz").join("deps");
+        // Intentionally do NOT create deps_dir — simulate the wiped state.
+        assert!(!deps_dir.exists());
+
+        let result = prebundle_single("nonexistent-package", root_dir, &deps_dir);
+
+        // esbuild will (correctly) fail to resolve a package that isn't
+        // installed, but the failure must NOT be the ENOENT write-entry path.
+        assert!(
+            deps_dir.exists(),
+            "prebundle_single should create deps_dir when missing",
+        );
+        assert!(!result.success);
+        let err = result.error.unwrap_or_default();
+        assert!(
+            !err.contains("Failed to write entry file"),
+            "expected esbuild-level failure, got entry-file ENOENT: {}",
+            err,
+        );
     }
 }
