@@ -34,10 +34,10 @@ import {
   agentMessageIndexes,
 } from '@vertz/agents/entities';
 
-const sessionsTable = d.table('agent_sessions', agentSessionColumns, {
+const sessionsTable = d.table('agent_sessions', agentSessionColumns(), {
   indexes: agentSessionIndexes,
 });
-const messagesTable = d.table('agent_messages', agentMessageColumns, {
+const messagesTable = d.table('agent_messages', agentMessageColumns(), {
   indexes: agentMessageIndexes,
 });
 
@@ -154,7 +154,7 @@ your own `d.table()` — no special helper:
 const sessionsTable = d.table(
   'agent_sessions',
   {
-    ...agentSessionColumns,
+    ...agentSessionColumns(),
     projectId: d.uuid().nullable(),
   },
   { indexes: [...agentSessionIndexes, d.index('projectId')] },
@@ -182,7 +182,7 @@ relation on your extended session, drop `tenantId` from the spread to avoid
 a dead column:
 
 ```ts
-const { tenantId: _drop, ...sessionColsMinusTenant } = agentSessionColumns;
+const { tenantId: _drop, ...sessionColsMinusTenant } = agentSessionColumns();
 const sessionsTable = d.table(
   'agent_sessions',
   {
@@ -194,6 +194,78 @@ const sessionsTable = d.table(
   },
 );
 ```
+
+## Typed `state` / `toolCalls` (opt-in JSONB)
+
+The packs default to `d.text()` for `state` and `toolCalls` — a JSON string,
+byte-compatible with the legacy `sqliteStore` / `d1Store` DDL. Pass
+`{ useJsonb: true }` to opt each pack into `d.jsonb<T>()`: typed reads on the
+entity row, plus native `JSONB` emission on Postgres (indexable, typed
+operators). On SQLite the on-disk shape is still `TEXT`; the driver auto-parses
+`jsonb` columns on read.
+
+```ts
+import type { ToolCall } from '@vertz/agents';
+
+interface AgentState {
+  readonly step: number;
+  readonly notes: readonly string[];
+}
+
+const sessionsTable = d.table(
+  'agent_sessions',
+  agentSessionColumns<AgentState>({ useJsonb: true }),
+  { indexes: agentSessionIndexes },
+);
+const messagesTable = d.table(
+  'agent_messages',
+  agentMessageColumns<readonly ToolCall[]>({ useJsonb: true }),
+  { indexes: agentMessageIndexes },
+);
+
+// Entity reads now return `state: AgentState` (parsed object), not `string`.
+const listed = await ctx.entities['agent-session'].list({});
+listed.items[0]?.state.step; // typed — AgentState.step
+```
+
+The `AgentStore` path (`sqliteStore` / `d1Store`) is orthogonal — it keeps
+its own `JSON.stringify` / `JSON.parse` wrapping and writes raw SQL. On SQLite
+the column emission is still `TEXT`, so stores and entities share the same
+rows without coordination.
+
+### Migrating an existing database
+
+Fresh installs get the correct column type from the opt-in. Existing
+databases need a one-off migration only if you want the on-disk type to
+change (Postgres). On SQLite the on-disk type is `TEXT` in both modes, so
+no DDL change is required.
+
+**SQLite / D1:** no migration needed. `d.jsonb<T>()` emits the same `TEXT`
+storage — the only change is type-side (the driver parses `jsonb` columns
+on read, so entity callers see parsed objects; the `AgentStore` contract
+stays `AgentSession.state: string`). If you want to audit stored rows for
+malformed JSON before opting in, run
+`SELECT id FROM agent_sessions WHERE json_valid(state) = 0`.
+
+**Postgres:** the stores (`sqliteStore` / `d1Store`) are SQLite-only —
+pure-entity usage is the supported path on Postgres. Before running the
+ALTER, audit for rows that can't cast to JSONB:
+
+```sql
+-- Rows that would abort the ALTER. Fix or delete these first.
+SELECT id FROM agent_sessions
+WHERE state IS NOT NULL AND state !~ '^\s*[\[{"]';
+
+ALTER TABLE agent_sessions
+  ALTER COLUMN state TYPE JSONB USING state::JSONB;
+ALTER TABLE agent_messages
+  ALTER COLUMN tool_calls TYPE JSONB USING tool_calls::JSONB;
+```
+
+`ALTER ... TYPE JSONB USING ::JSONB` scans every row and aborts on the
+first value that isn't valid JSON. If the table has a non-JSON legacy
+value (e.g. an opaque token stored via a pre-bridge writer), the ALTER
+rolls back and the schema stays `TEXT`.
 
 ## Upgrade migration
 
@@ -224,9 +296,6 @@ Fresh installs get the columns automatically — the stores' built-in DDL was up
   app-side writes via entity handlers do fire hooks normally. Tracked as
   [#2957](https://github.com/vertz-dev/vertz/issues/2957) (registration-time
   rejection of hooks on factory-produced entities).
-- **Typed `state` / `toolCalls` columns.** Stored as `TEXT` (JSON string) for
-  byte-compat with the legacy DDL. Tracked as
-  [#2958](https://github.com/vertz-dev/vertz/issues/2958).
 - **RLS on in-loop reads.** `store.loadSession()` inside `run()` bypasses
   entity rules — identity is checked by `run()` directly against
   `session.userId` / `session.tenantId`. Same ownership story as before the

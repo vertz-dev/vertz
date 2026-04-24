@@ -73,10 +73,10 @@ describe('Feature: Agent store ↔ entity bridge (#2847)', () => {
   describe('Given run() persisted a session + messages via sqliteStore, and entities are registered on the same DB', () => {
     it('Then entity RLS isolates the session from a different user in a different tenant', async () => {
       // Schema: shared DB file used by BOTH the store and the entity-side createDb.
-      const sessionsTable = d.table('agent_sessions', agentSessionColumns, {
+      const sessionsTable = d.table('agent_sessions', agentSessionColumns(), {
         indexes: agentSessionIndexes,
       });
-      const messagesTable = d.table('agent_messages', agentMessageColumns, {
+      const messagesTable = d.table('agent_messages', agentMessageColumns(), {
         indexes: agentMessageIndexes,
       });
       const db = createDb({
@@ -174,12 +174,12 @@ describe('Feature: Agent store ↔ entity bridge (#2847)', () => {
       const sessionsTable = d.table(
         'agent_sessions',
         {
-          ...agentSessionColumns,
+          ...agentSessionColumns(),
           workspaceId: d.text(),
         },
         { indexes: [...agentSessionIndexes, d.index('workspaceId')] },
       );
-      const messagesTable = d.table('agent_messages', agentMessageColumns, {
+      const messagesTable = d.table('agent_messages', agentMessageColumns(), {
         indexes: agentMessageIndexes,
       });
       const db = createDb({
@@ -242,6 +242,128 @@ describe('Feature: Agent store ↔ entity bridge (#2847)', () => {
       expect(inWs1.ok).toBe(true);
       if (!inWs1.ok) throw inWs1.error;
       expect(inWs1.data.body.items).toHaveLength(1);
+    });
+  });
+
+  describe('Given agentSessionColumns({ useJsonb: true }) with a typed TState', () => {
+    it('Then entity reads round-trip `state` as a parsed object, not a JSON string (#2958)', async () => {
+      interface AgentState {
+        readonly step: number;
+        readonly notes: readonly string[];
+      }
+
+      const sessionsTable = d.table(
+        'agent_sessions',
+        agentSessionColumns<AgentState>({ useJsonb: true }),
+        { indexes: agentSessionIndexes },
+      );
+      const messagesTable = d.table('agent_messages', agentMessageColumns(), {
+        indexes: agentMessageIndexes,
+      });
+      const db = createDb({
+        dialect: 'sqlite',
+        path: dbPath,
+        migrations: { autoApply: true },
+        models: {
+          agentSessions: d.model(sessionsTable),
+          agentMessages: d.model(messagesTable, {
+            session: d.ref.one(() => sessionsTable, 'sessionId'),
+          }),
+        },
+      });
+
+      const { session: Session } = defineAgentEntities(db);
+      createServer({ db, entities: [Session] });
+
+      const registry = new EntityRegistry();
+      registry.register(Session.name, stubOps);
+      const asCtx = (userId: string | null, tenantId: string | null) =>
+        createEntityContext({ userId, tenantId, roles: [] }, stubOps, registry.createProxy());
+
+      const adapter = createDatabaseBridgeAdapter(db, 'agentSessions');
+      const handlers = createCrudHandlers(Session, adapter);
+
+      const stateValue: AgentState = { step: 2, notes: ['a', 'b'] };
+      const created = await handlers.create!(asCtx('user-a', 'ws-1'), {
+        agentName: 'coder',
+        state: stateValue,
+        createdAt: '2026-04-22T00:00:00.000Z',
+        updatedAt: '2026-04-22T00:00:00.000Z',
+      });
+      if (!created.ok) {
+        throw new Error(`create failed: ${JSON.stringify(created.error, null, 2)}`);
+      }
+
+      const listed = await handlers.list!(asCtx('user-a', 'ws-1'));
+      expect(listed.ok).toBe(true);
+      if (!listed.ok) throw listed.error;
+      const items = listed.data.body.items as { state: unknown }[];
+      expect(items).toHaveLength(1);
+      // Round-trip: jsonb column is deserialized by the SQLite driver, so callers
+      // see a parsed object (not a string blob). Regression guard for #2958.
+      expect(items[0]?.state).toEqual(stateValue);
+    });
+
+    it('Then sqliteStore writes and entity reads cross-path round-trip `state` through jsonb (#2958)', async () => {
+      interface AgentState {
+        readonly step: number;
+      }
+      const sessionsTable = d.table(
+        'agent_sessions',
+        agentSessionColumns<AgentState>({ useJsonb: true }),
+        { indexes: agentSessionIndexes },
+      );
+      const messagesTable = d.table('agent_messages', agentMessageColumns(), {
+        indexes: agentMessageIndexes,
+      });
+      const db = createDb({
+        dialect: 'sqlite',
+        path: dbPath,
+        migrations: { autoApply: true },
+        models: {
+          agentSessions: d.model(sessionsTable),
+          agentMessages: d.model(messagesTable, {
+            session: d.ref.one(() => sessionsTable, 'sessionId'),
+          }),
+        },
+      });
+
+      const { session: Session } = defineAgentEntities(db);
+      createServer({ db, entities: [Session] });
+
+      // Store side — writes a session whose `state` is already a stringified JSON
+      // (the AgentStore contract). On SQLite this lands as TEXT bytes; the column
+      // type metadata says `jsonb`, so the driver will `JSON.parse` on entity reads.
+      const stateObj = { step: 7 };
+      const store = sqliteStore({ path: dbPath });
+      await store.saveSession({
+        ...makeSession({
+          id: 'sess_cross',
+          userId: 'user-x',
+          tenantId: 'ws-1',
+          state: JSON.stringify(stateObj),
+        }),
+      });
+
+      // Store read — sees the raw stringified form (AgentSession.state: string).
+      const loaded = await store.loadSession('sess_cross');
+      expect(loaded).toBeTruthy();
+      expect(typeof loaded?.state).toBe('string');
+      expect(JSON.parse(loaded!.state)).toEqual(stateObj);
+
+      // Entity read — same row, but the `jsonb` driver path parses on the way out.
+      const registry = new EntityRegistry();
+      registry.register(Session.name, stubOps);
+      const asCtx = (userId: string | null, tenantId: string | null) =>
+        createEntityContext({ userId, tenantId, roles: [] }, stubOps, registry.createProxy());
+      const adapter = createDatabaseBridgeAdapter(db, 'agentSessions');
+      const handlers = createCrudHandlers(Session, adapter);
+      const listed = await handlers.list!(asCtx('user-x', 'ws-1'));
+      expect(listed.ok).toBe(true);
+      if (!listed.ok) throw listed.error;
+      const items = listed.data.body.items as { id: string; state: unknown }[];
+      expect(items).toHaveLength(1);
+      expect(items[0]?.state).toEqual(stateObj);
     });
   });
 });
