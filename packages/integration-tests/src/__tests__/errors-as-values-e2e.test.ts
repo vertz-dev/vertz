@@ -258,9 +258,10 @@ describe('Fetch client → Result flow', () => {
           JSON.stringify({
             error: {
               code: 'ValidationError',
-              errors: [
+              message: 'Validation failed',
+              details: [
                 { path: 'email', message: 'Invalid email format' },
-                { path: 'age', message: 'Must be positive' },
+                { path: ['age'], message: 'Must be positive' },
               ],
             },
           }),
@@ -282,9 +283,12 @@ describe('Fetch client → Result flow', () => {
       });
 
       expect(isErr(result)).toBe(true);
+      expect(isErr(result) && result.error instanceof FetchValidationError).toBe(true);
       if (isErr(result) && result.error instanceof FetchValidationError) {
         expect(result.error.errors).toHaveLength(2);
         expect(result.error.errors[0]?.path).toBe('email');
+        // Array path normalized to dot-notation
+        expect(result.error.errors[1]?.path).toBe('age');
       }
     });
   });

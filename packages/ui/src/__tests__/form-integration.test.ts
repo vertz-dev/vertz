@@ -63,6 +63,26 @@ function mockFailingSdkMethod<TBody>(config: { url: string; method: string; erro
   return fn;
 }
 
+/** Helper: creates a mock SDK method whose errors are driven by a sequence. */
+function mockSequencedFailingSdk<TBody>(config: {
+  url: string;
+  method: string;
+  errors: readonly Error[];
+}) {
+  let i = 0;
+  const wrappedHandler = async (_body: TBody) => {
+    const e = config.errors[Math.min(i++, config.errors.length - 1)] ?? new Error('unexpected');
+    return err(e);
+  };
+  const fn = wrappedHandler as ((body: TBody) => Promise<ReturnType<typeof err>>) & {
+    url: string;
+    method: string;
+  };
+  fn.url = config.url;
+  fn.method = config.method;
+  return fn;
+}
+
 describe('Integration Tests — Forms', () => {
   // IT-3-1: form() submits valid data through SDK method
   test('form() submits valid data through SDK method', async () => {
@@ -190,6 +210,75 @@ describe('Integration Tests — Forms', () => {
     });
     // onSuccess was NOT called because submission failed
     expect(onSuccess).not.toHaveBeenCalled();
+  });
+
+  // IT-3-2b-form: form() maps a `_form` path (top-level validation error) to the _form field
+  test('form() maps `_form` path server error to the _form pseudo-field', async () => {
+    const validationError = new FetchValidationError('Validation failed', [
+      { path: '_form', message: 'Cross-field constraint violated' },
+    ]);
+    const sdk = mockFailingSdkMethod<{ start: string; end: string }>({
+      url: '/api/events',
+      method: 'POST',
+      error: validationError,
+    });
+
+    const schema: FormSchema<{ start: string; end: string }> = {
+      parse(data: unknown) {
+        return { ok: true as const, data: data as { start: string; end: string } };
+      },
+    };
+
+    const onError = mock();
+    const eventForm = form(sdk, { schema, onError });
+
+    const fd = new FormData();
+    fd.append('start', '2026-01-02');
+    fd.append('end', '2026-01-01');
+
+    await eventForm.submit(fd);
+
+    expect(onError).toHaveBeenCalledWith({ _form: 'Cross-field constraint violated' });
+  });
+
+  // IT-3-2b-reset: server field errors from a prior submission clear on the next submission
+  test('form() clears stale server field errors on the next submission', async () => {
+    const schema: FormSchema<{ name: string; email: string }> = {
+      parse(data: unknown) {
+        return { ok: true as const, data: data as { name: string; email: string } };
+      },
+    };
+
+    const sdk = mockSequencedFailingSdk<{ name: string; email: string }>({
+      url: '/api/users',
+      method: 'POST',
+      errors: [
+        new FetchValidationError('Validation failed', [
+          { path: 'name', message: 'Name taken' },
+          { path: 'email', message: 'Email taken' },
+        ]),
+        new FetchValidationError('Validation failed', [
+          { path: 'name', message: 'Name still taken' },
+        ]),
+      ],
+    });
+
+    const userForm = form(sdk, { schema });
+
+    const fd1 = new FormData();
+    fd1.append('name', 'Alice');
+    fd1.append('email', 'alice@test.com');
+    await userForm.submit(fd1);
+    expect(userForm.name.error.peek()).toBe('Name taken');
+    expect(userForm.email.error.peek()).toBe('Email taken');
+
+    const fd2 = new FormData();
+    fd2.append('name', 'Alice');
+    fd2.append('email', 'alice2@test.com');
+    await userForm.submit(fd2);
+    // `name` re-fails with a new message; `email` is cleared on re-submission.
+    expect(userForm.name.error.peek()).toBe('Name still taken');
+    expect(userForm.email.error.peek()).toBeUndefined();
   });
 
   // IT-3-2c: form() falls back to _form error for non-validation failures

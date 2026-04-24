@@ -847,6 +847,51 @@ describe('FetchClient parse and validation errors', () => {
     }
   });
 
+  it('normalizes empty paths to `_form`', async () => {
+    const body = {
+      error: {
+        code: 'ValidationError',
+        message: 'Validation failed',
+        details: [
+          { path: '', message: 'Form-level error' },
+          { path: [], message: 'Another form-level error' },
+        ],
+      },
+    };
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify(body), { status: 422 }));
+    const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
+    const result = await client.get('/test');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeInstanceOf(FetchValidationError);
+      const err = result.error as FetchValidationError;
+      expect(err.errors).toEqual([
+        { path: '_form', message: 'Form-level error' },
+        { path: '_form', message: 'Another form-level error' },
+      ]);
+    }
+  });
+
+  it('falls back to UnprocessableEntityError when `details` is empty', async () => {
+    const body = {
+      error: {
+        code: 'ValidationError',
+        message: 'Validation failed',
+        details: [],
+      },
+    };
+    const mockFetch = mock().mockResolvedValue(
+      new Response(JSON.stringify(body), { status: 422, statusText: 'Unprocessable Entity' }),
+    );
+    const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
+    const result = await client.get('/test');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      // Does NOT produce a FetchValidationError — nothing to map per-field.
+      expect(result.error).not.toBeInstanceOf(FetchValidationError);
+    }
+  });
+
   it('normalizes array paths to dot-notation (EntityValidationError shape)', async () => {
     const body = {
       error: {

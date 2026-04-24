@@ -295,13 +295,12 @@ export function form<TBody, TResult>(
       if (!result.ok) {
         if (isFetchValidationError(result.error)) {
           const fieldErrors: Record<string, string> = {};
+          // First error per field wins — matches the shape of result.errors
+          // produced by client-side validation above. Paths are already
+          // normalized by the fetch client (empty → `_form`, arrays → dot-path).
           for (const { path, message } of result.error.errors) {
-            // Empty path (top-level form error) lands on `_form`.
-            const key = path === '' ? '_form' : path;
-            // First error per field wins — matches the shape of result.errors
-            // produced by client-side validation above.
-            if (fieldErrors[key] === undefined) {
-              fieldErrors[key] = message;
+            if (fieldErrors[path] === undefined) {
+              fieldErrors[path] = message;
             }
           }
           for (const [fieldName, message] of Object.entries(fieldErrors)) {

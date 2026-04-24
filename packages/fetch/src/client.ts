@@ -131,11 +131,22 @@ export class FetchClient {
             // `error.details` (see packages/server/src/entity/error-handler.ts).
             // Path may be a string ("email") or an array (["address", "street"]
             // or ["items", 0, "name"]) — normalize to dot-notation for form fields.
-            if (errorObj?.code === 'ValidationError' && Array.isArray(errorObj.details)) {
-              const normalized = errorObj.details.map((d) => ({
-                path: Array.isArray(d.path) ? d.path.join('.') : d.path,
-                message: d.message,
-              }));
+            // An empty path (top-level form error) normalizes to "_form" to match
+            // the convention used by client-side validation in @vertz/ui.
+            // An empty details array falls through to the regular HTTP error path
+            // so the top-level message still reaches the UI via the generic handler.
+            if (
+              errorObj?.code === 'ValidationError' &&
+              Array.isArray(errorObj.details) &&
+              errorObj.details.length > 0
+            ) {
+              const normalized = errorObj.details.map((d) => {
+                const joined = Array.isArray(d.path) ? d.path.join('.') : d.path;
+                return {
+                  path: joined === '' ? '_form' : joined,
+                  message: d.message,
+                };
+              });
               return err(
                 new FetchValidationError(errorObj.message ?? 'Validation failed', normalized),
               );
