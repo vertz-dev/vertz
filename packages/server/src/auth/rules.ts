@@ -5,6 +5,8 @@
  * The access context evaluates them at runtime (sub-phase 4).
  */
 
+import type { Entitlement } from './access-context';
+
 // ============================================================================
 // Rule Types
 // ============================================================================
@@ -84,7 +86,7 @@ export const rules = {
   },
 
   /** User has the specified entitlement (resolves role+plan+flag from defineAccess config) */
-  entitlement(name: string): EntitlementRule {
+  entitlement(name: Entitlement): EntitlementRule {
     return { type: 'entitlement', entitlement: name };
   },
 
