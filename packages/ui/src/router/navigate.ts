@@ -247,15 +247,22 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     function matchForSSR(ctx: NonNullable<typeof ssrCtx>): RouteMatch | null {
       registerRoutesForDiscovery(ctx);
       const m = matchRoute(routes, ctx.url);
-      if (m && !ctx.matchedRoutePatterns) {
-        // Build full paths by accumulating parent prefixes via joinPatterns.
-        const fullPaths: string[] = [];
-        let prefix = '';
-        for (const entry of m.matched) {
-          prefix = joinPatterns(prefix, entry.route.pattern);
-          fullPaths.push(prefix);
+      if (!ctx.matchedRoutePatterns) {
+        if (m) {
+          // Build full paths by accumulating parent prefixes via joinPatterns.
+          const fullPaths: string[] = [];
+          let prefix = '';
+          for (const entry of m.matched) {
+            prefix = joinPatterns(prefix, entry.route.pattern);
+            fullPaths.push(prefix);
+          }
+          ctx.matchedRoutePatterns = fullPaths;
+        } else {
+          // Router exists but no route matched — record an empty array so the
+          // SSR handler can return 404. `undefined` is reserved for "no router
+          // registered" (always 200). See ssr-handler.ts status mapping. (#3001)
+          ctx.matchedRoutePatterns = [];
         }
-        ctx.matchedRoutePatterns = fullPaths;
       }
       return m;
     }

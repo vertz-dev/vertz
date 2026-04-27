@@ -1298,6 +1298,13 @@ const SSR_RENDER_FRAMEWORK_JS: &str = r#"
         }
     }
 
+    // matchedRoutePatterns is a 3-state field used to compute the HTTP status:
+    //   undefined  → no router was rendered (always 200)
+    //   []         → router rendered but no route matched (404)
+    //   [...]      → router rendered with these matched patterns (200)
+    // Preserve the undefined-vs-empty distinction by emitting `null` for
+    // undefined (the Rust JSON parser maps null and missing keys to None)
+    // and never collapsing it to []. (#3001)
     globalThis.__vertz_last_ssr_result = JSON.stringify({
         content: result.html || '',
         css: css,
@@ -1305,7 +1312,7 @@ const SSR_RENDER_FRAMEWORK_JS: &str = r#"
         headTags: result.headTags || '',
         redirect: result.redirect ? result.redirect.to : null,
         isSsr: (result.html || '').length > 0,
-        matchedRoutePatterns: result.matchedRoutePatterns || [],
+        matchedRoutePatterns: result.matchedRoutePatterns ?? null,
     });
 })()
 "#;
@@ -1348,6 +1355,26 @@ const SSR_RENDER_LEGACY_JS: &str = r#"
     });
 })()
 "#;
+
+/// Parse the `matchedRoutePatterns` field from the SSR result JSON.
+///
+/// Three states drive the HTTP status code (see http.rs):
+/// * Missing key OR `null` → `None`: no router was rendered (always 200).
+/// * `[]` → `Some(vec![])`: router rendered but no route matched (404).
+/// * `[...]` → `Some(vec![...])`: matched these patterns (200).
+///
+/// Non-array, non-null values (number, string, object) collapse to `None`
+/// to match the missing-key behavior; the JS bridge never produces these.
+fn parse_matched_route_patterns(parsed: &serde_json::Value) -> Option<Vec<String>> {
+    parsed
+        .get("matchedRoutePatterns")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+}
 
 /// Dispatch a single SSR render request in the V8 isolate.
 ///
@@ -1516,14 +1543,7 @@ async fn dispatch_ssr_request_inner(
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        let matched_route_patterns = parsed
-            .get("matchedRoutePatterns")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect()
-            });
+        let matched_route_patterns = parse_matched_route_patterns(&parsed);
 
         Ok(SsrResponse {
             content,
@@ -1890,6 +1910,33 @@ mod tests {
             Some(r#"<link rel="preload" href="/font.woff2" />"#.to_string())
         );
         assert!(resp.redirect.is_none());
+    }
+
+    /// Regression: matchedRoutePatterns must distinguish "no router used"
+    /// (missing/null → None → 200) from "router with no match"
+    /// (`[]` → Some(vec![]) → 404). See #3001.
+    #[test]
+    fn test_parse_matched_route_patterns_three_states() {
+        // Missing key — no router was registered → None (200)
+        let v: serde_json::Value = serde_json::from_str("{}").unwrap();
+        assert_eq!(parse_matched_route_patterns(&v), None);
+
+        // Explicit null — JS bridge emits this for `undefined` → None (200)
+        let v: serde_json::Value =
+            serde_json::from_str(r#"{"matchedRoutePatterns": null}"#).unwrap();
+        assert_eq!(parse_matched_route_patterns(&v), None);
+
+        // Empty array — router was rendered but no route matched → Some(vec![]) (404)
+        let v: serde_json::Value = serde_json::from_str(r#"{"matchedRoutePatterns": []}"#).unwrap();
+        assert_eq!(parse_matched_route_patterns(&v), Some(vec![]));
+
+        // Populated array — matched these patterns → Some(vec![...]) (200)
+        let v: serde_json::Value =
+            serde_json::from_str(r#"{"matchedRoutePatterns": ["/", "/projects"]}"#).unwrap();
+        assert_eq!(
+            parse_matched_route_patterns(&v),
+            Some(vec!["/".to_string(), "/projects".to_string()])
+        );
     }
 
     /// Helper: create an isolate with only a server entry (API-only mode).
