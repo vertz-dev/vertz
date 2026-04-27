@@ -1114,4 +1114,79 @@ describe('createSSRHandler', () => {
       });
     });
   });
+
+  // Regression: see #3001 — task-manager dev server returned 404 for `/`
+  // even though SSR rendered successfully. The status code is derived from
+  // matchedRoutePatterns: undefined (no router) → 200, [] (router with no
+  // match) → 404, [...] (matched) → 200. A regression in either the JS
+  // bridge (collapsing undefined to []) or the discovery pass (failing to
+  // populate renderCtx.matchedRoutePatterns when a route DOES match) flips
+  // this.
+  describe('Given a router-using module', () => {
+    async function makeRoutedModule(): Promise<SSRModule> {
+      const { createRouter, defineRoutes, RouterView } = await import('@vertz/ui');
+      return {
+        default: () => {
+          const routes = defineRoutes({
+            '/': {
+              component: () => {
+                const el = document.createElement('div');
+                el.setAttribute('data-testid', 'home');
+                el.textContent = 'Home Page';
+                return el;
+              },
+            },
+            '/about': {
+              component: () => {
+                const el = document.createElement('div');
+                el.setAttribute('data-testid', 'about');
+                el.textContent = 'About Page';
+                return el;
+              },
+            },
+          });
+          const router = createRouter(routes);
+          return RouterView({
+            router,
+            fallback: () => {
+              const el = document.createElement('div');
+              el.setAttribute('data-testid', 'not-found');
+              el.textContent = 'Page not found';
+              return el;
+            },
+          });
+        },
+      };
+    }
+
+    it('Then returns 200 with rendered HTML when a route matches', async () => {
+      const handler = createSSRHandler({ module: await makeRoutedModule(), template });
+      const response = await handler(new Request('http://localhost/'));
+
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('Home Page');
+      expect(html).toContain('data-testid="home"');
+    });
+
+    it('Then returns 404 when no route matches', async () => {
+      const handler = createSSRHandler({ module: await makeRoutedModule(), template });
+      const response = await handler(new Request('http://localhost/does-not-exist'));
+
+      expect(response.status).toBe(404);
+      const html = await response.text();
+      expect(html).toContain('Page not found');
+    });
+  });
+
+  describe('Given a routerless module', () => {
+    it('Then returns 200 even for arbitrary paths (no router → no 404)', async () => {
+      const handler = createSSRHandler({ module: simpleModule, template });
+      const response = await handler(new Request('http://localhost/anything'));
+
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('Hello World');
+    });
+  });
 });
