@@ -2,7 +2,7 @@ import { defineAuth, github } from '@vertz/server';
 import { access } from './access';
 import { SEED_WORKSPACE_ID } from './schema';
 
-const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
+const APP_URL = process.env.APP_URL ?? 'http://localhost:3001';
 
 export const auth = defineAuth({
   session: { strategy: 'jwt', ttl: '15m', refreshTtl: '7d', cookie: { secure: false } },
