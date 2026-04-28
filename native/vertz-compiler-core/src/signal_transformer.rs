@@ -134,6 +134,11 @@ impl<'a, 'b> RefTransformer<'a, 'b> {
     /// identifier's start: `mutation_analyzer` is free to record a tighter
     /// span than the full identifier (e.g., the operator-only span for `+=`),
     /// and a point check on `ident.span.start` would silently miss those.
+    ///
+    /// Today this is observationally equivalent to the old point check —
+    /// every recorded range happens to start at the identifier's start, so
+    /// `ident_start >= range.start` and overlap both hold. The change makes
+    /// the predicate robust to future tightenings of the recorded spans.
     fn overlaps_mutation_range(&self, ident_start: u32, ident_end: u32) -> bool {
         self.mutation_ranges
             .iter()
