@@ -70,10 +70,13 @@ impl TarballManager {
         for (_bin_name, bin_rel) in pkg.bin.to_map(pkg_name) {
             let stripped = bin_rel.trim_start_matches("./");
             // Defense in depth: refuse to read outside the store entry.
+            // Splits on both `/` and `\` so a Windows-style path can't smuggle
+            // a `..` segment past a forward-slash-only check.
             if stripped.is_empty()
                 || stripped.starts_with('/')
+                || stripped.starts_with('\\')
                 || stripped
-                    .split('/')
+                    .split(['/', '\\'])
                     .any(|seg| seg == ".." || seg.starts_with(".."))
             {
                 continue;
@@ -1179,5 +1182,21 @@ mod tests {
         .unwrap();
         // Traversal path is silently ignored — entry is otherwise valid.
         assert!(mgr.is_cached("evil", "1.0.0"));
+    }
+
+    /// Defense in depth against a Windows-style traversal path. `Path::join`
+    /// treats `\` as a separator on Windows; the guard must split on both.
+    #[test]
+    fn test_is_cached_does_not_follow_backslash_traversal_in_bin_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let mgr = TarballManager::new(dir.path());
+        let store = mgr.store_path("evil-win", "1.0.0");
+        std::fs::create_dir_all(&store).unwrap();
+        std::fs::write(
+            store.join("package.json"),
+            r#"{"name":"evil-win","version":"1.0.0","bin":{"evil":"..\\..\\..\\etc\\passwd"}}"#,
+        )
+        .unwrap();
+        assert!(mgr.is_cached("evil-win", "1.0.0"));
     }
 }

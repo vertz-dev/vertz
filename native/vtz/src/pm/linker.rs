@@ -279,10 +279,13 @@ pub fn detect_corrupt_project_bins(root_dir: &Path, graph: &ResolvedGraph) -> Ha
         let target = target_path(&node_modules, &pkg.name, &pkg.nest_path);
         for bin_rel in pkg.bin.values() {
             let stripped = bin_rel.trim_start_matches("./");
+            // Splits on both `/` and `\` so a Windows-style path can't smuggle
+            // a `..` segment past a forward-slash-only check.
             if stripped.is_empty()
                 || stripped.starts_with('/')
+                || stripped.starts_with('\\')
                 || stripped
-                    .split('/')
+                    .split(['/', '\\'])
                     .any(|seg| seg == ".." || seg.starts_with(".."))
             {
                 continue;
