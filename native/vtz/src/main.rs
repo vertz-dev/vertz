@@ -282,19 +282,24 @@ async fn run_codegen_if_available(root_dir: &std::path::Path) {
 }
 
 /// Resolve the `@vertz/cli/dist/vertz.js` entry point from node_modules.
-/// Returns `Some(path)` if found, `None` otherwise.
+/// Walks up from `root_dir` toward the filesystem root, mirroring Node's
+/// resolution so workspace packages with hoisted `node_modules` resolve
+/// the binary from the workspace root. Returns `Some(path)` if found.
 fn resolve_vertz_cli_js(root_dir: &std::path::Path) -> Option<std::path::PathBuf> {
-    let candidate = root_dir
-        .join("node_modules")
-        .join("@vertz")
-        .join("cli")
-        .join("dist")
-        .join("vertz.js");
-    if candidate.exists() {
-        Some(candidate)
-    } else {
-        None
+    let mut current = Some(root_dir);
+    while let Some(dir) = current {
+        let candidate = dir
+            .join("node_modules")
+            .join("@vertz")
+            .join("cli")
+            .join("dist")
+            .join("vertz.js");
+        if candidate.exists() {
+            return Some(candidate);
+        }
+        current = dir.parent();
     }
+    None
 }
 
 async fn async_main(cli: Cli) {
@@ -1838,5 +1843,36 @@ mod tests {
         std::fs::create_dir_all(&cli_dir).unwrap();
         std::fs::write(cli_dir.join("vertz.js"), "// stub").unwrap();
         assert!(resolve_vertz_cli_js(tmp.path()).is_some());
+    }
+
+    #[test]
+    fn resolve_vertz_cli_js_walks_up_to_workspace_root() {
+        // Simulates a hoisted workspace install: `node_modules/@vertz/cli`
+        // lives at the workspace root, while the caller is in a sub-package
+        // (e.g. `examples/entity-todo`) without its own node_modules.
+        let tmp = tempfile::tempdir().unwrap();
+        let cli_dir = tmp.path().join("node_modules/@vertz/cli/dist");
+        std::fs::create_dir_all(&cli_dir).unwrap();
+        std::fs::write(cli_dir.join("vertz.js"), "// stub").unwrap();
+        let child = tmp.path().join("examples/entity-todo");
+        std::fs::create_dir_all(&child).unwrap();
+        let resolved = resolve_vertz_cli_js(&child).expect("should walk up to find cli");
+        assert_eq!(resolved, cli_dir.join("vertz.js"));
+    }
+
+    #[test]
+    fn resolve_vertz_cli_js_prefers_nearest_node_modules() {
+        // When a child has its own node_modules/@vertz/cli, prefer that over
+        // a parent's. This matches Node.js resolution semantics.
+        let tmp = tempfile::tempdir().unwrap();
+        let parent_cli = tmp.path().join("node_modules/@vertz/cli/dist");
+        std::fs::create_dir_all(&parent_cli).unwrap();
+        std::fs::write(parent_cli.join("vertz.js"), "// parent stub").unwrap();
+        let child = tmp.path().join("packages/inner");
+        let child_cli = child.join("node_modules/@vertz/cli/dist");
+        std::fs::create_dir_all(&child_cli).unwrap();
+        std::fs::write(child_cli.join("vertz.js"), "// child stub").unwrap();
+        let resolved = resolve_vertz_cli_js(&child).expect("should resolve");
+        assert_eq!(resolved, child_cli.join("vertz.js"));
     }
 }
