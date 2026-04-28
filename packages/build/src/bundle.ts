@@ -3,6 +3,7 @@ import { join, relative, resolve } from 'node:path';
 import * as esbuild from 'esbuild';
 import { resolveExternals } from './externals.js';
 import type { BuildConfig, OutputFileInfo } from './types.js';
+import { assertOutputsUnderOutDir } from './validate.js';
 
 export interface BundleResult {
   outputFiles: OutputFileInfo[];
@@ -86,6 +87,10 @@ export async function bundle(config: BuildConfig, cwd: string): Promise<BundleRe
       });
     }
   }
+
+  // Safety net for #2953: if any output landed outside outDir, fail loudly
+  // instead of letting it silently overwrite a sibling package's dist.
+  assertOutputsUnderOutDir(outputFiles, outDir);
 
   return { outputFiles, outDir };
 }

@@ -107,4 +107,13 @@ describe('bundle', () => {
     expect(utilsFile!.size).toBeGreaterThan(0);
     expect(utilsFile!.relativePath).toBe('utils.js');
   });
+
+  it('returns output paths inside the absolute outDir', async () => {
+    const result = await bundle({ entry: ['src/index.ts'] }, fixtureDir);
+
+    expect(result.outDir).toBe(outDir);
+    for (const file of result.outputFiles) {
+      expect(file.path.startsWith(`${outDir}/`)).toBe(true);
+    }
+  });
 });
