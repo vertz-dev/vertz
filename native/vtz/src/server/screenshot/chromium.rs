@@ -6,6 +6,7 @@
 
 use async_trait::async_trait;
 use chromiumoxide::browser::{Browser, BrowserConfig};
+use chromiumoxide::cdp::browser_protocol::emulation::SetDeviceMetricsOverrideParams;
 use chromiumoxide::cdp::browser_protocol::page::{CaptureScreenshotFormat, Viewport};
 use chromiumoxide::page::ScreenshotParams;
 use futures::StreamExt;
@@ -102,14 +103,37 @@ impl BrowserHandle for ChromiumoxideHandle {
         let guard = self.browser.read().await;
         let browser = guard.as_ref().ok_or(PoolError::ShuttingDown)?;
 
+        // Open a blank page first so the requested viewport is applied
+        // BEFORE the URL renders — otherwise responsive layouts see the
+        // launch viewport (1280x720) and the rendered PNG ignores
+        // `req.viewport`. See #2949.
         let page =
             browser
-                .new_page(req.url.as_str())
+                .new_page("about:blank")
                 .await
                 .map_err(|e| PoolError::NavigationFailed {
                     message: e.to_string(),
                     url: req.url.clone(),
                 })?;
+
+        let (vw, vh) = req.viewport;
+        page.execute(SetDeviceMetricsOverrideParams::new(
+            i64::from(vw),
+            i64::from(vh),
+            1.0,
+            false,
+        ))
+        .await
+        .map_err(|e| PoolError::CaptureFailed {
+            message: format!("set viewport {vw}x{vh}: {e}"),
+        })?;
+
+        page.goto(req.url.as_str())
+            .await
+            .map_err(|e| PoolError::NavigationFailed {
+                message: e.to_string(),
+                url: req.url.clone(),
+            })?;
 
         page.wait_for_navigation()
             .await
@@ -280,5 +304,65 @@ mod tests {
         assert_eq!(&bytes[..4], &[0x89, b'P', b'N', b'G']);
         assert_eq!(meta.dimensions, (800, 600));
         handle.close().await.unwrap();
+    }
+
+    /// Regression for #2949 — the rendered PNG must match the request
+    /// viewport, not the launch viewport. Before the fix, every screenshot
+    /// came out at the launch default (1280x720) regardless of
+    /// `req.viewport`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore]
+    async fn real_chrome_honors_request_viewport() {
+        let spawner = ChromiumoxideSpawner::new();
+        let handle = spawner
+            .launch(LaunchConfig {
+                viewport: (1280, 720),
+                chrome_path: None,
+            })
+            .await
+            .expect("launch");
+        let (bytes, _) = handle
+            .capture(CaptureRequest {
+                url: "about:blank".into(),
+                viewport: (375, 812),
+                full_page: false,
+                crop: None,
+                wait_for: WaitCondition::Load,
+            })
+            .await
+            .expect("capture");
+        let (w, h) = png_dimensions(&bytes).expect("valid PNG header");
+        assert_eq!((w, h), (375, 812), "rendered PNG must match req.viewport");
+        handle.close().await.unwrap();
+    }
+
+    /// Read width/height from the PNG IHDR chunk. Layout: 8-byte signature,
+    /// then `[len:4][type:4][width:4 BE][height:4 BE]…`.
+    fn png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+        const SIG: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        if !bytes.starts_with(&SIG) || bytes.len() < 24 || &bytes[12..16] != b"IHDR" {
+            return None;
+        }
+        let w = u32::from_be_bytes(bytes[16..20].try_into().ok()?);
+        let h = u32::from_be_bytes(bytes[20..24].try_into().ok()?);
+        Some((w, h))
+    }
+
+    #[test]
+    fn png_dimensions_extracts_from_ihdr() {
+        // Minimal synthetic PNG header: signature + IHDR length+type+w+h
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+        bytes.extend_from_slice(&13u32.to_be_bytes());
+        bytes.extend_from_slice(b"IHDR");
+        bytes.extend_from_slice(&375u32.to_be_bytes());
+        bytes.extend_from_slice(&812u32.to_be_bytes());
+        assert_eq!(png_dimensions(&bytes), Some((375, 812)));
+    }
+
+    #[test]
+    fn png_dimensions_rejects_non_png_bytes() {
+        assert_eq!(png_dimensions(b"not a png"), None);
+        assert_eq!(png_dimensions(&[0x89, b'P', b'N', b'G']), None);
     }
 }
