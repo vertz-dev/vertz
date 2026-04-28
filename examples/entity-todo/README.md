@@ -71,14 +71,7 @@ return (
 
 ### 5. SSR — zero-config server rendering
 
-```ts
-// vite.config.ts
-export default defineConfig({
-  plugins: [vertzPlugin({ ssr: true })],
-});
-```
-
-That's it. The framework auto-detects the entry point and renders the app server-side.
+`vtz dev` and `vtz build` auto-detect the entry point (`src/index.ts`) and render the app server-side. No config required.
 
 ## File Structure
 
@@ -88,7 +81,7 @@ src/
   entities.ts            — entity() API definition
   server.ts              — API server entry
 
-  generated/             — Pre-committed SDK (bun run codegen to regenerate)
+  generated/             — Pre-committed SDK (vtz codegen to regenerate)
     client.ts            — Client interface + factory
     entities/todos.ts    — Typed CRUD methods
     index.ts             — Barrel export
@@ -115,22 +108,23 @@ src/
 ## Run it
 
 ```bash
-bun run dev
+vtz dev
 ```
 
-This starts both the API server (port 3000) and the Vite dev server (port 5173) with a proxy for `/api`.
+This starts the Vertz dev server on port 3000, serving the API under `/api` and the SSR-rendered UI on the same origin.
 
-Open `http://localhost:5173` to see the app.
+Open `http://localhost:3000` to see the app.
 
 ## Scripts
 
 | Script | Description |
 |--------|-------------|
-| `bun run dev` | Start API + UI dev servers |
-| `bun run dev:api` | Start API server only |
-| `bun run dev:ui` | Start Vite UI only |
-| `bun run codegen` | Regenerate SDK from entity definition |
-| `bun run test` | Run all tests (API + UI + SSR) |
+| `vtz dev` | Start the dev server (API + SSR UI on port 3000) |
+| `vtz build` | Build for production |
+| `vtz codegen` | Regenerate SDK from entity definitions |
+| `vtz test` | Run all tests |
+| `vtz run typecheck` | Run codegen, then `tsc --noEmit` |
+| `npx playwright test` | Run e2e tests |
 
 ## What This Proves
 
