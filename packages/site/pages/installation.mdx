@@ -8,22 +8,22 @@ description: 'Install Vertz and configure the compiler'
 The fastest way to get started:
 
 ```bash
-bunx @vertz/create-vertz-app@latest my-app
+vtz create vertz my-app
 cd my-app
-bun install
-bun run dev
+vtz install
+vtz dev
 ```
 
 This scaffolds a project with the compiler, dev server, SSR, and a starter template — everything configured and ready to go.
 
 ## Manual setup
 
-Add Vertz to an existing Bun project.
+Add Vertz to an existing project.
 
 ### 1. Install packages
 
 ```bash
-bun add vertz @vertz/theme-shadcn
+vtz add vertz @vertz/theme-shadcn
 ```
 
 The `vertz` meta package includes the UI runtime, compiler, and all core packages. `@vertz/theme-shadcn` provides design tokens for the `css()` utility (optional but recommended).
@@ -66,7 +66,7 @@ mount(App);
 The Vertz CLI provides a dev server with SSR and HMR:
 
 ```bash
-bunx vertz dev
+vtz dev
 ```
 
 Or add it to your `package.json` scripts:
