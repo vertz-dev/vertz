@@ -129,10 +129,15 @@ impl<'a, 'b> RefTransformer<'a, 'b> {
         start >= self.component.body_start && end <= self.component.body_end
     }
 
-    fn is_in_mutation_range(&self, pos: u32) -> bool {
+    /// Does the half-open span `[ident_start, ident_end)` overlap any
+    /// recorded mutation range? Use span overlap, not a point check on the
+    /// identifier's start: `mutation_analyzer` is free to record a tighter
+    /// span than the full identifier (e.g., the operator-only span for `+=`),
+    /// and a point check on `ident.span.start` would silently miss those.
+    fn overlaps_mutation_range(&self, ident_start: u32, ident_end: u32) -> bool {
         self.mutation_ranges
             .iter()
-            .any(|(start, end)| pos >= *start && pos < *end)
+            .any(|(start, end)| ident_start < *end && ident_end > *start)
     }
 
     fn is_signal(&self, name: &str) -> bool {
@@ -153,7 +158,7 @@ impl<'a, 'b, 'c> Visit<'c> for RefTransformer<'a, 'b> {
         if !self.is_in_component(ident.span.start, ident.span.end) {
             return;
         }
-        if self.is_in_mutation_range(ident.span.start) {
+        if self.overlaps_mutation_range(ident.span.start, ident.span.end) {
             return;
         }
         if self.is_shadowed(name) {
@@ -187,7 +192,7 @@ impl<'a, 'b, 'c> Visit<'c> for RefTransformer<'a, 'b> {
         if let AssignmentTarget::AssignmentTargetIdentifier(ident) = &expr.left {
             let name = ident.name.as_str();
             if self.is_signal(name)
-                && !self.is_in_mutation_range(ident.span.start)
+                && !self.overlaps_mutation_range(ident.span.start, ident.span.end)
                 && !self.is_shadowed(name)
             {
                 self.ms.append_right(ident.span.end, ".value");
@@ -208,7 +213,7 @@ impl<'a, 'b, 'c> Visit<'c> for RefTransformer<'a, 'b> {
         if let SimpleAssignmentTarget::AssignmentTargetIdentifier(ref ident) = expr.argument {
             let name = ident.name.as_str();
             if self.is_signal(name)
-                && !self.is_in_mutation_range(ident.span.start)
+                && !self.overlaps_mutation_range(ident.span.start, ident.span.end)
                 && !self.is_shadowed(name)
             {
                 self.ms.append_right(ident.span.end, ".value");
@@ -857,6 +862,96 @@ mod tests {
         assert!(
             out.contains("x = 5"),
             "shadowed assignment should not get .value, got: {out}"
+        );
+    }
+
+    // ── Mutation range overlap: span check, not point check ──────────
+
+    /// Helper: run signal transforms with caller-provided mutation ranges.
+    /// Used to exercise the overlap behavior independently of mutation_analyzer.
+    fn transform_with_ranges(source: &str, ranges: Vec<(u32, u32)>) -> String {
+        let allocator = Allocator::default();
+        let parsed = Parser::new(&allocator, source, SourceType::tsx()).parse();
+        let components = analyze_components(&parsed.program);
+        let manifests: ManifestRegistry = HashMap::new();
+        let (aliases, dynamic_configs) =
+            build_import_aliases(&parsed.program, &manifests, &HashSet::new());
+        let import_ctx = ImportContext {
+            aliases,
+            dynamic_configs,
+        };
+        let comp = &components[0];
+        let variables = analyze_reactivity(&parsed.program, comp, &import_ctx);
+        let mut ms = MagicString::new(source);
+        transform_signals(&mut ms, &parsed.program, comp, &variables, &ranges);
+        ms.to_string()
+    }
+
+    #[test]
+    fn ident_read_overlapping_mutation_range_starting_after_ident_is_suppressed() {
+        // Regression for #2785: `is_in_mutation_range` used a point check
+        // (`pos >= start && pos < end`) on `ident.span.start`. If the mutation
+        // range begins AFTER the identifier's start (e.g., a future analyzer
+        // records a tighter span like the operator-only span for `+=`), the
+        // point check returns false and `.value` is appended even though the
+        // identifier overlaps the mutation range.
+        //
+        // Use the JSX-read path (`{count}`) so the suppression is observable
+        // as the absence of `count.value` in the output.
+        let source = "function C() { let count = 0; return <div>{count}</div>; }";
+
+        // The `count` identifier inside `{count}` — find its position.
+        let jsx_count_pos = source.find("{count}").unwrap() + 1; // skip `{`
+        let ident_start = jsx_count_pos as u32;
+        // Range starts AFTER the first character of `count`, but still overlaps it.
+        let range_start = ident_start + 1;
+        let range_end = (jsx_count_pos + 5) as u32; // end of "count"
+
+        let out = transform_with_ranges(source, vec![(range_start, range_end)]);
+
+        // The JSX `{count}` overlaps the mutation range — `.value` must be suppressed.
+        assert!(
+            !out.contains("{count.value}"),
+            ".value must be suppressed when ident overlaps mutation range, got: {out}"
+        );
+    }
+
+    #[test]
+    fn ident_assignment_overlapping_mutation_range_starting_after_ident_is_suppressed() {
+        // Same regression at the assignment-expression site (line 190).
+        let source =
+            "function C() { let count = 0; const set = () => { count = 5; }; return <div>{count}</div>; }";
+
+        let assign_pos = source.find("count = 5").unwrap();
+        let ident_start = assign_pos as u32;
+        // Range starts AFTER the first char of the LHS identifier.
+        let range_start = ident_start + 1;
+        let range_end = (assign_pos + "count = 5".len()) as u32;
+
+        let out = transform_with_ranges(source, vec![(range_start, range_end)]);
+
+        assert!(
+            !out.contains("count.value = 5"),
+            ".value must be suppressed for LHS ident overlapping mutation range, got: {out}"
+        );
+    }
+
+    #[test]
+    fn ident_update_overlapping_mutation_range_starting_after_ident_is_suppressed() {
+        // Same regression at the update-expression site (line 211).
+        let source =
+            "function C() { let count = 0; const inc = () => { count++; }; return <div>{count}</div>; }";
+
+        let update_pos = source.find("count++").unwrap();
+        let ident_start = update_pos as u32;
+        let range_start = ident_start + 1;
+        let range_end = (update_pos + "count++".len()) as u32;
+
+        let out = transform_with_ranges(source, vec![(range_start, range_end)]);
+
+        assert!(
+            !out.contains("count.value++"),
+            ".value must be suppressed for update-expr ident overlapping mutation range, got: {out}"
         );
     }
 }
