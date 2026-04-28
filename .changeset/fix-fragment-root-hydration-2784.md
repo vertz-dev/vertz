@@ -1,5 +1,5 @@
 ---
-'vtz': patch
+'vertz': patch
 ---
 
 fix(compiler): AOT threads hydration id onto the first element child of a fragment root
