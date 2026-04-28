@@ -1,6 +1,6 @@
 {
   "name": "@vertz/build",
-  "version": "0.2.58",
+  "version": "0.2.80",
   "description": "Build tool for Vertz packages — esbuild bundling + tsc declarations",
   "license": "MIT",
   "repository": {

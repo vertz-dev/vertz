@@ -1,5 +1,7 @@
 # @vertz/sqlite
 
+## 0.2.80
+
 ## 0.2.59
 
 ### Patch Changes

@@ -1,5 +1,7 @@
 # @vertz/og
 
+## 0.2.80
+
 ## 0.1.2
 
 ### Patch Changes

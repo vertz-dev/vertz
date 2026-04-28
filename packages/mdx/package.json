@@ -1,6 +1,6 @@
 {
   "name": "@vertz/mdx",
-  "version": "0.1.0",
+  "version": "0.2.80",
   "description": "MDX support for Vertz — compiles .mdx files to Vertz components",
   "license": "MIT",
   "repository": {

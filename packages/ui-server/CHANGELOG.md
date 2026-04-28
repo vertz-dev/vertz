@@ -1,5 +1,38 @@
 # @vertz/ui-server
 
+## 0.2.80
+
+### Patch Changes
+
+- [#2965](https://github.com/vertz-dev/vertz/pull/2965) [`06605b0`](https://github.com/vertz-dev/vertz/commit/06605b0ac447d3a3acf55e639a8173992c1d3a2c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(compiler): disambiguate context stable ids when two `createContext` calls share a variable name in the same file
+
+  Closes [#2786](https://github.com/vertz-dev/vertz/issues/2786).
+
+  `injectContextStableIds` generated the id as `{filePath}::{varName}`. Two `createContext()` calls in the same file with the same variable name (e.g. an inlined/formatted pair on one line, or a code-generated module) produced the same id, so the runtime context registry silently returned the same object for both — breaking Provider/useContext pairing.
+
+  Both the Rust transform (`native/vertz-compiler-core/src/context_stable_ids.rs`) and the TypeScript sibling (`packages/ui-server/src/build-plugin/context-stable-ids.ts`) now track a per-name occurrence counter and suffix `@N` on repeats. The first occurrence of a name keeps the original `{filePath}::{varName}` id (so existing single-context files are unchanged); the second becomes `{filePath}::{varName}@1`, the third `@2`, and so on.
+
+  A per-name counter is used rather than a source span because counters only shift when contexts are added or removed, whereas spans shift on any edit to earlier code — counters are more HMR-stable.
+
+- [#2990](https://github.com/vertz-dev/vertz/pull/2990) [`e84adde`](https://github.com/vertz-dev/vertz/commit/e84adde7b0d46e554627e5c5c408309e2fa6d122) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(ui,ui-server)!: remove Suspense — use early-return guards for loading states
+
+  Closes [#2985](https://github.com/vertz-dev/vertz/issues/2985).
+
+  `Suspense` is removed from `@vertz/ui`. Vertz's reactivity model handles loading states via `query().loading` and the compiler-supported early-return guard pattern — `if (q.loading) return <Loading/>; return <Real/>` — which gives you a fully-typed `q.data` past the guard and avoids the Promise-throwing machinery Suspense inherits from React.
+
+  **Breaking changes**
+
+  - `@vertz/ui` — `Suspense` and `SuspenseProps` are no longer exported. Replace with an early-return guard (see the new "Early return when you need loaded data" section in the data fetching guide).
+  - `@vertz/ui-server` — `createSlotPlaceholder`, `resetSlotCounter`, `createTemplateChunk`, and `RenderToStreamOptions` are removed. The internal `__suspense` VNode tag (never produced by any shipped code) is gone too. `renderToStream(tree, options?)` is now `renderToStream(tree)` — it walks the tree synchronously and serializes into a single HTML chunk.
+
+  **Cleanup**
+
+  - `error-boundary-context.ts` (the async-error handler stack used only by Suspense) is removed. `ErrorBoundary` keeps its synchronous try/catch + retry behavior unchanged.
+
+- Updated dependencies [[`4855184`](https://github.com/vertz-dev/vertz/commit/485518401f703a3d7bd7a57199f548e83c1c16c9), [`513fe1e`](https://github.com/vertz-dev/vertz/commit/513fe1efdb84d9e1f71ade7bf3fe3b0ad34b7086), [`2840af4`](https://github.com/vertz-dev/vertz/commit/2840af4be81a3e9479cad8e9d65577c812b1490f), [`5b3838b`](https://github.com/vertz-dev/vertz/commit/5b3838b4cebf4e7436e8dee6c40d55ddb1d456fc), [`85707b2`](https://github.com/vertz-dev/vertz/commit/85707b2c90ed6022eb52075f791796b44d242f2c), [`2c1616c`](https://github.com/vertz-dev/vertz/commit/2c1616cbfea5fe43d6fea063cd849dee072452fc), [`e84adde`](https://github.com/vertz-dev/vertz/commit/e84adde7b0d46e554627e5c5c408309e2fa6d122)]:
+  - @vertz/ui@0.2.80
+  - @vertz/core@0.2.80
+
 ## 0.2.79
 
 ### Patch Changes

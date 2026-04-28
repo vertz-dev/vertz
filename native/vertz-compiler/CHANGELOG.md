@@ -1,5 +1,37 @@
 # @vertz/native-compiler
 
+## 0.2.80
+
+### Patch Changes
+
+- [#2965](https://github.com/vertz-dev/vertz/pull/2965) [`06605b0`](https://github.com/vertz-dev/vertz/commit/06605b0ac447d3a3acf55e639a8173992c1d3a2c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(compiler): disambiguate context stable ids when two `createContext` calls share a variable name in the same file
+
+  Closes [#2786](https://github.com/vertz-dev/vertz/issues/2786).
+
+  `injectContextStableIds` generated the id as `{filePath}::{varName}`. Two `createContext()` calls in the same file with the same variable name (e.g. an inlined/formatted pair on one line, or a code-generated module) produced the same id, so the runtime context registry silently returned the same object for both — breaking Provider/useContext pairing.
+
+  Both the Rust transform (`native/vertz-compiler-core/src/context_stable_ids.rs`) and the TypeScript sibling (`packages/ui-server/src/build-plugin/context-stable-ids.ts`) now track a per-name occurrence counter and suffix `@N` on repeats. The first occurrence of a name keeps the original `{filePath}::{varName}` id (so existing single-context files are unchanged); the second becomes `{filePath}::{varName}@1`, the third `@2`, and so on.
+
+  A per-name counter is used rather than a source span because counters only shift when contexts are added or removed, whereas spans shift on any edit to earlier code — counters are more HMR-stable.
+
+- [#3019](https://github.com/vertz-dev/vertz/pull/3019) [`3accbd6`](https://github.com/vertz-dev/vertz/commit/3accbd6115a695beb58375b9c2d6031132f84549) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(compiler): use span-overlap (not point) check for mutation ranges in signal transformer
+
+  Closes [#2785](https://github.com/vertz-dev/vertz/issues/2785).
+
+  `is_in_mutation_range` tested whether `ident.span.start` was a member of a recorded mutation range (`pos >= start && pos < end`). That contract relied on `mutation_analyzer` always recording a span that begins exactly at the identifier's first character — so any future tightening (e.g., the operator-only span for `+=`, or a span recorded on an inner sub-expression) would silently misclassify the identifier as outside the range and double-handle it by appending `.value` on top of the mutation rewrite.
+
+  Replaced the point check with a span-overlap check (`ident.start < range.end && ident.end > range.start`), renamed the predicate to `overlaps_mutation_range`, and applied it at all three call sites: identifier reads, assignment-expression LHS, and update-expression targets.
+
+- [#2991](https://github.com/vertz-dev/vertz/pull/2991) [`27ea038`](https://github.com/vertz-dev/vertz/commit/27ea038885c372ff6c448d0b1dfff71e0f4e4f21) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(compiler): make early-return guards reactive in component bodies
+
+  Closes [#2987](https://github.com/vertz-dev/vertz/issues/2987).
+
+  A component of the shape `if (cond) return <Loading/>; return <Ready/>;` froze at the guard branch: the body ran once at mount and never re-ran when `cond` flipped. This broke the documented loading-UX pattern of `query().loading` + early return.
+
+  The compiler now detects the guard shape (N consecutive `if (cond) return <jsx>;` at the top of a component body, followed by a single trailing `return <jsx>;`) and rewrites the body to wrap the main return in a chain of `__conditional(() => cond, () => branch, () => fallback)` calls, so the condition is re-evaluated reactively and the DOM swaps between branches without re-mounting the component.
+
+  Guards with an `else` branch, multi-statement blocks, or non-guard statements between guards are left alone — the per-return mount-frame wrapper still handles them.
+
 ## 0.2.76
 
 ### Patch Changes

@@ -1,5 +1,7 @@
 # @vertz/ci
 
+## 0.2.80
+
 ## 0.2.47
 
 ### Patch Changes

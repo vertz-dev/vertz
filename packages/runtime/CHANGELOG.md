@@ -1,5 +1,106 @@
 # @vertz/runtime
 
+## 0.2.80
+
+### Patch Changes
+
+- [#3011](https://github.com/vertz-dev/vertz/pull/3011) [`12bfb6f`](https://github.com/vertz-dev/vertz/commit/12bfb6f2dfcca66acaa1126ae9c959d2e94c6146) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): walk up parent directories when resolving `@vertz/cli` for codegen
+
+  Closes [#3000](https://github.com/vertz-dev/vertz/issues/3000).
+
+  `vtz codegen` previously only checked `<cwd>/node_modules/@vertz/cli/dist/vertz.js`,
+  so it failed inside any workspace package whose `node_modules` was hoisted to the
+  workspace root (common in monorepos and the framework's own examples). The
+  resolver now walks parent directories until it finds the binary or hits the
+  filesystem root, mirroring Node's resolution semantics.
+
+  This unblocks `vtz dev` in workspace examples — codegen runs on startup and a
+  failure there caused `.vertz/generated/client.ts` to go missing, falling back to
+  client-only rendering and breaking e2e tests in `entity-todo`, `linear`, and
+  `task-manager`.
+
+- [#2995](https://github.com/vertz-dev/vertz/pull/2995) [`212fa91`](https://github.com/vertz-dev/vertz/commit/212fa9132d33c22dee93b5c56c204306ceef1911) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): recover from wiped `.vertz/deps/` and clear stale dep re-bundle errors
+
+  Closes [#2954](https://github.com/vertz-dev/vertz/issues/2954).
+
+  Two compounding bugs on the dev-server dep-watcher path caused a cluster of
+  `Failed to re-bundle upstream dep @vertz/ui: Failed to write entry file:
+No such file or directory (os error 2)` errors to survive forever in the
+  error overlay across every navigation — even though the app SSRed fine.
+  The only cure used to be killing the dev server, deleting
+  `.vertz/dev/errors.json`, and restarting.
+
+  1. `prebundle_single` now calls `std::fs::create_dir_all(deps_dir)` before
+     writing the temporary entry file, so a wiped or missing `.vertz/deps/`
+     (manual cleanup, a clean clone, a workspace rebuild) no longer bubbles
+     up as ENOENT on the first upstream change.
+
+  2. The dep-watcher handler in `server::http` now tags every re-bundle error
+     with a synthetic per-package key (`<dep>:{pkg}`) in the error's file
+     field, and clears that key with `clear_file(ErrorCategory::Build, …)`
+     for each package it touches this cycle before reporting the current
+     failure (if any). Stale `Failed to re-bundle upstream dep X` entries no
+     longer accumulate in `ErrorState` (or the persisted
+     `.vertz/dev/errors.json`) across successful cycles, and — crucially —
+     legitimate per-file compile errors in the same `Build` category (which
+     the module server and file-change handler report with real source
+     paths) are left untouched. The error-broadcast side effects were
+     extracted into `watcher::dep_watcher::apply_dep_error_state` so the
+     behavior is covered by regression tests without spinning up a full
+     dev server.
+
+- [#3022](https://github.com/vertz-dev/vertz/pull/3022) [`61ea677`](https://github.com/vertz-dev/vertz/commit/61ea677627007e7e5f8c92e06ab4a4d6fa58bb6a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): apply requested viewport before rendering screenshots
+
+  Closes [#2949](https://github.com/vertz-dev/vertz/issues/2949).
+
+  `vertz_browser_screenshot` was rendering every PNG at the launch
+  viewport (1280x720) regardless of the `viewport` arg passed to the MCP
+  tool. The metadata reported the requested dimensions back, but the
+  rasterized image and on-disk filename did not match.
+
+  `ChromiumoxideHandle::capture` now opens a blank page first, applies
+  `Emulation.setDeviceMetricsOverride` with `req.viewport`, and only then
+  navigates to the URL — so responsive layouts see the requested viewport
+  from the initial render. Cross-viewport visual QA (the #2865 dogfood
+  goal) works through this tool again.
+
+- [#3004](https://github.com/vertz-dev/vertz/pull/3004) [`85707b2`](https://github.com/vertz-dev/vertz/commit/85707b2c90ed6022eb52075f791796b44d242f2c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui,runtime): return correct HTTP status for SSR routes
+
+  Closes [#3001](https://github.com/vertz-dev/vertz/issues/3001).
+
+  The dev server returned `404 GET /` for the task-manager example even though SSR rendered the page successfully. Two related bugs collapsed three states into two:
+
+  - `matchForSSR()` only set `ctx.matchedRoutePatterns` when a route matched, leaving it `undefined` for an unmatched URL — indistinguishable from "no router was rendered". Now it explicitly records `[]` for "router rendered, no match".
+  - The vtz JS↔Rust bridge in `persistent_isolate.rs` serialized `result.matchedRoutePatterns ?? null` instead of `|| []`, preserving the `undefined`-vs-empty distinction so the Rust handler can return `200` for routerless apps and `404` only when a router actually failed to match.
+
+  Status mapping is now uniform across `@vertz/ui-server`'s handlers and the `vtz dev` server: missing/`null` → 200, `[]` → 404, `[…]` → 200.
+
+- [#3021](https://github.com/vertz-dev/vertz/pull/3021) [`905885e`](https://github.com/vertz-dev/vertz/commit/905885ed21dd5aaf25e1779d30c112bff82b2655) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): heal store entries and project bin files corrupted by old vtz versions
+
+  Closes [#2952](https://github.com/vertz-dev/vertz/issues/2952).
+
+  Pre-#2908 vtz versions could overwrite a package's own bin file with the
+  `.bin/<name>` shim contents — `std::fs::write` followed a stale
+  `.bin/<name>` symlink straight into the package, and the hardlink to the
+  global store carried the corruption back into `~/.vertz/cache/npm/store/`.
+  #2908 stopped new corruption but didn't repair existing damage, so a
+  fresh `vtz install` on any project would hardlink the broken bin from the
+  cache (e.g. `node_modules/typescript/bin/tsc` ending up as a self-exec
+  shell loop) and `bunx tsc` would fail with `SyntaxError: Unexpected
+identifier 'node'`.
+
+  `TarballManager::is_valid_store_entry` now reads each declared bin file
+  and rejects entries whose first bytes match the vtz shim shape; the
+  existing `fetch_and_extract` flow then re-downloads a clean tarball.
+  Re-extracted packages are added to a new `force_relink_packages` set
+  threaded through `linker::link_packages_with_force` so the project's
+  hardlinks (which still point at the orphaned corrupt inodes) are
+  rebuilt from the freshly extracted store. A second pass —
+  `linker::detect_corrupt_project_bins` — flags projects that were already
+  installed against a corrupt cache and force-relinks them even if the
+  cache has since been healed by an earlier install on a different
+  project.
+
 ## 0.2.79
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @vertz/db
 
+## 0.2.80
+
+### Patch Changes
+
+- Updated dependencies [[`4855184`](https://github.com/vertz-dev/vertz/commit/485518401f703a3d7bd7a57199f548e83c1c16c9)]:
+  - @vertz/schema@0.2.80
+  - @vertz/errors@0.2.80
+  - @vertz/sqlite@0.2.80
+
 ## 0.2.79
 
 ### Patch Changes

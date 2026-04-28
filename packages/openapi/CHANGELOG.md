@@ -1,5 +1,12 @@
 # @vertz/openapi
 
+## 0.2.80
+
+### Patch Changes
+
+- Updated dependencies [[`2840af4`](https://github.com/vertz-dev/vertz/commit/2840af4be81a3e9479cad8e9d65577c812b1490f)]:
+  - @vertz/fetch@0.2.80
+
 ## 0.1.11
 
 ### Patch Changes
