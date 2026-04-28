@@ -52,22 +52,19 @@ export function createTodosSdk(client: Client) {
 
 ```tsx
 // src/pages/todo-list.tsx
-const todosQuery = query(() => fetchTodos(), { key: 'todo-list' });
-let isLoading = true;
-let todoList: Todo[] = [];
-
-effect(() => {
-  isLoading = todosQuery.loading.value;
-  todoList = todosQuery.data.value?.todos ?? [];
-});
+const todosQuery = query(api.todos.list());
 
 return (
   <div>
-    {isLoading && <div>Loading...</div>}
-    {todoList.map((todo) => <TodoItem key={todo.id} {...todo} />)}
+    {todosQuery.loading && <div>Loading...</div>}
+    {todosQuery.data?.items.map((todo) => (
+      <TodoItem key={todo.id} id={todo.id} title={todo.title} completed={todo.completed} />
+    ))}
   </div>
 );
 ```
+
+Signal properties on the `query()` result auto-unwrap inside JSX — no `.value` reads, no `effect()`, no manual sync. See [`.claude/rules/ui-components.md`](../../.claude/rules/ui-components.md) for the reactivity rules.
 
 ### 5. SSR — zero-config server rendering
 
@@ -135,7 +132,7 @@ This demo validates the complete vertz pipeline:
 3. **Entity** → `entity()` generates typed API endpoints
 4. **Codegen** → `EntitySdkGenerator` produces a typed client SDK
 5. **FetchClient** → Convenience methods (`get`, `post`, `patch`, `delete`) power the SDK
-6. **Reactive UI** → `query()`, `form()`, `effect()` drive the interface
+6. **Reactive UI** → `query()` and `form()` drive the interface, with signal properties auto-unwrapping in JSX
 7. **SSR** → Zero-config server rendering with `vertzPlugin({ ssr: true })`
 
 Define your data once. Everything else follows.
