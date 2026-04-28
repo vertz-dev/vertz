@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vtz dev",
+    "dev": "vtz dev --port 3001",
     "build": "vtz build",
     "codegen": "vtz codegen",
     "test": "vtz test",
