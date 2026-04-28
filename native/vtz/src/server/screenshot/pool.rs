@@ -30,10 +30,11 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-/// Everything the pool needs to launch a fresh Browser. Viewport can be
-/// changed per-capture without relaunching (chromiumoxide exposes
-/// `page.set_viewport`), so this struct carries only the *default* viewport
-/// and the resolved Chrome binary path.
+/// Everything the pool needs to launch a fresh Browser. Viewport is set
+/// per-capture via `Emulation.setDeviceMetricsOverride` before navigation
+/// (see [`super::chromium::ChromiumoxideHandle::capture`]), so this struct
+/// carries only the *initial* launch viewport and the resolved Chrome
+/// binary path.
 #[derive(Debug, Clone)]
 pub struct LaunchConfig {
     pub viewport: (u32, u32),
