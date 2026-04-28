@@ -290,9 +290,17 @@ id = "your-kv-namespace-id"
 
 ## Deploy
 
+Install `wrangler` once as a dev dependency:
+
+```bash
+vtz add -D wrangler
+```
+
+Then build and deploy:
+
 ```bash
 # Build the app
-vtz build
+vtz run build
 
 # Deploy to Cloudflare
 vtz exec wrangler deploy

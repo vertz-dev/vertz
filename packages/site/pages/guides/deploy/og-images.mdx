@@ -20,7 +20,7 @@ No React required. Satori uses plain objects that look like React elements.
 Install `satori` and `@resvg/resvg-js`:
 
 ```bash
-vtz add -d satori @resvg/resvg-js
+vtz add -D satori @resvg/resvg-js
 ```
 
 ## Write the OG component
@@ -230,9 +230,11 @@ Call the OG generation script from your build script so images are always up to 
 
 ```ts
 // In scripts/build.ts
-const ogProc = Bun.spawnSync(['bun', 'run', 'scripts/generate-og.ts'], {
+import { spawnSync } from 'node:child_process';
+
+const ogProc = spawnSync('node', ['--experimental-strip-types', 'scripts/generate-og.ts'], {
   cwd: ROOT,
-  stdio: ['inherit', 'inherit', 'inherit'],
+  stdio: 'inherit',
 });
 ```
 

@@ -256,17 +256,17 @@ The `not_found_handling = "single-page-application"` setting returns `index.html
 {
   "scripts": {
     "dev": "vtz dev",
-    "build": "vtz build",
-    "deploy": "vtz build && vtz exec wrangler deploy"
+    "build": "vertz build",
+    "deploy": "vtz run build && vtz exec wrangler deploy"
   }
 }
 ```
 
 <Note>
   The custom `build.ts` shown above is an advanced reference — it relies on Bun runtime APIs
-  (`Bun.build`, `Bun.spawn`). For most static deployments, `vtz build` produces the same `dist/`
-  output without a custom script. Wire up the custom pipeline only when you need full control
-  over the build steps.
+  (`Bun.build`, `Bun.spawn`). For most static deployments, the `vertz build` CLI produces the same
+  `dist/` output without a custom script. Wire up the custom pipeline only when you need full
+  control over the build steps.
 </Note>
 
 ## Deploy
@@ -276,7 +276,7 @@ The `not_found_handling = "single-page-application"` setting returns `index.html
 vtz run deploy
 
 # Or step by step
-vtz build                  # Produces dist/
+vtz run build              # Produces dist/
 vtz exec wrangler deploy   # Uploads dist/ to Cloudflare
 ```
 
@@ -307,7 +307,7 @@ dist/
 | **Data**         | Build-time only              | Per-request (queries, auth)     |
 | **Build output** | `dist/` with HTML + JS + CSS | `dist/client/` + `dist/server/` |
 | **Use case**     | Landing pages, marketing     | Apps with dynamic data          |
-| **Command**      | `vtz run build`              | `vtz build`                     |
+| **Command**      | `vtz run build`              | `vertz build`                   |
 
 <CardGroup cols={2}>
   <Card title="SSG with generateParams" icon="zap" href="/guides/deploy/ssg">
