@@ -1,5 +1,6 @@
 use crate::pm::resolver::ResolvedGraph;
 use crate::pm::scripts;
+use crate::pm::tarball;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -98,13 +99,44 @@ pub fn link_packages_incremental(
     force: bool,
     patched_packages: &HashSet<String>,
 ) -> Result<LinkResult, Box<dyn std::error::Error>> {
+    link_packages_with_force(
+        root_dir,
+        graph,
+        store_dir,
+        force,
+        patched_packages,
+        &HashSet::new(),
+    )
+}
+
+/// Link packages, additionally forcing a relink for any package whose
+/// `name@version` key is in `force_relink_packages` even if the manifest
+/// entry is unchanged. The install flow uses this for entries that
+/// `TarballManager::is_cached` flagged as corrupt and just re-extracted —
+/// the existing project hardlinks still point at the orphaned (corrupt)
+/// inode and need to be rewritten from the freshly extracted store.
+pub fn link_packages_with_force(
+    root_dir: &Path,
+    graph: &ResolvedGraph,
+    store_dir: &Path,
+    force: bool,
+    patched_packages: &HashSet<String>,
+    force_relink_packages: &HashSet<String>,
+) -> Result<LinkResult, Box<dyn std::error::Error>> {
     let node_modules = root_dir.join("node_modules");
     let new_manifest = build_manifest(graph, patched_packages);
 
     // Try incremental linking
     if !force {
         if let Some(old_manifest) = read_manifest(root_dir) {
-            return link_incremental(root_dir, graph, store_dir, &old_manifest, &new_manifest);
+            return link_incremental(
+                root_dir,
+                graph,
+                store_dir,
+                &old_manifest,
+                &new_manifest,
+                force_relink_packages,
+            );
         }
     }
 
@@ -156,6 +188,7 @@ fn link_incremental(
     store_dir: &Path,
     old_manifest: &LinkManifest,
     new_manifest: &LinkManifest,
+    force_relink_packages: &HashSet<String>,
 ) -> Result<LinkResult, Box<dyn std::error::Error>> {
     let node_modules = root_dir.join("node_modules");
     std::fs::create_dir_all(&node_modules)?;
@@ -177,9 +210,11 @@ fn link_incremental(
     for pkg in graph.packages.values() {
         let key = manifest_key(&pkg.name, &pkg.version, &pkg.nest_path);
         let new_entry = new_manifest.packages.get(&key).unwrap();
+        let force_key = format!("{}@{}", pkg.name, pkg.version);
+        let must_force = force_relink_packages.contains(&force_key);
 
         if let Some(old_entry) = old_manifest.packages.get(&key) {
-            if old_entry == new_entry {
+            if old_entry == new_entry && !must_force {
                 // Unchanged — skip (cached)
                 result.packages_cached += 1;
                 continue;
@@ -219,6 +254,50 @@ fn link_incremental(
     write_manifest(root_dir, new_manifest)?;
 
     Ok(result)
+}
+
+/// Scan node_modules for packages whose bin files look like vtz-generated
+/// shell shims. Such files indicate the project was linked when the global
+/// store held shim-corrupted bin files (see #2952): once the store is healed,
+/// the project's hardlinks still point at the orphaned (corrupt) inodes and
+/// must be relinked from the now-clean cache.
+///
+/// Returns `name@version` keys suitable for `link_packages_with_force`'s
+/// `force_relink_packages` argument. Missing bin files and unreadable paths
+/// are treated as "not corrupt" — the linker will surface real errors.
+pub fn detect_corrupt_project_bins(root_dir: &Path, graph: &ResolvedGraph) -> HashSet<String> {
+    let node_modules = root_dir.join("node_modules");
+    let mut corrupt = HashSet::new();
+    for pkg in graph.packages.values() {
+        if pkg.bin.is_empty() {
+            continue;
+        }
+        let key = format!("{}@{}", pkg.name, pkg.version);
+        if corrupt.contains(&key) {
+            continue;
+        }
+        let target = target_path(&node_modules, &pkg.name, &pkg.nest_path);
+        for bin_rel in pkg.bin.values() {
+            let stripped = bin_rel.trim_start_matches("./");
+            // Splits on both `/` and `\` so a Windows-style path can't smuggle
+            // a `..` segment past a forward-slash-only check.
+            if stripped.is_empty()
+                || stripped.starts_with('/')
+                || stripped.starts_with('\\')
+                || stripped
+                    .split(['/', '\\'])
+                    .any(|seg| seg == ".." || seg.starts_with(".."))
+            {
+                continue;
+            }
+            let bin_abs = target.join(stripped);
+            if tarball::bin_file_looks_like_shim(&bin_abs) {
+                corrupt.insert(key.clone());
+                break;
+            }
+        }
+    }
+    corrupt
 }
 
 /// Compute target path in node_modules for a package
@@ -797,6 +876,179 @@ mod tests {
         assert_eq!(result.packages_linked, 1);
         assert_eq!(result.packages_cached, 0);
         assert!(root.join("node_modules/zod/index.js").exists());
+    }
+
+    /// Regression for #2952: when fetch_and_extract repairs a corrupt store
+    /// entry, the project's hardlinks still point at the old (corrupt) inode.
+    /// `force_relink_packages` lets the install flow surgically relink the
+    /// repaired packages without nuking node_modules.
+    #[test]
+    fn test_force_relink_packages_relinks_unchanged_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("project");
+        let store = dir.path().join("store");
+        std::fs::create_dir_all(&root).unwrap();
+
+        create_store_package(&store, "typescript", "5.9.3", &[("bin/tsc", "real")]);
+
+        let mut graph = ResolvedGraph::default();
+        graph.packages.insert(
+            "typescript@5.9.3".to_string(),
+            ResolvedPackage {
+                name: "typescript".to_string(),
+                version: "5.9.3".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        // First install — full link.
+        link_packages(&root, &graph, &store, &HashSet::new()).unwrap();
+        let linked_path = root.join("node_modules/typescript/bin/tsc");
+        assert!(linked_path.exists());
+
+        // Mark typescript@5.9.3 as needing a forced relink. Even though the
+        // manifest entry is unchanged, the linker must rebuild the package
+        // directory.
+        let mut force = HashSet::new();
+        force.insert("typescript@5.9.3".to_string());
+
+        let result =
+            link_packages_with_force(&root, &graph, &store, false, &HashSet::new(), &force)
+                .unwrap();
+
+        assert_eq!(
+            result.packages_linked, 1,
+            "force-relink package must be re-linked"
+        );
+        assert_eq!(
+            result.packages_cached, 0,
+            "force-relink package must not be reported as cached"
+        );
+        assert!(linked_path.exists());
+    }
+
+    /// Project-side scan: when the cache is already clean but the project
+    /// holds corrupt hardlinks from a previous old-vtz install, we still need
+    /// to relink. See `detect_corrupt_project_bins`.
+    #[test]
+    fn test_detect_corrupt_project_bins_flags_shim_in_node_modules() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("project");
+        let nm = root.join("node_modules");
+        std::fs::create_dir_all(nm.join("typescript/bin")).unwrap();
+        // Simulate the corruption: typescript/bin/tsc has the vtz shim format
+        std::fs::write(
+            nm.join("typescript/bin/tsc"),
+            "#!/bin/sh\nexec node \"$(dirname \"$0\")/../typescript/bin/tsc\" \"$@\"\n",
+        )
+        .unwrap();
+
+        let mut graph = ResolvedGraph::default();
+        let mut bin = BTreeMap::new();
+        bin.insert("tsc".to_string(), "./bin/tsc".to_string());
+        graph.packages.insert(
+            "typescript@5.9.3".to_string(),
+            ResolvedPackage {
+                name: "typescript".to_string(),
+                version: "5.9.3".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin,
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        let corrupt = detect_corrupt_project_bins(&root, &graph);
+        assert!(corrupt.contains("typescript@5.9.3"));
+    }
+
+    #[test]
+    fn test_detect_corrupt_project_bins_ignores_real_bin_scripts() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("project");
+        let nm = root.join("node_modules");
+        std::fs::create_dir_all(nm.join("typescript/bin")).unwrap();
+        std::fs::write(
+            nm.join("typescript/bin/tsc"),
+            "#!/usr/bin/env node\nrequire('../lib/tsc.js')\n",
+        )
+        .unwrap();
+
+        let mut graph = ResolvedGraph::default();
+        let mut bin = BTreeMap::new();
+        bin.insert("tsc".to_string(), "./bin/tsc".to_string());
+        graph.packages.insert(
+            "typescript@5.9.3".to_string(),
+            ResolvedPackage {
+                name: "typescript".to_string(),
+                version: "5.9.3".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin,
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        let corrupt = detect_corrupt_project_bins(&root, &graph);
+        assert!(corrupt.is_empty());
+    }
+
+    /// Without the force set, an unchanged package stays cached (regression
+    /// guard so we don't accidentally start relinking everything).
+    #[test]
+    fn test_empty_force_relink_packages_keeps_caching() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("project");
+        let store = dir.path().join("store");
+        std::fs::create_dir_all(&root).unwrap();
+
+        create_store_package(&store, "zod", "3.24.4", &[("index.js", "zod")]);
+
+        let mut graph = ResolvedGraph::default();
+        graph.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        link_packages(&root, &graph, &store, &HashSet::new()).unwrap();
+
+        let result = link_packages_with_force(
+            &root,
+            &graph,
+            &store,
+            false,
+            &HashSet::new(),
+            &HashSet::new(),
+        )
+        .unwrap();
+        assert_eq!(result.packages_cached, 1);
+        assert_eq!(result.packages_linked, 0);
     }
 
     #[test]

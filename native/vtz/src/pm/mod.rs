@@ -373,6 +373,21 @@ pub async fn install(
         .filter(|pkg| !tarball_mgr.is_cached(&pkg.name, &pkg.version))
         .collect();
 
+    // Track packages whose store entry was missing or invalid. After their
+    // tarballs are re-extracted, the linker must rebuild them in node_modules
+    // even when the manifest entry is unchanged — the existing hardlinks
+    // there still reference the orphaned (corrupt) inodes from before the
+    // re-extract. See #2952.
+    let mut force_relink_packages: HashSet<String> = packages_to_download
+        .iter()
+        .map(|pkg| format!("{}@{}", pkg.name, pkg.version))
+        .collect();
+
+    // Also relink any project whose node_modules already holds shim-corrupted
+    // bin files but whose store entry was healed by an earlier install on a
+    // different project. See #2952.
+    force_relink_packages.extend(linker::detect_corrupt_project_bins(root_dir, &graph));
+
     let download_count = packages_to_download.len();
     if download_count > 0 {
         output.download_started(download_count);
@@ -425,8 +440,14 @@ pub async fn install(
     // Link packages into node_modules (incremental unless --force)
     output.link_started();
     let store_dir = cache_dir.join("store");
-    let link_result =
-        linker::link_packages_incremental(root_dir, &graph, &store_dir, force, &patched_packages)?;
+    let link_result = linker::link_packages_with_force(
+        root_dir,
+        &graph,
+        &store_dir,
+        force,
+        &patched_packages,
+        &force_relink_packages,
+    )?;
     output.link_complete(
         link_result.packages_linked,
         link_result.files_linked,

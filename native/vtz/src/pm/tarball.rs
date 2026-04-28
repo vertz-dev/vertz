@@ -1,3 +1,4 @@
+use crate::pm::types::PackageJson;
 use flate2::read::GzDecoder;
 use sha2::{Digest, Sha256, Sha512};
 use std::io::Read;
@@ -44,18 +45,48 @@ impl TarballManager {
         Self::is_valid_store_entry(&self.store_path(name, version))
     }
 
-    /// Validate that a store entry directory contains a non-empty `package.json`.
-    /// This catches corrupt cache entries where files are 0 bytes due to
-    /// interrupted extraction or disk errors.
+    /// Validate that a store entry directory contains a non-empty `package.json`
+    /// and that its declared bin files don't look like leaked vtz shims.
+    ///
+    /// The bin-shim check guards against #2952: pre-#2908 vtz versions could
+    /// overwrite a package's own bin file with `.bin/<name>` shim content
+    /// (because `std::fs::write` followed a stale `.bin/<name>` symlink into
+    /// the package). Hardlinking from the global store then propagated the
+    /// corruption back into the cache. Once detected, the existing
+    /// `fetch_and_extract` flow removes the entry and re-downloads it.
     fn is_valid_store_entry(path: &Path) -> bool {
         if !path.is_dir() {
             return false;
         }
-        let pkg_json = path.join("package.json");
-        match std::fs::metadata(&pkg_json) {
-            Ok(meta) => meta.len() > 0,
-            Err(_) => false,
+        let pkg_json_path = path.join("package.json");
+        let pkg_json_bytes = match std::fs::read(&pkg_json_path) {
+            Ok(content) if !content.is_empty() => content,
+            _ => return false,
+        };
+        let Ok(pkg) = serde_json::from_slice::<PackageJson>(&pkg_json_bytes) else {
+            return true; // Unparseable manifest is left to the linker; not our concern.
+        };
+        let pkg_name = pkg.name.as_deref().unwrap_or("");
+        for (_bin_name, bin_rel) in pkg.bin.to_map(pkg_name) {
+            let stripped = bin_rel.trim_start_matches("./");
+            // Defense in depth: refuse to read outside the store entry.
+            // Splits on both `/` and `\` so a Windows-style path can't smuggle
+            // a `..` segment past a forward-slash-only check.
+            if stripped.is_empty()
+                || stripped.starts_with('/')
+                || stripped.starts_with('\\')
+                || stripped
+                    .split(['/', '\\'])
+                    .any(|seg| seg == ".." || seg.starts_with(".."))
+            {
+                continue;
+            }
+            let bin_abs = path.join(stripped);
+            if bin_file_looks_like_shim(&bin_abs) {
+                return false;
+            }
         }
+        true
     }
 
     /// Download, verify, and extract a tarball
@@ -214,6 +245,31 @@ impl TarballManager {
             }
         }
     }
+}
+
+/// Detect a file whose first bytes match a vtz-generated `.bin/<name>` shim.
+///
+/// vtz writes one of two shim shapes (see `pm::bin::write_bin_stub`):
+///   `#!/bin/sh\nexec node "$(dirname "$0")/<rel>" "$@"\n`
+///   `#!/bin/sh\nexec "$(dirname "$0")/<rel>" "$@"\n`
+///
+/// A real npm bin is overwhelmingly `#!/usr/bin/env node …`, so a file in the
+/// store whose first ~64 bytes match the shim shape was almost certainly
+/// truncated through a stale symlink by an old vtz install. Missing files and
+/// I/O errors return `false` — the caller treats those as "not corrupt" and
+/// lets the linker raise the real error.
+pub(crate) fn bin_file_looks_like_shim(path: &Path) -> bool {
+    let Ok(mut f) = std::fs::File::open(path) else {
+        return false;
+    };
+    let mut buf = [0u8; 64];
+    let n = f.read(&mut buf).unwrap_or(0);
+    let head = &buf[..n];
+    let Some(rest) = head.strip_prefix(b"#!/bin/sh\n") else {
+        return false;
+    };
+    rest.starts_with(b"exec node \"$(dirname \"$0\")/")
+        || rest.starts_with(b"exec \"$(dirname \"$0\")/")
 }
 
 /// Verify the integrity hash of downloaded bytes.
@@ -999,5 +1055,148 @@ mod tests {
         // Directory exists but no package.json
         std::fs::create_dir_all(&store).unwrap();
         assert!(!mgr.is_cached("zod", "3.24.4"));
+    }
+
+    /// Regression for #2952: pre-#2908 vtz versions could overwrite a package's
+    /// own bin file with a vtz-generated shell shim (because `std::fs::write`
+    /// followed a stale `.bin/<name>` symlink straight into the package and the
+    /// hardlink propagated the corruption back into the global store). New vtz
+    /// versions don't introduce that corruption, but they keep hardlinking
+    /// already-corrupt cache entries into every project. Treat a store entry
+    /// whose declared bin file looks like a vtz shim as invalid so the existing
+    /// fetch-and-extract path re-downloads a clean copy.
+    #[test]
+    fn test_is_cached_false_when_bin_file_is_shim() {
+        let dir = tempfile::tempdir().unwrap();
+        let mgr = TarballManager::new(dir.path());
+        let store = mgr.store_path("typescript", "5.9.3");
+        std::fs::create_dir_all(store.join("bin")).unwrap();
+        std::fs::write(
+            store.join("package.json"),
+            r#"{"name":"typescript","version":"5.9.3","bin":{"tsc":"./bin/tsc","tsserver":"./bin/tsserver"}}"#,
+        )
+        .unwrap();
+        // tsserver is intact, tsc is corrupted — one corrupt bin invalidates the entry.
+        std::fs::write(
+            store.join("bin/tsc"),
+            "#!/bin/sh\nexec node \"$(dirname \"$0\")/../typescript/bin/tsc\" \"$@\"\n",
+        )
+        .unwrap();
+        std::fs::write(
+            store.join("bin/tsserver"),
+            "#!/usr/bin/env node\nrequire('../lib/tsserver.js')\n",
+        )
+        .unwrap();
+        assert!(!mgr.is_cached("typescript", "5.9.3"));
+    }
+
+    #[test]
+    fn test_is_cached_true_when_bin_files_are_real_node_scripts() {
+        let dir = tempfile::tempdir().unwrap();
+        let mgr = TarballManager::new(dir.path());
+        let store = mgr.store_path("typescript", "5.9.3");
+        std::fs::create_dir_all(store.join("bin")).unwrap();
+        std::fs::write(
+            store.join("package.json"),
+            r#"{"name":"typescript","version":"5.9.3","bin":{"tsc":"./bin/tsc"}}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            store.join("bin/tsc"),
+            "#!/usr/bin/env node\nrequire('../lib/tsc.js')\n",
+        )
+        .unwrap();
+        assert!(mgr.is_cached("typescript", "5.9.3"));
+    }
+
+    /// `bin` as a single string (not a map) — npm uses the package name as the
+    /// bin name. Validation must still find the file via the resolved path.
+    #[test]
+    fn test_is_cached_false_when_single_string_bin_is_shim() {
+        let dir = tempfile::tempdir().unwrap();
+        let mgr = TarballManager::new(dir.path());
+        let store = mgr.store_path("my-cli", "1.0.0");
+        std::fs::create_dir_all(&store).unwrap();
+        std::fs::write(
+            store.join("package.json"),
+            r#"{"name":"my-cli","version":"1.0.0","bin":"./cli.js"}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            store.join("cli.js"),
+            "#!/bin/sh\nexec node \"$(dirname \"$0\")/../my-cli/cli.js\" \"$@\"\n",
+        )
+        .unwrap();
+        assert!(!mgr.is_cached("my-cli", "1.0.0"));
+    }
+
+    /// `.sh` bin shims are written without the `node` wrapper. Detect them too.
+    #[test]
+    fn test_is_cached_false_when_sh_bin_is_shim() {
+        let dir = tempfile::tempdir().unwrap();
+        let mgr = TarballManager::new(dir.path());
+        let store = mgr.store_path("@vertz/runtime", "0.1.0");
+        std::fs::create_dir_all(&store).unwrap();
+        std::fs::write(
+            store.join("package.json"),
+            r#"{"name":"@vertz/runtime","version":"0.1.0","bin":{"vtz":"./cli.sh"}}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            store.join("cli.sh"),
+            "#!/bin/sh\nexec \"$(dirname \"$0\")/../@vertz/runtime/cli.sh\" \"$@\"\n",
+        )
+        .unwrap();
+        assert!(!mgr.is_cached("@vertz/runtime", "0.1.0"));
+    }
+
+    /// Missing bin file isn't shim-corruption; let the linker surface that error.
+    /// Don't false-positive a missing file as corruption.
+    #[test]
+    fn test_is_cached_true_when_bin_file_is_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let mgr = TarballManager::new(dir.path());
+        let store = mgr.store_path("zod", "3.24.4");
+        std::fs::create_dir_all(&store).unwrap();
+        std::fs::write(
+            store.join("package.json"),
+            r#"{"name":"zod","version":"3.24.4","bin":{"zod":"./bin/zod"}}"#,
+        )
+        .unwrap();
+        // bin/zod does not exist
+        assert!(mgr.is_cached("zod", "3.24.4"));
+    }
+
+    /// Reject path traversal in the declared bin path so a hostile package
+    /// can't trick the validator into reading a file outside the store entry.
+    #[test]
+    fn test_is_cached_does_not_follow_traversal_in_bin_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let mgr = TarballManager::new(dir.path());
+        let store = mgr.store_path("evil", "1.0.0");
+        std::fs::create_dir_all(&store).unwrap();
+        std::fs::write(
+            store.join("package.json"),
+            r#"{"name":"evil","version":"1.0.0","bin":{"evil":"../../../etc/passwd"}}"#,
+        )
+        .unwrap();
+        // Traversal path is silently ignored — entry is otherwise valid.
+        assert!(mgr.is_cached("evil", "1.0.0"));
+    }
+
+    /// Defense in depth against a Windows-style traversal path. `Path::join`
+    /// treats `\` as a separator on Windows; the guard must split on both.
+    #[test]
+    fn test_is_cached_does_not_follow_backslash_traversal_in_bin_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let mgr = TarballManager::new(dir.path());
+        let store = mgr.store_path("evil-win", "1.0.0");
+        std::fs::create_dir_all(&store).unwrap();
+        std::fs::write(
+            store.join("package.json"),
+            r#"{"name":"evil-win","version":"1.0.0","bin":{"evil":"..\\..\\..\\etc\\passwd"}}"#,
+        )
+        .unwrap();
+        assert!(mgr.is_cached("evil-win", "1.0.0"));
     }
 }
