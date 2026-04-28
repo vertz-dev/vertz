@@ -4,7 +4,6 @@
   "type": "module",
   "scripts": {
     "dev": "vtz dev",
-    "dev:legacy": "vtz run src/dev-server.ts",
     "build": "vtz build",
     "deploy": "bash scripts/deploy.sh",
     "codegen": "vtz codegen",
