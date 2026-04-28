@@ -1,8 +1,9 @@
 import { existsSync, readFileSync, rmSync, statSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 import * as esbuild from 'esbuild';
 import { resolveExternals } from './externals.js';
 import type { BuildConfig, OutputFileInfo } from './types.js';
+import { assertOutputsUnderOutDir } from './validate.js';
 
 export interface BundleResult {
   outputFiles: OutputFileInfo[];
@@ -48,11 +49,15 @@ export async function bundle(config: BuildConfig, cwd: string): Promise<BundleRe
     external.push('node:*');
   }
 
+  // Resolve entry points to absolute paths up front so an unexpected
+  // `process.cwd()` inside esbuild can never re-anchor them (#2953).
+  const entryPoints = config.entry.map((e) => (isAbsolute(e) ? e : resolve(cwd, e)));
+
   const result = await esbuild.build({
-    entryPoints: config.entry,
+    entryPoints,
     bundle: true,
     format: 'esm',
-    outdir: config.outDir ?? 'dist',
+    outdir: outDir,
     splitting: config.entry.length > 1,
     target: resolveTarget(config.target),
     platform:
@@ -73,7 +78,7 @@ export async function bundle(config: BuildConfig, cwd: string): Promise<BundleRe
     for (const [outputPath, meta] of Object.entries(result.metafile.outputs)) {
       if (!outputPath.endsWith('.js')) continue;
 
-      const fullPath = resolve(cwd, outputPath);
+      const fullPath = isAbsolute(outputPath) ? outputPath : resolve(cwd, outputPath);
       const relativePath = relative(outDir, fullPath);
       const size = existsSync(fullPath) ? statSync(fullPath).size : 0;
 
@@ -86,6 +91,10 @@ export async function bundle(config: BuildConfig, cwd: string): Promise<BundleRe
       });
     }
   }
+
+  // Final safety net: if any output landed outside outDir, fail loudly
+  // instead of letting it silently overwrite a sibling package (#2953).
+  assertOutputsUnderOutDir(outputFiles, outDir);
 
   return { outputFiles, outDir };
 }
