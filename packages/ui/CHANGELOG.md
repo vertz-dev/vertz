@@ -1,5 +1,99 @@
 # @vertz/ui
 
+## 0.2.80
+
+### Patch Changes
+
+- [#2996](https://github.com/vertz-dev/vertz/pull/2996) [`4855184`](https://github.com/vertz-dev/vertz/commit/485518401f703a3d7bd7a57199f548e83c1c16c9) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui,schema): coerce form values for JSON bodies, drop fields not in the schema
+
+  Closes [#2980](https://github.com/vertz-dev/vertz/issues/2980).
+
+  `form()` was sending checkbox values as raw strings in JSON bodies (`"concluida":"true"`) when the SDK lacked `meta.bodySchema`, causing the server to reject the request with `422 Expected boolean, received string`.
+
+  Two changes:
+
+  - `form()` no-schema fallback now uses `formDataToObject(fd, { nested: true, coerce: true })`, so plain checkbox/number inputs serialize as `boolean` / `number` in the JSON body.
+  - `coerceFormDataToSchema` now treats the schema as the contract: only fields declared in the schema's shape are included in the result. Unknown form keys are dropped instead of being forwarded to the server. This prevents accidental leakage (e.g. an attacker injecting `tenantId` via DevTools, or a stale `<input>` from another form) and removes a class of `.strict()`-rejection footguns.
+
+  Custom non-Vertz schema adapters keep their existing behavior — values pass through untouched so user-supplied parsers stay in control.
+
+- [#2983](https://github.com/vertz-dev/vertz/pull/2983) [`513fe1e`](https://github.com/vertz-dev/vertz/commit/513fe1efdb84d9e1f71ade7bf3fe3b0ad34b7086) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui): prevent concurrent form submissions (double-click creates duplicates)
+
+  Closes [#2982](https://github.com/vertz-dev/vertz/issues/2982).
+
+  `form()` did not lock against re-entrant submissions. A double-clicked submit button fired two `submit` events back-to-back; both entered `submitPipeline`, passed validation, and called the SDK — creating duplicate records.
+
+  `submitPipeline` now checks `submitting.peek()` synchronously at entry and returns early if a submission is already in flight. `submitting.value = true` is set before any work (so the second synchronous call sees the guard), and a `try/finally` ensures it is reset on every exit path. The pipeline returns a boolean so the `onSubmit` / `submit` wrappers skip their post-processing (form reset) when a call was rejected.
+
+- [#2994](https://github.com/vertz-dev/vertz/pull/2994) [`2840af4`](https://github.com/vertz-dev/vertz/commit/2840af4be81a3e9479cad8e9d65577c812b1490f) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui,fetch): map server 422 validation errors back to form field error signals
+
+  Closes [#2981](https://github.com/vertz-dev/vertz/issues/2981).
+
+  Server 422 responses were being swallowed. The server emits per-field errors under `body.error.details`, but the fetch client was looking at `body.error.errors`, so `FetchValidationError` never fired. `form()` then fell back to the generic `_form` handler, and per-field UI feedback never appeared.
+
+  Two changes make the round-trip work:
+
+  - `@vertz/fetch` now reads `error.details` (matching `packages/server/src/entity/error-handler.ts`) and normalizes paths: array paths (e.g. `['items', 0, 'name']`) become dot-notation strings, and empty paths (`''` / `[]`) become `_form` — matching the convention already used by client-side validation. An empty `details` array falls through to the regular HTTP error path so the top-level message still reaches the UI. `FetchValidationError` and `isFetchValidationError` are re-exported from `@vertz/fetch` for consumer use.
+  - `form()` checks for `FetchValidationError` in `submitPipeline` and walks the already-normalized `.errors`, writing each message to the matching field's `error` signal. `onError` receives the same per-field record. Non-validation errors keep the existing `_form` fallback.
+
+- [#2988](https://github.com/vertz-dev/vertz/pull/2988) [`5b3838b`](https://github.com/vertz-dev/vertz/commit/5b3838b4cebf4e7436e8dee6c40d55ddb1d456fc) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(query): refetch on remount when a mutation occurred while the query was unmounted [#2986]
+
+  When a user navigated from a list page to a form, created an entity, and navigated back via `router.navigate()`, the list kept showing the old cached data until a full page reload. Between unmount and remount, the list query had unsubscribed from the `MutationEventBus`, so the `emit()` fired by the form's create mutation had no live listener — yet the cached entry (and its query indices) remained, and was served on remount.
+
+  `MutationEventBus` now tracks a monotonic per-entity-type version that increments on every `emit()`. `MemoryCache.set()` accepts an optional `version` argument and records it alongside the value; `CacheStore<T>` gained an optional `getVersion(key)` accessor. When `query()` gets a cache hit for an entity-backed query on mount, it compares the cached entry's version with the current bus version for the same entity type and treats the entry as stale when the bus version is newer, falling through to a fresh fetch.
+
+  This is additive — custom `CacheStore` implementations that don't implement `getVersion` continue to work and simply keep the previous (cached) behavior.
+
+- [#3004](https://github.com/vertz-dev/vertz/pull/3004) [`85707b2`](https://github.com/vertz-dev/vertz/commit/85707b2c90ed6022eb52075f791796b44d242f2c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui,runtime): return correct HTTP status for SSR routes
+
+  Closes [#3001](https://github.com/vertz-dev/vertz/issues/3001).
+
+  The dev server returned `404 GET /` for the task-manager example even though SSR rendered the page successfully. Two related bugs collapsed three states into two:
+
+  - `matchForSSR()` only set `ctx.matchedRoutePatterns` when a route matched, leaving it `undefined` for an unmatched URL — indistinguishable from "no router was rendered". Now it explicitly records `[]` for "router rendered, no match".
+  - The vtz JS↔Rust bridge in `persistent_isolate.rs` serialized `result.matchedRoutePatterns ?? null` instead of `|| []`, preserving the `undefined`-vs-empty distinction so the Rust handler can return `200` for routerless apps and `404` only when a router actually failed to match.
+
+  Status mapping is now uniform across `@vertz/ui-server`'s handlers and the `vtz dev` server: missing/`null` → 200, `[]` → 404, `[…]` → 200.
+
+- [#2955](https://github.com/vertz-dev/vertz/pull/2955) [`2c1616c`](https://github.com/vertz-dev/vertz/commit/2c1616cbfea5fe43d6fea063cd849dee072452fc) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(client): type `import.meta.main` in `vertz/client` and `@vertz/ui/client`
+
+  Closes [#2811](https://github.com/vertz-dev/vertz/issues/2811).
+
+  Follow-up to #2777. The vtz runtime (via deno_core) already sets `import.meta.main` on every module — `true` for the entry module, `false` for imported modules — so the standard "run if main" idiom works without any polyfill:
+
+  ```ts
+  // src/api/server.ts
+  const app = createServer({
+    /* ... */
+  });
+  export default app;
+
+  if (import.meta.main) app.listen(env.PORT);
+  ```
+
+  Previously the type was only available to projects that pulled in `bun-types`. The client augmentation (`packages/ui/client.d.ts`) now declares `readonly main: boolean` alongside `hot`, so any tsconfig that includes `"types": ["vertz/client"]` (or `"@vertz/ui/client"`) gets it automatically. Scaffolded apps already have this entry.
+
+  `bun-types` removed from `sites/dev-orchestrator` where it was only kept for this type.
+
+- [#2990](https://github.com/vertz-dev/vertz/pull/2990) [`e84adde`](https://github.com/vertz-dev/vertz/commit/e84adde7b0d46e554627e5c5c408309e2fa6d122) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(ui,ui-server)!: remove Suspense — use early-return guards for loading states
+
+  Closes [#2985](https://github.com/vertz-dev/vertz/issues/2985).
+
+  `Suspense` is removed from `@vertz/ui`. Vertz's reactivity model handles loading states via `query().loading` and the compiler-supported early-return guard pattern — `if (q.loading) return <Loading/>; return <Real/>` — which gives you a fully-typed `q.data` past the guard and avoids the Promise-throwing machinery Suspense inherits from React.
+
+  **Breaking changes**
+
+  - `@vertz/ui` — `Suspense` and `SuspenseProps` are no longer exported. Replace with an early-return guard (see the new "Early return when you need loaded data" section in the data fetching guide).
+  - `@vertz/ui-server` — `createSlotPlaceholder`, `resetSlotCounter`, `createTemplateChunk`, and `RenderToStreamOptions` are removed. The internal `__suspense` VNode tag (never produced by any shipped code) is gone too. `renderToStream(tree, options?)` is now `renderToStream(tree)` — it walks the tree synchronously and serializes into a single HTML chunk.
+
+  **Cleanup**
+
+  - `error-boundary-context.ts` (the async-error handler stack used only by Suspense) is removed. `ErrorBoundary` keeps its synchronous try/catch + retry behavior unchanged.
+
+- Updated dependencies [[`4855184`](https://github.com/vertz-dev/vertz/commit/485518401f703a3d7bd7a57199f548e83c1c16c9), [`2840af4`](https://github.com/vertz-dev/vertz/commit/2840af4be81a3e9479cad8e9d65577c812b1490f)]:
+  - @vertz/schema@0.2.80
+  - @vertz/fetch@0.2.80
+
 ## 0.2.79
 
 ### Patch Changes

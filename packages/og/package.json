@@ -1,6 +1,6 @@
 {
   "name": "@vertz/og",
-  "version": "0.1.2",
+  "version": "0.2.80",
   "description": "Framework-level Open Graph image generation for Vertz — component to PNG via Satori + resvg",
   "license": "MIT",
   "repository": {

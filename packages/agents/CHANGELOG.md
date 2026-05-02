@@ -1,5 +1,81 @@
 # @vertz/agents
 
+## 0.2.80
+
+### Patch Changes
+
+- [#2997](https://github.com/vertz-dev/vertz/pull/2997) [`5bf64f2`](https://github.com/vertz-dev/vertz/commit/5bf64f25d03f3446874e8e6f5dfae05c07e9a05b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - BREAKING: `agentSessionColumns` / `agentMessageColumns` are now functions — call them (`...agentSessionColumns()`), don't spread the bare identifier.
+
+  ```ts
+  // Before (no longer compiles)
+  d.table("agent_sessions", agentSessionColumns, {
+    indexes: agentSessionIndexes,
+  });
+
+  // After (default behavior unchanged — still d.text() on disk)
+  d.table("agent_sessions", agentSessionColumns(), {
+    indexes: agentSessionIndexes,
+  });
+  ```
+
+  Closes [#2958](https://github.com/vertz-dev/vertz/issues/2958).
+
+  Pass `{ useJsonb: true }` with a generic to opt each column into
+  `d.jsonb<T>()`, which emits `JSONB` on Postgres (indexable, typed
+  operators) and stays `TEXT` on SQLite (the driver auto-parses on read):
+
+  ```ts
+  d.table(
+    "agent_sessions",
+    agentSessionColumns<AgentState>({ useJsonb: true }),
+    { indexes: agentSessionIndexes }
+  );
+
+  // Entity reads now return AgentState, not string.
+  const { items } = await ctx.entities["agent-session"].list({});
+  items[0]?.state.step; // typed
+  ```
+
+  The `AgentStore` path (`sqliteStore` / `d1Store`) is orthogonal — it keeps
+  its own `JSON.stringify` / `JSON.parse` wrapping and writes raw SQL, so
+  on SQLite the on-disk shape is the same in both modes and store/entity
+  readers share rows without coordination.
+
+- [#2966](https://github.com/vertz-dev/vertz/pull/2966) [`6181b03`](https://github.com/vertz-dev/vertz/commit/6181b036a5e19bcbd5bc582197bd0ef51e1ea14f) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(agents): bridge `AgentStore` with Vertz entities for RLS-aware queries [#2847]
+
+  Adds `@vertz/agents/entities` subpath exporting column packs
+  (`agentSessionColumns`, `agentMessageColumns`, `agentSessionIndexes`,
+  `agentMessageIndexes`) and a `defineAgentEntities(db)` factory that turns the
+  store's tables into first-class Vertz entities. App-side reads via
+  `/api/agent-session` routes or `ctx.entities.agentSession.list()` now flow
+  through the CRUD pipeline with full `rules.*` enforcement (auth, tenant
+  scoping, row-level `where`). Writes from the agent loop keep going through
+  `sqliteStore`/`d1Store` — same atomic paths, unchanged hot path.
+
+  **Breaking:** `AgentStore.appendMessages(sessionId, messages)` gains a third
+  `session: AgentSession` parameter — matches the existing
+  `appendMessagesAtomic` shape. `run.ts` already has the session in scope at the
+  call site; external `AgentStore` implementers need to update their method
+  signature (and, if they back entity reads, denormalize `userId`/`tenantId`
+  onto message rows as the shipped implementations now do).
+
+  **Breaking:** `agent_messages` gains `user_id` and `tenant_id` columns.
+  Fresh installs get them automatically; existing databases must run
+  `packages/agents/migrations/001-add-rls-columns.sql` once on upgrade.
+
+  Follow-ups tracked: #2957 (reject entity hook registration on factory
+  entities), #2958 (migrate `state`/`toolCalls` to `d.jsonb<T>()`).
+
+  See `plans/agent-store-entity-bridge.md` (merged as #2959) for the full
+  design and `guides/agents/entity-bridge` in mint-docs for usage.
+
+- Updated dependencies [[`4855184`](https://github.com/vertz-dev/vertz/commit/485518401f703a3d7bd7a57199f548e83c1c16c9), [`f426ce5`](https://github.com/vertz-dev/vertz/commit/f426ce57a57e7c23e84873250a94e9810ddcaeed)]:
+  - @vertz/schema@0.2.80
+  - @vertz/server@0.2.80
+  - @vertz/db@0.2.80
+  - @vertz/errors@0.2.80
+  - @vertz/sqlite@0.2.80
+
 ## 0.2.48
 
 ### Patch Changes

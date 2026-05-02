@@ -1,5 +1,7 @@
 # @vertz/runtime-darwin-arm64
 
+## 0.2.80
+
 ## 0.2.79
 
 ## 0.2.78

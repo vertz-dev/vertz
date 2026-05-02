@@ -1,6 +1,6 @@
 {
   "name": "@vertz/sqlite",
-  "version": "0.2.59",
+  "version": "0.2.80",
   "description": "Type declarations and runtime stubs for the Vertz SQLite driver",
   "license": "MIT",
   "repository": {
