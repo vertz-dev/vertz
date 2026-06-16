@@ -28,6 +28,10 @@
     "url": "https://github.com/vertz-dev/vertz.git",
     "directory": "packages/vertz"
   },
+  "homepage": "https://github.com/vertz-dev/vertz#readme",
+  "bugs": {
+    "url": "https://github.com/vertz-dev/vertz/issues"
+  },
   "files": [
     "dist",
     "client.d.ts"
